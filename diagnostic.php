@@ -108,7 +108,10 @@ function testPageAccess($url) {
         'url' => $url,
         'code' => 0,
         'accessible' => false,
-        'error' => null
+        'error' => null,
+        'content_type' => null,
+        'redirect_count' => 0,
+        'final_url' => null
     ];
     
     // Validation basique de l'URL
@@ -129,10 +132,10 @@ function testPageAccess($url) {
         
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HEADER, true);
-        curl_setopt($ch, CURLOPT_NOBODY, true);
+        curl_setopt($ch, CURLOPT_NOBODY, false); // Modifié pour récupérer le contenu
         curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true); // Suivre les redirections
-        curl_setopt($ch, CURLOPT_MAXREDIRS, 3); // Limiter le nombre de redirections
+        curl_setopt($ch, CURLOPT_MAXREDIRS, 5); // Augmenté le nombre max de redirections
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
         curl_setopt($ch, CURLOPT_USERAGENT, 'Pronote-Diagnostic/1.0');
@@ -147,8 +150,38 @@ function testPageAccess($url) {
         if ($response === false) {
             $result['error'] = curl_error($ch);
         } else {
+            // Analyser l'en-tête et le corps de la réponse
+            $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+            $header = substr($response, 0, $header_size);
+            $body = substr($response, $header_size);
+            
+            // Récupérer les infos sur la réponse
             $result['code'] = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $result['content_type'] = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+            $result['redirect_count'] = curl_getinfo($ch, CURLINFO_REDIRECT_COUNT);
+            $result['final_url'] = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+            
+            // Vérifier si la page est accessible
             $result['accessible'] = ($result['code'] >= 200 && $result['code'] < 400);
+            
+            // Vérifier si le contenu contient des messages d'erreur courants
+            if ($result['accessible']) {
+                if (strpos($body, 'Fatal error') !== false || 
+                    strpos($body, 'Parse error') !== false ||
+                    strpos($body, 'Warning:') !== false ||
+                    strpos($body, 'Notice:') !== false ||
+                    strpos($body, 'SQL syntax') !== false ||
+                    strpos($body, 'database error') !== false) {
+                    $result['accessible'] = false;
+                    $result['error'] = "La page contient des erreurs PHP ou SQL visibles";
+                }
+                
+                // Vérifier si c'est une page de login alors qu'on devrait être connecté
+                if (strpos($body, 'form method="post"') !== false && 
+                    (strpos($body, 'password') !== false || strpos($body, 'mot de passe') !== false)) {
+                    $result['warning'] = "Cette page semble être un formulaire de connexion. Vous pourriez avoir été redirigé.";
+                }
+            }
         }
         
         curl_close($ch);
@@ -390,15 +423,48 @@ if (defined('BASE_URL')) {
     $baseUrl = BASE_URL;
 }
 
-// Pages à tester
+// Pages à tester avec des descriptions plus détaillées
 $pages = [
-    'Accueil' => $baseUrl . '/accueil/accueil.php',
-    'Login' => $baseUrl . '/login/public/index.php',
-    'Logout' => $baseUrl . '/login/public/logout.php',
-    'Notes' => $baseUrl . '/notes/notes.php',
-    'Absences' => $baseUrl . '/absences/absences.php',
-    'Agenda' => $baseUrl . '/agenda/agenda.php',
-    'Cahier de Textes' => $baseUrl . '/cahierdetextes/cahierdetextes.php'
+    'Accueil' => [
+        'url' => $baseUrl . '/accueil/accueil.php',
+        'description' => 'Page d\'accueil principale'
+    ],
+    'Login' => [
+        'url' => $baseUrl . '/login/public/index.php',
+        'description' => 'Page de connexion'
+    ],
+    'Logout' => [
+        'url' => $baseUrl . '/login/public/logout.php',
+        'description' => 'Déconnexion'
+    ],
+    'Notes' => [
+        'url' => $baseUrl . '/notes/notes.php',
+        'description' => 'Module de gestion des notes'
+    ],
+    'Ajouter Note' => [
+        'url' => $baseUrl . '/notes/ajouter_note.php',
+        'description' => 'Formulaire d\'ajout de notes'
+    ],
+    'Absences' => [
+        'url' => $baseUrl . '/absences/absences.php',
+        'description' => 'Liste des absences'
+    ],
+    'Justificatifs' => [
+        'url' => $baseUrl . '/absences/justificatifs.php',
+        'description' => 'Gestion des justificatifs d\'absence'
+    ],
+    'Agenda' => [
+        'url' => $baseUrl . '/agenda/agenda.php',
+        'description' => 'Calendrier et événements'
+    ],
+    'Cahier de Textes' => [
+        'url' => $baseUrl . '/cahierdetextes/cahierdetextes.php',
+        'description' => 'Cahier de textes et devoirs'
+    ],
+    'Messagerie' => [
+        'url' => $baseUrl . '/messagerie/index.php',
+        'description' => 'Système de messagerie'
+    ]
 ];
 
 // Détection du chemin absolu de l'application
@@ -459,55 +525,202 @@ $phpSecurity = testPhpSecurity();
 // Vérifications de mises à jour de sécurité
 $securityUpdates = checkSecurityUpdates();
 
+// Tenter de charger la configuration directement
+$dbCredentials = [
+    'host' => 'localhost',
+    'dbname' => '',
+    'user' => '',
+    'pass' => ''
+];
+
+// Essayer de charger les constantes depuis env.php
+$envFile = __DIR__ . '/API/config/env.php';
+if (file_exists($envFile) && is_readable($envFile)) {
+    include_once $envFile;
+    if (defined('DB_HOST')) $dbCredentials['host'] = DB_HOST;
+    if (defined('DB_NAME')) $dbCredentials['dbname'] = DB_NAME;
+    if (defined('DB_USER')) $dbCredentials['user'] = DB_USER;
+    if (defined('DB_PASS')) $dbCredentials['pass'] = DB_PASS;
+}
+
+// Tester la connexion à la base de données
+$dbTest = testDatabaseConnection(
+    $dbCredentials['host'], 
+    $dbCredentials['dbname'], 
+    $dbCredentials['user'], 
+    $dbCredentials['pass']
+);
+
 // Vérifier la structure des tables essentielles de façon sécurisée
 try {
-    $dbStatus = ['connected' => false, 'tables' => []];
+    $dbStatus = ['connected' => $dbTest['success'], 'tables' => [], 'error' => $dbTest['error'] ?? null];
     
-    if (function_exists('getDBConnection')) {
-        $pdo = getDBConnection();
-        $dbStatus['connected'] = ($pdo instanceof \PDO);
+    if ($dbStatus['connected']) {
+        // Si la connexion a réussi, vérifier les tables
+        $dsn = "mysql:host={$dbCredentials['host']};dbname={$dbCredentials['dbname']};charset=utf8mb4";
+        $options = [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false
+        ];
+        
+        $pdo = new PDO($dsn, $dbCredentials['user'], $dbCredentials['pass'], $options);
         
         // Vérifier les tables critiques
-        if ($dbStatus['connected']) {
-            $criticalTables = [
-                'administrateurs', 'eleves', 'professeurs', 'vie_scolaire',
-                'notes', 'absences', 'evenements', 'messages'
-            ];
-            
-            foreach ($criticalTables as $table) {
-                try {
-                    // Utiliser des requêtes préparées même pour les requêtes simples
-                    $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
-                    $stmt->execute([$table]);
-                    $exists = $stmt && $stmt->rowCount() > 0;
+        $criticalTables = [
+            'administrateurs', 'eleves', 'professeurs', 'vie_scolaire',
+            'notes', 'absences', 'evenements', 'messages', 'justificatifs'
+        ];
+        
+        foreach ($criticalTables as $table) {
+            try {
+                // Utiliser des requêtes préparées même pour les requêtes simples
+                $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
+                $stmt->execute([$table]);
+                $exists = $stmt && $stmt->rowCount() > 0;
+                
+                if ($exists) {
+                    // Vérifier le nombre d'enregistrements
+                    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM `" . $table . "`");
+                    $countStmt->execute();
+                    $count = $countStmt ? $countStmt->fetchColumn() : '?';
                     
-                    if ($exists) {
-                        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM `" . $table . "`");
-                        $countStmt->execute();
-                        $count = $countStmt ? $countStmt->fetchColumn() : '?';
-                    } else {
-                        $count = 'N/A';
+                    // Vérifier la structure de la table
+                    $columnsStmt = $pdo->prepare("SHOW COLUMNS FROM `" . $table . "`");
+                    $columnsStmt->execute();
+                    $columnsCount = $columnsStmt->rowCount();
+                    $columns = $columnsStmt->fetchAll();
+                    $columnsData = [];
+                    
+                    foreach ($columns as $col) {
+                        $columnsData[] = [
+                            'name' => $col['Field'],
+                            'type' => $col['Type'],
+                            'key' => $col['Key']
+                        ];
                     }
                     
                     $dbStatus['tables'][$table] = [
-                        'exists' => $exists,
-                        'count' => $count
+                        'exists' => true,
+                        'count' => $count,
+                        'columns_count' => $columnsCount,
+                        'columns' => $columnsData
                     ];
-                } catch (\PDOException $e) {
+                } else {
                     $dbStatus['tables'][$table] = [
                         'exists' => false,
                         'count' => 'N/A',
-                        'error' => "Erreur lors de l'accès à la table"
+                        'error' => "La table n'existe pas"
                     ];
                 }
+            } catch (\PDOException $e) {
+                $dbStatus['tables'][$table] = [
+                    'exists' => false,
+                    'count' => 'N/A',
+                    'error' => "Erreur lors de l'accès à la table: " . $e->getMessage()
+                ];
             }
+        }
+        
+        // Vérifier les indexs important manquants
+        $dbStatus['missing_indexes'] = [];
+        
+        // Vérifier l'index sur la table notes (id_eleve, id_matiere)
+        try {
+            $indexStmt = $pdo->query("SHOW INDEX FROM notes");
+            $indexes = $indexStmt->fetchAll();
+            $hasEleveMatiere = false;
+            
+            foreach ($indexes as $idx) {
+                if (($idx['Column_name'] === 'id_eleve' || $idx['Column_name'] === 'id_matiere') && 
+                    $idx['Key_name'] === 'idx_eleve_matiere') {
+                    $hasEleveMatiere = true;
+                    break;
+                }
+            }
+            
+            if (!$hasEleveMatiere) {
+                $dbStatus['missing_indexes'][] = "Index manquant sur la table notes: idx_eleve_matiere";
+            }
+        } catch (\PDOException $e) {
+            // La table notes n'existe peut-être pas ou autre erreur
         }
     }
 } catch (\Exception $e) {
     $dbStatus = [
         'connected' => false,
-        'error' => "Erreur lors de la connexion à la base de données"
+        'error' => "Erreur lors de la connexion à la base de données: " . $e->getMessage()
     ];
+}
+
+/**
+ * Teste spécifique de la connexion à la base de données 
+ * @param string $host Hôte de la base de données
+ * @param string $dbName Nom de la base de données
+ * @param string $user Nom d'utilisateur
+ * @param string $pass Mot de passe
+ * @return array Résultat du test
+ */
+function testDatabaseConnection($host, $dbName, $user, $pass) {
+    $result = ['success' => false, 'error' => null, 'details' => []];
+    
+    try {
+        // Tenter la connexion
+        $start = microtime(true);
+        $dsn = "mysql:host={$host};";
+        $options = [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_TIMEOUT => 5,
+            PDO::ATTR_EMULATE_PREPARES => false
+        ];
+        
+        // Essayer de se connecter au serveur sans spécifier de base de données
+        $pdo = new PDO($dsn, $user, $pass, $options);
+        $serverConnectTime = microtime(true) - $start;
+        
+        $result['details']['server_connection'] = [
+            'success' => true,
+            'time' => round($serverConnectTime * 1000, 2) . 'ms',
+        ];
+        
+        // Maintenant, essayer de sélectionner la base de données
+        $dbStart = microtime(true);
+        try {
+            $pdo->exec("USE `{$dbName}`");
+            $dbSelectTime = microtime(true) - $dbStart;
+            
+            $result['details']['database_selection'] = [
+                'success' => true,
+                'time' => round($dbSelectTime * 1000, 2) . 'ms',
+            ];
+            
+            // Vérifier la version de MySQL
+            $versionStmt = $pdo->query('SELECT VERSION() as version');
+            $versionInfo = $versionStmt->fetch(PDO::FETCH_ASSOC);
+            $result['details']['server_version'] = $versionInfo['version'] ?? 'Inconnue';
+            
+            // Exécuter une requête simple pour tester le temps de réponse
+            $testStart = microtime(true);
+            $pdo->query('SELECT 1');
+            $testTime = microtime(true) - $testStart;
+            
+            $result['details']['query_time'] = round($testTime * 1000, 2) . 'ms';
+            
+            $result['success'] = true;
+        } catch (PDOException $e) {
+            $result['details']['database_selection'] = [
+                'success' => false,
+                'error' => "Base de données '{$dbName}' inaccessible: " . $e->getMessage()
+            ];
+            $result['error'] = "Impossible de sélectionner la base de données: {$e->getMessage()}";
+        }
+    } catch (PDOException $e) {
+        $result['error'] = "Échec de connexion au serveur MySQL: {$e->getMessage()}";
+    } catch (Exception $e) {
+        $result['error'] = "Erreur générale: {$e->getMessage()}";
+    }
+    
+    return $result;
 }
 
 // Recherche de problèmes de sécurité courants dans les fichiers PHP
@@ -852,22 +1065,62 @@ if ($installStatus['install_exists'] && $installStatus['lock_exists']) {
             <table>
                 <tr>
                     <th>Page</th>
-                    <th>URL</th>
+                    <th>Description</th>
                     <th>Code HTTP</th>
                     <th>Accessible</th>
-                    <th>Erreur</th>
+                    <th>État</th>
                 </tr>
-                <?php foreach ($pages as $name => $url): ?>
-                    <?php $access = testPageAccess($url); ?>
+                <?php 
+                $accessibleCount = 0;
+                $totalPages = count($pages);
+                foreach ($pages as $name => $pageInfo):
+                    $url = is_array($pageInfo) ? $pageInfo['url'] : $pageInfo;
+                    $description = is_array($pageInfo) ? $pageInfo['description'] : '';
+                    $access = testPageAccess($url);
+                    if ($access['accessible']) $accessibleCount++;
+                ?>
                     <tr>
                         <td><?= htmlspecialchars($name) ?></td>
-                        <td><a href="<?= htmlspecialchars($url) ?>" target="_blank"><?= htmlspecialchars($url) ?></a></td>
+                        <td><?= htmlspecialchars($description) ?></td>
                         <td><?= $access['code'] ?></td>
                         <td class="<?= $access['accessible'] ? 'success' : 'error' ?>"><?= $access['accessible'] ? 'Oui' : 'Non' ?></td>
-                        <td class="error"><?= htmlspecialchars($access['error'] ?? '') ?></td>
+                        <td>
+                            <?php if ($access['accessible']): ?>
+                                <?php if (isset($access['warning'])): ?>
+                                    <span class="warning"><?= htmlspecialchars($access['warning']) ?></span>
+                                <?php else: ?>
+                                    <span class="success">OK</span>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <span class="error"><?= htmlspecialchars($access['error'] ?? 'Inaccessible') ?></span>
+                            <?php endif; ?>
+                            
+                            <?php if ($access['redirect_count'] > 0): ?>
+                                <br><small>Redirections: <?= $access['redirect_count'] ?></small>
+                            <?php endif; ?>
+                            
+                            <?php if ($access['final_url'] !== $url): ?>
+                                <br><small>URL finale: <?= htmlspecialchars($access['final_url']) ?></small>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
             </table>
+            
+            <div style="margin-top: 15px; padding: 10px; border-radius: 5px;" class="<?= $accessibleCount == $totalPages ? 'success' : 'warning' ?>">
+                <p><strong>État général:</strong> <?= $accessibleCount ?>/<?= $totalPages ?> pages accessibles</p>
+                
+                <?php if ($accessibleCount < $totalPages): ?>
+                    <h3>Causes possibles des problèmes d'accessibilité:</h3>
+                    <ul>
+                        <li>Vérifiez que le chemin de base <code><?= htmlspecialchars($baseUrl) ?></code> est correct</li>
+                        <li>Assurez-vous que les fichiers existent aux emplacements spécifiés</li>
+                        <li>Vérifiez que l'authentification fonctionne correctement</li>
+                        <li>Examinez les journaux d'erreurs PHP/Apache pour plus de détails</li>
+                    </ul>
+                    <button class="button" onclick="window.location.href='API/tools/path_debug.php'">Exécuter l'outil de diagnostic de chemins</button>
+                <?php endif; ?>
+            </div>
         </div>
         
         <div class="section">
@@ -992,6 +1245,52 @@ if ($installStatus['install_exists'] && $installStatus['lock_exists']) {
                 <?= $dbStatus['connected'] ? 'Connecté' : 'Non connecté' ?>
                 <?= isset($dbStatus['error']) ? ' - ' . htmlspecialchars($dbStatus['error']) : '' ?>
             </p>
+            
+            <?php if (!empty($dbTest['details'])): ?>
+            <h3>Détails de la connexion</h3>
+            <table>
+                <tr>
+                    <th>Étape</th>
+                    <th>Résultat</th>
+                    <th>Temps</th>
+                </tr>
+                <?php if (isset($dbTest['details']['server_connection'])): ?>
+                <tr>
+                    <td>Connexion au serveur</td>
+                    <td class="<?= $dbTest['details']['server_connection']['success'] ? 'success' : 'error' ?>">
+                        <?= $dbTest['details']['server_connection']['success'] ? 'OK' : 'Échec' ?>
+                    </td>
+                    <td><?= $dbTest['details']['server_connection']['time'] ?? 'N/A' ?></td>
+                </tr>
+                <?php endif; ?>
+                
+                <?php if (isset($dbTest['details']['database_selection'])): ?>
+                <tr>
+                    <td>Sélection de la base de données</td>
+                    <td class="<?= $dbTest['details']['database_selection']['success'] ? 'success' : 'error' ?>">
+                        <?= $dbTest['details']['database_selection']['success'] ? 'OK' : 'Échec' ?>
+                        <?= isset($dbTest['details']['database_selection']['error']) ? ' - ' . htmlspecialchars($dbTest['details']['database_selection']['error']) : '' ?>
+                    </td>
+                    <td><?= $dbTest['details']['database_selection']['time'] ?? 'N/A' ?></td>
+                </tr>
+                <?php endif; ?>
+                
+                <?php if (isset($dbTest['details']['query_time'])): ?>
+                <tr>
+                    <td>Temps de requête test</td>
+                    <td class="success">OK</td>
+                    <td><?= $dbTest['details']['query_time'] ?></td>
+                </tr>
+                <?php endif; ?>
+                
+                <?php if (isset($dbTest['details']['server_version'])): ?>
+                <tr>
+                    <td>Version du serveur</td>
+                    <td colspan="2"><?= htmlspecialchars($dbTest['details']['server_version']) ?></td>
+                </tr>
+                <?php endif; ?>
+            </table>
+            <?php endif; ?>
         </div>
         
         <?php if ($dbStatus['connected'] && isset($dbStatus['tables'])): ?>
@@ -1002,6 +1301,8 @@ if ($installStatus['install_exists'] && $installStatus['lock_exists']) {
                         <th>Table</th>
                         <th>Existe</th>
                         <th>Nombre d'enregistrements</th>
+                        <th>Colonnes</th>
+                        <th>Statut</th>
                     </tr>
                     <?php foreach ($dbStatus['tables'] as $table => $status): ?>
                         <tr>
@@ -1010,9 +1311,68 @@ if ($installStatus['install_exists'] && $installStatus['lock_exists']) {
                                 <?= $status['exists'] ? 'Oui' : 'Non' ?>
                             </td>
                             <td><?= htmlspecialchars($status['count']) ?></td>
+                            <td>
+                                <?php if ($status['exists'] && isset($status['columns_count'])): ?>
+                                    <?= $status['columns_count'] ?> colonnes
+                                    <button class="copy-button" onclick="toggleColumns('<?= $table ?>')">Afficher/Masquer</button>
+                                <?php else: ?>
+                                    -
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if (!$status['exists']): ?>
+                                    <span class="error">Table manquante</span>
+                                <?php elseif ((int)$status['columns_count'] < 3): ?>
+                                    <span class="warning">Structure incomplète</span>
+                                <?php else: ?>
+                                    <span class="success">OK</span>
+                                <?php endif; ?>
+                            </td>
                         </tr>
+                        <?php if ($status['exists'] && isset($status['columns'])): ?>
+                        <tr id="columns-<?= $table ?>" style="display: none;">
+                            <td colspan="5">
+                                <div style="max-height: 200px; overflow-y: auto;">
+                                    <table style="width: 100%;">
+                                        <tr>
+                                            <th>Nom</th>
+                                            <th>Type</th>
+                                            <th>Clé</th>
+                                        </tr>
+                                        <?php foreach ($status['columns'] as $col): ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($col['name']) ?></td>
+                                            <td><?= htmlspecialchars($col['type']) ?></td>
+                                            <td><?= htmlspecialchars($col['key']) ?></td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    </table>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
                     <?php endforeach; ?>
                 </table>
+                
+                <?php if (!empty($dbStatus['missing_indexes'])): ?>
+                <h3>Index manquants recommandés</h3>
+                <ul>
+                    <?php foreach ($dbStatus['missing_indexes'] as $index): ?>
+                    <li class="warning"><?= htmlspecialchars($index) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+                <?php endif; ?>
+                
+                <h3>Actions recommandées</h3>
+                <?php if (count(array_filter($dbStatus['tables'], function($t) { return !$t['exists']; })) > 0): ?>
+                    <p class="error">Certaines tables essentielles sont manquantes. Vous devriez réinstaller la base de données.</p>
+                    <button class="button" onclick="if(confirm('Êtes-vous sûr de vouloir créer les tables manquantes?')) { window.location.href='API/tools/rebuild_db.php'; }">Créer les tables manquantes</button>
+                <?php elseif (!empty($dbStatus['missing_indexes'])): ?>
+                    <p class="warning">Des index recommandés sont manquants. Vous devriez les ajouter pour améliorer les performances.</p>
+                    <button class="button" onclick="if(confirm('Êtes-vous sûr de vouloir ajouter les index manquants?')) { window.location.href='API/tools/add_indexes.php'; }">Ajouter les index manquants</button>
+                <?php else: ?>
+                    <p class="success">La structure de la base de données semble correcte.</p>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
     </div>
@@ -1134,7 +1494,22 @@ if ($installStatus['install_exists'] && $installStatus['lock_exists']) {
                 tokenInput.value = '<?= htmlspecialchars($diagToken) ?>';
                 form.appendChild(tokenInput);
             }
-        });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</html></body>    </script>    }        }            columnsRow.style.display = 'none';        } else {            columnsRow.style.display = 'table-row';        if (columnsRow.style.display === 'none') {        const columnsRow = document.getElementById('columns-' + tableName);    function toggleColumns(tableName) {    // Fonction pour afficher/masquer les colonnes des tables    });        });        });
     });
     </script>
 </body>

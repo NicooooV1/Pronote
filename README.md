@@ -229,6 +229,35 @@ chmod 640 API/config/*.php
 chown -R :www-data API/logs uploads temp
 ```
 
+### Configuration de la base de données
+
+La base de données est au cœur du système. Sa configuration correcte est essentielle:
+
+1. **Structure des tables principales**:
+   - `administrateurs`: Comptes administratifs
+   - `eleves`: Informations sur les élèves
+   - `professeurs`: Informations sur les enseignants
+   - `classes`: Liste des classes
+   - `notes`: Stockage des notes
+   - `absences`: Gestion des absences
+   - `messages`: Système de messagerie
+   - `evenements`: Événements d'agenda
+   - `matieres`: Liste des matières enseignées
+
+2. **Optimisation des performances**:
+   - Ajoutez des index sur les colonnes fréquemment recherchées
+   - Exemple: `ALTER TABLE notes ADD INDEX idx_eleve_matiere (id_eleve, id_matiere);`
+   - Utilisez le moteur InnoDB pour la plupart des tables
+
+3. **Maintenance de la base de données**:
+   ```sql
+   -- Optimisation périodique des tables
+   OPTIMIZE TABLE notes, absences, messages;
+   
+   -- Analyse des tables pour optimiser les requêtes
+   ANALYZE TABLE notes, absences, messages;
+   ```
+
 ## Structure du projet
 
 L'application est organisée en modules distincts suivant une architecture modulaire :
@@ -237,24 +266,73 @@ L'application est organisée en modules distincts suivant une architecture modul
 pronote/
 ├── accueil/           # Page d'accueil
 ├── API/               # API centralisée et système d'authentification
+│   ├── auth_central.php  # Système d'authentification centralisé
+│   ├── config/        # Configurations et variables d'environnement
+│   ├── core/          # Fonctions essentielles du système
+│   └── logs/          # Journaux d'événements et d'erreurs
 ├── notes/             # Module de gestion des notes
 ├── absences/          # Module de gestion des absences
 ├── cahierdetextes/    # Module de cahier de textes et devoirs
 ├── agenda/            # Module d'agenda et d'événements
 ├── messagerie/        # Module de messagerie interne
 ├── login/             # Système d'authentification
+│   ├── public/        # Pages publiques (login, reset password)
+│   └── data/          # Données de configuration 
 ├── uploads/           # Dossier pour les fichiers uploadés
-└── temp/              # Dossier temporaire
+├── temp/              # Dossier temporaire
+├── assets/            # Ressources partagées (CSS, JS, images)
+├── install.php        # Script d'installation
+├── diagnostic.php     # Outil de diagnostic système
+└── README.md          # Documentation
 ```
 
 ## Sécurité
 
 La sécurité est une priorité dans le développement de cette application. Voici quelques-unes des mesures mises en place :
 
-- **Validation et assainissement des entrées** : Toutes les données utilisateur sont systématiquement validées et assainies pour prévenir les injections SQL et les attaques XSS.
-- **Gestion des sessions** : Les sessions sont gérées de manière sécurisée, avec des identifiants de session uniques et des protections contre le détournement de session.
-- **Chiffrement des données sensibles** : Les mots de passe et autres données sensibles sont chiffrés à l'aide d'algorithmes robustes.
-- **Contrôle d'accès** : Des contrôles d'accès stricts sont appliqués pour s'assurer que les utilisateurs n'ont accès qu'aux fonctionnalités et données qui les concernent.
+### Protection contre les attaques courantes
+
+- **Injections SQL** : Toutes les requêtes utilisent des requêtes préparées (PDO)
+- **XSS (Cross-Site Scripting)** : Échappement systématique des sorties avec `htmlspecialchars()`
+- **CSRF (Cross-Site Request Forgery)** : Utilisation de jetons CSRF pour les formulaires
+- **Fixation de session** : Régénération des identifiants de session après connexion
+
+### Sécurité des mots de passe
+
+- Les mots de passe sont hachés avec `password_hash()` utilisant l'algorithme par défaut
+- Règles strictes de complexité: minimum 12 caractères, majuscules, minuscules, chiffres, caractères spéciaux
+- Possibilité de réinitialisation sécurisée des mots de passe
+
+### Protection des données
+
+- Validation et assainissement des entrées utilisateur
+- Protection des données sensibles lors des communications (HTTPS recommandé)
+- Séparation des environnements (développement, test, production)
+- Gestion des droits d'accès basée sur les rôles (RBAC)
+
+### Bonnes pratiques supplémentaires
+
+- Mise en œuvre d'un système de journalisation des événements importants
+- Limitation des tentatives de connexion échouées
+- Protection contre les attaques par force brute
+- Analyse régulière des journaux de sécurité
+
+### Audit et maintenance de sécurité
+
+Pour maintenir un niveau de sécurité optimal:
+
+1. **Audits réguliers**:
+   ```bash
+   # Vérifier les permissions des fichiers sensibles
+   find . -name "*.php" -type f -perm /o+w -exec ls -l {} \;
+   
+   # Rechercher les fichiers de configuration mal protégés
+   find . -name "config*.php" -o -name "*.env" | xargs ls -la
+   ```
+
+2. **Mises à jour de sécurité**:
+   - Surveiller les mises à jour de PHP et des bibliothèques utilisées
+   - Appliquer les correctifs de sécurité rapidement
 
 ## Modules
 
@@ -280,6 +358,12 @@ Ce module permet la gestion des notes des élèves :
 - **Consultation des notes** : `/notes/notes.php`
 - **Modification d'une note** : `/notes/modifier_note.php?id=[ID_NOTE]`
 - **Suppression d'une note** : `/notes/supprimer_note.php?id=[ID_NOTE]`
+- **Interface des notes** : `/notes/interface_notes.php`
+
+**Calcul des moyennes** :
+- Moyennes par matière, par trimestre et générale
+- Prise en compte des coefficients
+- Génération automatique des rangs
 
 ### Module Absences
 
@@ -293,6 +377,9 @@ Ce module gère les absences et retards des élèves :
 - **Saisie d'absences** : `/absences/ajouter_absence.php`
 - **Faire l'appel** : `/absences/appel.php`
 - **Consultation des absences** : `/absences/absences.php`
+- **Gestion des justificatifs** : `/absences/justificatifs.php`
+- **Détails d'une absence** : `/absences/details_absence.php?id=[ID_ABSENCE]`
+- **Statistiques** : `/absences/statistiques.php`
 
 ### Module Cahier de textes
 
@@ -305,6 +392,7 @@ Ce module permet de gérer les devoirs et le contenu des cours :
 - **Ajout de devoir** : `/cahierdetextes/ajouter_devoir.php`
 - **Consultation des devoirs** : `/cahierdetextes/cahierdetextes.php`
 - **Modification d'un devoir** : `/cahierdetextes/modifier_devoir.php?id=[ID_DEVOIR]`
+- **Détails d'un devoir** : `/cahierdetextes/details_devoir.php?id=[ID_DEVOIR]`
 
 ### Module Agenda
 
@@ -317,6 +405,7 @@ Ce module gère les événements et l'agenda de l'établissement :
 - **Ajout d'événement** : `/agenda/ajouter_evenement.php`
 - **Consultation de l'agenda** : `/agenda/agenda.php`
 - **Modification d'un événement** : `/agenda/modifier_evenement.php?id=[ID_EVENEMENT]`
+- **Détails d'un événement** : `/agenda/details_evenement.php?id=[ID_EVENEMENT]`
 
 ### Module Messagerie
 
@@ -329,6 +418,7 @@ Ce module permet la communication interne entre les différents acteurs :
 - **Consultation des messages** : `/messagerie/index.php`
 - **Nouvelle conversation** : `/messagerie/nouvelle_conversation.php`
 - **Lecture d'une conversation** : `/messagerie/conversation.php?id=[ID_CONVERSATION]`
+- **API de statut de lecture** : `/messagerie/api/read_status.php`
 
 ## Utilisation
 
@@ -339,37 +429,197 @@ Après l'installation et la configuration, voici comment utiliser l'application 
 3. **Navigation** : Utilisez le menu pour naviguer entre les différents modules (notes, absences, cahier de textes, agenda, messagerie).
 4. **Déconnexion** : Pour vous déconnecter, cliquez sur le lien de déconnexion dans le menu.
 
+### Workflows principaux par rôle
+
+#### Professeurs
+1. **Saisie des notes**:
+   - Naviguer vers le module Notes
+   - Choisir "Ajouter une note"
+   - Sélectionner la classe et la matière
+   - Entrer les notes des élèves
+
+2. **Faire l'appel**:
+   - Naviguer vers le module Absences
+   - Sélectionner "Faire l'appel"
+   - Choisir la classe et le créneau
+   - Marquer les élèves absents ou en retard
+
+#### Élèves
+1. **Consulter les notes**:
+   - Naviguer vers le module Notes
+   - Visualiser les notes par matière ou par trimestre
+
+2. **Justifier une absence**:
+   - Naviguer vers le module Absences
+   - Sélectionner l'absence à justifier
+   - Fournir un justificatif numérique
+
+#### Administrateurs
+1. **Gestion des utilisateurs**:
+   - Accéder au panneau d'administration
+   - Sélectionner "Gestion des utilisateurs"
+   - Ajouter, modifier ou désactiver des comptes
+
+2. **Consultation des statistiques**:
+   - Naviguer vers le module approprié
+   - Sélectionner les rapports souhaités
+   - Filtrer par période, classe ou matière
+
 ## Maintenance
 
 Pour assurer le bon fonctionnement de l'application, voici quelques tâches de maintenance régulières :
 
-- **Sauvegardes** : Effectuez des sauvegardes régulières de la base de données et des fichiers importants.
-- **Mises à jour** : Tenez l'application à jour avec les dernières versions pour bénéficier des améliorations et correctifs de sécurité.
-- **Surveillance** : Surveillez les journaux d'erreurs et d'accès pour détecter d'éventuels problèmes ou tentatives d'intrusion.
+### Sauvegardes
+
+Il est crucial de mettre en place un système de sauvegarde régulier:
+
+```bash
+# Exemple de script de sauvegarde MySQL
+#!/bin/bash
+DATE=$(date +%Y-%m-%d)
+BACKUP_DIR="/chemin/vers/backups"
+DB_USER="votre_utilisateur"
+DB_PASS="votre_mot_de_passe"
+DB_NAME="pronote_db"
+
+# Créer le répertoire de sauvegarde si nécessaire
+mkdir -p $BACKUP_DIR
+
+# Sauvegarde de la base de données
+mysqldump -u$DB_USER -p$DB_PASS $DB_NAME | gzip > $BACKUP_DIR/pronote_db_$DATE.sql.gz
+
+# Sauvegarde des fichiers importants
+tar -czf $BACKUP_DIR/pronote_files_$DATE.tar.gz /chemin/vers/pronote/uploads /chemin/vers/pronote/API/config
+
+# Conserver seulement les 30 derniers jours de sauvegarde
+find $BACKUP_DIR -name "pronote_*" -type f -mtime +30 -delete
+```
+
+### Nettoyage des fichiers temporaires
+
+```bash
+# Nettoyage des fichiers temporaires de plus de 7 jours
+find /chemin/vers/pronote/temp -type f -mtime +7 -delete
+
+# Rotation des journaux
+find /chemin/vers/pronote/API/logs -name "*.log" -type f -mtime +30 -delete
+```
+
+### Optimisation des performances
+
+Pour maintenir les performances optimales:
+
+1. **Compression des ressources statiques**:
+   - Activer la compression gzip dans votre serveur web
+   - Utiliser des outils de minification pour CSS/JS
+
+2. **Mise en cache**:
+   - Configurer le cache navigateur pour les ressources statiques
+   - Optimiser le cache des requêtes fréquentes
+
+3. **Monitoring**:
+   - Surveiller l'utilisation des ressources (CPU, mémoire)
+   - Analyser les temps de réponse et optimiser les requêtes lentes
+
+### Mises à jour
+
+Les mises à jour de sécurité doivent être appliquées rapidement:
+
+1. **Vérifier régulièrement les mises à jour**
+2. **Effectuer une sauvegarde complète avant toute mise à jour**
+3. **Tester les mises à jour dans un environnement de test avant déploiement en production**
+4. **Documenter chaque mise à jour avec les changements effectués**
 
 ## Dépannage
 
 ### Problèmes courants
 
 1. **Erreur de connexion à la base de données**
-   - Vérifiez les paramètres de connexion dans `API/config/env.php`
-   - Assurez-vous que le serveur MySQL est en cours d'exécution
-   - Vérifiez les droits de l'utilisateur de la base de données
+   - **Symptômes**: Message d'erreur "Could not connect to database" ou page blanche
+   - **Causes possibles**:
+     - Identifiants de connexion incorrects dans `API/config/env.php`
+     - Base de données inaccessible ou arrêtée
+     - Réseau entre le serveur web et la BD bloqué
+   - **Solutions**:
+     - Vérifier les paramètres de connexion (hôte, nom d'utilisateur, mot de passe)
+     - S'assurer que le serveur MySQL est en cours d'exécution
+     - Tester la connectivité avec la commande: `telnet [db_host] 3306`
+     - Vérifier les journaux MySQL pour détecter d'éventuelles erreurs
 
 2. **Erreur "Headers already sent"**
-   - Vérifiez qu'il n'y a pas de sortie HTML avant les instructions `header()`
-   - Ajoutez `ob_start();` au début de vos scripts
+   - **Symptômes**: Erreur PHP mentionnant "headers already sent"
+   - **Causes possibles**:
+     - Caractères ou espaces avant `<?php`
+     - Sortie HTML avant les redirections
+     - BOM UTF-8 au début des fichiers PHP
+   - **Solutions**:
+     - Ajouter `ob_start();` au début des scripts
+     - Vérifier l'absence de caractères avant `<?php`
+     - Utiliser un éditeur qui sauvegarde sans BOM UTF-8
+     - Convertir les fichiers avec: `sed -i '1s/^\xEF\xBB\xBF//' fichier.php`
 
 3. **Problèmes d'authentification**
-   - Vérifiez que les sessions sont correctement configurées
-   - Utilisez la page de diagnostic pour vérifier les chemins d'accès
+   - **Symptômes**: Impossibilité de se connecter, redirections en boucle
+   - **Causes possibles**:
+     - Sessions PHP mal configurées
+     - Chemins de cookies incorrects
+     - Problème de permissions sur le répertoire de session
+   - **Solutions**:
+     - Vérifier la configuration des sessions dans `php.ini`
+     - Vérifier que `session.save_path` est accessible en écriture
+     - Tester avec la fonction `session_save_path()`
+     - Analyser avec le script de diagnostic (`/diagnostic.php`)
+
+4. **Pages inaccessibles ou introuvables**
+   - **Symptômes**: Erreurs 404, redirections incorrectes
+   - **Causes possibles**:
+     - Mauvaise configuration de `BASE_URL`
+     - Problème de réécriture d'URL (.htaccess)
+     - Permissions insuffisantes sur les fichiers
+   - **Solutions**:
+     - Vérifier la valeur de `BASE_URL` dans `API/config/env.php`
+     - S'assurer que les fichiers `.htaccess` sont correctement configurés
+     - Vérifier que mod_rewrite est activé sur Apache
+     - Utiliser l'outil de diagnostic des chemins: `API/tools/path_debug.php`
+
+5. **Affichage incorrect ou problèmes CSS/JS**
+   - **Symptômes**: Interface graphique brisée, fonctionnalités JavaScript non fonctionnelles
+   - **Causes possibles**:
+     - Chemins relatifs incorrects vers les ressources
+     - Conflits entre bibliothèques
+     - Compression ou minification défectueuse
+   - **Solutions**:
+     - Utiliser les outils de développement du navigateur (F12)
+     - Vérifier les chemins vers les ressources dans l'inspecteur réseau
+     - Corriger les chemins dans les balises `<link>` et `<script>`
+     - Tester en désactivant temporairement la minification
 
 ### Page de diagnostic
 
-Une page de diagnostic est disponible pour les administrateurs à l'adresse suivante :
+Une page de diagnostic complète est disponible pour les administrateurs à l'adresse suivante:
 `/diagnostic.php`
 
-Cette page vérifie la configuration, les permissions et l'accessibilité des différents modules.
+Cette page vérifie:
+- La configuration du système
+- Les permissions des répertoires
+- La connectivité à la base de données
+- L'accessibilité des modules
+- La sécurité et les vulnérabilités potentielles
+
+Pour les problèmes plus spécifiques:
+
+- **Problèmes d'authentification**: `/API/tools/function_inspector.php`
+- **Problèmes de chemins**: `/API/tools/path_debug.php`
+- **Débogage de session**: `/login/public/debug.php`
+
+### Journaux d'erreur
+
+Consultez les journaux pour identifier les problèmes:
+
+- **Journal d'erreurs PHP**: Généralement dans `/var/log/apache2/error.log` ou défini dans `php.ini`
+- **Journal d'erreurs de l'application**: `API/logs/error_YYYY-MM-DD.log`
+- **Journal d'accès**: `API/logs/access_YYYY-MM-DD.log`
+- **Journal des requêtes SQL lentes**: Configurable dans MySQL/MariaDB
 
 ## Contribution
 
@@ -380,8 +630,57 @@ Pour contribuer au projet :
 3. Documentez vos modifications
 4. Testez vos modifications sur les différents rôles d'utilisateurs
 
+### Directives de contribution
+
+1. **Structure du code**:
+   - Respectez l'architecture modulaire
+   - Placez les classes partagées dans le répertoire `API/core/`
+   - Les fonctions spécifiques à un module restent dans ce module
+
+2. **Convention de nommage**:
+   - Fichiers: `nom_de_fichier.php` (snake_case)
+   - Classes: `NomDeClasse` (PascalCase)
+   - Fonctions et méthodes: `nomDeFonction()` (camelCase)
+   - Variables: `$nom_variable` (snake_case)
+   - Constantes: `NOM_CONSTANTE` (UPPER_SNAKE_CASE)
+
+3. **Documentation**:
+   - Commentaires de fonction au format PHPDoc
+   - READMEs pour chaque module principal
+   - Documentation des API dans des fichiers Markdown
+
+4. **Tests**:
+   - Écrire des tests unitaires quand c'est possible
+   - Tester sur différents navigateurs et environnements
+   - Vérifier la compatibilité avec différentes versions de PHP
+
+### Workflow de développement recommandé
+
+1. Créer une branche dédiée pour chaque nouvelle fonctionnalité
+2. Développer et tester la fonctionnalité
+3. Soumettre une demande de fusion (pull request)
+4. Après revue de code, la branche est fusionnée
+
+### Rapporter des bugs
+
+Pour signaler un problème:
+1. Vérifiez d'abord si le problème n'a pas déjà été signalé
+2. Utilisez le modèle de rapport de bug
+3. Fournissez autant d'informations que possible (navigateur, version PHP, étapes pour reproduire)
+
 ---
 
-**Note** : Les instructions pour la configuration de la base de données seront ajoutées ultérieurement.
+## Support et contact
 
-Pour toute question ou assistance, consultez la documentation ou contactez l'équipe de développement.
+Pour toute question ou assistance:
+- Consultez la documentation détaillée
+- Contactez l'équipe technique à support@example.com
+- Visitez le forum d'entraide: [forum.pronote-exemple.fr](http://forum.pronote-exemple.fr)
+
+---
+
+**Note sur la sécurité**: Si vous découvrez une vulnérabilité de sécurité, veuillez nous contacter directement par email à securite@example.com plutôt que de créer un rapport public.
+
+---
+
+© 2023 Projet Pronote - Tous droits réservés
