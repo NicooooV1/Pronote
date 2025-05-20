@@ -49,11 +49,43 @@ if (!function_exists('canManageAbsences')) {
                 <div class="app-title">PRONOTE</div>
             </a>
             
+            <!-- Module de navigation principal -->
             <div class="sidebar-section">
                 <div class="sidebar-section-header">Navigation</div>
                 <div class="sidebar-nav">
-                    <a href="absences.php" class="sidebar-nav-item <?= isActiveLink('liste') ?>">
+                    <a href="../accueil/accueil.php" class="sidebar-nav-item">
+                        <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
+                        <span>Accueil</span>
+                    </a>
+                    <a href="../notes/notes.php" class="sidebar-nav-item">
+                        <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
+                        <span>Notes</span>
+                    </a>
+                    <a href="../agenda/agenda.php" class="sidebar-nav-item">
+                        <span class="sidebar-nav-icon"><i class="fas fa-calendar"></i></span>
+                        <span>Agenda</span>
+                    </a>
+                    <a href="../cahierdetextes/cahierdetextes.php" class="sidebar-nav-item">
+                        <span class="sidebar-nav-icon"><i class="fas fa-book"></i></span>
+                        <span>Cahier de textes</span>
+                    </a>
+                    <a href="../messagerie/index.php" class="sidebar-nav-item">
+                        <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
+                        <span>Messagerie</span>
+                    </a>
+                    <a href="absences.php" class="sidebar-nav-item active">
                         <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
+                        <span>Absences</span>
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Actions spécifiques au module absences -->
+            <div class="sidebar-section">
+                <div class="sidebar-section-header">Actions</div>
+                <div class="sidebar-nav">
+                    <a href="absences.php" class="sidebar-nav-item <?= isActiveLink('liste') ?>">
+                        <span class="sidebar-nav-icon"><i class="fas fa-list"></i></span>
                         <span>Liste des absences</span>
                     </a>
                     
@@ -78,33 +110,6 @@ if (!function_exists('canManageAbsences')) {
                         <span>Statistiques</span>
                     </a>
                     <?php endif; ?>
-                </div>
-            </div>
-            
-            <!-- Autres modules -->
-            <div class="sidebar-section">
-                <div class="sidebar-section-header">Autres modules</div>
-                <div class="sidebar-nav">
-                    <a href="../notes/notes.php" class="sidebar-nav-item">
-                        <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
-                        <span>Notes</span>
-                    </a>
-                    <a href="../messagerie/index.php" class="sidebar-nav-item">
-                        <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
-                        <span>Messagerie</span>
-                    </a>
-                    <a href="../agenda/agenda.php" class="sidebar-nav-item">
-                        <span class="sidebar-nav-icon"><i class="fas fa-calendar-alt"></i></span>
-                        <span>Agenda</span>
-                    </a>
-                    <a href="../cahierdetextes/cahierdetextes.php" class="sidebar-nav-item">
-                        <span class="sidebar-nav-icon"><i class="fas fa-book"></i></span>
-                        <span>Cahier de textes</span>
-                    </a>
-                    <a href="../accueil/accueil.php" class="sidebar-nav-item">
-                        <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
-                        <span>Accueil</span>
-                    </a>
                 </div>
             </div>
             
