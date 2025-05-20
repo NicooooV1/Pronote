@@ -1,209 +1,18 @@
 <?php
-// Démarrer la mise en mémoire tampon de sortie pour éviter l'erreur "headers already sent"
-ob_start();
-
-// Démarrer la session si nécessaire
+// Démarrer la session si ce n'est pas déjà fait
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Inclusions
-include_once 'includes/db.php';
-include_once 'includes/auth.php';
-
-// Vérifier si l'utilisateur est connecté
-if (!isLoggedIn()) {
-    // Utiliser un chemin absolu pour la redirection
-    $loginUrl = '/~u22405372/SAE/Pronote/login/public/index.php';
-    header('Location: ' . $loginUrl);
-    exit;
-}
-
-// Récupérer les informations de l'utilisateur connecté
+// Récupération des informations utilisateur
 $user = $_SESSION['user'] ?? null;
-if (!$user) {
-    header('Location: /~u22405372/SAE/Pronote/login/public/index.php');
-    exit;
-}
+$user_role = $user['profil'] ?? 'eleve';
+$user_nom = $user['nom'] ?? '';
+$user_prenom = $user['prenom'] ?? '';
+$user_classe = $user['classe'] ?? '';
+$user_initials = strtoupper(mb_substr($user_prenom, 0, 1) . mb_substr($user_nom, 0, 1));
 
-$user_fullname = $user['prenom'] . ' ' . $user['nom'];
-$user_role = $user['profil']; 
-$user_initials = strtoupper(substr($user['prenom'], 0, 1) . substr($user['nom'], 0, 1));
-
-// Vérifier si la table notes existe
-try {
-    $check_table = $pdo->query("SHOW TABLES LIKE 'notes'");
-    $table_exists = $check_table && $check_table->rowCount() > 0;
-} catch (PDOException $e) {
-    $table_exists = false;
-}
-
-// Récupérer toutes les classes disponibles après s'être assuré que la table existe
-$classes = [];
-try {
-    if ($table_exists) {
-        $stmt_classes = $pdo->query('SELECT DISTINCT classe FROM notes ORDER BY classe');
-        $classes = $stmt_classes->fetchAll(PDO::FETCH_COLUMN);
-    }
-} catch (PDOException $e) {
-    error_log("Erreur lors de la récupération des classes: " . $e->getMessage());
-}
-
-// Définir la classe sélectionnée (si présente dans l'URL ou par défaut la première)
-$selected_class = isset($_GET['classe']) ? $_GET['classe'] : ($classes[0] ?? '');
-$classe_selectionnee = $selected_class;
-
-// Définir le trimestre sélectionné (si présent dans l'URL ou par défaut le premier)
-$trimestre_selectionne = isset($_GET['trimestre']) ? (int)$_GET['trimestre'] : 1;
-
-// Récupérer toutes les matières disponibles
-$matieres = [];
-try {
-    if ($table_exists) {
-        $stmt_matieres = $pdo->query('SELECT DISTINCT matiere FROM notes ORDER BY matiere');
-        $matieres = $stmt_matieres->fetchAll(PDO::FETCH_COLUMN);
-    }
-} catch (PDOException $e) {
-    error_log("Erreur lors de la récupération des matières: " . $e->getMessage());
-}
-
-// Vérifier si la colonne 'trimestre' existe
-$trimestre_exists = false;
-try {
-    if ($table_exists) {
-        $check_trimestre = $pdo->query("SHOW COLUMNS FROM notes LIKE 'trimestre'");
-        $trimestre_exists = $check_trimestre && $check_trimestre->rowCount() > 0;
-        
-        // Si la colonne n'existe pas, l'ajouter
-        if (!$trimestre_exists) {
-            $pdo->exec("ALTER TABLE notes ADD COLUMN trimestre INT DEFAULT 1");
-            $trimestre_exists = true;
-        }
-    }
-} catch (PDOException $e) {
-    error_log("Erreur lors de la vérification de la colonne trimestre: " . $e->getMessage());
-}
-
-// Récupérer les notes en fonction des filtres
-$notes = [];
-
-if ($table_exists) {
-    $query = 'SELECT * FROM notes WHERE 1=1';
-    $params = [];
-    
-    if (!empty($classe_selectionnee)) {
-        $query .= ' AND classe = ?';
-        $params[] = $classe_selectionnee;
-    }
-    
-    // Filtre par trimestre (uniquement si la colonne existe)
-    if ($trimestre_exists) {
-        // Vérifier si la colonne existe et créer la colonne si nécessaire
-        try {
-            $check_trimestre = $pdo->query("SHOW COLUMNS FROM notes LIKE 'trimestre'");
-            if ($check_trimestre && $check_trimestre->rowCount() == 0) {
-                // La colonne n'existe pas, la créer
-                $pdo->exec("ALTER TABLE notes ADD COLUMN trimestre INT DEFAULT 1");
-                error_log("Colonne 'trimestre' ajoutée à la table notes");
-            }
-            
-            // Filtrer par trimestre
-            $query .= ' AND trimestre = ?';
-            $params[] = $trimestre_selectionne;
-        } catch (PDOException $e) {
-            error_log("Erreur lors de la vérification/création de la colonne trimestre: " . $e->getMessage());
-            // Si erreur, pas de filtrage par trimestre
-        }
-    }
-    
-    // Si l'utilisateur est un professeur (et pas un admin), limiter aux notes qu'il a créées
-    if (isTeacher() && !isAdmin() && !isVieScolaire()) {
-        $query .= ' AND nom_professeur = ?';
-        $params[] = $user_fullname;
-    }
-    
-    // Si l'utilisateur est un élève, limiter aux notes le concernant
-    if (isStudent()) {
-        $query .= ' AND eleve_id = ?';
-        $params[] = $user['id'];
-    }
-    
-    // Si l'utilisateur est un parent, limiter aux notes concernant son/ses enfant(s)
-    if (isParent()) {
-        // Récupérer les IDs des enfants
-        try {
-            $stmt_enfants = $pdo->prepare('SELECT eleve_id FROM parents_eleves WHERE parent_id = ?');
-            $stmt_enfants->execute([$user['id']]);
-            $enfants = $stmt_enfants->fetchAll(PDO::FETCH_COLUMN);
-            
-            if (!empty($enfants)) {
-                $placeholders = implode(',', array_fill(0, count($enfants), '?'));
-                $query .= ' AND eleve_id IN (' . $placeholders . ')';
-                $params = array_merge($params, $enfants);
-            } else {
-                // Si le parent n'a pas d'enfant enregistré, ne rien afficher
-                $query .= ' AND 1=0';
-            }
-        } catch (PDOException $e) {
-            error_log("Erreur lors de la récupération des enfants: " . $e->getMessage());
-            $query .= ' AND 1=0';
-        }
-    }
-    
-    // Ajouter l'ordre 
-    $query .= ' ORDER BY matiere ASC, date_evaluation DESC';
-    
-    try {
-        $stmt = $pdo->prepare($query);
-        $stmt->execute($params);
-        $notes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("Erreur lors de la récupération des notes: " . $e->getMessage());
-    }
-}
-
-// Grouper les notes par matière pour l'affichage
-$notes_par_matiere = [];
-foreach ($notes as $note) {
-    $matiere = $note['matiere'];
-    if (!isset($notes_par_matiere[$matiere])) {
-        $notes_par_matiere[$matiere] = [];
-    }
-    $notes_par_matiere[$matiere][] = $note;
-}
-
-// Calculer les moyennes par matière
-$moyennes_par_matiere = [];
-foreach ($notes_par_matiere as $matiere => $notes_matiere) {
-    $total = 0;
-    $total_coef = 0;
-    foreach ($notes_matiere as $note) {
-        $coef = isset($note['coefficient']) ? $note['coefficient'] : 1;
-        $total += $note['note'] * $coef;
-        $total_coef += $coef;
-    }
-    $moyennes_par_matiere[$matiere] = $total_coef > 0 ? round($total / $total_coef, 2) : 'N/A';
-}
-
-// Calculer la moyenne générale
-$moyenne_generale = 0;
-$total_coef_global = 0;
-foreach ($notes_par_matiere as $matiere => $notes_matiere) {
-    $total_matiere = 0;
-    $total_coef_matiere = 0;
-    foreach ($notes_matiere as $note) {
-        $coef = isset($note['coefficient']) ? $note['coefficient'] : 1;
-        $total_matiere += $note['note'] * $coef;
-        $total_coef_matiere += $coef;
-    }
-    if ($total_coef_matiere > 0) {
-        $moyenne_generale += $total_matiere;
-        $total_coef_global += $total_coef_matiere;
-    }
-}
-$moyenne_generale = $total_coef_global > 0 ? round($moyenne_generale / $total_coef_global, 2) : 'N/A';
-
-// Déterminer les couleurs pour les matières
+// Définition des couleurs pour les matières
 $couleurs_matieres = [
     'Français' => 'francais',
     'Mathématiques' => 'mathematiques',
@@ -218,211 +27,420 @@ $couleurs_matieres = [
     'Musique' => 'musique',
     'EPS' => 'eps'
 ];
+
+// Fonction pour calculer le trimestre actuel
+function getTrimestre() {
+    $mois = date('n');
+    if ($mois >= 9 && $mois <= 12) {
+        return "1er trimestre";
+    } elseif ($mois >= 1 && $mois <= 3) {
+        return "2ème trimestre";
+    } elseif ($mois >= 4 && $mois <= 6) {
+        return "3ème trimestre";
+    } else {
+        return "Période estivale";
+    }
+}
+
+// Récupérer la date du jour et le trimestre
+$aujourdhui = date('d/m/Y');
+$trimestre = getTrimestre();
+$jours = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+$jour = $jours[date('w')];
+
+// Récupérer le nom de l'établissement depuis le fichier JSON
+$json_file = __DIR__ . '/../login/data/etablissement.json';
+$etablissement_data = [];
+if (file_exists($json_file)) {
+    $etablissement_data = json_decode(file_get_contents($json_file), true);
+}
+$nom_etablissement = $etablissement_data['nom'] ?? 'Établissement Scolaire';
 ?>
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notes - Pronote</title>
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/pronote-core.css">
+    <link rel="stylesheet" href="assets/css/notes.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
     <div class="app-container">
-        <!-- Sidebar -->
+        <!-- Barre latérale -->
         <div class="sidebar">
             <a href="../accueil/accueil.php" class="logo-container">
                 <div class="app-logo">P</div>
-                <div class="app-title">Pronote Notes</div>
+                <div class="app-title">PRONOTE</div>
             </a>
             
-            <!-- Périodes -->
             <div class="sidebar-section">
-                <h3 class="sidebar-section-header">Périodes</h3>
+                <div class="sidebar-section-header">Navigation</div>
                 <div class="sidebar-nav">
-                    <a href="?trimestre=1<?= !empty($classe_selectionnee) ? '&classe=' . urlencode($classe_selectionnee) : '' ?>" class="sidebar-nav-item <?= $trimestre_selectionne == 1 ? 'active' : '' ?>">
-                        <span class="sidebar-nav-icon"><i class="fas fa-calendar-alt"></i></span>
-                        <span>Trimestre 1</span>
+                    <a href="../accueil/accueil.php" class="sidebar-nav-item">
+                        <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
+                        <span>Accueil</span>
                     </a>
-                    <a href="?trimestre=2<?= !empty($classe_selectionnee) ? '&classe=' . urlencode($classe_selectionnee) : '' ?>" class="sidebar-nav-item <?= $trimestre_selectionne == 2 ? 'active' : '' ?>">
-                        <span class="sidebar-nav-icon"><i class="fas fa-calendar-alt"></i></span>
-                        <span>Trimestre 2</span>
+                    <a href="notes.php" class="sidebar-nav-item active">
+                        <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
+                        <span>Notes</span>
                     </a>
-                    <a href="?trimestre=3<?= !empty($classe_selectionnee) ? '&classe=' . urlencode($classe_selectionnee) : '' ?>" class="sidebar-nav-item <?= $trimestre_selectionne == 3 ? 'active' : '' ?>">
-                        <span class="sidebar-nav-icon"><i class="fas fa-calendar-alt"></i></span>
-                        <span>Trimestre 3</span>
+                    <a href="../agenda/agenda.php" class="sidebar-nav-item">
+                        <span class="sidebar-nav-icon"><i class="fas fa-calendar"></i></span>
+                        <span>Agenda</span>
                     </a>
+                    <a href="../cahierdetextes/cahierdetextes.php" class="sidebar-nav-item">
+                        <span class="sidebar-nav-icon"><i class="fas fa-book"></i></span>
+                        <span>Cahier de textes</span>
+                    </a>
+                    <a href="../messagerie/index.php" class="sidebar-nav-item">
+                        <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
+                        <span>Messagerie</span>
+                    </a>
+                    <?php if ($user_role === 'vie_scolaire' || $user_role === 'administrateur'): ?>
+                    <a href="../absences/absences.php" class="sidebar-nav-item">
+                        <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
+                        <span>Absences</span>
+                    </a>
+                    <?php endif; ?>
                 </div>
             </div>
             
-            <!-- Classes -->
-            <?php if (isAdmin() || isTeacher() || isVieScolaire()): ?>
             <div class="sidebar-section">
-                <h3 class="sidebar-section-header">Classes</h3>
-                <div class="sidebar-nav">
-                    <?php foreach ($classes as $classe): ?>
-                    <a href="?classe=<?= urlencode($classe) ?>&trimestre=<?= $trimestre_selectionne ?>" class="sidebar-nav-item <?= $classe_selectionnee === $classe ? 'active' : '' ?>">
-                        <span class="sidebar-nav-icon"><i class="fas fa-users"></i></span>
-                        <span><?= htmlspecialchars($classe) ?></span>
-                    </a>
-                    <?php endforeach; ?>
+                <div class="sidebar-section-header">Informations</div>
+                <div class="info-item">
+                    <div class="info-label">Établissement</div>
+                    <div class="info-value"><?= htmlspecialchars($nom_etablissement) ?></div>
                 </div>
+                <div class="info-item">
+                    <div class="info-label">Date</div>
+                    <div class="info-value"><?= $jour . ' ' . $aujourdhui ?></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Période</div>
+                    <div class="info-value"><?= $trimestre ?></div>
+                </div>
+                <?php if ($user_role === 'eleve'): ?>
+                <div class="info-item">
+                    <div class="info-label">Classe</div>
+                    <div class="info-value"><?= htmlspecialchars($user_classe) ?></div>
+                </div>
+                <?php endif; ?>
             </div>
-            <?php endif; ?>
-            
-            <!-- Actions -->
-            <?php if (canManageNotes()): ?>
-            <div class="sidebar-section">
-                <a href="ajouter_note.php" class="action-button">
-                    <i class="fas fa-plus"></i> Ajouter une note
-                </a>
-                <a href="statistiques.php" class="action-button secondary">
-                    <i class="fas fa-chart-bar"></i> Statistiques
-                </a>
-            </div>
-            <?php endif; ?>
         </div>
         
-        <!-- Main Content -->
+        <!-- Contenu principal -->
         <div class="main-content">
-            <!-- Header -->
+            <!-- En-tête -->
             <div class="top-header">
                 <div class="page-title">
-                    <h1>Gestion des notes</h1>
-                    <p class="subtitle">
-                        <?php if (!empty($classe_selectionnee)): ?>
-                            Classe <?= htmlspecialchars($classe_selectionnee) ?> - 
-                        <?php endif; ?>
-                        Trimestre <?= $trimestre_selectionne ?>
-                    </p>
+                    <h1>Notes et moyennes</h1>
+                    <div class="subtitle">Consultez vos résultats scolaires</div>
                 </div>
                 
                 <div class="header-actions">
-                    <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
+                    <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </a>
                     <div class="user-avatar"><?= $user_initials ?></div>
                 </div>
             </div>
             
-            <!-- Content -->
+            <!-- Bannière de bienvenue -->
+            <div class="welcome-banner">
+                <div class="welcome-content">
+                    <h2>Vos résultats scolaires</h2>
+                    <p>Suivi de votre progression pour <?= $trimestre ?></p>
+                </div>
+                <div class="welcome-logo">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+            </div>
+            
+            <!-- Contenu des notes -->
             <div class="content-container">
-                <?php if (empty($notes)): ?>
-                    <div class="notes-container">
-                        <div class="notes-header">
-                            <h2>Aucune note disponible pour cette période</h2>
+                <?php if ($user_role === 'eleve'): ?>
+                <!-- Résumé des moyennes -->
+                <div class="notes-summary">
+                    <div class="summary-grid">
+                        <div class="summary-card">
+                            <div class="summary-icon">
+                                <i class="fas fa-calculator"></i>
+                            </div>
+                            <div class="summary-content">
+                                <div class="summary-value moyenne-generale">14,35</div>
+                                <div class="summary-label">Moyenne générale</div>
+                            </div>
                         </div>
-                        <div style="padding: 20px; text-align: center;">
-                            <p>Il n'y a pas encore de notes enregistrées pour le trimestre <?= $trimestre_selectionne ?>.</p>
-                            <?php if (canManageNotes()): ?>
-                                <a href="ajouter_note.php" class="btn btn-primary" style="margin-top: 15px; display: inline-block;">
-                                    <i class="fas fa-plus"></i> Ajouter une note
-                                </a>
-                            <?php endif; ?>
+                        
+                        <div class="summary-card">
+                            <div class="summary-icon">
+                                <i class="fas fa-trophy"></i>
+                            </div>
+                            <div class="summary-content">
+                                <div class="summary-value">18,50</div>
+                                <div class="summary-label">Meilleure moyenne</div>
+                            </div>
+                        </div>
+                        
+                        <div class="summary-card">
+                            <div class="summary-icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <div class="summary-content">
+                                <div class="summary-value">9,75</div>
+                                <div class="summary-label">Moyenne la plus basse</div>
+                            </div>
                         </div>
                     </div>
-                <?php else: ?>
-                    <?php if (isStudent() || isParent()): ?>
-                        <!-- Affichage pour élèves et parents: carte avec moyenne et notes par matière -->
-                        <div class="eleve-card">
-                            <div class="eleve-card-header">
-                                <h3>
-                                    <?php if (isParent() && isset($notes[0])): ?>
-                                        Notes de <?= htmlspecialchars($notes[0]['nom_eleve']) ?>
-                                    <?php else: ?>
-                                        Mes notes
-                                    <?php endif; ?>
-                                </h3>
-                                <div class="eleve-moyenne"><?= $moyenne_generale ?>/20</div>
+                </div>
+                
+                <!-- Filtres pour la période -->
+                <div class="filter-toolbar">
+                    <div class="filter-label">Période :</div>
+                    <div class="filter-buttons">
+                        <button class="btn btn-primary">Trimestre 1</button>
+                        <button class="btn btn-secondary">Trimestre 2</button>
+                        <button class="btn btn-secondary">Trimestre 3</button>
+                        <button class="btn btn-secondary">Année complète</button>
+                    </div>
+                </div>
+                
+                <!-- Liste des matières avec les notes -->
+                <div class="matieres-list">
+                    <!-- Exemple de matière -->
+                    <div class="matiere-card">
+                        <div class="matiere-header" data-toggle="collapse" data-target="#matiere-1">
+                            <div class="matiere-title">
+                                <div class="matiere-indicator color-mathematiques"></div>
+                                Mathématiques
                             </div>
-                            <div class="eleve-card-body">
-                                <?php foreach ($notes_par_matiere as $matiere => $notes_matiere): ?>
-                                    <div class="matiere-section">
-                                        <div class="matiere-header" onclick="toggleMatiereNotes(this)">
-                                            <h4>
-                                                <?php
-                                                $color_class = $couleurs_matieres[str_replace(' ', '-', $matiere)] ?? 'default';
-                                                ?>
-                                                <span class="matiere-indicator <?= 'color-' . $color_class ?>"></span>
-                                                <?= htmlspecialchars($matiere) ?>
-                                            </h4>
-                                            <div class="matiere-moyenne"><?= $moyennes_par_matiere[$matiere] ?>/20</div>
-                                        </div>
-                                        <div class="matiere-notes" style="display: none;">
-                                            <?php foreach ($notes_matiere as $note): ?>
-                                                <div class="note-item">
-                                                    <div class="note-date"><?= date('d/m/Y', strtotime($note['date_evaluation'] ?? $note['date_ajout'])) ?></div>
-                                                    <div class="note-desc"><?= htmlspecialchars($note['description'] ?? 'Évaluation') ?></div>
-                                                    <div class="note-prof"><?= htmlspecialchars($note['nom_professeur']) ?></div>
-                                                    <div class="note-coef">coef. <?= htmlspecialchars($note['coefficient'] ?? '1') ?></div>
-                                                    <div class="note-val"><?= htmlspecialchars($note['note']) ?>/20</div>
-                                                </div>
-                                            <?php endforeach; ?>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
+                            <div class="matiere-moyenne">15,50</div>
+                        </div>
+                        <div class="matiere-content" id="matiere-1">
+                            <div class="notes-list">
+                                <div class="note-item">
+                                    <div class="note-date">15/09/2023</div>
+                                    <div class="note-description">Contrôle sur les fonctions</div>
+                                    <div class="note-coefficient">coef. 2</div>
+                                    <div class="note-value good">16,50/20</div>
+                                </div>
+                                <div class="note-item">
+                                    <div class="note-date">30/09/2023</div>
+                                    <div class="note-description">Interrogation équations</div>
+                                    <div class="note-coefficient">coef. 1</div>
+                                    <div class="note-value average">14,00/20</div>
+                                </div>
+                                <div class="note-item">
+                                    <div class="note-date">15/10/2023</div>
+                                    <div class="note-description">Devoir maison géométrie</div>
+                                    <div class="note-coefficient">coef. 0.5</div>
+                                    <div class="note-value good">18,00/20</div>
+                                </div>
                             </div>
                         </div>
-                    <?php else: ?>
-                        <!-- Affichage pour professeurs et administration: tableau des notes -->
-                        <div class="notes-container">
-                            <table class="notes-list">
-                                <thead>
-                                    <tr class="notes-header-row">
-                                        <th class="notes-header-cell">Élève</th>
-                                        <th class="notes-header-cell">Classe</th>
-                                        <th class="notes-header-cell">Matière</th>
-                                        <th class="notes-header-cell">Évaluation</th>
-                                        <th class="notes-header-cell">Date</th>
-                                        <th class="notes-header-cell">Coefficient</th>
-                                        <th class="notes-header-cell">Note</th>
-                                        <th class="notes-header-cell">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($notes as $note): ?>
-                                        <tr class="notes-row">
-                                            <td class="notes-cell"><?= htmlspecialchars($note['nom_eleve']) ?></td>
-                                            <td class="notes-cell"><?= htmlspecialchars($note['classe']) ?></td>
-                                            <td class="notes-cell"><?= htmlspecialchars($note['matiere']) ?></td>
-                                            <td class="notes-cell"><?= htmlspecialchars($note['description'] ?? 'Évaluation') ?></td>
-                                            <td class="notes-cell"><?= date('d/m/Y', strtotime($note['date_evaluation'] ?? $note['date_ajout'])) ?></td>
-                                            <td class="notes-cell"><?= htmlspecialchars($note['coefficient'] ?? '1') ?></td>
-                                            <td class="notes-cell"><span class="note-value"><?= htmlspecialchars($note['note']) ?>/20</span></td>
-                                            <td class="notes-cell">
-                                                <div class="note-actions">
-                                                    <a href="modifier_note.php?id=<?= $note['id'] ?>" class="btn-icon" title="Modifier">
-                                                        <i class="fas fa-edit"></i>
-                                                    </a>
-                                                    <a href="supprimer_note.php?id=<?= $note['id'] ?>" class="btn-icon btn-danger" title="Supprimer">
-                                                        <i class="fas fa-trash-alt"></i>
-                                                    </a>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
+                    </div>
+                    
+                    <!-- Exemple de matière 2 -->
+                    <div class="matiere-card">
+                        <div class="matiere-header" data-toggle="collapse" data-target="#matiere-2">
+                            <div class="matiere-title">
+                                <div class="matiere-indicator color-francais"></div>
+                                Français
+                            </div>
+                            <div class="matiere-moyenne">13,25</div>
                         </div>
-                    <?php endif; ?>
+                        <div class="matiere-content" id="matiere-2">
+                            <div class="notes-list">
+                                <div class="note-item">
+                                    <div class="note-date">20/09/2023</div>
+                                    <div class="note-description">Dissertation sur Molière</div>
+                                    <div class="note-coefficient">coef. 2</div>
+                                    <div class="note-value average">12,50/20</div>
+                                </div>
+                                <div class="note-item">
+                                    <div class="note-date">05/10/2023</div>
+                                    <div class="note-description">Commentaire de texte</div>
+                                    <div class="note-coefficient">coef. 1</div>
+                                    <div class="note-value good">15,00/20</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Exemple de matière 3 -->
+                    <div class="matiere-card">
+                        <div class="matiere-header" data-toggle="collapse" data-target="#matiere-3">
+                            <div class="matiere-title">
+                                <div class="matiere-indicator color-histoire-geo"></div>
+                                Histoire-Géographie
+                            </div>
+                            <div class="matiere-moyenne">11,75</div>
+                        </div>
+                        <div class="matiere-content" id="matiere-3">
+                            <div class="notes-list">
+                                <div class="note-item">
+                                    <div class="note-date">18/09/2023</div>
+                                    <div class="note-description">Contrôle sur la Seconde Guerre mondiale</div>
+                                    <div class="note-coefficient">coef. 2</div>
+                                    <div class="note-value average">12,50/20</div>
+                                </div>
+                                <div class="note-item">
+                                    <div class="note-date">08/10/2023</div>
+                                    <div class="note-description">Cartographie</div>
+                                    <div class="note-coefficient">coef. 1</div>
+                                    <div class="note-value bad">9,00/20</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Exemple de matière 4 -->
+                    <div class="matiere-card">
+                        <div class="matiere-header" data-toggle="collapse" data-target="#matiere-4">
+                            <div class="matiere-title">
+                                <div class="matiere-indicator color-anglais"></div>
+                                Anglais
+                            </div>
+                            <div class="matiere-moyenne">16,25</div>
+                        </div>
+                        <div class="matiere-content" id="matiere-4">
+                            <div class="notes-list">
+                                <div class="note-item">
+                                    <div class="note-date">12/09/2023</div>
+                                    <div class="note-description">Compréhension orale</div>
+                                    <div class="note-coefficient">coef. 1</div>
+                                    <div class="note-value good">17,00/20</div>
+                                </div>
+                                <div class="note-item">
+                                    <div class="note-date">25/09/2023</div>
+                                    <div class="note-description">Test de grammaire</div>
+                                    <div class="note-coefficient">coef. 1</div>
+                                    <div class="note-value good">15,50/20</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <?php elseif ($user_role === 'professeur' || $user_role === 'administrateur'): ?>
+                <!-- Interface pour les professeurs et administrateurs -->
+                <div class="filter-toolbar">
+                    <div class="filter-buttons">
+                        <a href="ajouter_note.php" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Ajouter une note
+                        </a>
+                        <button class="btn btn-secondary">
+                            <i class="fas fa-filter"></i> Filtrer
+                        </button>
+                        <button class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Exporter
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Sélection de classe -->
+                <div class="class-selector">
+                    <div class="form-group">
+                        <label for="classe">Sélectionner une classe</label>
+                        <select id="classe" class="form-control">
+                            <option>6ème A</option>
+                            <option>6ème B</option>
+                            <option>5ème A</option>
+                            <option>5ème B</option>
+                            <option>4ème A</option>
+                            <option>4ème B</option>
+                            <option>3ème A</option>
+                            <option>3ème B</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Tableau des élèves et leurs notes -->
+                <div class="content-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Élève</th>
+                                <th>Note 1</th>
+                                <th>Note 2</th>
+                                <th>Note 3</th>
+                                <th>Moyenne</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Dupont Jean</td>
+                                <td>15,5/20</td>
+                                <td>12/20</td>
+                                <td>14/20</td>
+                                <td>13,83/20</td>
+                                <td class="table-actions">
+                                    <button class="btn-icon"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon btn-danger"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Martin Sophie</td>
+                                <td>18/20</td>
+                                <td>16,5/20</td>
+                                <td>17/20</td>
+                                <td>17,17/20</td>
+                                <td class="table-actions">
+                                    <button class="btn-icon"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon btn-danger"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Bernard Thomas</td>
+                                <td>10/20</td>
+                                <td>9,5/20</td>
+                                <td>11/20</td>
+                                <td>10,17/20</td>
+                                <td class="table-actions">
+                                    <button class="btn-icon"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-icon btn-danger"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
                 <?php endif; ?>
+            </div>
+            
+            <!-- Footer -->
+            <div class="footer">
+                <div class="footer-content">
+                    <div class="footer-links">
+                        <a href="#">Mentions Légales</a>
+                    </div>
+                    <div class="footer-copyright">
+                        &copy; <?= date('Y') ?> PRONOTE - Tous droits réservés
+                    </div>
+                </div>
             </div>
         </div>
     </div>
     
     <script>
-    // Fonction pour afficher/masquer les notes par matière
-    function toggleMatiereNotes(element) {
-        const notesContainer = element.nextElementSibling;
-        if (notesContainer.style.display === 'none') {
-            notesContainer.style.display = 'block';
-        } else {
-            notesContainer.style.display = 'none';
-        }
-    }
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion de l'expansion des matières
+        const matiereHeaders = document.querySelectorAll('.matiere-header');
+        
+        matiereHeaders.forEach(header => {
+            header.addEventListener('click', function() {
+                const content = this.nextElementSibling;
+                if (content.style.display === 'block' || content.style.display === '') {
+                    content.style.display = 'none';
+                } else {
+                    content.style.display = 'block';
+                }
+            });
+        });
+    });
     </script>
 </body>
 </html>
-<?php
-// Vider la mémoire tampon
-ob_end_flush();
-?>

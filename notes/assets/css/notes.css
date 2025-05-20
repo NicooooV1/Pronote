@@ -1,13 +1,15 @@
 /**
- * Styles pour le module Notes
- * Harmonisé avec le design système Pronote (basé sur l'accueil)
+ * PRONOTE - Module Notes
+ * Styles spécifiques au module Notes, harmonisé avec le design système Pronote
  */
 
 /* Variables spécifiques au module */
 :root {
   --module-color: #ff9500;
-  --module-bg-light: rgba(255, 149, 0, 0.1);
-  --module-accent: #ff9500;
+  --module-light: rgba(255, 149, 0, 0.1);
+  --module-medium: rgba(255, 149, 0, 0.3);
+  
+  /* Niveaux de notes */
   --note-good: #34c759;
   --note-average: #ff9500;
   --note-bad: #ff3b30;
@@ -31,267 +33,31 @@
   --color-default: #7f8c8d;
 }
 
-/* Structure principale de l'application */
-.app-container {
-  display: flex;
-  min-height: 100vh;
-}
-
-/* Barre latérale */
-.sidebar {
-  width: 260px;
-  background-color: #0f4c81;
-  color: white;
-  padding: 20px 0;
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  height: 100vh;
-  overflow-y: auto;
-}
-
-.logo-container {
-  display: flex;
-  align-items: center;
-  padding: 0 20px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 20px;
-}
-
-.app-logo {
-  width: 40px;
-  height: 40px;
-  background-color: #fff;
-  color: #0f4c81;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 24px;
-  margin-right: 10px;
-}
-
-.app-title {
-  font-size: 22px;
-  font-weight: bold;
-  letter-spacing: 1px;
-}
-
-.sidebar-section {
-  margin-bottom: 30px;
-  padding: 0 20px;
-}
-
-.sidebar-section-header {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 10px;
-  color: rgba(255, 255, 255, 0.6);
-  font-weight: 600;
-}
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar-nav-item {
-  padding: 12px 15px;
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-  color: rgba(255, 255, 255, 0.8);
-  border-radius: 6px;
-  margin-bottom: 5px;
-  transition: background-color 0.2s, color 0.2s;
-}
-
-.sidebar-nav-item:hover, .sidebar-nav-item.active {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: white;
-}
-
-.sidebar-nav-icon {
-  margin-right: 10px;
-  width: 24px;
-  text-align: center;
-  font-size: 16px;
-}
-
-.info-item {
-  padding: 8px 0;
-}
-
-.info-label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 3px;
-}
-
-.info-value {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-/* Contenu principal */
-.main-content {
-  flex: 1;
-  margin-left: 260px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
-
-/* En-tête */
-.top-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
-}
-
-.page-title h1 {
-  font-size: 28px;
-  font-weight: 500;
-  color: #0f4c81;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.logout-button {
-  text-decoration: none;
-  color: #777;
-  font-size: 20px;
-  transition: color 0.2s;
-}
-
-.logout-button:hover {
-  color: #ff3b30;
-}
-
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  background-color: #0f4c81;
-  color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 500;
-  font-size: 16px;
-}
-
-/* Bannière de bienvenue */
+/* Modifier l'apparence pour ce module */
 .welcome-banner {
-  background: linear-gradient(to right, #0f4c81, #2d7dd2);
-  color: white;
-  border-radius: 10px;
-  padding: 25px 30px;
-  margin-bottom: 30px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.welcome-content h2 {
-  font-size: 24px;
-  margin-bottom: 5px;
-  font-weight: 500;
-  color: white;
-}
-
-.welcome-content p {
-  font-size: 16px;
-  opacity: 0.9;
-}
-
-.welcome-date {
-  margin-top: 8px;
-  font-size: 14px;
-  opacity: 0.8;
-}
-
-.welcome-logo {
-  font-size: 48px;
-  opacity: 0.8;
-}
-
-/* Barre d'outils de filtrage */
-.filter-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 15px;
-  background-color: white;
-  padding: 15px 20px;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-
-.filter-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.btn {
-  padding: 8px 16px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.2s;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  text-decoration: none;
+  background: linear-gradient(to right, #e67e00, #ff9500);
 }
 
 .btn-primary {
   background-color: var(--module-color);
-  color: white;
 }
 
 .btn-primary:hover {
-  background-color: #e68600;
+  background-color: #e67e00;
 }
 
-.btn-secondary {
-  background-color: #f5f5f5;
-  color: #333;
+.sidebar-nav-item.active {
+  border-left: 3px solid var(--module-color);
 }
 
-.btn-secondary:hover {
-  background-color: #e0e0e0;
-}
-
-.btn-danger {
-  background-color: #ff3b30;
-  color: white;
-}
-
-.btn-danger:hover {
-  background-color: #e12e1c;
-}
-
-/* Style spécifique pour les notes */
+/* Affichage des notes */
 .note-value {
   font-weight: 700;
   padding: 4px 8px;
   border-radius: 4px;
   display: inline-block;
+  text-align: center;
+  min-width: 50px;
 }
 
 .note-value.good {
@@ -309,6 +75,7 @@
   background-color: var(--note-bad-bg);
 }
 
+/* Moyenne générale */
 .moyenne-generale {
   font-size: 24px;
   font-weight: 700;
@@ -319,8 +86,63 @@
   display: inline-block;
 }
 
-/* Matières et notes */
-.notes-container {
+/* Résumé des notes en haut de page */
+.notes-summary {
+  margin-bottom: 30px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.summary-card {
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.summary-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+.summary-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: var(--module-light);
+  color: var(--module-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  margin-right: 15px;
+}
+
+.summary-content {
+  flex: 1;
+}
+
+.summary-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--module-color);
+  margin-bottom: 5px;
+}
+
+.summary-label {
+  color: #666;
+  font-size: 14px;
+}
+
+/* Cards de matières */
+.matieres-list {
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -333,7 +155,7 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   overflow: hidden;
   border-left: 4px solid var(--module-color);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .matiere-card:hover {
@@ -359,7 +181,7 @@
   gap: 10px;
 }
 
-.matiere-title .matiere-indicator {
+.matiere-indicator {
   width: 12px;
   height: 12px;
   border-radius: 50%;
@@ -368,9 +190,14 @@
 .matiere-moyenne {
   font-weight: 700;
   color: var(--module-color);
-  background-color: var(--module-bg-light);
+  background-color: var(--module-light);
   padding: 4px 10px;
   border-radius: 12px;
+}
+
+/* Liste des notes */
+.matiere-content {
+  display: none;
 }
 
 .notes-list {
@@ -414,45 +241,19 @@
   gap: 8px;
 }
 
-.btn-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #f5f5f5;
-  color: #555;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.btn-icon:hover {
-  background-color: #e0e0e0;
-}
-
-.btn-icon.btn-danger {
-  background-color: rgba(255, 59, 48, 0.1);
-  color: var(--note-bad);
-}
-
-.btn-icon.btn-danger:hover {
-  background-color: rgba(255, 59, 48, 0.2);
-}
-
 /* Distribution des notes */
 .grade-distribution {
   display: flex;
   justify-content: space-between;
-  margin: 20px 0;
+  margin-bottom: 30px;
   gap: 15px;
 }
 
 .grade-section {
-  text-align: center;
   flex: 1;
+  text-align: center;
   padding: 15px;
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .grade-section.low {
@@ -490,8 +291,8 @@
   color: #333;
 }
 
-/* Formulaires */
-.form-container {
+/* Interface professeur */
+.class-selector {
   background-color: white;
   border-radius: 10px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
@@ -499,51 +300,62 @@
   margin-bottom: 20px;
 }
 
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-.form-group {
-  margin-bottom: 15px;
+.data-table th, 
+.data-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
 }
 
-.form-label {
-  display: block;
-  margin-bottom: 6px;
-  font-weight: 500;
+.data-table th {
+  background-color: rgba(0, 0, 0, 0.02);
+  font-weight: 600;
   color: #333;
 }
 
-.required {
-  color: #ff3b30;
-  margin-left: 3px;
+.data-table tr:last-child td {
+  border-bottom: none;
 }
 
-.form-control, 
-.form-select {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-family: inherit;
-  font-size: 14px;
-  transition: border-color 0.2s;
+.data-table tr:hover {
+  background-color: rgba(0, 0, 0, 0.01);
 }
 
-.form-control:focus, 
-.form-select:focus {
-  outline: none;
-  border-color: var(--module-color);
-  box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.1);
-}
-
-.form-actions {
+.table-actions {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 30px;
+  gap: 8px;
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f5f5f5;
+  color: #555;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-icon:hover {
+  background-color: #e0e0e0;
+}
+
+.btn-icon.btn-danger {
+  background-color: rgba(255, 59, 48, 0.1);
+  color: var(--note-bad);
+}
+
+.btn-icon.btn-danger:hover {
+  background-color: rgba(255, 59, 48, 0.2);
 }
 
 /* Couleurs des matières */
@@ -561,179 +373,50 @@
 .color-eps { background-color: var(--color-eps); }
 .color-default { background-color: var(--color-default); }
 
-/* Style pour la page de confirmation de suppression */
-.confirmation-box {
-  background-color: white;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  padding: 30px;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.note-details {
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  padding: 20px;
-  margin: 20px 0;
-}
-
-.warning {
-  display: flex;
-  align-items: center;
-  padding: 20px;
-  background-color: rgba(255, 59, 48, 0.1);
-  color: var(--note-bad);
-  border-radius: 8px;
-  margin: 20px 0;
-}
-
-.warning i {
-  font-size: 24px;
-  margin-right: 20px;
-}
-
-.confirmation-actions {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 30px;
-}
-
-/* Messages d'alerte */
-.alert-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 15px 20px;
-  border-radius: 10px;
-  margin-bottom: 20px;
-  transition: opacity 0.3s;
-}
-
-.alert-banner i {
-  font-size: 20px;
-}
-
-.alert-success {
-  background-color: rgba(52, 199, 89, 0.1);
-  color: #34c759;
-  border-left: 4px solid #34c759;
-}
-
-.alert-error {
-  background-color: rgba(255, 59, 48, 0.1);
-  color: #ff3b30;
-  border-left: 4px solid #ff3b30;
-}
-
-/* Créer un bouton */
-.create-button {
-  display: flex;
-  align-items: center;
-  padding: 10px 15px;
-  background-color: rgba(255, 255, 255, 0.15);
-  color: white;
-  border-radius: 6px;
-  font-weight: 500;
-  text-decoration: none;
-  margin-bottom: 10px;
-  transition: background-color 0.2s ease;
-}
-
-.create-button:hover {
-  background-color: rgba(255, 255, 255, 0.25);
-}
-
-.create-button i {
-  margin-right: 10px;
-}
-
-/* Footer */
-.footer {
-  margin-top: auto;
-  background-color: white;
-  border-top: 1px solid #eee;
-  padding: 15px 20px;
-  font-size: 13px;
-  color: #777;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.03);
-  border-radius: 10px;
-}
-
-.footer-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.footer-links a {
-  color: #0f4c81;
-  text-decoration: none;
-}
-
-.footer-links a:hover {
-  text-decoration: underline;
-}
-
-.footer-copyright {
-  text-align: right;
-}
-
-/* Responsive design */
+/* Responsive pour les notes */
 @media (max-width: 1024px) {
-  .form-grid {
-    grid-template-columns: 1fr;
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media (max-width: 768px) {
-  .app-container {
-    flex-direction: column;
-  }
-  
-  .sidebar {
-    width: 100%;
-    height: auto;
-    position: relative;
-    overflow: visible;
-  }
-  
-  .main-content {
-    margin-left: 0;
-  }
-  
-  .filter-toolbar {
-    flex-direction: column;
-    align-items: flex-start;
+  .summary-grid {
+    grid-template-columns: 1fr;
   }
   
   .note-item {
     flex-wrap: wrap;
+    gap: 10px;
   }
   
-  .confirmation-actions {
-    flex-direction: column;
-    gap: 15px;
+  .note-date {
+    width: 100%;
+    margin-bottom: 5px;
+  }
+  
+  .note-coefficient {
+    order: 3;
+  }
+  
+  .note-value {
+    order: 4;
+  }
+  
+  .note-actions {
+    width: 100%;
+    justify-content: flex-end;
+    margin-top: 10px;
   }
 }
 
 @media (max-width: 576px) {
-  .top-header {
+  .matiere-header {
     flex-direction: column;
     align-items: flex-start;
   }
   
-  .header-actions {
-    margin-top: 15px;
-    width: 100%;
-    justify-content: flex-end;
-  }
-  
-  .form-actions {
-    flex-direction: column;
-  }
-  
-  .btn {
-    width: 100%;
+  .matiere-moyenne {
+    margin-top: 10px;
   }
 }
