@@ -39,15 +39,30 @@
       });
     });
 
-    // Activation des liens de la sidebar
+    // Activation des liens de la sidebar - détection du module actuel
     const currentPath = window.location.pathname;
-    const filename = currentPath.substring(currentPath.lastIndexOf('/') + 1);
     
-    // Ajouter la classe active au lien correspondant
-    const currentLink = document.querySelector(`.sidebar-nav-item[href*="${filename}"]`);
-    if (currentLink) {
-      currentLink.classList.add('active');
+    // Identifier le module actif en fonction du chemin
+    let activeModule = 'agenda'; // Par défaut
+    if (currentPath.includes('/notes/')) {
+      activeModule = 'notes';
+    } else if (currentPath.includes('/cahierdetextes/')) {
+      activeModule = 'cahierdetextes';
+    } else if (currentPath.includes('/messagerie/')) {
+      activeModule = 'messagerie';
+    } else if (currentPath.includes('/absences/')) {
+      activeModule = 'absences';
+    } else if (currentPath.includes('/accueil/')) {
+      activeModule = 'accueil';
     }
+    
+    // Ajouter la classe active au module correspondant
+    document.querySelectorAll('.module-link').forEach(link => {
+      const href = link.getAttribute('href');
+      if (href && href.includes(`/${activeModule}/`)) {
+        link.classList.add('active');
+      }
+    });
 
     // Gestion des dropdowns
     document.querySelectorAll('.classes-dropdown-toggle').forEach(toggle => {

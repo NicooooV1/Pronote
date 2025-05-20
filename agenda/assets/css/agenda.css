@@ -1528,3 +1528,21 @@ textarea.form-control {
     margin: 10% auto;
   }
 }
+
+/* Navigation active */
+.module-link.active {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: white;
+  font-weight: 500;
+  position: relative;
+}
+
+.module-link.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 3px;
+  background-color: white;
+}

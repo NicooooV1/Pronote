@@ -34,6 +34,31 @@ $moduleColor = 'var(--accent-agenda)';
         <div class="app-title">PRONOTE</div>
       </a>
       
+      <!-- Navigation principale -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-header">Navigation</div>
+        <div class="folder-menu">
+          <a href="../accueil/accueil.php" class="module-link">
+            <i class="fas fa-home"></i> Accueil
+          </a>
+          <a href="../notes/notes.php" class="module-link">
+            <i class="fas fa-chart-bar"></i> Notes
+          </a>
+          <a href="../agenda/agenda.php" class="module-link active">
+            <i class="fas fa-calendar-alt"></i> Agenda
+          </a>
+          <a href="../cahierdetextes/cahierdetextes.php" class="module-link">
+            <i class="fas fa-book"></i> Cahier de textes
+          </a>
+          <a href="../messagerie/index.php" class="module-link">
+            <i class="fas fa-envelope"></i> Messagerie
+          </a>
+          <a href="../absences/absences.php" class="module-link">
+            <i class="fas fa-calendar-times"></i> Absences
+          </a>
+        </div>
+      </div>
+      
       <!-- Mini-calendrier pour la navigation -->
       <div class="sidebar-section">
         <div class="sidebar-section-header">Calendrier</div>
@@ -79,29 +104,6 @@ $moduleColor = 'var(--accent-agenda)';
         </div>
       </div>
       <?php endif; ?>
-      
-      <!-- Autres modules -->
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">Autres modules</div>
-        <div class="folder-menu">
-          <a href="../notes/notes.php" class="module-link">
-            <i class="fas fa-chart-bar"></i> Notes
-          </a>
-          <a href="../messagerie/index.php" class="module-link">
-            <i class="fas fa-envelope"></i> Messagerie
-          </a>
-          <a href="../absences/absences.php" class="module-link">
-            <i class="fas fa-calendar-times"></i> Absences
-          </a>
-          <a href="../cahierdetextes/cahierdetextes.php" class="module-link">
-            <i class="fas fa-book"></i> Cahier de textes
-          </a>
-          <a href="../accueil/accueil.php" class="module-link">
-            <i class="fas fa-home"></i> Accueil
-          </a>
-        </div>
-      </div>
-    </div>
     
     <!-- Main Content -->
     <div class="main-content">

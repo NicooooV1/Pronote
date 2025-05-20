@@ -2,29 +2,12 @@
 // Démarrer la mise en mémoire tampon de sortie pour éviter l'erreur "headers already sent"
 ob_start();
 
-// Définir l'environnement si non défini
-if (!defined('APP_ENV')) {
-    define('APP_ENV', isset($_SERVER['APP_ENV']) ? $_SERVER['APP_ENV'] : 'production');
-}
-
-// Désactiver l'affichage des erreurs en production
-if (APP_ENV !== 'development') {
-    error_reporting(0);
-    ini_set('display_errors', 0);
-} else {
-    // En développement, activer les erreurs
-    error_reporting(E_ALL);
-    ini_set('display_errors', 1);
-}
-
-// Inclusion des fichiers nécessaires - utiliser require_once pour éviter les inclusions multiples
+// Inclure les fichiers nécessaires
 require_once __DIR__ . '/../API/auth_central.php';
 require_once __DIR__ . '/includes/db.php';
 
-// Vérifier que l'utilisateur est connecté avec le système centralisé
+// Vérifier que l'utilisateur est connecté
 if (!isLoggedIn()) {
-    // Journaliser la tentative d'accès
-    error_log("Tentative d'accès non autorisée à details_evenement.php - Utilisateur non connecté");
     header('Location: ' . LOGIN_URL);
     exit;
 }
@@ -35,13 +18,9 @@ $user_fullname = getUserFullName();
 $user_role = getUserRole();
 $user_initials = getUserInitials();
 
-// Vérifier que l'ID est fourni et valide avec filter_input
+// Vérifier que l'ID est fourni et valide
 $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 if (!$id) {
-    // Journaliser l'erreur
-    error_log("Tentative d'accès à details_evenement.php avec un ID invalide: " . 
-             (isset($_GET['id']) ? htmlspecialchars($_GET['id']) : 'non défini'));
-    
     // Rediriger avec un message d'erreur
     $_SESSION['error_message'] = "Identifiant d'événement invalide ou non spécifié";
     header('Location: agenda.php');
@@ -93,7 +72,7 @@ try {
         exit;
     }
 } catch (PDOException $e) {
-    // Journaliser l'erreur mais ne pas l'afficher en production
+    // Journaliser l'erreur
     error_log("Erreur lors de la récupération de l'événement ID=$id: " . $e->getMessage());
     
     // Rediriger vers la page principale avec un message d'erreur
