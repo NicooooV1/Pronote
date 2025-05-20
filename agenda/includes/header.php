@@ -1,25 +1,48 @@
+<?php
+/**
+ * En-tête commun pour le module Agenda
+ * Utilise le système de design unifié de Pronote
+ */
+
+// Vérification si les informations utilisateur sont disponibles
+if (!isset($user_initials) && isset($_SESSION['user'])) {
+    $user = $_SESSION['user'];
+    $user_initials = strtoupper(mb_substr($user['prenom'], 0, 1) . mb_substr($user['nom'], 0, 1));
+}
+
+// Définition des paramètres du module
+$pageTitle = $pageTitle ?? 'Agenda';
+$moduleClass = 'agenda';
+$moduleColor = 'var(--accent-agenda)';
+?>
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agenda - Pronote</title>
-  <link rel="stylesheet" href="assets/css/calendar.css">
+  <title><?= htmlspecialchars($pageTitle) ?> - Pronote</title>
+  <link rel="stylesheet" href="../assets/css/pronote-core.css">
+  <link rel="stylesheet" href="assets/css/agenda.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
   <div class="app-container">
     <!-- Sidebar -->
     <div class="sidebar">
-      <div class="logo-container">
+      <a href="../accueil/accueil.php" class="logo-container">
         <div class="app-logo">P</div>
-        <div class="app-title">Agenda</div>
-      </div>
+        <div class="app-title">PRONOTE</div>
+      </a>
       
       <!-- Mini-calendrier pour la navigation -->
       <div class="sidebar-section">
         <div class="sidebar-section-header">Calendrier</div>
-        <!-- Insérer ici le mini-calendrier -->
+        <div class="mini-calendar">
+          <!-- Le mini-calendrier sera généré dynamiquement -->
+          <?php if (function_exists('generateMiniCalendar')): ?>
+            <?= generateMiniCalendar($month ?? date('n'), $year ?? date('Y'), $date ?? date('Y-m-d')) ?>
+          <?php endif; ?>
+        </div>
       </div>
       
       <?php if (isset($_SESSION['user']) && (in_array($_SESSION['user']['profil'], ['professeur', 'administrateur', 'vie_scolaire']))): ?>
@@ -29,6 +52,31 @@
         <a href="ajouter_evenement.php" class="create-button">
           <i class="fas fa-plus"></i> Ajouter un événement
         </a>
+      </div>
+      <?php endif; ?>
+      
+      <!-- Filtres par type d'événement -->
+      <?php if (isset($available_event_types) && !empty($available_event_types)): ?>
+      <div class="sidebar-section">
+        <div class="sidebar-section-header">Types d'événements</div>
+        <div class="folder-menu">
+          <?php foreach ($types_evenements ?? [] as $code => $nom): ?>
+            <?php if (in_array($code, $available_event_types)): ?>
+              <div class="filter-option">
+                <label>
+                  <span class="color-dot color-<?= $code ?>"></span>
+                  <input type="checkbox" class="filter-checkbox" 
+                         id="filter-<?= $code ?>" 
+                         name="types[]" 
+                         value="<?= $code ?>" 
+                         <?= isset($filter_types) && in_array($code, $filter_types) ? 'checked' : '' ?> 
+                         data-filter-type="type">
+                  <span class="filter-label"><?= $nom ?></span>
+                </label>
+              </div>
+            <?php endif; ?>
+          <?php endforeach; ?>
+        </div>
       </div>
       <?php endif; ?>
       
@@ -64,7 +112,7 @@
         </div>
         <div class="header-actions">
           <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
-          <div class="user-avatar"><?= $user_initials ?? '' ?></div>
+          <div class="user-avatar"><?= htmlspecialchars($user_initials ?? '') ?></div>
         </div>
       </div>
       

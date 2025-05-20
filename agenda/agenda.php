@@ -402,918 +402,306 @@ function generateMiniCalendar($month, $year, $selected_date = null) {
     
     return $html;
 }
-?>
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agaenda Pronote</title>
-  <link rel="stylesheet" href="assets/css/calendar.css">
-  <style>
-    /* Structure principale */
-    .app-container {
-      display: flex;
-      height: 100vh;
-      overflow: hidden;
-    }
-    
-    .sidebar {
-      width: 250px;
-      background-color: white;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      display: flex;
-      flex-direction: column;
-      z-index: 10;
-      overflow-y: auto;
-    }
-    
-    .main-content {
-      flex: 1;
-      overflow-y: auto;
-      background-color: #f5f5f5;
-      display: flex;
-      flex-direction: column;
-    }
-    
-    .top-header {
-      background-color: white;
-      padding: 15px 20px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      z-index: 5;
-    }
-    
-    /* Logo et accueil */
-    .logo-container {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 20px;
-      padding: 15px 20px;
-      border-bottom: 1px solid #eee;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-    
-    .logo-container:hover {
-      background-color: #f5f5f5;
-    }
-    
-    .app-logo {
-      width: 32px;
-      height: 32px;
-      background-color: #00843d;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: bold;
-    }
-    
-    .app-title {
-      font-size: 18px;
-      font-weight: 500;
-      color: #333;
-    }
-    
-    /* Boutons d'action */
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 15px;
-    }
-    
-    .logout-button {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: #666;
-      font-size: 24px;
-      padding: 5px;
-      border-radius: 50%;
-      transition: background-color 0.2s;
-    }
-    
-    .logout-button:hover {
-      background-color: #f0f0f0;
-      color: #333;
-    }
-    
-    .user-info {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    
-    .user-avatar {
-      width: 32px;
-      height: 32px;
-      background-color: #00843d;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: 500;
-    }
-    
-    /* Mini-calendrier amélioré */
-    .mini-calendar {
-      padding: 15px;
-      border-bottom: 1px solid #eee;
-    }
-    
-    .mini-calendar-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 15px;
-    }
-    
-    .mini-calendar-title {
-      font-weight: 500;
-      font-size: 16px;
-    }
-    
-    .mini-calendar-nav {
-      display: flex;
-      gap: 5px;
-    }
-    
-    .mini-calendar-nav-btn {
-      background: none;
-      border: none;
-      width: 24px;
-      height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      border-radius: 50%;
-      font-size: 12px;
-      color: #666;
-      transition: background-color 0.2s;
-    }
-    
-    .mini-calendar-nav-btn:hover {
-      background-color: #f0f0f0;
-      color: #333;
-    }
-    
-    .mini-calendar-grid {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 2px;
-    }
-    
-    .mini-calendar-day-name {
-      text-align: center;
-      font-size: 12px;
-      color: #777;
-      padding: 5px 0;
-    }
-    
-    .mini-calendar-day {
-      width: 28px;
-      height: 28px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      font-size: 13px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-    
-    .mini-calendar-day:hover {
-      background-color: #f0f0f0;
-    }
-    
-    .mini-calendar-day.other-month {
-      color: #bbb;
-    }
-    
-    .mini-calendar-day.today {
-      background-color: #00843d;
-      color: white;
-      font-weight: 500;
-    }
-    
-    .mini-calendar-day.selected {
-      background-color: #e0f2e9;
-      color: #00843d;
-      font-weight: 500;
-    }
-    
-    /* Filtres d'événements */
-    .sidebar-section {
-      padding: 15px;
-      border-bottom: 1px solid #eee;
-    }
-    
-    .sidebar-section-header {
-      font-weight: 500;
-      margin-bottom: 10px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .toggle-button {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 18px;
-      color: #777;
-    }
-    
-    .calendar-filters {
-      margin-top: 10px;
-    }
-    
-    .filter-option {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 0;
-      cursor: pointer;
-    }
-    
-    .color-dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-    }
-    
-    .filter-label {
-      font-size: 14px;
-      flex: 1;
-    }
-    
-    .filter-checkbox {
-      width: 16px;
-      height: 16px;
-      cursor: pointer;
-    }
-    
-    /* Bouton créer */
-    .create-button {
-      width: 100%;
-      background-color: #00843d;
-      color: white;
-      border: none;
-      padding: 10px 15px;
-      border-radius: 4px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      font-weight: 500;
-      margin-top: 10px;
-      transition: background-color 0.2s;
-    }
-    
-    .create-button:hover {
-      background-color: #006e32;
-    }
-    
-    /* Filtres de classe */
-    .classes-dropdown-toggle {
-      width: 100%;
-      padding: 8px 10px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      background-color: white;
-      cursor: pointer;
-      text-align: left;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 10px;
-    }
-    
-    /* Styles pour le dropdown des classes */
-    .classes-dropdown {
-        position: relative;
-        width: 100%;
-    }
-    
-    .dropdown-menu {
-        display: none;
-        position: absolute;
-        top: 100%;
-        left: 0;
-        width: 100%;
-        background-color: white;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        z-index: 1000;
-        max-height: 300px;
-        overflow-y: auto;
-        margin-top: 5px;
-    }
-    
-    .dropdown-menu.show {
-        display: block;
-    }
-    
-    .dropdown-actions {
-        display: flex;
-        justify-content: space-between;
-        padding: 8px 10px;
-        border-bottom: 1px solid #eee;
-    }
-    
-    .dropdown-action {
-        background: none;
-        border: none;
-        color: #00843d;
-        cursor: pointer;
-        font-size: 12px;
-        padding: 3px 5px;
-    }
-    
-    .dropdown-search {
-        padding: 8px 10px;
-        border-bottom: 1px solid #eee;
-    }
-    
-    .dropdown-search input {
-        width: 100%;
-        padding: 6px 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-    }
-    
-    .dropdown-options {
-        max-height: 200px;
-        overflow-y: auto;
-        padding: 5px 0;
-    }
-    
-    .dropdown-option {
-        padding: 5px 10px;
-        display: flex;
-        align-items: center;
-    }
-    
-    .dropdown-option label {
-        display: flex;
-        align-items: center;
-        cursor: pointer;
-        width: 100%;
-        margin: 0;
-        padding: 3px 0;
-    }
-    
-    .dropdown-option input[type="checkbox"] {
-        margin-right: 8px;
-    }
-    
-    .dropdown-footer {
-        padding: 8px 10px;
-        border-top: 1px solid #eee;
-        text-align: right;
-    }
-    
-    .apply-button {
-        background-color: #00843d;
-        color: white;
-        border: none;
-        padding: 6px 10px;
-        border-radius: 4px;
-        cursor: pointer;
-    }
-    
-    /* Vue principale du calendrier */
-    .calendar-container {
-      flex: 1;
-      padding: 20px;
-      overflow-y: auto;
-    }
-    
-    /* Bouton retour */
-    .back-button {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
-      background-color: #f5f5f5;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      color: #555;
-      transition: background-color 0.2s;
-    }
-    
-    .back-button:hover {
-      background-color: #e0e0e0;
-    }
-    
-    .back-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 20px;
-      height: 20px;
-    }
-  </style>
-</head>
-<body>
-  <div class="app-container">
-    <!-- Sidebar -->
-    <div class="sidebar">
-      <div class="logo-container">
-        <div class="app-logo">P</div>
-        <div class="app-title">Agenda</div>
-      </div>
-      
-      <!-- Mini-calendrier pour la navigation -->
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">Calendrier</div>
-        <div class="mini-calendar">
-          <?= generateMiniCalendar($month, $year, $date) ?>
-        </div>
-      </div>
-      
-      <!-- Créer un événement -->
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">Actions</div>
-        <a href="ajouter_evenement.php" class="create-button">
-          <i class="fas fa-plus"></i> Créer un événement
-        </a>
-      </div>
-      
-      <!-- Filtres par type d'événement -->
-      <?php if (!empty($available_event_types)): ?>
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">Types d'événements</div>
-        <div class="folder-menu">
-          <?php foreach ($types_evenements as $code => $nom): ?>
-            <?php if (in_array($code, $available_event_types)): ?>
-              <div class="filter-option">
-                <label>
-                  <span class="color-dot color-<?= $code ?>"></span>
-                  <input type="checkbox" class="filter-checkbox" 
-                         id="filter-<?= $code ?>" 
-                         name="types[]" 
-                         value="<?= $code ?>" 
-                         <?= in_array($code, $filter_types) ? 'checked' : '' ?> 
-                         data-filter-type="type">
-                  <span class="filter-label"><?= $nom ?></span>
-                </label>
-              </div>
-            <?php endif; ?>
-          <?php endforeach; ?>
-        </div>
-      </div>
-      <?php endif; ?>
-      
-      <!-- Autres modules -->
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">Autres modules</div>
-        <div class="folder-menu">
-          <a href="../notes/notes.php" class="module-link">
-            <i class="fas fa-chart-bar"></i> Notes
-          </a>
-          <a href="../messagerie/index.php" class="module-link">
-            <i class="fas fa-envelope"></i> Messagerie
-          </a>
-          <a href="../absences/absences.php" class="module-link">
-            <i class="fas fa-calendar-times"></i> Absences
-          </a>
-          <a href="../cahierdetextes/cahierdetextes.php" class="module-link">
-            <i class="fas fa-book"></i> Cahier de textes
-          </a>
-          <a href="../accueil/accueil.php" class="module-link">
-            <i class="fas fa-home"></i> Accueil
-          </a>
-        </div>
-      </div>
 
-      <!-- Hidden input to preserve filter state -->
-      <input type="hidden" id="filter-set-flag" value="1">
-      
-      <!-- Filtres par classe -->
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">
-          <span>Classes</span>
-          <button class="toggle-button">▾</button>
-        </div>
-        <div class="classes-filter">
-          <div class="classes-dropdown">
-            <button type="button" class="classes-dropdown-toggle" onclick="toggleClassesDropdown()">
-              <span id="selected-classes-text">
-                <?= empty($filter_classes) ? 'Sélectionner des classes' : count($filter_classes).' classes sélectionnées' ?>
-              </span>
-              <span>▾</span>
-            </button>
-            <div class="dropdown-menu" id="classes-dropdown">
-              <div class="dropdown-actions">
-                <button type="button" class="dropdown-action" onclick="selectAllClasses()">Tout sélectionner</button>
-                <button type="button" class="dropdown-action" onclick="deselectAllClasses()">Tout désélectionner</button>
-              </div>
-              <div class="dropdown-search">
-                <input type="text" id="classes-search" placeholder="Rechercher" oninput="filterClasses()">
-              </div>
-              <div class="dropdown-options" id="classes-options">
-                <?php foreach ($classes as $classe): ?>
-                  <div class="dropdown-option">
-                    <input type="checkbox" 
-                           id="class-<?= $classe ?>" 
-                           class="filter-checkbox class-checkbox" 
-                           name="classes[]" 
-                           value="<?= $classe ?>" 
-                           <?= in_array($classe, $filter_classes) ? 'checked' : '' ?> 
-                           data-filter-type="class" 
-                           onchange="updateSelectedClasses()">
-                    <label for="class-<?= $classe ?>"><?= $classe ?></label>
-                  </div>
-                <?php endforeach; ?>
-              </div>
-              <div class="dropdown-footer">
-                <button type="button" class="apply-button" onclick="applyClassesFilter()">Appliquer</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Main Content -->
-    <div class="main-content">
-      <!-- Header -->
-      <div class="top-header">
-        <div class="calendar-navigation">
-          <button class="back-button" onclick="window.history.back()">
-            <span class="back-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M10 19L3 12L10 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M3 12H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>
-            Retour
-          </button>
-          <button class="nav-button prev-button" onclick="navigateToPrevious()">&lt;</button>
-          <button class="nav-button next-button" onclick="navigateToNext()">&gt;</button>
-          <button class="today-button" onclick="navigateToToday()">Aujourd'hui</button>
-          <h2 class="calendar-title">
-            <?php if ($view === 'month'): ?>
-              <?= $month_names[$month] . ' ' . $year ?>
-            <?php elseif ($view === 'day'): ?>
-              <?= date('d', strtotime($date)) . ' ' . $month_names[date('n', strtotime($date))] . ' ' . date('Y', strtotime($date)) ?>
-            <?php elseif ($view === 'week'): ?>
-              <?php
-                $date_obj = new DateTime($date);
-                $day_of_week = $date_obj->format('N');
-                $start_of_week = clone $date_obj;
-                $start_of_week->modify('-' . ($day_of_week - 1) . ' days');
-                $end_of_week = clone $start_of_week;
-                $end_of_week->modify('+6 days');
-                echo $start_of_week->format('d') . ' - ' . $end_of_week->format('d') . ' ' . $month_names[$start_of_week->format('n')] . ' ' . $start_of_week->format('Y');
-              ?>
-            <?php endif; ?>
-          </h2>
-        </div>
-        
-        <div class="view-toggle">
-          <a href="?view=day&date=<?= $date ?>" class="view-toggle-option <?= $view === 'day' ? 'active' : '' ?>">Jour</a>
-          <a href="?view=week&date=<?= $date ?>" class="view-toggle-option <?= $view === 'week' ? 'active' : '' ?>">Semaine</a>
-          <a href="?view=month&month=<?= $month ?>&year=<?= $year ?>" class="view-toggle-option <?= $view === 'month' ? 'active' : '' ?>">Mois</a>
-          <a href="?view=list" class="view-toggle-option <?= $view === 'list' ? 'active' : '' ?>">Liste</a>
-        </div>
-        
-        <div class="header-actions">
-          <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
-          <div class="user-avatar"><?= $user_initials ?></div>
-        </div>
-      </div>
-      
-      <!-- Calendar Container -->
-      <div class="calendar-container">
-        <?php if ($view === 'month'): ?>
-          <!-- Vue mensuelle -->
-          <div class="calendar">
-            <div class="calendar-header">
-              <?php foreach ($day_names_full as $day): ?>
-                <div class="calendar-header-day"><?= $day ?></div>
-              <?php endforeach; ?>
-            </div>
-            
-            <div class="calendar-body">
-              <?php
-              // Jours du mois précédent
-              $prev_month = $month > 1 ? $month - 1 : 12;
-              $prev_year = $month > 1 ? $year : $year - 1;
-              $prev_month_days = cal_days_in_month(CAL_GREGORIAN, $prev_month, $prev_year);
-              
-              for ($i = 1; $i < $first_day; $i++) {
-                $day_num = $prev_month_days - $first_day + $i + 1;
-                echo '<div class="calendar-day other-month">';
-                echo '<div class="calendar-day-number">' . $day_num . '</div>';
-                echo '</div>';
-              }
-              
-              // Jours du mois courant
-              for ($day = 1; $day <= $num_days; $day++) {
-                $date_str = sprintf('%04d-%02d-%02d', $year, $month, $day);
-                $is_today = ($day == $today_day && $month == $today_month && $year == $today_year);
-                
-                $today_class = $is_today ? ' today' : '';
-                
-                echo '<div class="calendar-day' . $today_class . '" data-date="' . $date_str . '">';
-                echo '<div class="calendar-day-number">' . $day . '</div>';
-                
-                // Afficher les événements de ce jour
-                if (isset($events_by_day[$day])) {
-                  echo '<div class="calendar-day-events">';
-                  foreach ($events_by_day[$day] as $event) {
-                    $event_time = date('H:i', strtotime($event['date_debut']));
-                    $event_class = 'event-' . strtolower($event['type_evenement']);
-                    
-                    if ($event['statut'] === 'annulé') {
-                      $event_class .= ' event-cancelled';
-                    } elseif ($event['statut'] === 'reporté') {
-                      $event_class .= ' event-postponed';
-                    }
-                    
-                    echo '<div class="calendar-event ' . $event_class . '" data-event-id="' . $event['id'] . '">';
-                    echo '<span class="event-time">' . $event_time . '</span> ';
-                    echo htmlspecialchars($event['titre']);
-                    echo '</div>';
-                  }
-                  echo '</div>';
-                }
-                
-                echo '</div>';
-              }
-              
-              // Jours du mois suivant
-              $days_shown = $first_day - 1 + $num_days;
-              $remaining_days = 7 - ($days_shown % 7);
-              if ($remaining_days < 7) {
-                for ($day = 1; $day <= $remaining_days; $day++) {
-                  echo '<div class="calendar-day other-month">';
-                  echo '<div class="calendar-day-number">' . $day . '</div>';
-                  echo '</div>';
-                }
-              }
-              ?>
-            </div>
-          </div>
-          
-        <?php elseif ($view === 'day'): ?>
-          <!-- Vue jour -->
-          <?php include 'views/day_view.php'; ?>
-          
-        <?php elseif ($view === 'week'): ?>
-          <!-- Vue semaine -->
-          <?php include 'views/week_view.php'; ?>
-          
-        <?php elseif ($view === 'list'): ?>
-          <!-- Vue liste -->
-          <?php include 'views/list_view.php'; ?>
-          
-        <?php endif; ?>
-      </div>
-    </div>
-  </div>
+// Définir le titre de la page selon la vue
+switch ($view) {
+    case 'day':
+        $date_formatted = date('d/m/Y', strtotime($date));
+        $pageTitle = "Agenda - Journée du $date_formatted";
+        break;
+    case 'week':
+        $date_obj = new DateTime($date);
+        $day_of_week = $date_obj->format('N');
+        $start_of_week = clone $date_obj;
+        $start_of_week->modify('-' . ($day_of_week - 1) . ' days');
+        $end_of_week = clone $start_of_week;
+        $end_of_week->modify('+6 days');
+        $pageTitle = "Agenda - Semaine du " . $start_of_week->format('d/m') . " au " . $end_of_week->format('d/m/Y');
+        break;
+    case 'list':
+        $pageTitle = "Agenda - Liste des événements";
+        break;
+    default: // month
+        $pageTitle = "Agenda - " . $month_names[$month] . " " . $year;
+}
+
+// Inclusion de l'en-tête
+include 'includes/header.php';
+?>
+
+<div class="calendar-navigation">
+  <button class="nav-button prev-button" onclick="navigateToPrevious()"><i class="fas fa-chevron-left"></i></button>
+  <button class="nav-button next-button" onclick="navigateToNext()"><i class="fas fa-chevron-right"></i></button>
+  <button class="today-button" onclick="navigateToToday()">Aujourd'hui</button>
+  <h2 class="calendar-title">
+    <?php if ($view === 'month'): ?>
+      <?= $month_names[$month] . ' ' . $year ?>
+    <?php elseif ($view === 'day'): ?>
+      <?= date('d', strtotime($date)) . ' ' . $month_names[date('n', strtotime($date))] . ' ' . date('Y', strtotime($date)) ?>
+    <?php elseif ($view === 'week'): ?>
+      <?php
+        $date_obj = new DateTime($date);
+        $day_of_week = $date_obj->format('N');
+        $start_of_week = clone $date_obj;
+        $start_of_week->modify('-' . ($day_of_week - 1) . ' days');
+        $end_of_week = clone $start_of_week;
+        $end_of_week->modify('+6 days');
+        echo $start_of_week->format('d') . ' - ' . $end_of_week->format('d') . ' ' . $month_names[$start_of_week->format('n')] . ' ' . $start_of_week->format('Y');
+      ?>
+    <?php endif; ?>
+  </h2>
   
-  <script>
-    // Fonctions pour la navigation
-    function navigateToPrevious() {
-      const view = '<?= $view ?>';
-      let url = '';
+  <div class="view-toggle">
+    <a href="?view=day&date=<?= $date ?>" class="view-toggle-option <?= $view === 'day' ? 'active' : '' ?>">Jour</a>
+    <a href="?view=week&date=<?= $date ?>" class="view-toggle-option <?= $view === 'week' ? 'active' : '' ?>">Semaine</a>
+    <a href="?view=month&month=<?= $month ?>&year=<?= $year ?>" class="view-toggle-option <?= $view === 'month' ? 'active' : '' ?>">Mois</a>
+    <a href="?view=list" class="view-toggle-option <?= $view === 'list' ? 'active' : '' ?>">Liste</a>
+  </div>
+</div>
+
+<!-- Calendar Container -->
+<div class="calendar-container">
+  <?php if ($view === 'month'): ?>
+    <!-- Vue mensuelle -->
+    <div class="calendar">
+      <div class="calendar-header">
+        <?php foreach ($day_names_full as $day): ?>
+          <div class="calendar-header-day"><?= $day ?></div>
+        <?php endforeach; ?>
+      </div>
       
-      if (view === 'month') {
-        const month = <?= $month ?>;
-        const year = <?= $year ?>;
+      <div class="calendar-body">
+        <?php
+        // Jours du mois précédent
+        $prev_month = $month > 1 ? $month - 1 : 12;
+        $prev_year = $month > 1 ? $year : $year - 1;
+        $prev_month_days = cal_days_in_month(CAL_GREGORIAN, $prev_month, $prev_year);
         
-        if (month === 1) {
-          url = `?view=month&month=12&year=${year-1}`;
-        } else {
-          url = `?view=month&month=${month-1}&year=${year}`;
+        for ($i = 1; $i < $first_day; $i++) {
+          $day_num = $prev_month_days - $first_day + $i + 1;
+          echo '<div class="calendar-day other-month">';
+          echo '<div class="calendar-day-number">' . $day_num . '</div>';
+          echo '</div>';
         }
-      } else if (view === 'day') {
-        const currentDate = new Date('<?= $date ?>');
-        currentDate.setDate(currentDate.getDate() - 1);
-        const newDate = currentDate.toISOString().split('T')[0];
-        url = `?view=day&date=${newDate}`;
-      } else if (view === 'week') {
-        const currentDate = new Date('<?= $date ?>');
-        currentDate.setDate(currentDate.getDate() - 7);
-        const newDate = currentDate.toISOString().split('T')[0];
-        url = `?view=week&date=${newDate}`;
-      }
-      
-      // Ajouter les filtres
-      url += getFilterParams();
-      
-      window.location.href = url;
-    }
-    
-    function navigateToNext() {
-      const view = '<?= $view ?>';
-      let url = '';
-      
-      if (view === 'month') {
-        const month = <?= $month ?>;
-        const year = <?= $year ?>;
         
-        if (month === 12) {
-          url = `?view=month&month=1&year=${year+1}`;
-        } else {
-          url = `?view=month&month=${month+1}&year=${year}`;
-        }
-      } else if (view === 'day') {
-        const currentDate = new Date('<?= $date ?>');
-        currentDate.setDate(currentDate.getDate() + 1);
-        const newDate = currentDate.toISOString().split('T')[0];
-        url = `?view=day&date=${newDate}`;
-      } else if (view === 'week') {
-        const currentDate = new Date('<?= $date ?>');
-        currentDate.setDate(currentDate.getDate() + 7);
-        const newDate = currentDate.toISOString().split('T')[0];
-        url = `?view=week&date=${newDate}`;
-      }
-      
-      // Ajouter les filtres
-      url += getFilterParams();
-      
-      window.location.href = url;
-    }
-    
-    function navigateToToday() {
-      const view = '<?= $view ?>';
-      const today = new Date();
-      const todayStr = today.toISOString().split('T')[0];
-      
-      let url = '';
-      
-      if (view === 'month') {
-        url = `?view=month&month=${today.getMonth() + 1}&year=${today.getFullYear()}`;
-      } else if (view === 'day' || view === 'week') {
-        url = `?view=${view}&date=${todayStr}`;
-      } else {
-        url = `?view=${view}`;
-      }
-      
-      // Ajouter les filtres
-      url += getFilterParams();
-      
-      window.location.href = url;
-    }
-    
-    // Fonctions pour le mini-calendrier
-    document.querySelectorAll('.mini-calendar-day').forEach(day => {
-      if (!day.classList.contains('other-month')) {
-        day.addEventListener('click', function() {
-          const date = this.getAttribute('data-date');
-          if (date) {
-            let url = `?view=day&date=${date}`;
-            url += getFilterParams();
-            window.location.href = url;
+        // Jours du mois courant
+        for ($day = 1; $day <= $num_days; $day++) {
+          $date_str = sprintf('%04d-%02d-%02d', $year, $month, $day);
+          $is_today = ($day == $today_day && $month == $today_month && $year == $today_year);
+          
+          $today_class = $is_today ? ' today' : '';
+          
+          echo '<div class="calendar-day' . $today_class . '" data-date="' . $date_str . '" onclick="openDayView(\'' . $date_str . '\')">';
+          echo '<div class="calendar-day-number">' . $day . '</div>';
+          
+          // Afficher les événements de ce jour
+          if (isset($events_by_day[$day])) {
+            echo '<div class="calendar-day-events">';
+            foreach ($events_by_day[$day] as $event) {
+              $event_time = date('H:i', strtotime($event['date_debut']));
+              $event_class = 'event-' . strtolower($event['type_evenement']);
+              
+              if ($event['statut'] === 'annulé') {
+                $event_class .= ' event-cancelled';
+              } elseif ($event['statut'] === 'reporté') {
+                $event_class .= ' event-postponed';
+              }
+              
+              echo '<div class="calendar-event ' . $event_class . '" data-event-id="' . $event['id'] . '" onclick="openEventDetails(' . $event['id'] . ', event)">';
+              echo '<span class="event-time">' . $event_time . '</span> ';
+              echo htmlspecialchars($event['titre']);
+              echo '</div>';
+            }
+            echo '</div>';
           }
-        });
-      }
-    });
-    
-    document.querySelectorAll('.mini-calendar-nav-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const month = this.getAttribute('data-month');
-        const year = this.getAttribute('data-year');
-        const filterParams = this.getAttribute('data-filters');
-        
-        let url = `?view=month&month=${month}&year=${year}`;
-        if (filterParams) {
-          url += filterParams;
-        } else {
-          url += getFilterParams();
+          
+          echo '</div>';
         }
         
-        window.location.href = url;
-      });
-    });
-    
-    // Fonctions pour les filtres
-    document.querySelectorAll('.filter-checkbox[data-filter-type="type"]').forEach(checkbox => {
-      checkbox.addEventListener('change', function() {
-        applyFilters();
-      });
-    });
-    
-    function applyFilters() {
-        let url = `?view=<?= $view ?>`;
-        
-        if ('<?= $view ?>' === 'month') {
-            url += `&month=<?= $month ?>&year=<?= $year ?>`;
-        } else if ('<?= $view ?>' === 'day' || '<?= $view ?>' === 'week') {
-            url += `&date=<?= $date ?>`;
+        // Jours du mois suivant
+        $days_shown = $first_day - 1 + $num_days;
+        $remaining_days = 7 - ($days_shown % 7);
+        if ($remaining_days < 7) {
+          for ($day = 1; $day <= $remaining_days; $day++) {
+            echo '<div class="calendar-day other-month">';
+            echo '<div class="calendar-day-number">' . $day . '</div>';
+            echo '</div>';
+          }
         }
-        
-        // Ajouter les filtres
-        url += '&filter_set=1'; // Important: indiquer que les filtres ont été définis explicitement
-        
-        // Filtres de type
-        const typeCheckboxes = document.querySelectorAll('.filter-checkbox[data-filter-type="type"]:checked');
-        typeCheckboxes.forEach(checkbox => {
-            url += `&types[]=${checkbox.value}`;
-        });
-        
-        // Filtres de classe (uniquement les classes sélectionnées)
-        const classCheckboxes = document.querySelectorAll('.filter-checkbox[data-filter-type="class"]:checked');
-        classCheckboxes.forEach(checkbox => {
-            url += `&classes[]=${checkbox.value}`;
-        });
-        
-        window.location.href = url;
-    }
+        ?>
+      </div>
+    </div>
     
-    // Fonctions pour le dropdown des classes
-    function toggleClassesDropdown() {
-      const dropdown = document.getElementById('classes-dropdown');
-      dropdown.classList.toggle('show');
-      
-      // Fermer le dropdown quand on clique ailleurs
-      if (dropdown.classList.contains('show')) {
-          document.addEventListener('click', closeClassesDropdownOutside);
-      } else {
-          document.removeEventListener('click', closeClassesDropdownOutside);
-      }
-    }
+  <?php elseif ($view === 'day'): ?>
+    <!-- Vue jour -->
+    <?php include 'views/day_view.php'; ?>
     
-    // Fermer le dropdown si on clique en dehors
-    function closeClassesDropdownOutside(event) {
-      const dropdown = document.getElementById('classes-dropdown');
-      const toggleButton = document.querySelector('.classes-dropdown-toggle');
-      
-      if (dropdown && !dropdown.contains(event.target) && !toggleButton.contains(event.target)) {
-          dropdown.classList.remove('show');
-          document.removeEventListener('click', closeClassesDropdownOutside);
-      }
-    }
+  <?php elseif ($view === 'week'): ?>
+    <!-- Vue semaine -->
+    <?php include 'views/week_view.php'; ?>
     
-    // Sélectionner toutes les classes
-    function selectAllClasses() {
-      document.querySelectorAll('.class-checkbox').forEach(checkbox => {
-          checkbox.checked = true;
-      });
-      updateSelectedClasses();
-    }
+  <?php elseif ($view === 'list'): ?>
+    <!-- Vue liste -->
+    <?php include 'views/list_view.php'; ?>
     
-    // Désélectionner toutes les classes
-    function deselectAllClasses() {
-      document.querySelectorAll('.class-checkbox').forEach(checkbox => {
-          checkbox.checked = false;
-      });
-      updateSelectedClasses();
-    }
+  <?php endif; ?>
+</div>
+
+<script>
+// Fonctions pour la navigation
+function navigateToPrevious() {
+  const view = '<?= $view ?>';
+  let url = '';
+  
+  if (view === 'month') {
+    const month = <?= $month ?>;
+    const year = <?= $year ?>;
     
-    // Mettre à jour le texte affiché selon les classes sélectionnées
-    function updateSelectedClasses() {
-      const checkboxes = document.querySelectorAll('.class-checkbox:checked');
-      const text = checkboxes.length === 0 
-          ? 'Sélectionner des classes' 
-          : checkboxes.length + ' classes sélectionnées';
-      document.getElementById('selected-classes-text').textContent = text;
+    if (month === 1) {
+      url = `?view=month&month=12&year=${year-1}`;
+    } else {
+      url = `?view=month&month=${month-1}&year=${year}`;
     }
+  } else if (view === 'day') {
+    const currentDate = new Date('<?= $date ?>');
+    currentDate.setDate(currentDate.getDate() - 1);
+    const newDate = currentDate.toISOString().split('T')[0];
+    url = `?view=day&date=${newDate}`;
+  } else if (view === 'week') {
+    const currentDate = new Date('<?= $date ?>');
+    currentDate.setDate(currentDate.getDate() - 7);
+    const newDate = currentDate.toISOString().split('T')[0];
+    url = `?view=week&date=${newDate}`;
+  }
+  
+  // Ajouter les filtres
+  if (<?= $filters_explicitly_set ? 'true' : 'false' ?>) {
+    url += '&filter_set=1';
     
-    // Filtrer les classes selon le texte saisi
-    function filterClasses() {
-      const searchText = document.getElementById('classes-search').value.toLowerCase();
-      document.querySelectorAll('.dropdown-option').forEach(option => {
-          const className = option.textContent.toLowerCase();
-          option.style.display = className.includes(searchText) ? 'flex' : 'none';
-      });
+    // Ajouter les filtres par type
+    <?php foreach ($filter_types as $type): ?>
+    url += '&types[]=<?= $type ?>';
+    <?php endforeach; ?>
+    
+    // Ajouter les filtres par classe
+    <?php foreach ($filter_classes as $class): ?>
+    url += '&classes[]=<?= urlencode($class) ?>';
+    <?php endforeach; ?>
+  }
+  
+  window.location.href = url;
+}
+
+function navigateToNext() {
+  const view = '<?= $view ?>';
+  let url = '';
+  
+  if (view === 'month') {
+    const month = <?= $month ?>;
+    const year = <?= $year ?>;
+    
+    if (month === 12) {
+      url = `?view=month&month=1&year=${year+1}`;
+    } else {
+      url = `?view=month&month=${month+1}&year=${year}`;
     }
+  } else if (view === 'day') {
+    const currentDate = new Date('<?= $date ?>');
+    currentDate.setDate(currentDate.getDate() + 1);
+    const newDate = currentDate.toISOString().split('T')[0];
+    url = `?view=day&date=${newDate}`;
+  } else if (view === 'week') {
+    const currentDate = new Date('<?= $date ?>');
+    currentDate.setDate(currentDate.getDate() + 7);
+    const newDate = currentDate.toISOString().split('T')[0];
+    url = `?view=week&date=${newDate}`;
+  }
+  
+  // Ajouter les filtres
+  if (<?= $filters_explicitly_set ? 'true' : 'false' ?>) {
+    url += '&filter_set=1';
     
-    // Appliquer les filtres de classe
-    function applyClassesFilter() {
-      document.getElementById('classes-dropdown').classList.remove('show');
-      applyFilters();
-    }
+    // Ajouter les filtres par type
+    <?php foreach ($filter_types as $type): ?>
+    url += '&types[]=<?= $type ?>';
+    <?php endforeach; ?>
     
-    // Fermer le dropdown quand on clique en dehors
-    document.addEventListener('click', function(event) {
-      if (!event.target.closest('.classes-dropdown')) {
-        document.getElementById('classes-dropdown').classList.remove('show');
-      }
-    });
-  </script>
-</body>
-</html>
+    // Ajouter les filtres par classe
+    <?php foreach ($filter_classes as $class): ?>
+    url += '&classes[]=<?= urlencode($class) ?>';
+    <?php endforeach; ?>
+  }
+  
+  window.location.href = url;
+}
+
+function navigateToToday() {
+  const view = '<?= $view ?>';
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  
+  let url = '';
+  
+  if (view === 'month') {
+    url = `?view=month&month=${today.getMonth() + 1}&year=${today.getFullYear()}`;
+  } else if (view === 'day' || view === 'week') {
+    url = `?view=${view}&date=${todayStr}`;
+  } else {
+    url = `?view=${view}`;
+  }
+  
+  // Ajouter les filtres
+  if (<?= $filters_explicitly_set ? 'true' : 'false' ?>) {
+    url += '&filter_set=1';
+    
+    // Ajouter les filtres par type
+    <?php foreach ($filter_types as $type): ?>
+    url += '&types[]=<?= $type ?>';
+    <?php endforeach; ?>
+    
+    // Ajouter les filtres par classe
+    <?php foreach ($filter_classes as $class): ?>
+    url += '&classes[]=<?= urlencode($class) ?>';
+    <?php endforeach; ?>
+  }
+  
+  window.location.href = url;
+}
+
+// Fonctions pour les événements
+function openDayView(date) {
+  let url = `?view=day&date=${date}`;
+  
+  // Ajouter les filtres
+  if (<?= $filters_explicitly_set ? 'true' : 'false' ?>) {
+    url += '&filter_set=1';
+    
+    // Ajouter les filtres par type
+    <?php foreach ($filter_types as $type): ?>
+    url += '&types[]=<?= $type ?>';
+    <?php endforeach; ?>
+    
+    // Ajouter les filtres par classe
+    <?php foreach ($filter_classes as $class): ?>
+    url += '&classes[]=<?= urlencode($class) ?>';
+    <?php endforeach; ?>
+  }
+  
+  window.location.href = url;
+}
+
+function openEventDetails(eventId, e) {
+  if (e) {
+    e.stopPropagation(); // Empêcher la propagation au jour du calendrier
+  }
+  window.location.href = 'details_evenement.php?id=' + eventId;
+}
+</script>
 
 <?php
+// Inclusion du pied de page
+include 'includes/footer.php';
+
 // Terminer la mise en mémoire tampon et envoyer la sortie
 ob_end_flush();
 ?>

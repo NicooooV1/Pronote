@@ -1,103 +1,209 @@
 <?php
-// Ce fichier sera inclus depuis agenda.php lorsque view=week
-// Les variables suivantes sont déjà disponibles:
-// $date - la date au format Y-m-d
-// $events - les événements filtrés pour cette semaine
-// $filter_type, $filter_classes - les filtres actifs
+/**
+ * Vue hebdomadaire pour l'agenda
+ * Affiche les événements d'une semaine
+ */
 
-// Créer un objet DateTime pour manipuler la date
+// S'assurer que $date est au bon format
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+    $date = date('Y-m-d');
+}
+
+// Calculer le début et la fin de la semaine
 $date_obj = new DateTime($date);
 $day_of_week = $date_obj->format('N'); // 1 (lundi) à 7 (dimanche)
 
-// Obtenir le premier jour de la semaine (lundi)
+// Trouver le premier jour de la semaine (lundi)
 $start_of_week = clone $date_obj;
 $start_of_week->modify('-' . ($day_of_week - 1) . ' days');
 
-// Obtenir le dernier jour de la semaine (dimanche)
+// Dernier jour de la semaine (dimanche)
 $end_of_week = clone $start_of_week;
 $end_of_week->modify('+6 days');
 
-// Tableau des jours de la semaine
-$weekdays = [];
-$weekday_names = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+// Récupérer les événements de la semaine si pas déjà fait
+if (empty($week_events) && $table_exists) {
+    try {
+        // Requête pour récupérer les événements de la semaine
+        $sql = "SELECT * FROM evenements 
+                WHERE (DATE(date_debut) BETWEEN ? AND ?) 
+                OR (DATE(date_fin) BETWEEN ? AND ?) ";
+        
+        $start_date = $start_of_week->format('Y-m-d');
+        $end_date = $end_of_week->format('Y-m-d');
+        
+        // Paramètres de base
+        $params = [$start_date, $end_date, $start_date, $end_date];
+        
+        // Filtre par type d'événement
+        if (!empty($filter_types)) {
+            $type_placeholders = implode(',', array_fill(0, count($filter_types), '?'));
+            $sql .= "AND type_evenement IN ($type_placeholders) ";
+            $params = array_merge($params, $filter_types);
+        }
+        
+        // Filtre par classe
+        if (!empty($filter_classes)) {
+            $class_conditions = [];
+            foreach ($filter_classes as $class) {
+                $class_conditions[] = "classes LIKE ?";
+                $params[] = "%$class%";
+            }
+            if (!empty($class_conditions)) {
+                $sql .= "AND (" . implode(" OR ", $class_conditions) . ") ";
+            }
+        }
+        
+        // Filtrage en fonction du rôle de l'utilisateur (comme dans la vue jour)
+        if ($user_role === 'eleve') {
+            // Pour un élève
+            $classe = isset($user['classe']) ? $user['classe'] : '';
+            
+            $sql .= "AND (visibilite = 'public' 
+                    OR visibilite = 'eleves' 
+                    OR visibilite LIKE '%élèves%'
+                    OR classes LIKE ? 
+                    OR createur = ?";
+                    
+            $params[] = "%$classe%";
+            $params[] = $user_fullname;
+            
+            // Ajouter la condition personnes_concernees si la colonne existe
+            if ($personnes_concernees_exists) {
+                $sql .= " OR personnes_concernees LIKE ?";
+                $params[] = "%$user_fullname%";
+            }
+            
+            $sql .= ")";
+            
+        } elseif ($user_role === 'professeur') {
+            // Pour un professeur
+            $sql .= "AND (visibilite = 'public' 
+                    OR visibilite = 'professeurs' 
+                    OR visibilite LIKE '%professeurs%'
+                    OR createur = ?";
+                    
+            $params[] = $user_fullname;
+            
+            // Ajouter la condition personnes_concernees si la colonne existe
+            if ($personnes_concernees_exists) {
+                $sql .= " OR personnes_concernees LIKE ?";
+                $params[] = "%$user_fullname%";
+            }
+            
+            $sql .= ")";
+        }
+        
+        $sql .= " ORDER BY date_debut ASC";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $week_events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+    } catch (PDOException $e) {
+        error_log("Erreur lors de la récupération des événements (vue semaine): " . $e->getMessage());
+        // Afficher un message d'erreur élégant à l'utilisateur
+        echo '<div class="alert alert-error">Une erreur est survenue lors du chargement des événements.</div>';
+        $week_events = [];
+    }
+}
 
+// Créer un tableau pour organiser les événements par jour et par heure
+$days = [];
+$current_day = clone $start_of_week;
 for ($i = 0; $i < 7; $i++) {
-    $day = clone $start_of_week;
-    $day->modify('+' . $i . ' days');
-    $weekdays[] = [
-        'date' => $day->format('Y-m-d'),
-        'display' => $day->format('d/m'),
-        'name' => $weekday_names[$i],
-        'is_today' => ($day->format('Y-m-d') === date('Y-m-d'))
+    $day_key = $current_day->format('Y-m-d');
+    $days[$day_key] = [
+        'date' => clone $current_day,
+        'events' => []
     ];
+    $current_day->modify('+1 day');
 }
 
-// Organiser les événements par jour
-$events_by_day = [];
-foreach ($events as $event) {
-    $event_date = date('Y-m-d', strtotime($event['date_debut']));
+// Placer les événements dans les jours correspondants
+foreach ($week_events as $event) {
+    $event_start = new DateTime($event['date_debut']);
+    $event_day = $event_start->format('Y-m-d');
     
-    if (!isset($events_by_day[$event_date])) {
-        $events_by_day[$event_date] = [];
-    }
-    
-    $events_by_day[$event_date][] = $event;
-}
-
-// Trier les événements par heure de début pour chaque jour
-foreach ($events_by_day as $day => $day_events) {
-    usort($events_by_day[$day], function($a, $b) {
-        return strtotime($a['date_debut']) - strtotime($b['date_debut']);
-    });
-}
-
-// Navigation
-$prev_week = clone $start_of_week;
-$prev_week->modify('-7 days');
-
-$next_week = clone $start_of_week;
-$next_week->modify('+7 days');
-
-$filter_params = '';
-if (!empty($filter_type)) {
-    $filter_params .= '&type=' . $filter_type;
-}
-if (!empty($filter_classes)) {
-    foreach ($filter_classes as $class) {
-        $filter_params .= '&classes[]=' . urlencode($class);
+    if (isset($days[$event_day])) {
+        $days[$event_day]['events'][] = $event;
     }
 }
+
+// Heures à afficher
+$hours = [];
+for ($i = 7; $i <= 19; $i++) { // De 7h à 19h
+    $hours[] = sprintf('%02d:00', $i);
+}
+
+// Date d'aujourd'hui
+$today = date('Y-m-d');
 ?>
-
-<div class="week-navigation">
-    <a href="?view=week&date=<?= $prev_week->format('Y-m-d') . $filter_params ?>" class="button button-secondary">&lt; Semaine précédente</a>
-    <h2>Semaine du <?= $start_of_week->format('d/m/Y') ?> au <?= $end_of_week->format('d/m/Y') ?></h2>
-    <a href="?view=week&date=<?= $next_week->format('Y-m-d') . $filter_params ?>" class="button button-secondary">Semaine suivante &gt;</a>
-</div>
 
 <div class="week-view">
     <div class="week-header">
-        <?php foreach ($weekdays as $day): ?>
-            <?php $today_class = $day['is_today'] ? ' today' : ''; ?>
-            <div class="week-day<?= $today_class ?>">
-                <div class="week-day-name"><?= $day['name'] ?></div>
-                <div class="week-day-date"><?= $day['display'] ?></div>
-            </div>
-        <?php endforeach; ?>
+        <div class="week-header-spacer"></div>
+        <div class="week-header-days">
+            <?php foreach ($days as $day_key => $day_data): ?>
+                <?php
+                $day_date = $day_data['date'];
+                $is_today = ($day_key === $today);
+                ?>
+                <div class="week-day-header <?= $is_today ? 'today' : '' ?>">
+                    <div class="week-day-name"><?= $day_names_full[$day_date->format('N') - 1] ?></div>
+                    <div class="week-day-date"><?= $day_date->format('d') ?></div>
+                </div>
+            <?php endforeach; ?>
+        </div>
     </div>
     
     <div class="week-body">
-        <?php foreach ($weekdays as $day): ?>
-            <?php 
-            $day_date = $day['date'];
-            $today_class = $day['is_today'] ? ' today' : '';
-            ?>
-            <div class="week-column<?= $today_class ?>" data-date="<?= $day_date ?>">
-                <?php if (isset($events_by_day[$day_date])): ?>
-                    <?php foreach ($events_by_day[$day_date] as $event): ?>
+        <div class="week-timeline">
+            <?php foreach ($hours as $hour): ?>
+                <div class="timeline-hour"><?= $hour ?></div>
+            <?php endforeach; ?>
+        </div>
+        
+        <div class="week-grid">
+            <?php foreach ($days as $day_key => $day_data): ?>
+                <?php $is_today = ($day_key === $today); ?>
+                <div class="week-day-column <?= $is_today ? 'today' : '' ?>">
+                    <?php foreach ($day_data['events'] as $event): ?>
                         <?php
-                        $event_start = new DateTime($event['date_debut']);
-                        $event_class = 'event-' . strtolower($event['type_evenement']);
+                        // Calculer la position et la hauteur de l'événement
+                        $start_time = new DateTime($event['date_debut']);
+                        $end_time = new DateTime($event['date_fin']);
+                        
+                        // Heure de début (par exemple 8.5 pour 8h30)
+                        $start_hour = (int)$start_time->format('H');
+                        $start_minute = (int)$start_time->format('i');
+                        $start_decimal = $start_hour + ($start_minute / 60);
+                        
+                        // Si l'événement commence avant la première heure affichée
+                        if ($start_decimal < 7) {
+                            $start_decimal = 7;
+                        }
+                        
+                        // Durée en heures
+                        $duration_hours = ($end_time->getTimestamp() - $start_time->getTimestamp()) / 3600;
+                        
+                        // Si la fin dépasse la dernière heure affichée
+                        $end_decimal = $start_decimal + $duration_hours;
+                        if ($end_decimal > 20) {
+                            $end_decimal = 20;
+                        }
+                        
+                        // Recalculer la durée
+                        $duration_hours = $end_decimal - $start_decimal;
+                        
+                        // Position et taille
+                        $top_position = ($start_decimal - 7) * 60; // Position en px (1h = 60px)
+                        $height = $duration_hours * 60; // Hauteur en px
+                        
+                        // S'assurer qu'il y a une hauteur minimale
+                        if ($height < 30) $height = 30;
+                        
+                        $event_class = 'event-' . $event['type_evenement'];
                         
                         if ($event['statut'] === 'annulé') {
                             $event_class .= ' event-cancelled';
@@ -105,37 +211,23 @@ if (!empty($filter_classes)) {
                             $event_class .= ' event-postponed';
                         }
                         ?>
-                        <div class="week-event <?= $event_class ?>">
-                            <div class="event-time"><?= $event_start->format('H:i') ?></div>
-                            <a href="details_evenement.php?id=<?= $event['id'] ?>" class="event-title">
-                                <?= htmlspecialchars($event['titre']) ?>
-                            </a>
+                        <div class="day-event <?= $event_class ?>" 
+                             style="top: <?= $top_position ?>px; height: <?= $height ?>px;"
+                             onclick="openEventDetails(<?= $event['id'] ?>)">
+                            <div class="event-time">
+                                <?= $start_time->format('H:i') ?>
+                            </div>
+                            <div class="event-title"><?= htmlspecialchars($event['titre']) ?></div>
                             <?php if (!empty($event['lieu'])): ?>
-                                <div class="event-location"><?= htmlspecialchars($event['lieu']) ?></div>
+                                <div class="event-location">
+                                    <i class="fas fa-map-marker-alt"></i> 
+                                    <?= htmlspecialchars($event['lieu']) ?>
+                                </div>
                             <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
-                <?php else: ?>
-                    <div class="no-events-day"></div>
-                <?php endif; ?>
-            </div>
-        <?php endforeach; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
     </div>
 </div>
-
-<script>
-// Script pour permettre le clic sur les jours de la semaine
-document.querySelectorAll('.week-column').forEach(column => {
-    column.addEventListener('click', function(e) {
-        // Ne pas déclencher si on a cliqué sur un événement
-        if (e.target.closest('.week-event') || e.target.closest('a')) {
-            return;
-        }
-        
-        const dayDate = this.getAttribute('data-date');
-        if (dayDate) {
-            window.location.href = `?view=day&date=${dayDate}<?= $filter_params ?>`;
-        }
-    });
-});
-</script>

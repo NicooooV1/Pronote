@@ -669,8 +669,8 @@ if ($personnes_concernees_exists && !empty($evenement['personnes_concernees'])) 
     </div>
     
     <script>
+    // Faire disparaître les messages après 5 secondes
     document.addEventListener('DOMContentLoaded', function() {
-        // Faire disparaître les messages après 5 secondes
         const updateMessage = document.getElementById('updateMessage');
         const errorMessage = document.getElementById('errorMessage');
         
@@ -757,10 +757,11 @@ if ($personnes_concernees_exists && !empty($evenement['personnes_concernees'])) 
         }
     }
     </script>
-</body>
-</html>
 
 <?php
+// Inclusion du pied de page
+include 'includes/footer.php';
+
 // Terminer la mise en mémoire tampon et envoyer la sortie
 ob_end_flush();
 ?>

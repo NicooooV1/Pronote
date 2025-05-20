@@ -1,4 +1,7 @@
-// calendar.js - Fonctionnalités JavaScript pour le calendrier
+/**
+ * Fonctionnalités JavaScript pour le calendrier de l'agenda
+ * Version harmonisée avec le design système Pronote
+ */
 
 document.addEventListener('DOMContentLoaded', function() {
   // Initialisation du calendrier
@@ -26,6 +29,61 @@ function initCalendar() {
   calendarEvents.forEach(event => {
     event.addEventListener('click', function(e) {
       e.stopPropagation(); // Empêcher la propagation au jour du calendrier
+      const eventId = this.getAttribute('data-event-id');
+      if (eventId) {
+        openEventDetails(eventId, e);
+      }
+    });
+  });
+  
+  // Ajouter des écouteurs pour les jours du calendrier
+  calendarDays.forEach(day => {
+    if (!day.classList.contains('other-month')) {
+      day.addEventListener('click', function() {
+        const date = this.getAttribute('data-date');
+        if (date) {
+          openDayView(date);
+        }
+      });
+    }
+  });
+  
+  // Initialiser les interactions avec le mini-calendrier
+  setupMiniCalendar();
+}
+
+/**
+ * Configure les interactions avec le mini-calendrier
+ */
+function setupMiniCalendar() {
+  // Gérer les clics sur les jours du mini-calendrier
+  document.querySelectorAll('.mini-calendar-day').forEach(day => {
+    if (!day.classList.contains('other-month')) {
+      day.addEventListener('click', function() {
+        const date = this.getAttribute('data-date');
+        if (date) {
+          openDayView(date);
+        }
+      });
+    }
+  });
+  
+  // Navigation du mini-calendrier
+  document.querySelectorAll('.mini-calendar-nav-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const month = this.getAttribute('data-month');
+      const year = this.getAttribute('data-year');
+      if (month && year) {
+        let url = `?view=month&month=${month}&year=${year}`;
+        
+        // Ajouter les filtres s'ils existent
+        const filterParams = this.getAttribute('data-filters');
+        if (filterParams) {
+          url += filterParams;
+        }
+        
+        window.location.href = url;
+      }
     });
   });
 }
@@ -54,24 +112,38 @@ function setupEventInteractions() {
  */
 function setupCalendarNavigation() {
   // Gérer le changement de vue (jour, semaine, mois, liste)
-  const viewOptions = document.querySelectorAll('.calendar-view-options a');
+  const viewOptions = document.querySelectorAll('.view-toggle a');
   
   viewOptions.forEach(option => {
     option.addEventListener('click', function(e) {
-      // Retirer la classe active de tous les boutons
-      viewOptions.forEach(opt => opt.classList.remove('active'));
-      
-      // Ajouter la classe active au bouton cliqué
-      this.classList.add('active');
+      // Les options de vue ont des liens href qui gèrent déjà la navigation
+      // On peut ajouter ici des fonctionnalités supplémentaires si nécessaire
     });
   });
+  
+  // Boutons de navigation (précédent, suivant, aujourd'hui)
+  const prevButton = document.querySelector('.prev-button');
+  const nextButton = document.querySelector('.next-button');
+  const todayButton = document.querySelector('.today-button');
+  
+  if (prevButton) {
+    prevButton.addEventListener('click', navigateToPrevious);
+  }
+  
+  if (nextButton) {
+    nextButton.addEventListener('click', navigateToNext);
+  }
+  
+  if (todayButton) {
+    todayButton.addEventListener('click', navigateToToday);
+  }
 }
 
 /**
  * Ajuste la hauteur des jours du calendrier pour une meilleure apparence
  */
 function adjustCalendarDayHeight() {
-  const calendarDays = document.querySelectorAll('.calendar-day:not(.empty)');
+  const calendarDays = document.querySelectorAll('.calendar-day:not(.other-month)');
   
   // Déterminer la hauteur maximale nécessaire
   let maxEventsCount = 0;
@@ -133,6 +205,15 @@ function syncEvents() {
 }
 
 /**
+ * Gestion des filtres de type d'événement
+ */
+function setupFilters() {
+  document.querySelectorAll('.filter-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', applyFilters);
+  });
+}
+
+/**
  * Fonction pour mettre à jour les événements dans le calendrier (appelée par syncEvents)
  * @param {Array} events - Liste des événements à afficher
  */
@@ -148,24 +229,30 @@ function updateCalendarEvents(events) {
   events.forEach(event => {
     const eventDate = new Date(event.date_debut);
     const day = eventDate.getDate();
+    const month = eventDate.getMonth() + 1;
+    const year = eventDate.getFullYear();
     
     // Trouver le conteneur du jour correspondant
-    const dayContainer = document.querySelector(`.calendar-day[data-day="${day}"] .calendar-day-events`);
+    const dayContainer = document.querySelector(`.calendar-day[data-date="${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}"] .calendar-day-events`);
     
     if (dayContainer) {
       // Créer l'élément d'événement
       const eventElement = document.createElement('div');
       eventElement.className = `calendar-event event-${event.type_evenement}`;
-      eventElement.dataset.eventId = event.id;
+      eventElement.setAttribute('data-event-id', event.id);
+      
+      if (event.statut === 'annulé') {
+        eventElement.classList.add('event-cancelled');
+      } else if (event.statut === 'reporté') {
+        eventElement.classList.add('event-postponed');
+      }
       
       // Ajouter l'heure et le titre
       const eventTime = document.createElement('span');
       eventTime.className = 'event-time';
       eventTime.textContent = eventDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
       
-      const eventTitle = document.createElement('span');
-      eventTitle.className = 'event-title';
-      eventTitle.textContent = event.titre;
+      const eventTitle = document.createTextNode(' ' + event.titre);
       
       // Assembler l'élément
       eventElement.appendChild(eventTime);
