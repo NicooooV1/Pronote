@@ -1494,23 +1494,18 @@ if ($installStatus['install_exists'] && $installStatus['lock_exists']) {
                 tokenInput.value = '<?= htmlspecialchars($diagToken) ?>';
                 form.appendChild(tokenInput);
             }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-</html></body>    </script>    }        }            columnsRow.style.display = 'none';        } else {            columnsRow.style.display = 'table-row';        if (columnsRow.style.display === 'none') {        const columnsRow = document.getElementById('columns-' + tableName);    function toggleColumns(tableName) {    // Fonction pour afficher/masquer les colonnes des tables    });        });        });
+        });
     });
+
+    // Fonction pour afficher/masquer les colonnes des tables
+    function toggleColumns(tableName) {
+        const columnsRow = document.getElementById('columns-' + tableName);
+        if (columnsRow.style.display === 'none') {
+            columnsRow.style.display = 'table-row';
+        } else {
+            columnsRow.style.display = 'none';
+        }
+    }
     </script>
 </body>
 </html>

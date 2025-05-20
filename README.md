@@ -675,7 +675,6 @@ Pour signaler un problème:
 Pour toute question ou assistance:
 - Consultez la documentation détaillée
 - Contactez l'équipe technique à support@example.com
-- Visitez le forum d'entraide: [forum.pronote-exemple.fr](http://forum.pronote-exemple.fr)
 
 ---
 

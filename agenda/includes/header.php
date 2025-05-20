@@ -91,12 +91,11 @@ $moduleColor = 'var(--accent-agenda)';
                 <label>
                   <span class="color-dot color-<?= $code ?>"></span>
                   <input type="checkbox" class="filter-checkbox" 
-                         id="filter-<?= $code ?>" 
+                         data-filter-type="type"
                          name="types[]" 
                          value="<?= $code ?>" 
-                         <?= isset($filter_types) && in_array($code, $filter_types) ? 'checked' : '' ?> 
-                         data-filter-type="type">
-                  <span class="filter-label"><?= $nom ?></span>
+                         <?= in_array($code, $filter_types ?? []) ? 'checked' : '' ?>>
+                  <?= htmlspecialchars($nom) ?>
                 </label>
               </div>
             <?php endif; ?>
@@ -104,13 +103,52 @@ $moduleColor = 'var(--accent-agenda)';
         </div>
       </div>
       <?php endif; ?>
+
+      <!-- Filtres par classe -->
+      <?php if (!empty($classes) && (isset($_SESSION['user']) && in_array($_SESSION['user']['profil'], ['professeur', 'administrateur', 'vie_scolaire']))): ?>
+      <div class="sidebar-section">
+        <div class="sidebar-section-header">Classes</div>
+        <div class="classes-dropdown">
+          <button class="classes-dropdown-toggle" id="classesDropdownToggle">
+            Filtrer par classe <i class="fas fa-chevron-down"></i>
+          </button>
+          <div class="dropdown-menu" id="classesDropdown">
+            <div class="dropdown-actions">
+              <button class="dropdown-action" id="selectAllClasses">Tout sélectionner</button>
+              <button class="dropdown-action" id="deselectAllClasses">Tout désélectionner</button>
+            </div>
+            <div class="dropdown-search">
+              <input type="text" id="classSearch" placeholder="Rechercher une classe" onkeyup="filterClasses()">
+            </div>
+            <div class="dropdown-options">
+              <?php foreach ($classes as $classe): ?>
+                <div class="dropdown-option">
+                  <label>
+                    <input type="checkbox" class="filter-checkbox" 
+                           data-filter-type="class" 
+                           name="classes[]" 
+                           value="<?= $classe ?>"
+                           <?= in_array($classe, $filter_classes ?? []) ? 'checked' : '' ?>>
+                    <?= htmlspecialchars($classe) ?>
+                  </label>
+                </div>
+              <?php endforeach; ?>
+            </div>
+            <div class="dropdown-footer">
+              <button class="apply-button" id="applyClassesFilter">Appliquer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+    </div><!-- .sidebar -->
     
     <!-- Main Content -->
     <div class="main-content">
       <!-- Header -->
       <div class="top-header">
         <div class="page-title">
-          <h1>Agenda</h1>
+          <h1><?= htmlspecialchars($pageTitle) ?></h1>
         </div>
         <div class="header-actions">
           <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>

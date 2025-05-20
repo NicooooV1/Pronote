@@ -36,8 +36,6 @@ if (file_exists($installFile) && file_exists($installLockFile)) {
             if (file_exists($installDisabledFile)) {
                 chmod($installDisabledFile, 0400); // Lecture seule pour le propriétaire
             }
-            
-            return; // Sortir si le renommage a réussi
         }
     } catch (Exception $e) {
         // Si le renommage échoue, essayer d'autres méthodes de protection

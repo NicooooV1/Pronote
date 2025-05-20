@@ -422,8 +422,12 @@ function formatEventForDisplay($event) {
         $formatted_event['date_relative'] = 'Aujourd\'hui';
     } elseif ($date_debut->format('Y-m-d') === $tomorrow_str) {
         $formatted_event['date_relative'] = 'Demain';
+    } elseif ($date_debut > $aujourd_hui) {
+        $diff = $aujourd_hui->diff($date_debut);
+        $formatted_event['date_relative'] = 'Dans ' . $diff->days . ' jour' . ($diff->days > 1 ? 's' : '');
     } else {
-        $formatted_event['date_relative'] = '';
+        $diff = $aujourd_hui->diff($date_debut);
+        $formatted_event['date_relative'] = 'Il y a ' . $diff->days . ' jour' . ($diff->days > 1 ? 's' : '');
     }
     
     return $formatted_event;

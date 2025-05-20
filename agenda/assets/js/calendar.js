@@ -168,7 +168,7 @@ function adjustCalendarDayHeight() {
  * @param {string} date - La date au format YYYY-MM-DD
  */
 function openDayView(date) {
-  window.location.href = 'agenda_jour.php?date=' + date;
+  window.location.href = 'agenda.php?view=day&date=' + date;
 }
 
 /**
@@ -183,95 +183,8 @@ function openEventDetails(eventId, e) {
   window.location.href = 'details_evenement.php?id=' + eventId;
 }
 
-/**
- * Fonction pour synchroniser les événements en temps réel (à implémenter avec AJAX)
- */
-function syncEvents() {
-  // Cette fonction pourrait être appelée périodiquement pour mettre à jour le calendrier
-  // sans rechargement complet de la page, en utilisant AJAX pour récupérer les nouveaux événements
-  
-  // Exemple de code pour une requête AJAX
-  /*
-  fetch('get_events.php?month=' + currentMonth + '&year=' + currentYear)
-    .then(response => response.json())
-    .then(data => {
-      // Mettre à jour les événements dans le calendrier
-      updateCalendarEvents(data);
-    })
-    .catch(error => {
-      console.error('Erreur lors de la synchronisation des événements:', error);
-    });
-  */
-}
-
-/**
- * Gestion des filtres de type d'événement
- */
-function setupFilters() {
-  document.querySelectorAll('.filter-checkbox').forEach(checkbox => {
-    checkbox.addEventListener('change', applyFilters);
-  });
-}
-
-/**
- * Fonction pour mettre à jour les événements dans le calendrier (appelée par syncEvents)
- * @param {Array} events - Liste des événements à afficher
- */
-function updateCalendarEvents(events) {
-  // Cette fonction mettrait à jour le DOM avec les nouveaux événements
-  
-  // Supprimer les événements existants
-  document.querySelectorAll('.calendar-day-events').forEach(container => {
-    container.innerHTML = '';
-  });
-  
-  // Ajouter les nouveaux événements
-  events.forEach(event => {
-    const eventDate = new Date(event.date_debut);
-    const day = eventDate.getDate();
-    const month = eventDate.getMonth() + 1;
-    const year = eventDate.getFullYear();
-    
-    // Trouver le conteneur du jour correspondant
-    const dayContainer = document.querySelector(`.calendar-day[data-date="${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}"] .calendar-day-events`);
-    
-    if (dayContainer) {
-      // Créer l'élément d'événement
-      const eventElement = document.createElement('div');
-      eventElement.className = `calendar-event event-${event.type_evenement}`;
-      eventElement.setAttribute('data-event-id', event.id);
-      
-      if (event.statut === 'annulé') {
-        eventElement.classList.add('event-cancelled');
-      } else if (event.statut === 'reporté') {
-        eventElement.classList.add('event-postponed');
-      }
-      
-      // Ajouter l'heure et le titre
-      const eventTime = document.createElement('span');
-      eventTime.className = 'event-time';
-      eventTime.textContent = eventDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      
-      const eventTitle = document.createTextNode(' ' + event.titre);
-      
-      // Assembler l'élément
-      eventElement.appendChild(eventTime);
-      eventElement.appendChild(eventTitle);
-      
-      // Ajouter l'écouteur d'événement
-      eventElement.addEventListener('click', function(e) {
-        openEventDetails(event.id, e);
-      });
-      
-      // Ajouter au conteneur
-      dayContainer.appendChild(eventElement);
-    }
-  });
-}
-
 // Exporter les fonctions pour les utiliser ailleurs si nécessaire
 window.calendarFunctions = {
   openDayView,
-  openEventDetails,
-  syncEvents
+  openEventDetails
 };

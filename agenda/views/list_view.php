@@ -5,7 +5,7 @@
  */
 
 // Récupérer tous les événements pour le mois en cours si pas déjà fait
-if (empty($events) && $table_exists) {
+if (empty($list_events) && $table_exists) {
     try {
         // Paramètres de filtrage pour la vue liste
         $params = [];
@@ -30,102 +30,374 @@ if (empty($events) && $table_exists) {
             }
         }
         
-        // Filtrer par date (événements à venir uniquement)
-        $where_clauses[] = "date_debut >= ?";
+        // Filtrage en fonction du rôle de l'utilisateur
+        if ($user_role === 'eleve') {
+            // Pour un élève, récupérer ses événements et ceux de sa classe
+            $classe = isset($user['classe']) ? $user['classe'] : ''; 
+            
+            $user_clause = "(visibilite = 'public' 
+                    OR visibilite = 'eleves' 
+                    OR visibilite LIKE ?
+                    OR classes LIKE ? 
+                    OR createur = ?";
+                    
+            $params[] = "%élèves%";
+            $params[] = "%$classe%";
+            $params[] = $user_fullname;
+            
+            // Ajouter la condition personnes_concernees si la colonne existe
+            if ($personnes_concernees_exists) {
+                $user_clause .= " OR personnes_concernees LIKE ?";
+                $params[] = "%$user_fullname%";
+            }
+            
+            $user_clause .= ")";
+            $where_clauses[] = $user_clause;
+            
+        } elseif ($user_role === 'professeur') {
+            // Pour un professeur, récupérer ses événements et les événements publics/professeurs
+            $user_clause = "(visibilite = 'public' 
+                    OR visibilite = 'professeurs' 
+                    OR visibilite LIKE ?
+                    OR createur = ?";
+                    
+            $params[] = "%professeurs%";
+            $params[] = $user_fullname;
+            
+            // Ajouter la condition personnes_concernees si la colonne existe
+            if ($personnes_concernees_exists) {
+                $user_clause .= " OR personnes_concernees LIKE ?";
+                $params[] = "%$user_fullname%";
+            }
+            
+            $user_clause .= ")";
+            $where_clauses[] = $user_clause;
+            
+        } elseif ($user_role === 'parent') {
+            // Pour les parents, montrer uniquement les événements publics ou pour parents
+            $where_clauses[] = "(visibilite = 'public' OR visibilite = 'parents')";
+        }
+        
+        // Ajouter une condition pour afficher les événements futurs et récents (derniers 30 jours)
+        $date_limite = date('Y-m-d', strtotime('-30 days'));
+        $where_clauses[] = "(date_debut >= ? OR date_fin >= ?)";
+        $params[] = $date_limite;
         $params[] = date('Y-m-d');
         
-        // Filtrage en fonction du rôle de l'utilisateur comme dans agenda.php
-        // ...existant code de filtrage par rôle...
-        
-        // Construire la requête SQL
+        // Construction de la requête SQL
         $sql = "SELECT * FROM evenements";
         if (!empty($where_clauses)) {
             $sql .= " WHERE " . implode(" AND ", $where_clauses);
         }
-        $sql .= " ORDER BY date_debut ASC LIMIT 50"; // Limiter à 50 événements pour la performance
+        $sql .= " ORDER BY date_debut";
         
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
-        $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $list_events = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
     } catch (PDOException $e) {
-        error_log("Erreur lors de la récupération des événements (vue liste): " . $e->getMessage());
-        // Afficher un message d'erreur élégant à l'utilisateur
-        echo '<div class="alert alert-error">Une erreur est survenue lors du chargement des événements.</div>';
+        error_log("Erreur lors de la récupération des événements pour la vue liste: " . $e->getMessage());
+        $list_events = [];
     }
 }
 
-// Organiser les événements par mois puis par jour
-$events_by_month = [];
-foreach ($events as $event) {
-    $month = date('Y-m', strtotime($event['date_debut']));
-    if (!isset($events_by_month[$month])) {
-        $events_by_month[$month] = [];
-    }
-    $events_by_month[$month][] = $event;
-}
+// Regrouper les événements par période
+$today = date('Y-m-d');
+$tomorrow = date('Y-m-d', strtotime('+1 day'));
+$next_week = date('Y-m-d', strtotime('+1 week'));
 
-// Trier les mois par ordre chronologique
-ksort($events_by_month);
+// Trier les événements par période
+$events_by_period = [
+    'today' => [],      // Aujourd'hui
+    'tomorrow' => [],   // Demain
+    'week' => [],       // Cette semaine
+    'future' => [],     // Plus tard
+    'past' => []        // Événements passés
+];
+
+if (!empty($list_events)) {
+    foreach ($list_events as $event) {
+        $event_date = date('Y-m-d', strtotime($event['date_debut']));
+        
+        if ($event_date < $today) {
+            $events_by_period['past'][] = $event;
+        } elseif ($event_date === $today) {
+            $events_by_period['today'][] = $event;
+        } elseif ($event_date === $tomorrow) {
+            $events_by_period['tomorrow'][] = $event;
+        } elseif ($event_date <= $next_week) {
+            $events_by_period['week'][] = $event;
+        } else {
+            $events_by_period['future'][] = $event;
+        }
+    }
+}
 ?>
 
 <div class="list-view">
-    <?php if (empty($events)): ?>
-        <div class="no-data-message">
-            <i class="fas fa-calendar-day"></i>
-            <p>Aucun événement à venir pour la période sélectionnée.</p>
-        </div>
-    <?php else: ?>
-        <?php foreach ($events_by_month as $month => $month_events): ?>
-            <div class="list-month-section">
-                <h3 class="list-month-title">
-                    <?php
-                    $month_obj = DateTime::createFromFormat('Y-m', $month);
-                    echo $month_names[$month_obj->format('n')] . ' ' . $month_obj->format('Y');
-                    ?>
-                </h3>
-                
-                <div class="events-list">
-                    <?php foreach ($month_events as $event): ?>
-                        <?php
-                        $event_date = new DateTime($event['date_debut']);
-                        $event_type = $event['type_evenement'];
+    <div class="list-header">
+        <h2>Liste des événements</h2>
+    </div>
+    
+    <div class="list-content">
+        <?php if (!empty($list_events)): ?>
+            <!-- Événements d'aujourd'hui -->
+            <?php if (!empty($events_by_period['today'])): ?>
+                <div class="list-section">
+                    <div class="list-section-header">
+                        <h3>Aujourd'hui</h3>
+                    </div>
+                    <div class="events-list">
+                        <?php foreach ($events_by_period['today'] as $event): 
+                            $debut = new DateTime($event['date_debut']);
+                            $fin = new DateTime($event['date_fin']);
+                            $event_class = 'event-' . strtolower($event['type_evenement']);
+                            
+                            if ($event['statut'] === 'annulé') {
+                                $event_class .= ' event-cancelled';
+                            } elseif ($event['statut'] === 'reporté') {
+                                $event_class .= ' event-postponed';
+                            }
                         ?>
-                        <div class="event-list-item">
-                            <div class="event-list-color" style="background-color: var(--color-<?= $event_type ?>);"></div>
-                            
-                            <div class="event-list-date">
-                                <span><?= $event_date->format('d') ?></span>
-                                <?= $day_names[$event_date->format('N') - 1] ?>
-                            </div>
-                            
-                            <div class="event-list-details">
-                                <div class="event-list-title">
-                                    <?= htmlspecialchars($event['titre']) ?>
-                                    <?php if ($event['statut'] === 'annulé'): ?>
-                                        <span class="badge badge-danger">Annulé</span>
-                                    <?php elseif ($event['statut'] === 'reporté'): ?>
-                                        <span class="badge badge-warning">Reporté</span>
-                                    <?php endif; ?>
+                            <div class="event-list-item <?= $event_class ?>">
+                                <div class="event-list-color"></div>
+                                <div class="event-list-date">
+                                    <span><?= $debut->format('d') ?></span>
+                                    <?= $debut->format('M') ?>
                                 </div>
-                                <div class="event-list-meta">
-                                    <span><i class="far fa-clock"></i> <?= $event_date->format('H:i') ?></span>
-                                    <?php if (!empty($event['lieu'])): ?>
-                                        <span><i class="fas fa-map-marker-alt"></i> <?= htmlspecialchars($event['lieu']) ?></span>
-                                    <?php endif; ?>
-                                    <?php if (!empty($event['matieres'])): ?>
-                                        <span><i class="fas fa-book"></i> <?= htmlspecialchars($event['matieres']) ?></span>
-                                    <?php endif; ?>
+                                <div class="event-list-details">
+                                    <div class="event-list-title">
+                                        <a href="details_evenement.php?id=<?= $event['id'] ?>">
+                                            <?= htmlspecialchars($event['titre']) ?>
+                                        </a>
+                                    </div>
+                                    <div class="event-list-meta">
+                                        <span>
+                                            <i class="far fa-clock"></i> 
+                                            <?= $debut->format('H:i') ?> - <?= $fin->format('H:i') ?>
+                                        </span>
+                                        <?php if (!empty($event['lieu'])): ?>
+                                            <span>
+                                                <i class="fas fa-map-marker-alt"></i> 
+                                                <?= htmlspecialchars($event['lieu']) ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                             </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+            
+            <!-- Événements de demain -->
+            <?php if (!empty($events_by_period['tomorrow'])): ?>
+                <div class="list-section">
+                    <div class="list-section-header">
+                        <h3>Demain</h3>
+                    </div>
+                    <div class="events-list">
+                        <?php foreach ($events_by_period['tomorrow'] as $event): 
+                            $debut = new DateTime($event['date_debut']);
+                            $fin = new DateTime($event['date_fin']);
+                            $event_class = 'event-' . strtolower($event['type_evenement']);
                             
-                            <a href="details_evenement.php?id=<?= $event['id'] ?>" class="btn-icon">
-                                <i class="fas fa-chevron-right"></i>
-                            </a>
-                        </div>
-                    <?php endforeach; ?>
+                            if ($event['statut'] === 'annulé') {
+                                $event_class .= ' event-cancelled';
+                            } elseif ($event['statut'] === 'reporté') {
+                                $event_class .= ' event-postponed';
+                            }
+                        ?>
+                            <div class="event-list-item <?= $event_class ?>">
+                                <div class="event-list-color"></div>
+                                <div class="event-list-date">
+                                    <span><?= $debut->format('d') ?></span>
+                                    <?= $debut->format('M') ?>
+                                </div>
+                                <div class="event-list-details">
+                                    <div class="event-list-title">
+                                        <a href="details_evenement.php?id=<?= $event['id'] ?>">
+                                            <?= htmlspecialchars($event['titre']) ?>
+                                        </a>
+                                    </div>
+                                    <div class="event-list-meta">
+                                        <span>
+                                            <i class="far fa-clock"></i> 
+                                            <?= $debut->format('H:i') ?> - <?= $fin->format('H:i') ?>
+                                        </span>
+                                        <?php if (!empty($event['lieu'])): ?>
+                                            <span>
+                                                <i class="fas fa-map-marker-alt"></i> 
+                                                <?= htmlspecialchars($event['lieu']) ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+            
+            <!-- Événements de cette semaine -->
+            <?php if (!empty($events_by_period['week'])): ?>
+                <div class="list-section">
+                    <div class="list-section-header">
+                        <h3>Cette semaine</h3>
+                    </div>
+                    <div class="events-list">
+                        <?php foreach ($events_by_period['week'] as $event): 
+                            $debut = new DateTime($event['date_debut']);
+                            $fin = new DateTime($event['date_fin']);
+                            $event_class = 'event-' . strtolower($event['type_evenement']);
+                            
+                            if ($event['statut'] === 'annulé') {
+                                $event_class .= ' event-cancelled';
+                            } elseif ($event['statut'] === 'reporté') {
+                                $event_class .= ' event-postponed';
+                            }
+                        ?>
+                            <div class="event-list-item <?= $event_class ?>">
+                                <div class="event-list-color"></div>
+                                <div class="event-list-date">
+                                    <span><?= $debut->format('d') ?></span>
+                                    <?= $debut->format('M') ?>
+                                </div>
+                                <div class="event-list-details">
+                                    <div class="event-list-title">
+                                        <a href="details_evenement.php?id=<?= $event['id'] ?>">
+                                            <?= htmlspecialchars($event['titre']) ?>
+                                        </a>
+                                    </div>
+                                    <div class="event-list-meta">
+                                        <span>
+                                            <i class="far fa-clock"></i> 
+                                            <?= $debut->format('H:i') ?> - <?= $fin->format('H:i') ?>
+                                        </span>
+                                        <?php if (!empty($event['lieu'])): ?>
+                                            <span>
+                                                <i class="fas fa-map-marker-alt"></i> 
+                                                <?= htmlspecialchars($event['lieu']) ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+            
+            <!-- Événements futurs -->
+            <?php if (!empty($events_by_period['future'])): ?>
+                <div class="list-section">
+                    <div class="list-section-header">
+                        <h3>Prochainement</h3>
+                    </div>
+                    <div class="events-list">
+                        <?php foreach ($events_by_period['future'] as $event): 
+                            $debut = new DateTime($event['date_debut']);
+                            $fin = new DateTime($event['date_fin']);
+                            $event_class = 'event-' . strtolower($event['type_evenement']);
+                            
+                            if ($event['statut'] === 'annulé') {
+                                $event_class .= ' event-cancelled';
+                            } elseif ($event['statut'] === 'reporté') {
+                                $event_class .= ' event-postponed';
+                            }
+                        ?>
+                            <div class="event-list-item <?= $event_class ?>">
+                                <div class="event-list-color"></div>
+                                <div class="event-list-date">
+                                    <span><?= $debut->format('d') ?></span>
+                                    <?= $debut->format('M') ?>
+                                </div>
+                                <div class="event-list-details">
+                                    <div class="event-list-title">
+                                        <a href="details_evenement.php?id=<?= $event['id'] ?>">
+                                            <?= htmlspecialchars($event['titre']) ?>
+                                        </a>
+                                    </div>
+                                    <div class="event-list-meta">
+                                        <span>
+                                            <i class="far fa-clock"></i> 
+                                            <?= $debut->format('H:i') ?> - <?= $fin->format('H:i') ?>
+                                        </span>
+                                        <?php if (!empty($event['lieu'])): ?>
+                                            <span>
+                                                <i class="fas fa-map-marker-alt"></i> 
+                                                <?= htmlspecialchars($event['lieu']) ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+            
+            <!-- Événements passés -->
+            <?php if (!empty($events_by_period['past'])): ?>
+                <div class="list-section">
+                    <div class="list-section-header">
+                        <h3>Événements passés</h3>
+                    </div>
+                    <div class="events-list">
+                        <?php foreach ($events_by_period['past'] as $event): 
+                            $debut = new DateTime($event['date_debut']);
+                            $fin = new DateTime($event['date_fin']);
+                            $event_class = 'event-' . strtolower($event['type_evenement']);
+                            
+                            if ($event['statut'] === 'annulé') {
+                                $event_class .= ' event-cancelled';
+                            } elseif ($event['statut'] === 'reporté') {
+                                $event_class .= ' event-postponed';
+                            }
+                        ?>
+                            <div class="event-list-item <?= $event_class ?>">
+                                <div class="event-list-color"></div>
+                                <div class="event-list-date">
+                                    <span><?= $debut->format('d') ?></span>
+                                    <?= $debut->format('M') ?>
+                                </div>
+                                <div class="event-list-details">
+                                    <div class="event-list-title">
+                                        <a href="details_evenement.php?id=<?= $event['id'] ?>">
+                                            <?= htmlspecialchars($event['titre']) ?>
+                                        </a>
+                                    </div>
+                                    <div class="event-list-meta">
+                                        <span>
+                                            <i class="far fa-clock"></i> 
+                                            <?= $debut->format('H:i') ?> - <?= $fin->format('H:i') ?>
+                                        </span>
+                                        <?php if (!empty($event['lieu'])): ?>
+                                            <span>
+                                                <i class="fas fa-map-marker-alt"></i> 
+                                                <?= htmlspecialchars($event['lieu']) ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+            
+        <?php else: ?>
+            <div class="no-events-container">
+                <div class="no-events-message">
+                    <i class="fas fa-calendar"></i>
+                    <p>Aucun événement à afficher.</p>
+                    <?php if ($user_role === 'professeur' || $user_role === 'administrateur' || $user_role === 'vie_scolaire'): ?>
+                        <a href="ajouter_evenement.php" class="create-button">
+                            <i class="fas fa-plus"></i> Ajouter un événement
+                        </a>
+                    <?php endif; ?>
                 </div>
             </div>
-        <?php endforeach; ?>
-    <?php endif; ?>
+        <?php endif; ?>
+    </div>
 </div>

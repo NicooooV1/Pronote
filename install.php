@@ -615,24 +615,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 
                 <div class="form-group">
+                    <label for="admin_prenom">Prénom</label>
+                    <input type="text" id="admin_prenom" name="admin_prenom" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="admin_mail">Email</label>
+                    <input type="email" id="admin_mail" name="admin_mail" required>
+                </div>
+                
+                <div class="form-group">
                     <label for="admin_password">Mot de passe</label>
-                    <input type="password" id="admin_password" name="admin_password" required minlength="12" " name="admin_prenom" required>
+                    <input type="password" id="admin_password" name="admin_password" required minlength="12" 
                            pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{12,}"
                            title="Le mot de passe doit contenir au moins 12 caractères, incluant au moins une majuscule, une minuscule, un chiffre et un caractère spécial">
                     <small>Minimum 12 caractères incluant au moins une majuscule, une minuscule, un chiffre et un caractère spécial</small>
                 </div>
-                    <input type="email" id="admin_mail" name="admin_mail" required>
-                <!-- Champ caché pour le jeton CSRF -->
-                <input type="hidden" name="install_token" value="<?= htmlspecialchars($install_token) ?>">
-                ass="form-group">
-                <button type="submit">Installer</button> <label for="admin_password">Mot de passe</label>
-            </form>             <input type="password" id="admin_password" name="admin_password" required minlength="8">
-        <?php endif; ?>             <small>Minimum 8 caractères</small>
-    <?php endif; ?>                </div>
-
-
-
-</html></body>                
+                
                 <!-- Champ caché pour le jeton CSRF -->
                 <input type="hidden" name="install_token" value="<?= htmlspecialchars($install_token) ?>">
                 
