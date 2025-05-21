@@ -238,6 +238,14 @@ $pageTitle = "Réinitialisation de mot de passe";
                     <span class="sidebar-nav-icon"><i class="fas fa-key"></i></span>
                     <span>Réinitialiser mot de passe</span>
                 </a>
+                <a href="reset_requests.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-clipboard-list"></i></span>
+                    <span>Demandes de réinitialisation</span>
+                </a>
+                <a href="admin_accounts.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-user-shield"></i></span>
+                    <span>Gestion des administrateurs</span>
+                </a>
             </div>
         </div>
     </div>

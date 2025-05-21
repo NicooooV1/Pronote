@@ -209,21 +209,36 @@ $isAdmin = isset($user['profil']) && $user['profil'] === 'administrateur';
                     <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
                     <span>Messagerie</span>
                 </a>
-                <?php if ($user_role === 'vie_scolaire' || $user_role === 'administrateur'): ?>
                 <a href="../absences/absences.php" class="sidebar-nav-item">
                     <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
                     <span>Absences</span>
                 </a>
-                <?php endif; ?>
-                
-                <?php if ($isAdmin): ?>
-                <a href="../admin/reset_user_password.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-key"></i></span>
-                    <span>Gestion des mots de passe</span>
-                </a>
-                <?php endif; ?>
             </div>
         </div>
+        
+        <?php if ($isAdmin): ?>
+        <div class="sidebar-section">
+            <div class="sidebar-section-header">Administration</div>
+            <div class="sidebar-nav">
+                <a href="../login/public/register.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-user-plus"></i></span>
+                    <span>Ajouter un utilisateur</span>
+                </a>
+                <a href="../admin/reset_user_password.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-key"></i></span>
+                    <span>Réinitialiser mot de passe</span>
+                </a>
+                <a href="../admin/reset_requests.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-clipboard-list"></i></span>
+                    <span>Demandes de réinitialisation</span>
+                </a>
+                <a href="../admin/admin_accounts.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-user-shield"></i></span>
+                    <span>Gestion des administrateurs</span>
+                </a>
+            </div>
+        </div>
+        <?php endif; ?>
         
         <div class="sidebar-section">
             <div class="sidebar-section-header">Informations</div>
@@ -251,16 +266,6 @@ $isAdmin = isset($user['profil']) && $user['profil'] === 'administrateur';
             </div>
             
             <div class="header-actions">
-                <?php if ($isAdmin): ?>
-                    <div class="admin-menu">
-                        <a href="../login/public/register.php" class="admin-action-button" title="Inscrire un nouvel utilisateur">
-                            <i class="fas fa-user-plus"></i>
-                        </a>
-                        <a href="../admin/reset_user_password.php" class="admin-action-button" title="Réinitialiser le mot de passe d'un utilisateur">
-                            <i class="fas fa-key"></i>
-                        </a>
-                    </div>
-                <?php endif; ?>
                 <a href="/~u22405372/SAE/Pronote/login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
                 <div class="user-avatar"><?= $user_initials ?></div>
             </div>

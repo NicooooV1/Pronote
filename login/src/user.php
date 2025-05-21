@@ -213,6 +213,12 @@ class User {
                     $data['est_infirmerie'] = 'non';
                 }
                 break;
+            case 'administrateur':
+                // Valeurs par défaut pour administrateur
+                if (!isset($data['role'])) {
+                    $data['role'] = 'standard';
+                }
+                break;
         }
 
         return true;
@@ -540,6 +546,195 @@ class User {
             return $stmt->execute([$passwordHash, $id]);
         } catch (PDOException $e) {
             $this->errorMessage = "Erreur lors du changement de mot de passe: " . $e->getMessage();
+            return false;
+        }
+    }
+    
+    /**
+     * Vérifie si un utilisateur existe déjà avec les mêmes informations
+     * 
+     * @param string $profil Type de profil (eleve, parent, professeur, etc.)
+     * @param array $data Données de l'utilisateur
+     * @return bool True si l'utilisateur existe déjà
+     */
+    public function checkUserExists($profil, array $data) {
+        if (!isset($this->tableMap[$profil])) {
+            $this->errorMessage = "Type de profil '$profil' invalide.";
+            return true; // Retourner true empêche la création
+        }
+        
+        $table = $this->tableMap[$profil];
+        
+        // Vérifier par email et/ou identifiant si fourni
+        $conditions = [];
+        $params = [];
+        
+        if (!empty($data['mail'])) {
+            $conditions[] = "mail = :mail";
+            $params[':mail'] = $data['mail'];
+        }
+        
+        if (!empty($data['identifiant'])) {
+            $conditions[] = "identifiant = :identifiant";
+            $params[':identifiant'] = $data['identifiant'];
+        }
+        
+        if (empty($conditions)) {
+            // Si pas de condition, on considère qu'on ne peut pas vérifier
+            return false;
+        }
+        
+        $sql = "SELECT id FROM `$table` WHERE " . implode(' OR ', $conditions) . " LIMIT 1";
+        
+        try {
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetch() !== false;
+        } catch (PDOException $e) {
+            $this->errorMessage = "Erreur lors de la vérification de l'existence de l'utilisateur: " . $e->getMessage();
+            return true; // En cas d'erreur, empêcher la création
+        }
+    }
+    
+    /**
+     * Crée un nouvel utilisateur avec les données fournies
+     * 
+     * @param string $profil Type de profil (eleve, parent, professeur, etc.)
+     * @param array $data Données de l'utilisateur
+     * @return array Résultat de l'opération ['success' => bool, 'message' => string, 'password' => string, 'identifiant' => string]
+     */
+    public function createUser($profil, array $data) {
+        // Essayer de créer l'utilisateur
+        if ($this->create($profil, $data)) {
+            return [
+                'success' => true,
+                'message' => "Utilisateur créé avec succès.",
+                'password' => $this->getGeneratedPassword(),
+                'identifiant' => $this->getGeneratedIdentifier()
+            ];
+        } else {
+            return [
+                'success' => false,
+                'message' => $this->getErrorMessage()
+            ];
+        }
+    }
+    
+    /**
+     * Récupère tous les utilisateurs de la base de données
+     * 
+     * @return array Liste des utilisateurs
+     */
+    public function getAllUsers() {
+        $allUsers = [];
+        
+        try {
+            foreach ($this->tableMap as $profil => $table) {
+                $stmt = $this->pdo->query("SELECT id, identifiant, nom, prenom, mail FROM `$table`");
+                $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Ajouter le profil à chaque utilisateur
+                foreach ($users as &$user) {
+                    $user['profil'] = $profil;
+                }
+                
+                $allUsers = array_merge($allUsers, $users);
+            }
+            
+            // Trier par nom
+            usort($allUsers, function($a, $b) {
+                return strcasecmp($a['nom'], $b['nom']);
+            });
+            
+            return $allUsers;
+        } catch (PDOException $e) {
+            $this->errorMessage = "Erreur lors de la récupération des utilisateurs: " . $e->getMessage();
+            return [];
+        }
+    }
+    
+    /**
+     * Recherche des utilisateurs selon des critères
+     * 
+     * @param string $searchTerm Terme de recherche
+     * @param string $userType Type d'utilisateur (facultatif)
+     * @return array Liste des utilisateurs correspondants
+     */
+    public function searchUsers($searchTerm, $userType = '') {
+        $results = [];
+        $searchTerm = '%' . $searchTerm . '%';
+        
+        try {
+            // Si un type d'utilisateur est spécifié, rechercher uniquement dans la table correspondante
+            if (!empty($userType) && isset($this->tableMap[$userType])) {
+                $table = $this->tableMap[$userType];
+                $stmt = $this->pdo->prepare(
+                    "SELECT id, identifiant, nom, prenom, mail FROM `$table` 
+                     WHERE nom LIKE ? OR prenom LIKE ? OR identifiant LIKE ? OR mail LIKE ?"
+                );
+                $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
+                $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Ajouter le profil à chaque utilisateur
+                foreach ($users as &$user) {
+                    $user['profil'] = $userType;
+                }
+                
+                $results = $users;
+            } else {
+                // Sinon, rechercher dans toutes les tables
+                foreach ($this->tableMap as $profil => $table) {
+                    $stmt = $this->pdo->prepare(
+                        "SELECT id, identifiant, nom, prenom, mail FROM `$table` 
+                         WHERE nom LIKE ? OR prenom LIKE ? OR identifiant LIKE ? OR mail LIKE ?"
+                    );
+                    $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
+                    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Ajouter le profil à chaque utilisateur
+                    foreach ($users as &$user) {
+                        $user['profil'] = $profil;
+                    }
+                    
+                    $results = array_merge($results, $users);
+                }
+            }
+            
+            // Trier par nom
+            usort($results, function($a, $b) {
+                return strcasecmp($a['nom'], $b['nom']);
+            });
+            
+            return $results;
+        } catch (PDOException $e) {
+            $this->errorMessage = "Erreur lors de la recherche d'utilisateurs: " . $e->getMessage();
+            return [];
+        }
+    }
+    
+    /**
+     * Récupère un utilisateur par son ID
+     * 
+     * @param int $id ID de l'utilisateur
+     * @return array|false Informations sur l'utilisateur ou false s'il n'existe pas
+     */
+    public function getUserById($id) {
+        try {
+            foreach ($this->tableMap as $profil => $table) {
+                $stmt = $this->pdo->prepare("SELECT * FROM `$table` WHERE id = ? LIMIT 1");
+                $stmt->execute([$id]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($user) {
+                    $user['profil'] = $profil;
+                    return $user;
+                }
+            }
+            
+            $this->errorMessage = "Utilisateur non trouvé.";
+            return false;
+        } catch (PDOException $e) {
+            $this->errorMessage = "Erreur lors de la récupération de l'utilisateur: " . $e->getMessage();
             return false;
         }
     }

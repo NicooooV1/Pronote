@@ -39,27 +39,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     if (empty($username) || empty($password)) {
         $error = "Veuillez remplir tous les champs.";
     } else {
-        // Tenter la connexion
-        $loginResult = $auth->login($username, $password, $userType);
+        // Si l'utilisateur sélectionne "Personnel", tenter d'abord avec "vie_scolaire", puis avec "administrateur"
+        if ($userType === 'personnel') {
+            // Essayer d'abord avec "vie_scolaire"
+            $vieResult = $auth->login('vie_scolaire', $username, $password);
+            
+            // Si ça échoue, essayer avec "administrateur"
+            if (!$vieResult['success']) {
+                $loginResult = $auth->login('administrateur', $username, $password);
+            } else {
+                $loginResult = $vieResult;
+            }
+        } else {
+            // Sinon, utiliser le type sélectionné
+            $loginResult = $auth->login($userType, $username, $password);
+        }
         
-        if ($loginResult['success']) {
+        // Vérifier que $loginResult est bien un tableau et contient une clé 'success'
+        if (is_array($loginResult) && isset($loginResult['success']) && $loginResult['success']) {
             // Stocker l'utilisateur en session
             $_SESSION['user'] = $loginResult['user'];
             
             // Si l'option "Se souvenir de moi" est cochée, stocker un cookie
-            if ($rememberMe) {
+            if ($rememberMe && method_exists($auth, 'generateRememberMeToken')) {
                 $token = $auth->generateRememberMeToken($loginResult['user']['id']);
                 setcookie('remember_me', $token, time() + (86400 * 30), "/"); // 30 jours
             }
             
             // Journaliser la connexion réussie
-            error_log("Connexion réussie: " . $username . " (type: " . $userType . ")");
+            error_log("Connexion réussie: " . $username . " (type: " . $_SESSION['user']['profil'] . ")");
             
             // Rediriger vers la page d'accueil
             header("Location: ../../accueil/accueil.php");
             exit;
         } else {
-            $error = $loginResult['message'];
+            // Si $loginResult est un boolean ou n'a pas la structure attendue
+            if (!is_array($loginResult) || !isset($loginResult['message'])) {
+                $error = "Identifiant ou mot de passe incorrect.";
+            } else {
+                $error = $loginResult['message'];
+            }
+            
             // Journaliser la tentative échouée
             error_log("Tentative de connexion échouée: " . $username . " (type: " . $userType . ") - " . $error);
             
@@ -139,17 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 </label>
             </div>
 
-            <!-- Sous-menu personnel -->
-            <div id="personnel-submenu" class="personnel-options" style="display: none;">
-                <label>
-                    <input type="radio" name="personnel_type" value="vie_scolaire" checked>
-                    <span>Vie scolaire</span>
-                </label>
-                <label>
-                    <input type="radio" name="personnel_type" value="administrateur">
-                    <span>Administrateur</span>
-                </label>
-            </div>
+            <!-- Suppression du sous-menu personnel, la détection se fait automatiquement -->
 
             <!-- Champs de formulaire -->
             <div class="form-group">
@@ -205,31 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 toggleButton.querySelector('i').classList.toggle('fa-eye-slash');
             });
             
-            // Gestion du sous-menu personnel
-            const personnelRadio = document.getElementById('personnel');
-            const personnelSubmenu = document.getElementById('personnel-submenu');
-            
-            function togglePersonnelSubmenu() {
-                personnelSubmenu.style.display = personnelRadio.checked ? 'flex' : 'none';
-            }
-            
-            // Vérifier l'état initial
-            togglePersonnelSubmenu();
-            
-            // Ajouter des écouteurs d'événements à tous les boutons radio
-            document.querySelectorAll('input[name="user_type"]').forEach(function(radio) {
-                radio.addEventListener('change', togglePersonnelSubmenu);
-            });
-            
-            // Mettre à jour le type d'utilisateur en fonction de la sélection du sous-menu
-            document.querySelectorAll('input[name="personnel_type"]').forEach(function(radio) {
-                radio.addEventListener('change', function() {
-                    if (personnelRadio.checked) {
-                        // Définir la valeur du type d'utilisateur en fonction de l'option sélectionnée
-                        personnelRadio.value = this.value;
-                    }
-                });
-            });
+            // Personnelisation supplémentaire si nécessaire
         });
     </script>
 </body>

@@ -16,50 +16,77 @@ if (isset($_SESSION['user'])) {
 $auth = new Auth($pdo);
 $error = '';
 $success = '';
-$userType = '';
+$userType = isset($_POST['user_type']) ? $_POST['user_type'] : '';
 
-// Traitement du formulaire d'identification
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['identify'])) {
+// Vérifier si les tables nécessaires existent, et les créer si ce n'est pas le cas
+try {
+    $query = "CREATE TABLE IF NOT EXISTS demandes_reinitialisation (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        user_type VARCHAR(30) NOT NULL,
+        date_demande DATETIME NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        date_traitement DATETIME NULL,
+        admin_id INT NULL
+    )";
+    $pdo->exec($query);
+} catch (PDOException $e) {
+    error_log("Erreur lors de la création de la table de réinitialisation: " . $e->getMessage());
+}
+
+// Traitement du formulaire de demande de réinitialisation
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_reset'])) {
     $username = isset($_POST['username']) ? trim($_POST['username']) : '';
+    $email = isset($_POST['email']) ? trim($_POST['email']) : '';
+    $phone = isset($_POST['phone']) ? trim($_POST['phone']) : '';
     $userType = isset($_POST['user_type']) ? $_POST['user_type'] : '';
     
-    if ($userType === 'personnel') {
-        $userType = isset($_POST['personnel_type']) ? $_POST['personnel_type'] : 'vie_scolaire';
-    }
-    
     // Validation de base
-    if (empty($username)) {
-        $error = "Veuillez saisir votre identifiant.";
+    if (empty($username) || empty($email) || empty($phone)) {
+        $error = "Veuillez remplir tous les champs.";
+    } else if ($userType === 'administrateur') {
+        $error = "Les administrateurs ne peuvent pas réinitialiser leur mot de passe par cette méthode.";
+    } else if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = "Format d'adresse email invalide.";
     } else {
-        // Vérifier si l'utilisateur existe
-        $user = $auth->findUserByUsername($username, $userType);
+        // Formater le numéro de téléphone
+        $phone = formatPhoneNumber($phone);
+        
+        // Vérifier si les informations correspondent à un utilisateur
+        $user = $auth->findUserByCredentials($username, $email, $phone, $userType);
         
         if ($user) {
-            // Générer un code de réinitialisation et envoyer un email
-            $resetCode = $auth->generateResetCode($user['id']);
-            
-            if (!empty($user['mail'])) {
-                // Simuler l'envoi d'email (pour développement)
-                // Dans une application réelle, vous utiliseriez une bibliothèque d'envoi d'emails
-                $success = "Un code de réinitialisation a été envoyé à l'adresse email associée à ce compte.";
-                
-                // Stocker les informations pour l'étape suivante
-                $_SESSION['reset_user_id'] = $user['id'];
-                $_SESSION['reset_code'] = $resetCode;
+            // Créer une demande de réinitialisation
+            if ($auth->createResetRequest($user['id'], $userType)) {
+                // Rediriger vers la page de confirmation
+                $_SESSION['reset_requested'] = true;
                 $_SESSION['reset_username'] = $username;
-                
-                // Rediriger vers la page de saisie du code
-                header("Location: verify_reset_code.php");
+                header("Location: reset_confirmation.php");
                 exit;
             } else {
-                $error = "Aucune adresse email n'est associée à ce compte. Veuillez contacter l'administrateur.";
+                $error = $auth->getErrorMessage();
             }
         } else {
-            $error = "Aucun compte trouvé avec cet identifiant et ce type d'utilisateur.";
+            $error = "Les informations fournies ne correspondent à aucun utilisateur.";
         }
     }
 }
 
+/**
+ * Formate un numéro de téléphone au format XX XX XX XX XX
+ */
+function formatPhoneNumber($phone) {
+    // Supprimer tous les caractères non numériques
+    $phone = preg_replace('/[^0-9]/', '', $phone);
+    
+    // Vérifier si le numéro a 10 chiffres
+    if (strlen($phone) === 10) {
+        // Formater au format XX XX XX XX XX
+        return implode(' ', str_split($phone, 2));
+    }
+    
+    return $phone;
+}
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -76,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['identify'])) {
         <div class="auth-header">
             <div class="app-logo">P</div>
             <h1 class="app-title">PRONOTE</h1>
-            <p class="app-subtitle">Réinitialisation de mot de passe</p>
+            <p class="app-subtitle">Demande de réinitialisation de mot de passe</p>
         </div>
         
         <!-- Messages -->
@@ -87,20 +114,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['identify'])) {
             </div>
         <?php endif; ?>
         
-        <?php if (!empty($success)): ?>
-            <div class="alert alert-success">
-                <i class="fas fa-check-circle"></i>
-                <div><?= htmlspecialchars($success) ?></div>
+        <!-- Note d'information -->
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            <div>
+                <p>Pour des raisons de sécurité, la réinitialisation de mot de passe doit être validée par un administrateur.</p>
+                <p>Veuillez fournir les informations suivantes pour confirmer votre identité.</p>
             </div>
-        <?php endif; ?>
+        </div>
         
-        <!-- Formulaire d'identification -->
+        <!-- Formulaire de demande de réinitialisation -->
         <form method="post" action="">
-            <p style="margin-bottom: 20px;">Pour réinitialiser votre mot de passe, veuillez saisir votre identifiant et sélectionner votre type de compte.</p>
-            
             <!-- Sélecteur de profil -->
             <div class="profile-selector">
-                <input type="radio" id="eleve" name="user_type" value="eleve" <?= $userType === 'eleve' ? 'checked' : '' ?>>
+                <input type="radio" id="eleve" name="user_type" value="eleve" <?= $userType === 'eleve' ? 'checked' : '' ?> required>
                 <label for="eleve" class="profile-option">
                     <div class="profile-icon">
                         <i class="fas fa-user-graduate"></i>
@@ -124,24 +151,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['identify'])) {
                     <div class="profile-label">Professeur</div>
                 </label>
 
-                <input type="radio" id="personnel" name="user_type" value="personnel" <?= $userType === 'personnel' ? 'checked' : '' ?>>
+                <input type="radio" id="personnel" name="user_type" value="vie_scolaire" <?= $userType === 'vie_scolaire' ? 'checked' : '' ?>>
                 <label for="personnel" class="profile-option">
                     <div class="profile-icon">
                         <i class="fas fa-user-tie"></i>
                     </div>
                     <div class="profile-label">Personnel</div>
-                </label>
-            </div>
-
-            <!-- Sous-menu personnel -->
-            <div id="personnel-submenu" class="personnel-options" style="display: none;">
-                <label>
-                    <input type="radio" name="personnel_type" value="vie_scolaire" checked>
-                    <span>Vie scolaire</span>
-                </label>
-                <label>
-                    <input type="radio" name="personnel_type" value="administrateur">
-                    <span>Administrateur</span>
                 </label>
             </div>
             
@@ -153,12 +168,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['identify'])) {
                 </div>
             </div>
             
+            <div class="form-group">
+                <label for="email" class="required-field">Adresse email</label>
+                <div class="input-group">
+                    <i class="input-group-icon fas fa-envelope"></i>
+                    <input type="email" id="email" name="email" class="form-control input-with-icon" required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="phone" class="required-field">Numéro de téléphone</label>
+                <div class="input-group">
+                    <i class="input-group-icon fas fa-phone"></i>
+                    <input type="tel" id="phone" name="phone" class="form-control input-with-icon" required placeholder="Ex: 06 12 34 56 78">
+                </div>
+                <small class="form-text text-muted">Format: 10 chiffres (espaces optionnels)</small>
+            </div>
+            
             <div class="form-actions">
                 <a href="index.php" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Retour
                 </a>
-                <button type="submit" name="identify" class="btn btn-primary">
-                    <i class="fas fa-paper-plane"></i> Continuer
+                <button type="submit" name="request_reset" class="btn btn-primary">
+                    <i class="fas fa-paper-plane"></i> Faire la demande
                 </button>
             </div>
         </form>
@@ -166,30 +198,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['identify'])) {
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Gestion du sous-menu personnel
+            // Masquer le type "Administrateur" pour les réinitialisations
+            const radioButtons = document.querySelectorAll('input[name="user_type"]');
             const personnelRadio = document.getElementById('personnel');
-            const personnelSubmenu = document.getElementById('personnel-submenu');
             
-            function togglePersonnelSubmenu() {
-                personnelSubmenu.style.display = personnelRadio.checked ? 'flex' : 'none';
+            // S'assurer qu'une option est sélectionnée par défaut
+            if (!Array.from(radioButtons).some(radio => radio.checked)) {
+                radioButtons[0].checked = true;
             }
             
-            // Vérifier l'état initial
-            togglePersonnelSubmenu();
-            
-            // Ajouter des écouteurs d'événements à tous les boutons radio
-            document.querySelectorAll('input[name="user_type"]').forEach(function(radio) {
-                radio.addEventListener('change', togglePersonnelSubmenu);
-            });
-            
-            // Mettre à jour le type d'utilisateur en fonction de la sélection du sous-menu
-            document.querySelectorAll('input[name="personnel_type"]').forEach(function(radio) {
-                radio.addEventListener('change', function() {
-                    if (personnelRadio.checked) {
-                        // Définir la valeur du type d'utilisateur en fonction de l'option sélectionnée
-                        personnelRadio.value = this.value;
+            // Formater automatiquement le numéro de téléphone
+            const phoneInput = document.getElementById('phone');
+            phoneInput.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, ''); // Garder seulement les chiffres
+                if (value.length > 10) {
+                    value = value.substring(0, 10); // Limiter à 10 chiffres
+                }
+                
+                // Formatter avec des espaces
+                if (value.length >= 2) {
+                    let formattedValue = '';
+                    for (let i = 0; i < value.length; i += 2) {
+                        if (i + 2 <= value.length) {
+                            formattedValue += value.substring(i, i + 2) + ' ';
+                        } else {
+                            formattedValue += value.substring(i);
+                        }
                     }
-                });
+                    e.target.value = formattedValue.trim();
+                } else {
+                    e.target.value = value;
+                }
             });
         });
     </script>
