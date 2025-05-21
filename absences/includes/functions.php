@@ -871,4 +871,21 @@ function formatDateTime($datetime) {
     $timestamp = strtotime($datetime);
     return date('d/m/Y à H:i', $timestamp);
 }
+
+/**
+ * Détermine le trimestre actuel
+ * @return string Trimestre actuel
+ */
+function getTrimestre() {
+    $mois = date('n');
+    if ($mois >= 9 && $mois <= 12) {
+        return "1er trimestre";
+    } elseif ($mois >= 1 && $mois <= 3) {
+        return "2ème trimestre";
+    } elseif ($mois >= 4 && $mois <= 6) {
+        return "3ème trimestre";
+    } else {
+        return "Période estivale";
+    }
+}
 ?>

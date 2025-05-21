@@ -238,6 +238,117 @@ $duree_minutes = $duree_totale_minutes % 60;
     </div>
   </div>
   <?php endif; ?>
+  
+  <!-- Vue statistiques des absences - Style harmonisé -->
+  <div class="stats-section">
+    <h2>Statistiques globales</h2>
+    <div class="stats-cards">
+        <div class="stats-card">
+            <div class="stats-icon">
+                <i class="fas fa-calendar-times"></i>
+            </div>
+            <div class="stats-info">
+                <div class="stats-label">Total absences</div>
+                <div class="stats-value"><?= $total_absences ?></div>
+            </div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="stats-info">
+                <div class="stats-label">Absences justifiées</div>
+                <div class="stats-value"><?= $nbJustifiees ?></div>
+                <div class="stats-percent"><?= $total_absences > 0 ? round(($nbJustifiees / $total_absences) * 100) : 0 ?>%</div>
+            </div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-icon">
+                <i class="fas fa-times-circle"></i>
+            </div>
+            <div class="stats-info">
+                <div class="stats-label">Absences non justifiées</div>
+                <div class="stats-value"><?= $nbNonJustifiees ?></div>
+                <div class="stats-percent"><?= $total_absences > 0 ? round(($nbNonJustifiees / $total_absences) * 100) : 0 ?>%</div>
+            </div>
+        </div>
+        
+        <div class="stats-card">
+            <div class="stats-icon">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="stats-info">
+                <div class="stats-label">Temps d'enseignement perdu</div>
+                <div class="stats-value"><?= $heuresPerdues ?> heures</div>
+                <div class="stats-percent">(env. <?= $joursPerdus ?> jours)</div>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <div class="stats-section">
+    <h2>Répartition par type d'absence</h2>
+    <div class="stats-cards">
+        <?php foreach ($statsByType as $type => $count): ?>
+            <div class="stats-card">
+                <div class="stats-icon">
+                    <?php if ($type === 'cours'): ?>
+                        <i class="fas fa-book"></i>
+                    <?php elseif ($type === 'demi-journee'): ?>
+                        <i class="fas fa-sun"></i>
+                    <?php elseif ($type === 'journee'): ?>
+                        <i class="fas fa-calendar-day"></i>
+                    <?php else: ?>
+                        <i class="fas fa-calendar-minus"></i>
+                    <?php endif; ?>
+                </div>
+                <div class="stats-info">
+                    <div class="stats-label">
+                        <?php
+                        switch ($type) {
+                            case 'cours':
+                                echo 'Cours';
+                                break;
+                            case 'demi-journee':
+                                echo 'Demi-journée';
+                                break;
+                            case 'journee':
+                                echo 'Journée complète';
+                                break;
+                            default:
+                                echo htmlspecialchars(ucfirst($type));
+                        }
+                        ?>
+                    </div>
+                    <div class="stats-value"><?= $count ?></div>
+                    <div class="stats-percent"><?= $total_absences > 0 ? round(($count / $total_absences) * 100) : 0 ?>%</div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+  </div>
+
+  <?php if (isAdmin() || isVieScolaire()): ?>
+  <div class="stats-section">
+    <h2>Répartition par classe</h2>
+    <div class="stats-cards">
+        <?php foreach (array_slice($statsByClasse, 0, 8, true) as $classe => $count): ?>
+            <div class="stats-card">
+                <div class="stats-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stats-info">
+                    <div class="stats-label"><?= htmlspecialchars($classe) ?></div>
+                    <div class="stats-value"><?= $count ?></div>
+                    <div class="stats-percent"><?= $total_absences > 0 ? round(($count / $total_absences) * 100) : 0 ?>%</div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endif; ?>
 </div>
 
 <style>

@@ -175,7 +175,7 @@ if ($duree->i > 0) {
       </div>
       
       <!-- Content -->
-      <div class="content-container">
+      <div class="content-section">
         <div class="details-container">
           <div class="details-header">
             <h2><?= htmlspecialchars($absence['prenom'] . ' ' . $absence['nom']) ?> - <?= htmlspecialchars($absence['classe']) ?></h2>
@@ -260,7 +260,7 @@ if ($duree->i > 0) {
               <form action="justifier_absence.php" method="post">
                 <input type="hidden" name="id" value="<?= $absence['id'] ?>">
                 <div class="form-group">
-                  <label for="motif">Motif de justification</label>
+                  <label for="motif" class="form-label">Motif de justification</label>
                   <select name="motif" id="motif" class="form-control">
                     <option value="">Sélectionner un motif</option>
                     <option value="maladie">Maladie</option>
@@ -272,7 +272,7 @@ if ($duree->i > 0) {
                 </div>
                 
                 <div class="form-group">
-                  <label for="commentaire_justification">Commentaire</label>
+                  <label for="commentaire_justification" class="form-label">Commentaire</label>
                   <textarea name="commentaire_justification" id="commentaire_justification" rows="3" class="form-control"></textarea>
                 </div>
                 

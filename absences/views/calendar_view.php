@@ -1,147 +1,118 @@
 <?php
-// Fichier inclus depuis absences.php
-// Les variables $absences, $date_debut, $date_fin, etc. sont déjà définies
+// Vue calendrier des absences - Style harmonisé
+// Inclus depuis absences.php
 
-// Organiser les absences par date pour l'affichage calendrier
-$absences_par_date = [];
+// Préparer les données du calendrier
+$jours_semaine = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
+$debut_mois = new DateTime(date('Y-m-01', strtotime($date_debut)));
+$debut_mois->modify('first day of this month');
+$debut_calendrier = clone $debut_mois;
+$debut_calendrier->modify('last monday');
+
+$fin_mois = new DateTime(date('Y-m-t', strtotime($date_debut)));
+$fin_calendrier = clone $fin_mois;
+$fin_calendrier->modify('next sunday');
+
+// Organiser les absences par jour
+$absences_par_jour = [];
 foreach ($absences as $absence) {
-    $debut_dt = new DateTime($absence['date_debut']);
-    $fin_dt = new DateTime($absence['date_fin']);
+    $debut = new DateTime($absence['date_debut']);
+    $fin = new DateTime($absence['date_fin']);
     
-    // Calculer le nombre de jours entre le début et la fin
-    $interval = $debut_dt->diff($fin_dt);
-    $nombre_jours = $interval->days;
-    
-    // Si c'est moins d'un jour
-    if ($nombre_jours == 0) {
-        $date_key = $debut_dt->format('Y-m-d');
-        if (!isset($absences_par_date[$date_key])) {
-            $absences_par_date[$date_key] = [];
+    $jour_courant = clone $debut;
+    while ($jour_courant <= $fin) {
+        $jour_key = $jour_courant->format('Y-m-d');
+        if (!isset($absences_par_jour[$jour_key])) {
+            $absences_par_jour[$jour_key] = [];
         }
-        $absences_par_date[$date_key][] = $absence;
-    } else {
-        // Pour les absences sur plusieurs jours, créer une entrée pour chaque jour
-        $current_dt = clone $debut_dt;
-        while ($current_dt <= $fin_dt) {
-            $date_key = $current_dt->format('Y-m-d');
-            if (!isset($absences_par_date[$date_key])) {
-                $absences_par_date[$date_key] = [];
-            }
-            $absences_par_date[$date_key][] = $absence;
-            $current_dt->modify('+1 day');
-        }
+        $absences_par_jour[$jour_key][] = $absence;
+        $jour_courant->modify('+1 day');
     }
 }
 
-// Déterminer la plage de dates à afficher
-$debut_calendar = new DateTime($date_debut);
-$fin_calendar = new DateTime($date_fin);
-
-// Ajuster pour afficher des semaines complètes
-$debut_calendar->modify('this week monday');
-$fin_calendar->modify('this week sunday');
-if ($fin_calendar < new DateTime($date_fin)) {
-    $fin_calendar->modify('+1 week sunday');
-}
-
-// Créer un tableau de semaines
+// Générer les semaines pour le calendrier
 $semaines = [];
-$current_week = [];
-$current_day = clone $debut_calendar;
-
-while ($current_day <= $fin_calendar) {
-    $date_key = $current_day->format('Y-m-d');
-    $day_absences = isset($absences_par_date[$date_key]) ? $absences_par_date[$date_key] : [];
-    
-    $current_week[] = [
-        'date' => clone $current_day,
-        'absences' => $day_absences,
-        'in_range' => $current_day >= new DateTime($date_debut) && $current_day <= new DateTime($date_fin)
-    ];
-    
-    $current_day->modify('+1 day');
-    
-    // Nouvelle semaine le lundi
-    if ($current_day->format('N') == 1) {
-        $semaines[] = $current_week;
-        $current_week = [];
+$jour_courant = clone $debut_calendrier;
+while ($jour_courant <= $fin_calendrier) {
+    $semaine = [];
+    for ($i = 0; $i < 7; $i++) {
+        $jour_key = $jour_courant->format('Y-m-d');
+        $semaine[] = [
+            'date' => clone $jour_courant,
+            'in_range' => $jour_courant->format('Y-m') === $debut_mois->format('Y-m'),
+            'absences' => isset($absences_par_jour[$jour_key]) ? $absences_par_jour[$jour_key] : []
+        ];
+        $jour_courant->modify('+1 day');
     }
+    $semaines[] = $semaine;
 }
-
-// Ajouter la dernière semaine si elle n'est pas vide
-if (!empty($current_week)) {
-    $semaines[] = $current_week;
-}
-
-// Noms des jours de la semaine
-$jours_semaine = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 ?>
 
 <div class="calendar-container">
-  <!-- En-tête du calendrier -->
-  <div class="calendar-header">
-    <div class="calendar-navigation">
-      <a href="?view=calendar&date_debut=<?= date('Y-m-d', strtotime($date_debut . ' -1 month')) ?>&date_fin=<?= date('Y-m-d', strtotime($date_fin . ' -1 month')) ?>&classe=<?= urlencode($classe) ?>&justifie=<?= $justifie ?>" class="calendar-nav-btn">
-        <i class="fas fa-chevron-left"></i> Mois précédent
-      </a>
-      <h2><?= strftime('%B %Y', strtotime($date_debut)) ?></h2>
-      <a href="?view=calendar&date_debut=<?= date('Y-m-d', strtotime($date_debut . ' +1 month')) ?>&date_fin=<?= date('Y-m-d', strtotime($date_fin . ' +1 month')) ?>&classe=<?= urlencode($classe) ?>&justifie=<?= $justifie ?>" class="calendar-nav-btn">
-        Mois suivant <i class="fas fa-chevron-right"></i>
-      </a>
+    <!-- En-tête du calendrier -->
+    <div class="calendar-header">
+        <div class="calendar-navigation">
+            <a href="?view=calendar&date_debut=<?= date('Y-m-d', strtotime($date_debut . ' -1 month')) ?>&date_fin=<?= date('Y-m-d', strtotime($date_fin . ' -1 month')) ?>&classe=<?= urlencode($classe) ?>&justifie=<?= $justifie ?>" class="btn btn-secondary">
+                <i class="fas fa-chevron-left"></i> Mois précédent
+            </a>
+            <h2><?= strftime('%B %Y', strtotime($date_debut)) ?></h2>
+            <a href="?view=calendar&date_debut=<?= date('Y-m-d', strtotime($date_debut . ' +1 month')) ?>&date_fin=<?= date('Y-m-d', strtotime($date_fin . ' +1 month')) ?>&classe=<?= urlencode($classe) ?>&justifie=<?= $justifie ?>" class="btn btn-secondary">
+                Mois suivant <i class="fas fa-chevron-right"></i>
+            </a>
+        </div>
+        
+        <div class="calendar-day-headers">
+            <?php foreach ($jours_semaine as $jour): ?>
+                <div class="calendar-day-header"><?= $jour ?></div>
+            <?php endforeach; ?>
+        </div>
     </div>
     
-    <div class="calendar-day-headers">
-      <?php foreach ($jours_semaine as $jour): ?>
-        <div class="calendar-day-header"><?= $jour ?></div>
-      <?php endforeach; ?>
-    </div>
-  </div>
-  
-  <!-- Corps du calendrier -->
-  <div class="calendar-body">
-    <?php foreach ($semaines as $semaine): ?>
-      <div class="calendar-week">
-        <?php foreach ($semaine as $jour): ?>
-          <?php 
-          $is_today = $jour['date']->format('Y-m-d') === date('Y-m-d');
-          $is_weekend = in_array($jour['date']->format('N'), [6, 7]);
-          $has_absences = !empty($jour['absences']);
-          ?>
-          <div class="calendar-day <?= $is_weekend ? 'weekend' : '' ?> <?= $is_today ? 'today' : '' ?> <?= $jour['in_range'] ? '' : 'out-of-range' ?> <?= $has_absences ? 'has-absences' : '' ?>">
-            <div class="calendar-day-number"><?= $jour['date']->format('d') ?></div>
-            
-            <?php if ($has_absences): ?>
-              <div class="calendar-absences">
-                <?php foreach ($jour['absences'] as $index => $absence): ?>
-                  <?php if ($index < 3): ?>
-                    <div class="calendar-absence-item <?= $absence['justifie'] ? 'justified' : 'not-justified' ?>" 
-                         title="<?= htmlspecialchars($absence['prenom'] . ' ' . $absence['nom'] . ' - ' . (new DateTime($absence['date_debut']))->format('H:i') . ' à ' . (new DateTime($absence['date_fin']))->format('H:i')) ?>">
-                      <?php if (isAdmin() || isVieScolaire() || isTeacher()): ?>
-                        <?= htmlspecialchars(substr($absence['prenom'], 0, 1) . '. ' . $absence['nom']) ?>
-                      <?php else: ?>
-                        <?= (new DateTime($absence['date_debut']))->format('H:i') ?> - <?= (new DateTime($absence['date_fin']))->format('H:i') ?>
-                      <?php endif; ?>
+    <!-- Corps du calendrier -->
+    <div class="calendar-body">
+        <?php foreach ($semaines as $semaine): ?>
+            <div class="calendar-week">
+                <?php foreach ($semaine as $jour): ?>
+                    <?php 
+                    $is_today = $jour['date']->format('Y-m-d') === date('Y-m-d');
+                    $is_weekend = in_array($jour['date']->format('N'), [6, 7]);
+                    $has_absences = !empty($jour['absences']);
+                    ?>
+                    <div class="calendar-day <?= $is_weekend ? 'weekend' : '' ?> <?= $is_today ? 'today' : '' ?> <?= $jour['in_range'] ? '' : 'out-of-range' ?> <?= $has_absences ? 'has-absences' : '' ?>">
+                        <div class="calendar-day-number"><?= $jour['date']->format('d') ?></div>
+                        
+                        <?php if ($has_absences): ?>
+                            <div class="calendar-absences">
+                                <?php foreach ($jour['absences'] as $index => $absence): ?>
+                                    <?php if ($index < 3): ?>
+                                        <div class="calendar-absence-item <?= $absence['justifie'] ? 'justified' : '' ?>" 
+                                             title="<?= htmlspecialchars($absence['prenom'] . ' ' . $absence['nom'] . ' - ' . (new DateTime($absence['date_debut']))->format('H:i') . ' à ' . (new DateTime($absence['date_fin']))->format('H:i')) ?>">
+                                            <?php if (isAdmin() || isVieScolaire() || isTeacher()): ?>
+                                                <?= htmlspecialchars(substr($absence['prenom'], 0, 1) . '. ' . $absence['nom']) ?>
+                                            <?php else: ?>
+                                                <?= (new DateTime($absence['date_debut']))->format('H:i') ?> - <?= (new DateTime($absence['date_fin']))->format('H:i') ?>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                                
+                                <?php if (count($jour['absences']) > 3): ?>
+                                    <div class="calendar-more-absences">+<?= count($jour['absences']) - 3 ?> autres</div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <?php if (canManageAbsences() && $jour['in_range']): ?>
+                            <a href="ajouter_absence.php?date=<?= $jour['date']->format('Y-m-d') ?>" class="calendar-add-absence" title="Ajouter une absence">
+                                <i class="fas fa-plus"></i>
+                            </a>
+                        <?php endif; ?>
                     </div>
-                  <?php endif; ?>
                 <?php endforeach; ?>
-                
-                <?php if (count($jour['absences']) > 3): ?>
-                  <div class="calendar-more-absences">+<?= count($jour['absences']) - 3 ?> autres</div>
-                <?php endif; ?>
-              </div>
-            <?php endif; ?>
-            
-            <?php if (canManageAbsences() && $jour['in_range']): ?>
-              <a href="ajouter_absence.php?date=<?= $jour['date']->format('Y-m-d') ?>" class="calendar-add-absence" title="Ajouter une absence">
-                <i class="fas fa-plus"></i>
-              </a>
-            <?php endif; ?>
-          </div>
+            </div>
         <?php endforeach; ?>
-      </div>
-    <?php endforeach; ?>
-  </div>
+    </div>
 </div>
 
 <style>

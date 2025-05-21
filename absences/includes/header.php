@@ -37,11 +37,13 @@ if (!function_exists('canManageAbsences')) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageTitle) ?> - PRONOTE</title>
+    <!-- CSS commun à tous les modules -->
     <link rel="stylesheet" href="../assets/css/pronote-core.css">
+    <!-- CSS spécifique aux absences -->
     <link rel="stylesheet" href="assets/css/absences.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
-<body>
+<body class="module-absences">
     <div class="app-container">
         <!-- Barre latérale -->
         <div class="sidebar">
@@ -99,13 +101,9 @@ if (!function_exists('canManageAbsences')) {
                         <span class="sidebar-nav-icon"><i class="fas fa-clipboard-list"></i></span>
                         <span>Faire l'appel</span>
                     </a>
-                    <a href="justificatifs.php" class="sidebar-nav-item <?= isActiveLink('justificatifs') ?>">
-                        <span class="sidebar-nav-icon"><i class="fas fa-file-alt"></i></span>
-                        <span>Justificatifs</span>
-                    </a>
                     <?php endif; ?>
                     
-                    <?php if (isset($_SESSION['user']) && $_SESSION['user']['profil'] === 'administrateur'): ?>
+                    <?php if (isAdmin() || isVieScolaire()): ?>
                     <a href="statistiques.php" class="sidebar-nav-item <?= isActiveLink('statistiques') ?>">
                         <span class="sidebar-nav-icon"><i class="fas fa-chart-pie"></i></span>
                         <span>Statistiques</span>
@@ -140,11 +138,9 @@ if (!function_exists('canManageAbsences')) {
                         <i class="fas fa-plus"></i> Signaler une absence
                     </a>
                     <?php endif; ?>
-                    <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">
-                        <i class="fas fa-power-off"></i>
-                    </a>
+                    <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
                     <div class="user-avatar" title="<?= htmlspecialchars($user_fullname ?? '') ?>"><?= $user_initials ?? '' ?></div>
                 </div>
             </div>
 
-            <div class="content-container">
+            <div class="content-wrapper">

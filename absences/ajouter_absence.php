@@ -182,18 +182,20 @@ $id_eleve_suggere = isset($_GET['eleve']) ? $_GET['eleve'] : '';
       </div>
       
       <!-- Content -->
-      <div class="content-container">
+      <div class="content-section">
         <?php if (!empty($message)): ?>
           <div class="alert alert-success">
             <i class="fas fa-check-circle"></i>
-            <?= $message ?>
+            <span><?= $message ?></span>
+            <button class="alert-close"><i class="fas fa-times"></i></button>
           </div>
         <?php endif; ?>
         
         <?php if (!empty($erreur)): ?>
           <div class="alert alert-error">
             <i class="fas fa-exclamation-circle"></i>
-            <?= $erreur ?>
+            <span><?= $erreur ?></span>
+            <button class="alert-close"><i class="fas fa-times"></i></button>
           </div>
         <?php endif; ?>
         
@@ -202,8 +204,8 @@ $id_eleve_suggere = isset($_GET['eleve']) ? $_GET['eleve'] : '';
             <input type="hidden" name="csrf_token" value="<?= $csrf_token ?>">
             <div class="form-grid">
               <div class="form-group form-full">
-                <label for="id_eleve">Élève <span class="required">*</span></label>
-                <select name="id_eleve" id="id_eleve" required>
+                <label for="id_eleve" class="form-label">Élève <span class="required">*</span></label>
+                <select name="id_eleve" id="id_eleve" class="form-control" required>
                   <option value="">Sélectionner un élève</option>
                   <?php foreach ($eleves as $eleve): ?>
                     <option value="<?= $eleve['id'] ?>" <?= $id_eleve_suggere == $eleve['id'] ? 'selected' : '' ?>>
@@ -214,28 +216,28 @@ $id_eleve_suggere = isset($_GET['eleve']) ? $_GET['eleve'] : '';
               </div>
               
               <div class="form-group">
-                <label for="date_debut">Date de début <span class="required">*</span></label>
-                <input type="date" name="date_debut" id="date_debut" value="<?= $date_suggere ?>" required max="<?= date('Y-m-d') ?>">
+                <label for="date_debut" class="form-label">Date de début <span class="required">*</span></label>
+                <input type="date" name="date_debut" id="date_debut" value="<?= $date_suggere ?>" required max="<?= date('Y-m-d') ?>" class="form-control">
               </div>
               
               <div class="form-group">
-                <label for="heure_debut">Heure de début <span class="required">*</span></label>
-                <input type="time" name="heure_debut" id="heure_debut" value="<?= $heure_debut_suggere ?>" required>
+                <label for="heure_debut" class="form-label">Heure de début <span class="required">*</span></label>
+                <input type="time" name="heure_debut" id="heure_debut" value="<?= $heure_debut_suggere ?>" required class="form-control">
             </div>
             
             <div class="form-group">
-                <label for="date_fin">Date de fin <span class="required">*</span></label>
-                <input type="date" name="date_fin" id="date_fin" value="<?= $date_suggere ?>" required max="<?= date('Y-m-d') ?>">
+                <label for="date_fin" class="form-label">Date de fin <span class="required">*</span></label>
+                <input type="date" name="date_fin" id="date_fin" value="<?= $date_suggere ?>" required max="<?= date('Y-m-d') ?>" class="form-control">
             </div>
             
             <div class="form-group">
-                <label for="heure_fin">Heure de fin <span class="required">*</span></label>
-                <input type="time" name="heure_fin" id="heure_fin" value="<?= $heure_fin_suggere ?>" required>
+                <label for="heure_fin" class="form-label">Heure de fin <span class="required">*</span></label>
+                <input type="time" name="heure_fin" id="heure_fin" value="<?= $heure_fin_suggere ?>" required class="form-control">
             </div>
             
             <div class="form-group">
-                <label for="type_absence">Type d'absence <span class="required">*</span></label>
-                <select name="type_absence" id="type_absence" required>
+                <label for="type_absence" class="form-label">Type d'absence <span class="required">*</span></label>
+                <select name="type_absence" id="type_absence" required class="form-control">
                     <option value="">Sélectionner un type</option>
                     <option value="cours">Cours</option>
                     <option value="demi-journee">Demi-journée</option>
@@ -244,8 +246,8 @@ $id_eleve_suggere = isset($_GET['eleve']) ? $_GET['eleve'] : '';
             </div>
             
             <div class="form-group">
-                <label for="motif">Motif</label>
-                <select name="motif" id="motif">
+                <label for="motif" class="form-label">Motif</label>
+                <select name="motif" id="motif" class="form-control">
                     <option value="">Sélectionner un motif</option>
                     <option value="maladie">Maladie</option>
                     <option value="rdv_medical">Rendez-vous médical</option>
@@ -257,19 +259,23 @@ $id_eleve_suggere = isset($_GET['eleve']) ? $_GET['eleve'] : '';
             
             <div class="form-group form-full">
                 <div class="checkbox-group">
-                    <input type="checkbox" name="justifie" id="justifie">
-                    <label for="justifie">Absence justifiée</label>
+                    <input type="checkbox" name="justifie" id="justifie" class="form-check">
+                    <label for="justifie" class="form-check-label">Absence justifiée</label>
                 </div>
             </div>
             
             <div class="form-group form-full">
-                <label for="commentaire">Commentaire</label>
-                <textarea name="commentaire" id="commentaire" rows="4"></textarea>
+                <label for="commentaire" class="form-label">Commentaire</label>
+                <textarea name="commentaire" id="commentaire" rows="4" class="form-control"></textarea>
             </div>
             
             <div class="form-actions form-full">
-                <a href="absences.php" class="btn btn-secondary">Annuler</a>
-                <button type="submit" class="btn btn-primary">Enregistrer l'absence</button>
+                <a href="absences.php" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Annuler
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Enregistrer l'absence
+                </button>
             </div>
         </div>
     </form>

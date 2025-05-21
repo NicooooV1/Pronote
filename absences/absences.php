@@ -249,7 +249,7 @@ include 'includes/header.php';
 <div class="welcome-banner">
     <div class="welcome-content">
         <h2>Suivi des Absences</h2>
-        <p>Consultez les absences des élèves de vos classes et signalez de nouvelles absences.</p>
+        <p>Consultez les absences des élèves de vos classes.</p>
     </div>
     <div class="welcome-icon">
         <i class="fas fa-chalkboard-teacher"></i>
@@ -259,7 +259,7 @@ include 'includes/header.php';
 <div class="welcome-banner">
     <div class="welcome-content">
         <h2>Mes Absences</h2>
-        <p>Consultez l'historique de vos absences et leurs justificatifs.</p>
+        <p>Consultez l'historique de vos absences.</p>
     </div>
     <div class="welcome-icon">
         <i class="fas fa-calendar-check"></i>
@@ -271,19 +271,19 @@ include 'includes/header.php';
 <div class="filters-bar">
     <form id="filter-form" class="filter-form" method="get" action="absences.php">
         <div class="filter-item">
-            <label for="date_debut" class="filter-label">Du</label>
-            <input type="date" id="date_debut" name="date_debut" value="<?= $date_debut ?>" max="<?= date('Y-m-d') ?>">
+            <label for="date_debut" class="form-label">Du</label>
+            <input type="date" id="date_debut" name="date_debut" value="<?= $date_debut ?>" max="<?= date('Y-m-d') ?>" class="form-control">
         </div>
         
         <div class="filter-item">
-            <label for="date_fin" class="filter-label">Au</label>
-            <input type="date" id="date_fin" name="date_fin" value="<?= $date_fin ?>" max="<?= date('Y-m-d') ?>">
+            <label for="date_fin" class="form-label">Au</label>
+            <input type="date" id="date_fin" name="date_fin" value="<?= $date_fin ?>" max="<?= date('Y-m-d') ?>" class="form-control">
         </div>
         
         <?php if (isAdmin() || isVieScolaire() || isTeacher()): ?>
         <div class="filter-item">
-            <label for="classe" class="filter-label">Classe</label>
-            <select id="classe" name="classe">
+            <label for="classe" class="form-label">Classe</label>
+            <select id="classe" name="classe" class="form-control">
                 <option value="">Toutes les classes</option>
                 <?php foreach ($classes as $c): ?>
                 <option value="<?= htmlspecialchars($c) ?>" <?= $classe === $c ? 'selected' : '' ?>><?= htmlspecialchars($c) ?></option>
@@ -293,8 +293,8 @@ include 'includes/header.php';
         <?php endif; ?>
         
         <div class="filter-item">
-            <label for="justifie" class="filter-label">Justification</label>
-            <select id="justifie" name="justifie">
+            <label for="justifie" class="form-label">Justification</label>
+            <select id="justifie" name="justifie" class="form-control">
                 <option value="">Toutes</option>
                 <option value="oui" <?= $justifie === 'oui' ? 'selected' : '' ?>>Justifiées</option>
                 <option value="non" <?= $justifie === 'non' ? 'selected' : '' ?>>Non justifiées</option>
@@ -302,8 +302,8 @@ include 'includes/header.php';
         </div>
         
         <div class="filter-item">
-            <label for="view" class="filter-label">Vue</label>
-            <select id="view" name="view">
+            <label for="view" class="form-label">Vue</label>
+            <select id="view" name="view" class="form-control">
                 <option value="list" <?= $view === 'list' ? 'selected' : '' ?>>Liste</option>
                 <option value="calendar" <?= $view === 'calendar' ? 'selected' : '' ?>>Calendrier</option>
                 <?php if (isAdmin() || isVieScolaire()): ?>
@@ -323,8 +323,8 @@ include 'includes/header.php';
     </form>
 </div>
 
-<!-- Contenu principal selon le type de vue sélectionné -->
-<div class="content-container">
+<!-- Contenu principal selon le type de vue sélectionnée -->
+<div class="content-section">
     <div class="content-header">
         <h2>
             <?php if (!empty($classe)): ?>
