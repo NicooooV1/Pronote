@@ -33,7 +33,8 @@ $generatedPassword = '';
 $identifiant = '';
 
 // Vérifier si la création de comptes administrateurs est autorisée
-$adminCreationAllowed = !file_exists(__DIR__ . '/../../admin.lock');
+// Toujours défini à faux pour bloquer la création d'administrateurs
+$adminCreationAllowed = false;
 
 // Chargement des données d'établissement (classes et matières)
 $etablissementData = $user->getEtablissementData();
@@ -42,9 +43,9 @@ $etablissementData = $user->getEtablissementData();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     $profil = isset($_POST['profil']) ? $_POST['profil'] : '';
     
-    // Bloquer explicitement la création de comptes administrateurs si le fichier de verrouillage existe
-    if ($profil === 'administrateur' && !$adminCreationAllowed) {
-        $error = "La création de comptes administrateurs est désactivée.";
+    // Bloquer explicitement la création de comptes administrateurs
+    if ($profil === 'administrateur') {
+        $error = "La création de comptes administrateurs n'est pas autorisée.";
     } else {
         // Configuration des champs requis par profil
         $requiredFields = [
@@ -197,6 +198,10 @@ $pageTitle = "Inscription d'un nouvel utilisateur";
                 <a href="../../admin/admin_accounts.php" class="sidebar-nav-item">
                     <span class="sidebar-nav-icon"><i class="fas fa-user-shield"></i></span>
                     <span>Gestion des administrateurs</span>
+                </a>
+                <a href="../../admin/user_accounts.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-users-cog"></i></span>
+                    <span>Gestion des utilisateurs</span>
                 </a>
             </div>
         </div>
@@ -422,21 +427,6 @@ $pageTitle = "Inscription d'un nouvel utilisateur";
                         <option value="0" selected>Non</option>
                         <option value="1">Oui</option>
                     </select>
-                </div>
-            `;
-        } else if (profil === 'administrateur') {
-            fields += `
-                <div class="form-group">
-                    <label for="role">Rôle administratif</label>
-                    <div class="input-group">
-                        <i class="input-group-icon fas fa-user-shield"></i>
-                        <select id="role" name="role" class="form-select" required>
-                            <option value="" disabled selected>Choisir...</option>
-                            <option value="direction">Direction</option>
-                            <option value="secretariat">Secrétariat</option>
-                            <option value="technique">Support technique</option>
-                        </select>
-                    </div>
                 </div>
             `;
         }

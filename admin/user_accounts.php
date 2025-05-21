@@ -1,8 +1,8 @@
 <?php
 /**
- * Page de gestion des comptes administrateur
- * Cette page permet de gérer les comptes administrateurs existants
- * (changement de mot de passe, désactivation, etc.)
+ * Page de gestion des comptes utilisateur
+ * Cette page permet de gérer les comptes utilisateurs existants
+ * (activation/désactivation des comptes)
  */
 
 // Démarrer la session pour vérifier l'authentification
@@ -18,7 +18,6 @@ if (!isset($_SESSION['user']) || $_SESSION['user']['profil'] !== 'administrateur
 require_once __DIR__ . '/../login/config/database.php';
 require_once __DIR__ . '/../login/src/auth.php';
 require_once __DIR__ . '/../login/src/user.php';
-require_once __DIR__ . '/../API/config/admin_config.php';
 
 // Initialiser les objets Auth et User
 $auth = new Auth($pdo);
@@ -28,20 +27,7 @@ $user = new User($pdo);
 $message = '';
 $error = '';
 
-// Vérifier et créer la colonne 'actif' si elle n'existe pas
-try {
-    $stmt = $pdo->prepare("SHOW COLUMNS FROM administrateurs LIKE 'actif'");
-    $stmt->execute();
-    if ($stmt->rowCount() == 0) {
-        // La colonne n'existe pas, la créer
-        $pdo->exec("ALTER TABLE administrateurs ADD COLUMN actif TINYINT(1) NOT NULL DEFAULT 1");
-        $message = "La colonne 'actif' a été ajoutée à la table des administrateurs.";
-    }
-} catch (PDOException $e) {
-    $error = "Erreur lors de la vérification de la structure de la table: " . $e->getMessage();
-}
-
-// Générer un nouveau jeton CSRF si inexistant
+// Générer un jeton CSRF si inexistant
 if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -53,106 +39,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
         $error = "Erreur de sécurité. Veuillez réessayer.";
     } else {
-        // Action de modification de mot de passe
-        if (isset($_POST['action']) && $_POST['action'] === 'change_password') {
-            $admin_id = filter_input(INPUT_POST, 'admin_id', FILTER_VALIDATE_INT);
-            $new_password = $_POST['new_password'] ?? '';
-            $confirm_password = $_POST['confirm_password'] ?? '';
-            
-            if (!$admin_id) {
-                $error = "ID d'administrateur invalide.";
-            } elseif ($new_password !== $confirm_password) {
-                $error = "Les mots de passe ne correspondent pas.";
-            } else {
-                // Valider la robustesse du mot de passe
-                $validation = validateStrongPassword($new_password);
-                if (!$validation['valid']) {
-                    $error = implode('. ', $validation['errors']);
-                } else {
-                    // Changer le mot de passe
-                    if ($user->changePassword('administrateur', $admin_id, $new_password)) {
-                        $message = "Le mot de passe a été modifié avec succès.";
-                    } else {
-                        $error = "Erreur lors du changement de mot de passe: " . $user->getErrorMessage();
-                    }
-                }
-            }
-        }
-        
-        // Action de désactivation/activation d'un compte
-        else if (isset($_POST['action']) && $_POST['action'] === 'toggle_active') {
-            $admin_id = filter_input(INPUT_POST, 'admin_id', FILTER_VALIDATE_INT);
+        // Action d'activation/désactivation d'un compte
+        if (isset($_POST['action']) && $_POST['action'] === 'toggle_active') {
+            $userId = filter_input(INPUT_POST, 'user_id', FILTER_VALIDATE_INT);
+            $userType = isset($_POST['user_type']) ? $_POST['user_type'] : '';
             $active = isset($_POST['active']) && $_POST['active'] == '1' ? 1 : 0;
             
-            if (!$admin_id) {
-                $error = "ID d'administrateur invalide.";
+            if (!$userId || empty($userType)) {
+                $error = "ID d'utilisateur ou type invalide.";
             } else {
-                // S'assurer qu'il reste au moins un administrateur actif si désactivation
-                if ($active === 0) {
-                    try {
-                        $stmt = $pdo->prepare("SELECT COUNT(*) FROM administrateurs WHERE actif = 1 AND id != ?");
-                        $stmt->execute([$admin_id]);
-                        $activeCount = (int)$stmt->fetchColumn();
-                        
-                        if ($activeCount === 0) {
-                            $error = "Impossible de désactiver le dernier administrateur actif.";
-                        } else {
-                            $stmt = $pdo->prepare("UPDATE administrateurs SET actif = ? WHERE id = ?");
-                            if ($stmt->execute([$active, $admin_id])) {
-                                $message = "Le statut du compte a été mis à jour avec succès.";
-                            } else {
-                                $error = "Erreur lors de la mise à jour du statut.";
-                            }
-                        }
-                    } catch (PDOException $e) {
-                        $error = "Erreur de base de données: " . $e->getMessage();
+                // S'assurer que la colonne actif existe dans la table
+                try {
+                    $table = '';
+                    switch ($userType) {
+                        case 'eleve': $table = 'eleves'; break;
+                        case 'parent': $table = 'parents'; break;
+                        case 'professeur': $table = 'professeurs'; break;
+                        case 'vie_scolaire': $table = 'vie_scolaire'; break;
+                        default: $error = "Type d'utilisateur invalide."; break;
                     }
-                } else {
-                    // Activation - pas de restrictions particulières
-                    try {
-                        $stmt = $pdo->prepare("UPDATE administrateurs SET actif = ? WHERE id = ?");
-                        if ($stmt->execute([$active, $admin_id])) {
+                    
+                    if (!$error) {
+                        // Vérifier si la colonne actif existe
+                        $stmt = $pdo->prepare("SHOW COLUMNS FROM `$table` LIKE 'actif'");
+                        $stmt->execute();
+                        $columnExists = $stmt->fetch();
+                        
+                        if (!$columnExists) {
+                            // Ajouter la colonne
+                            $pdo->exec("ALTER TABLE `$table` ADD COLUMN actif TINYINT(1) NOT NULL DEFAULT 1");
+                            $message = "Structure de table mise à jour: colonne 'actif' ajoutée.";
+                        }
+                        
+                        // Mettre à jour le statut
+                        $stmt = $pdo->prepare("UPDATE `$table` SET actif = ? WHERE id = ?");
+                        if ($stmt->execute([$active, $userId])) {
                             $message = "Le statut du compte a été mis à jour avec succès.";
                         } else {
                             $error = "Erreur lors de la mise à jour du statut.";
                         }
-                    } catch (PDOException $e) {
-                        $error = "Erreur de base de données: " . $e->getMessage();
                     }
+                } catch (PDOException $e) {
+                    $error = "Erreur de base de données: " . $e->getMessage();
                 }
             }
         }
     }
 }
 
-// Récupérer la liste des administrateurs
-try {
-    $stmt = $pdo->query("SELECT * FROM administrateurs ORDER BY nom, prenom");
-    $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Traitement de la recherche
+$searchTerm = '';
+$userType = '';
+$usersList = [];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['search'])) {
+    $searchTerm = isset($_POST['search_term']) ? trim($_POST['search_term']) : '';
+    $userType = isset($_POST['user_type']) ? $_POST['user_type'] : '';
     
-    // Ensure the 'actif' field exists for all admins with a default value
-    foreach ($admins as &$admin_row) {
-        if (!isset($admin_row['actif'])) {
-            $admin_row['actif'] = 1; // Default to active if not set
-        }
+    try {
+        $usersList = $user->searchUsers($searchTerm, $userType);
+    } catch (Exception $e) {
+        $error = "Erreur lors de la recherche: " . $e->getMessage();
+        $usersList = [];
     }
-    unset($admin_row); // Break the reference
-} catch (PDOException $e) {
-    $error = "Erreur lors de la récupération des administrateurs: " . $e->getMessage();
-    $admins = [];
+} else {
+    // Chargement initial limité
+    try {
+        $usersList = $user->getAllUsers(100); // Limiter à 100 utilisateurs par défaut
+    } catch (Exception $e) {
+        $error = "Erreur lors du chargement des utilisateurs: " . $e->getMessage();
+        $usersList = [];
+    }
 }
 
 // Récupérer les informations de l'utilisateur administrateur connecté
 $admin = $_SESSION['user'];
 $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admin['nom'], 0, 1));
 
+// Titre de la page
+$pageTitle = "Gestion des comptes utilisateur";
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des comptes administrateur - Pronote</title>
+    <title><?= htmlspecialchars($pageTitle) ?> - PRONOTE</title>
     <link rel="stylesheet" href="../assets/css/pronote-theme.css">
     <link rel="stylesheet" href="../login/public/assets/css/pronote-login.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -165,8 +137,8 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             background-color: var(--background-color);
         }
         
-        .admin-container {
-            max-width: 900px;
+        .user-container {
+            max-width: 960px;
             margin: 0 auto;
             padding: 20px;
         }
@@ -316,20 +288,34 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             font-size: 16px;
         }
         
+        /* Tableau d'utilisateurs */
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
         }
         
         th, td {
-            padding: 10px;
-            border: 1px solid #ddd;
+            padding: 12px 15px;
             text-align: left;
+            border-bottom: 1px solid #eee;
         }
         
         th {
-            background-color: #f2f2f2;
+            background-color: #f5f7fa;
+            color: #4a5568;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        tr:hover {
+            background-color: #f9fafb;
         }
         
         .action-buttons {
@@ -337,15 +323,25 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             gap: 10px;
         }
         
-        .btn-primary, .btn-secondary {
+        .btn {
             padding: 8px 12px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: background-color 0.2s, color 0.2s;
         }
         
-        .btn-primary {
-            background-color: #007bff;
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .btn-success {
+            background-color: #28a745;
             color: white;
         }
         
@@ -354,22 +350,9 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             color: white;
         }
         
-        .btn-danger {
-            background-color: #dc3545;
+        .btn-primary {
+            background-color: #007bff;
             color: white;
-            padding: 8px 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        
-        .btn-success {
-            background-color: #28a745;
-            color: white;
-            padding: 8px 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
         }
         
         .modal {
@@ -380,15 +363,17 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             width: 100%;
             height: 100%;
             background-color: rgba(0,0,0,0.5);
+            z-index: 100;
         }
         
         .modal-content {
             background-color: white;
             margin: 15% auto;
             padding: 20px;
-            border-radius: 5px;
-            width: 70%;
+            border-radius: 8px;
+            width: 90%;
             max-width: 500px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         
         .close {
@@ -403,6 +388,47 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             color: black;
         }
         
+        .search-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .search-input {
+            flex: 1;
+            min-width: 250px;
+        }
+        
+        .profile-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .profile-eleve {
+            background-color: #e3f2fd;
+            color: #0d47a1;
+        }
+        
+        .profile-parent {
+            background-color: #e8f5e9;
+            color: #1b5e20;
+        }
+        
+        .profile-professeur {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+        
+        .profile-vie_scolaire {
+            background-color: #f3e5f5;
+            color: #6a1b9a;
+        }
+        
         .active-status {
             color: #28a745;
             font-weight: bold;
@@ -412,31 +438,50 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             color: #dc3545;
         }
         
-        .password-requirements {
-            margin-top: 10px;
-            font-size: 0.9em;
-            color: #6c757d;
+        .alert {
+            padding: 12px 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
         }
         
-        .alert {
-            padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 4px;
+        .alert i {
+            font-size: 20px;
         }
         
         .alert-success {
             background-color: #d4edda;
             color: #155724;
+            border: 1px solid #c3e6cb;
         }
         
         .alert-danger {
             background-color: #f8d7da;
             color: #721c24;
+            border: 1px solid #f5c6cb;
         }
         
-        .current-user {
-            font-weight: bold;
-            background-color: #e8f4f8;
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        
+        .pagination-btn {
+            padding: 5px 10px;
+            margin: 0 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            background-color: white;
+            cursor: pointer;
+        }
+        
+        .pagination-btn.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
         }
     </style>
 </head>
@@ -487,19 +532,19 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
                     <span class="sidebar-nav-icon"><i class="fas fa-user-plus"></i></span>
                     <span>Ajouter un utilisateur</span>
                 </a>
-                <a href="../admin/reset_user_password.php" class="sidebar-nav-item">
+                <a href="reset_user_password.php" class="sidebar-nav-item">
                     <span class="sidebar-nav-icon"><i class="fas fa-key"></i></span>
                     <span>Réinitialiser mot de passe</span>
                 </a>
-                <a href="../admin/reset_requests.php" class="sidebar-nav-item">
+                <a href="reset_requests.php" class="sidebar-nav-item">
                     <span class="sidebar-nav-icon"><i class="fas fa-clipboard-list"></i></span>
                     <span>Demandes de réinitialisation</span>
                 </a>
-                <a href="../admin/admin_accounts.php" class="sidebar-nav-item active">
+                <a href="admin_accounts.php" class="sidebar-nav-item">
                     <span class="sidebar-nav-icon"><i class="fas fa-user-shield"></i></span>
                     <span>Gestion des administrateurs</span>
                 </a>
-                <a href="../admin/user_accounts.php" class="sidebar-nav-item">
+                <a href="user_accounts.php" class="sidebar-nav-item active">
                     <span class="sidebar-nav-icon"><i class="fas fa-users-cog"></i></span>
                     <span>Gestion des utilisateurs</span>
                 </a>
@@ -512,7 +557,7 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
         <!-- Header -->
         <div class="top-header">
             <div class="page-title">
-                <h1>Gestion des comptes administrateur</h1>
+                <h1><?= htmlspecialchars($pageTitle) ?></h1>
             </div>
             
             <div class="header-actions">
@@ -525,20 +570,49 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             </div>
         </div>
 
-        <div class="admin-container">
+        <div class="user-container">
             <!-- Messages -->
             <?php if (!empty($message)): ?>
-                <div class="alert alert-success"><?= htmlspecialchars($message) ?></div>
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    <div><?= htmlspecialchars($message) ?></div>
+                </div>
             <?php endif; ?>
             
             <?php if (!empty($error)): ?>
-                <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <div><?= htmlspecialchars($error) ?></div>
+                </div>
             <?php endif; ?>
             
-            <h2>Liste des administrateurs</h2>
+            <!-- Formulaire de recherche -->
+            <form method="post" action="" class="search-form">
+                <div class="input-group search-input">
+                    <i class="input-group-icon fas fa-search"></i>
+                    <input type="text" name="search_term" placeholder="Rechercher un utilisateur..." 
+                           class="form-control input-with-icon" value="<?= htmlspecialchars($searchTerm) ?>">
+                </div>
+                
+                <select name="user_type" class="form-select">
+                    <option value="">Tous les profils</option>
+                    <option value="eleve" <?= $userType === 'eleve' ? 'selected' : '' ?>>Élève</option>
+                    <option value="parent" <?= $userType === 'parent' ? 'selected' : '' ?>>Parent</option>
+                    <option value="professeur" <?= $userType === 'professeur' ? 'selected' : '' ?>>Professeur</option>
+                    <option value="vie_scolaire" <?= $userType === 'vie_scolaire' ? 'selected' : '' ?>>Vie scolaire</option>
+                </select>
+                
+                <button type="submit" name="search" class="btn btn-primary">
+                    <i class="fas fa-search"></i> Rechercher
+                </button>
+            </form>
             
-            <?php if (empty($admins)): ?>
-                <p>Aucun administrateur trouvé.</p>
+            <!-- Tableau des utilisateurs -->
+            <?php if (empty($usersList)): ?>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <div>Aucun utilisateur trouvé. Veuillez modifier vos critères de recherche.</div>
+                </div>
             <?php else: ?>
                 <table>
                     <thead>
@@ -546,86 +620,53 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
                             <th>Nom</th>
                             <th>Prénom</th>
                             <th>Identifiant</th>
+                            <th>Profil</th>
                             <th>Email</th>
                             <th>Statut</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($admins as $admin_user): 
-                            $isCurrent = $_SESSION['user']['identifiant'] === $admin_user['identifiant'];
-                            $isActive = isset($admin_user['actif']) ? (bool)$admin_user['actif'] : true;
+                        <?php foreach ($usersList as $userItem): 
+                            // Vérifier si l'utilisateur a un statut actif (par défaut true si non défini)
+                            $isActive = isset($userItem['actif']) ? (bool)$userItem['actif'] : true;
                         ?>
-                            <tr class="<?= $isCurrent ? 'current-user' : '' ?>">
-                                <td><?= htmlspecialchars($admin_user['nom']) ?></td>
-                                <td><?= htmlspecialchars($admin_user['prenom']) ?></td>
-                                <td><?= htmlspecialchars($admin_user['identifiant']) ?></td>
-                                <td><?= htmlspecialchars($admin_user['mail']) ?></td>
+                            <tr>
+                                <td><?= htmlspecialchars($userItem['nom']) ?></td>
+                                <td><?= htmlspecialchars($userItem['prenom']) ?></td>
+                                <td><?= htmlspecialchars($userItem['identifiant']) ?></td>
+                                <td>
+                                    <span class="profile-badge profile-<?= htmlspecialchars($userItem['profil']) ?>">
+                                        <?= htmlspecialchars($userItem['profil']) ?>
+                                    </span>
+                                </td>
+                                <td><?= htmlspecialchars($userItem['mail']) ?></td>
                                 <td class="<?= $isActive ? 'active-status' : 'inactive-status' ?>">
                                     <?= $isActive ? 'Actif' : 'Inactif' ?>
                                 </td>
                                 <td>
                                     <div class="action-buttons">
-                                        <button class="btn-primary" onclick="openPasswordModal(<?= $admin_user['id'] ?>)">
-                                            Changer le mot de passe
+                                        <button class="btn <?= $isActive ? 'btn-danger' : 'btn-success' ?>"
+                                                onclick="openToggleModal(<?= $userItem['id'] ?>, '<?= htmlspecialchars($userItem['nom'] . ' ' . $userItem['prenom']) ?>', '<?= htmlspecialchars($userItem['profil']) ?>', <?= $isActive ? 0 : 1 ?>)">
+                                            <i class="fas fa-<?= $isActive ? 'ban' : 'check' ?>"></i>
+                                            <?= $isActive ? 'Désactiver' : 'Activer' ?>
                                         </button>
-                                        <?php if ($isActive): ?>
-                                            <button class="btn-danger" onclick="openToggleModal(<?= $admin_user['id'] ?>, '<?= htmlspecialchars($admin_user['nom'] . ' ' . $admin_user['prenom']) ?>', 0)">
-                                                Désactiver
-                                            </button>
-                                        <?php else: ?>
-                                            <button class="btn-success" onclick="openToggleModal(<?= $admin_user['id'] ?>, '<?= htmlspecialchars($admin_user['nom'] . ' ' . $admin_user['prenom']) ?>', 1)">
-                                                Activer
-                                            </button>
-                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+                
+                <!-- Pagination si nécessaire -->
+                <?php if (count($usersList) >= 100): ?>
+                    <div class="alert alert-info" style="margin-top: 20px;">
+                        <i class="fas fa-info-circle"></i>
+                        <div>Les résultats sont limités. Utilisez la recherche pour affiner votre liste.</div>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
-    </div>
-</div>
-
-<!-- Modal pour changer le mot de passe -->
-<div id="passwordModal" class="modal">
-    <div class="modal-content">
-        <span class="close" onclick="closePasswordModal()">&times;</span>
-        <h2>Changer le mot de passe</h2>
-        <form method="post" action="" id="password-form">
-            <input type="hidden" name="csrf_token" value="<?= $csrf_token ?>">
-            <input type="hidden" name="action" value="change_password">
-            <input type="hidden" name="admin_id" id="password_admin_id" value="">
-            
-            <div class="form-group">
-                <label for="new_password">Nouveau mot de passe</label>
-                <input type="password" id="new_password" name="new_password" required minlength="12"
-                       pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{12,}">
-            </div>
-            
-            <div class="form-group">
-                <label for="confirm_password">Confirmer le mot de passe</label>
-                <input type="password" id="confirm_password" name="confirm_password" required minlength="12">
-            </div>
-            
-            <div class="password-requirements">
-                <p><strong>Le mot de passe doit contenir au moins :</strong></p>
-                <ul>
-                    <li>12 caractères</li>
-                    <li>Une lettre majuscule</li>
-                    <li>Une lettre minuscule</li>
-                    <li>Un chiffre</li>
-                    <li>Un caractère spécial</li>
-                </ul>
-            </div>
-            
-            <div class="form-actions">
-                <button type="button" class="btn-secondary" onclick="closePasswordModal()">Annuler</button>
-                <button type="submit" class="btn-primary">Changer le mot de passe</button>
-            </div>
-        </form>
     </div>
 </div>
 
@@ -638,45 +679,37 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
         <form method="post" action="" id="toggle-form">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
             <input type="hidden" name="action" value="toggle_active">
-            <input type="hidden" name="admin_id" id="toggle_admin_id" value="">
+            <input type="hidden" name="user_id" id="toggle_user_id" value="">
+            <input type="hidden" name="user_type" id="toggle_user_type" value="">
             <input type="hidden" name="active" id="toggle_active" value="">
             
-            <div class="form-actions">
-                <button type="button" class="btn-secondary" onclick="closeToggleModal()">Annuler</button>
-                <button type="submit" class="btn-primary" id="toggle-submit">Confirmer</button>
+            <div class="form-actions" style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="closeToggleModal()">Annuler</button>
+                <button type="submit" class="btn" id="toggle-submit">Confirmer</button>
             </div>
         </form>
     </div>
 </div>
 
 <script>
-    // Fonctions pour la modal du changement de mot de passe
-    function openPasswordModal(adminId) {
-        document.getElementById('password_admin_id').value = adminId;
-        document.getElementById('passwordModal').style.display = 'block';
-    }
-    
-    function closePasswordModal() {
-        document.getElementById('password-form').reset();
-        document.getElementById('passwordModal').style.display = 'none';
-    }
-    
     // Fonctions pour la modal d'activation/désactivation
-    function openToggleModal(adminId, adminName, active) {
-        document.getElementById('toggle_admin_id').value = adminId;
+    function openToggleModal(userId, userName, userType, active) {
+        document.getElementById('toggle_user_id').value = userId;
+        document.getElementById('toggle_user_type').value = userType;
         document.getElementById('toggle_active').value = active;
         
         const title = active ? 'Activer le compte' : 'Désactiver le compte';
         const message = active 
-            ? `Êtes-vous sûr de vouloir activer le compte de ${adminName} ?` 
-            : `Êtes-vous sûr de vouloir désactiver le compte de ${adminName} ?`;
+            ? `Êtes-vous sûr de vouloir activer le compte de ${userName} ?` 
+            : `Êtes-vous sûr de vouloir désactiver le compte de ${userName} ?
+               L'utilisateur ne pourra plus se connecter à PRONOTE.`;
         const submitText = active ? 'Activer' : 'Désactiver';
         const submitClass = active ? 'btn-success' : 'btn-danger';
         
         document.getElementById('toggle-title').innerText = title;
         document.getElementById('toggle-message').innerText = message;
         document.getElementById('toggle-submit').innerText = submitText;
-        document.getElementById('toggle-submit').className = submitClass;
+        document.getElementById('toggle-submit').className = `btn ${submitClass}`;
         
         document.getElementById('toggleModal').style.display = 'block';
     }
@@ -686,41 +719,9 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
         document.getElementById('toggleModal').style.display = 'none';
     }
     
-    // Vérification de la correspondance des mots de passe
-    document.getElementById('password-form').addEventListener('submit', function(e) {
-        const password = document.getElementById('new_password').value;
-        const confirmPassword = document.getElementById('confirm_password').value;
-        
-        if (password !== confirmPassword) {
-            alert("Les mots de passe ne correspondent pas.");
-            e.preventDefault();
-            return false;
-        }
-        
-        // Vérifier la robustesse du mot de passe côté client
-        const hasUppercase = /[A-Z]/.test(password);
-        const hasLowercase = /[a-z]/.test(password);
-        const hasNumber = /[0-9]/.test(password);
-        const hasSpecial = /[^A-Za-z0-9]/.test(password);
-        const isLongEnough = password.length >= 12;
-        
-        if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial || !isLongEnough) {
-            alert("Le mot de passe doit contenir au moins 12 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial.");
-            e.preventDefault();
-            return false;
-        }
-        
-        return true;
-    });
-    
     // Fermer les modals si on clique en dehors
     window.onclick = function(event) {
-        const passwordModal = document.getElementById('passwordModal');
         const toggleModal = document.getElementById('toggleModal');
-        
-        if (event.target === passwordModal) {
-            closePasswordModal();
-        }
         
         if (event.target === toggleModal) {
             closeToggleModal();

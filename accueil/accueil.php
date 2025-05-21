@@ -236,6 +236,10 @@ $isAdmin = isset($user['profil']) && $user['profil'] === 'administrateur';
                     <span class="sidebar-nav-icon"><i class="fas fa-user-shield"></i></span>
                     <span>Gestion des administrateurs</span>
                 </a>
+                <a href="../admin/user_accounts.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-users-cog"></i></span>
+                    <span>Gestion des utilisateurs</span>
+                </a>
             </div>
         </div>
         <?php endif; ?>

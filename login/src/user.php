@@ -623,28 +623,56 @@ class User {
     /**
      * Récupère tous les utilisateurs de la base de données
      * 
+     * @param int $limit Limite de résultats (0 = pas de limite)
      * @return array Liste des utilisateurs
      */
-    public function getAllUsers() {
+    public function getAllUsers($limit = 0) {
         $allUsers = [];
         
         try {
             foreach ($this->tableMap as $profil => $table) {
-                $stmt = $this->pdo->query("SELECT id, identifiant, nom, prenom, mail FROM `$table`");
-                $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                // Skip administrator accounts for this method
+                if ($profil === 'administrateur') continue;
                 
-                // Ajouter le profil à chaque utilisateur
-                foreach ($users as &$user) {
-                    $user['profil'] = $profil;
+                // Check if 'actif' column exists and include it if it does
+                try {
+                    $stmt = $this->pdo->prepare("SHOW COLUMNS FROM `$table` LIKE 'actif'");
+                    $stmt->execute();
+                    $actifExists = $stmt->fetch() !== false;
+                    
+                    $fieldsToSelect = "id, identifiant, nom, prenom, mail";
+                    if ($actifExists) {
+                        $fieldsToSelect .= ", actif";
+                    }
+                    
+                    $stmt = $this->pdo->query("SELECT $fieldsToSelect FROM `$table`");
+                    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Ajouter le profil à chaque utilisateur
+                    foreach ($users as &$user) {
+                        $user['profil'] = $profil;
+                        // Set default value for actif if not present
+                        if (!isset($user['actif'])) {
+                            $user['actif'] = 1;
+                        }
+                    }
+                    
+                    $allUsers = array_merge($allUsers, $users);
+                } catch (PDOException $e) {
+                    // Silently handle the error for this table and continue with others
+                    error_log("Error getting users from table $table: " . $e->getMessage());
                 }
-                
-                $allUsers = array_merge($allUsers, $users);
             }
             
             // Trier par nom
             usort($allUsers, function($a, $b) {
                 return strcasecmp($a['nom'], $b['nom']);
             });
+            
+            // Apply limit if set
+            if ($limit > 0 && count($allUsers) > $limit) {
+                $allUsers = array_slice($allUsers, 0, $limit);
+            }
             
             return $allUsers;
         } catch (PDOException $e) {
