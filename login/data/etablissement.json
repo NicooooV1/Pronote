@@ -7,16 +7,23 @@
   "email": "contact@lycee-jeanmonnet.fr",
   "academie": "Paris",
   "classes": {
+    "primaire": {
+      "CP": ["CPA", "CPB", "CPC", "CPD", "CPE", "CPF"],
+      "CE1": ["CE1A", "CE1B", "CE1C", "CE1D", "CE1E", "CE1F"],
+      "CE2": ["CE2A", "CE2B", "CE2C", "CE2D", "CE2E", "CE2F"],
+      "CM1": ["CM1A", "CM1B", "CM1C", "CM1D", "CM1E", "CM1F"],
+      "CM2": ["CM2A", "CM2B", "CM2C", "CM2D", "CM2E", "CM2F"]
+    },
     "college": {
-      "sixieme": ["6A", "6B", "6C", "6D"],
-      "cinquieme": ["5A", "5B", "5C", "5D"],
-      "quatrieme": ["4A", "4B", "4C", "4D"],
-      "troisieme": ["3A", "3B", "3C", "3D"]
+      "sixieme": ["6A", "6B", "6C", "6D", "6E", "6F"],
+      "cinquieme": ["5A", "5B", "5C", "5D", "5E", "5F"],
+      "quatrieme": ["4A", "4B", "4C", "4D", "4E", "4F"],
+      "troisieme": ["3A", "3B", "3C", "3D", "3E", "3F"]
     },
     "lycee": {
-      "seconde": ["2A", "2B", "2C", "2D"],
-      "premiere": ["1G1", "1G2", "1G3", "1STI2D", "1STMG"],
-      "terminale": ["TG1", "TG2", "TG3", "TSTI2D", "TSTMG"]
+      "seconde": ["2A", "2B", "2C", "2D", "2E", "2F"],
+      "premiere": ["1A", "1B", "1C", "1D", "1E", "1F"],
+      "terminale": ["TA", "TB", "TC", "TD", "TE", "TF"]
     }
   },
   "matieres": [

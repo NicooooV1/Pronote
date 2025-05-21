@@ -115,52 +115,12 @@ $pageTitle = "Inscription d'un nouvel utilisateur";
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($pageTitle) ?> - Pronote</title>
+    <title><?= htmlspecialchars($pageTitle) ?> - PRONOTE</title>
     <link rel="stylesheet" href="assets/css/pronote-login.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        .admin-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #ddd;
-        }
-        
-        .admin-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .admin-avatar {
-            width: 35px;
-            height: 35px;
-            background-color: #00843d;
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-        }
-        
-        .backlink {
-            color: #333;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .backlink:hover {
-            text-decoration: underline;
-        }
-    </style>
 </head>
 <body>
-    <div class="register-container">
+    <div class="auth-container register-container">
         <div class="admin-header">
             <a href="../../accueil/accueil.php" class="backlink">
                 <i class="fas fa-arrow-left"></i> Retour à l'accueil
@@ -171,7 +131,7 @@ $pageTitle = "Inscription d'un nouvel utilisateur";
             </div>
         </div>
         
-        <div class="app-header">
+        <div class="auth-header">
             <div class="app-logo">P</div>
             <h1 class="app-title">Inscription d'un utilisateur</h1>
         </div>
@@ -196,14 +156,18 @@ $pageTitle = "Inscription d'un nouvel utilisateur";
             </div>
             
             <div class="form-actions">
-                <a href="../../accueil/accueil.php" class="btn btn-secondary">Retour à l'accueil</a>
-                <a href="register.php" class="btn btn-primary">Inscrire un autre utilisateur</a>
+                <a href="../../accueil/accueil.php" class="btn btn-secondary">
+                    <i class="fas fa-home"></i> Retour à l'accueil
+                </a>
+                <a href="register.php" class="btn btn-primary">
+                    <i class="fas fa-user-plus"></i> Inscrire un autre utilisateur
+                </a>
             </div>
         <?php else: ?>
-            <form method="post" action="" class="register-form">
+            <form method="post" action="" class="auth-form">
                 <div class="form-group">
                     <label for="profil" class="required-field">Type d'utilisateur</label>
-                    <select id="profil" name="profil" required onchange="showFields()">
+                    <select id="profil" name="profil" class="form-select" required onchange="showFields()">
                         <option value="" disabled selected>Choisir...</option>
                         <option value="eleve">Élève</option>
                         <option value="parent">Parent</option>
@@ -214,9 +178,12 @@ $pageTitle = "Inscription d'un nouvel utilisateur";
                         <?php endif; ?>
                     </select>
                     <?php if (!$adminCreationAllowed): ?>
-                        <div class="info-message">
-                            <p>La création de nouveaux comptes administrateurs est désactivée car un administrateur principal a déjà été créé.</p>
-                            <p>Les comptes administrateurs existants peuvent être gérés depuis le <a href="../../admin/admin_accounts.php">panneau d'administration</a>.</p>
+                        <div class="alert alert-info" style="margin-top: 10px;">
+                            <i class="fas fa-info-circle"></i>
+                            <div>
+                                <p>La création de nouveaux comptes administrateurs est désactivée car un administrateur principal a déjà été créé.</p>
+                                <p>Les comptes administrateurs existants peuvent être gérés depuis le <a href="../../admin/admin_accounts.php">panneau d'administration</a>.</p>
+                            </div>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -226,25 +193,32 @@ $pageTitle = "Inscription d'un nouvel utilisateur";
                 <div id="commonFields">
                     <div class="form-group">
                         <label for="nom" class="required-field">Nom</label>
-                        <input type="text" id="nom" name="nom" required>
+                        <input type="text" id="nom" name="nom" class="form-control" required>
                     </div>
                     
                     <div class="form-group">
                         <label for="prenom" class="required-field">Prénom</label>
-                        <input type="text" id="prenom" name="prenom" required>
+                        <input type="text" id="prenom" name="prenom" class="form-control" required>
                     </div>
                     
                     <div class="form-group">
                         <label for="mail" class="required-field">Adresse email</label>
-                        <input type="email" id="mail" name="mail" required>
+                        <div class="input-group">
+                            <i class="input-group-icon fas fa-envelope"></i>
+                            <input type="email" id="mail" name="mail" class="form-control input-with-icon" required>
+                        </div>
                     </div>
                 </div>
                 
                 <div id="dynamicFields"></div>
                 
                 <div class="form-actions">
-                    <a href="../../accueil/accueil.php" class="btn btn-secondary">Annuler</a>
-                    <button type="submit" name="submit" class="btn btn-primary">Inscrire l'utilisateur</button>
+                    <a href="../../accueil/accueil.php" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> Annuler
+                    </a>
+                    <button type="submit" name="submit" class="btn btn-primary">
+                        <i class="fas fa-user-plus"></i> Inscrire l'utilisateur
+                    </button>
                 </div>
             </form>
         <?php endif; ?>
@@ -264,7 +238,10 @@ $pageTitle = "Inscription d'un nouvel utilisateur";
             fields += `
                 <div class="form-group">
                     <label for="adresse" class="required-field">Adresse</label>
-                    <input type="text" id="adresse" name="adresse" required>
+                    <div class="input-group">
+                        <i class="input-group-icon fas fa-map-marker-alt"></i>
+                        <input type="text" id="adresse" name="adresse" class="form-control input-with-icon" required>
+                    </div>
                 </div>
             `;
             
@@ -272,34 +249,46 @@ $pageTitle = "Inscription d'un nouvel utilisateur";
                 fields += `
                     <div class="form-group">
                         <label for="date_naissance" class="required-field">Date de naissance</label>
-                        <input type="date" id="date_naissance" name="date_naissance" required>
+                        <div class="input-group">
+                            <i class="input-group-icon fas fa-calendar-alt"></i>
+                            <input type="date" id="date_naissance" name="date_naissance" class="form-control input-with-icon" required>
+                        </div>
                     </div>
                     
                     <div class="form-group">
                         <label for="lieu_naissance" class="required-field">Lieu de naissance</label>
-                        <input type="text" id="lieu_naissance" name="lieu_naissance" required>
+                        <div class="input-group">
+                            <i class="input-group-icon fas fa-map-pin"></i>
+                            <input type="text" id="lieu_naissance" name="lieu_naissance" class="form-control input-with-icon" required>
+                        </div>
                     </div>
                     
                     <div class="form-group">
                         <label for="classe" class="required-field">Classe</label>
-                        <select id="classe" name="classe" required>
-                            <option value="" disabled selected>Choisir...</option>
-                            ${getClassesOptions()}
-                        </select>
+                        <div class="input-group">
+                            <i class="input-group-icon fas fa-users"></i>
+                            <select id="classe" name="classe" class="form-select" required>
+                                <option value="" disabled selected>Choisir...</option>
+                                ${getClassesOptions()}
+                            </select>
+                        </div>
                     </div>
                 `;
             } else if (profil === 'professeur') {
                 fields += `
                     <div class="form-group">
                         <label for="matiere" class="required-field">Matière enseignée</label>
-                        <select id="matiere" name="matiere" required>
-                            <option value="" disabled selected>Choisir...</option>
-                            ${getMatieresOptions()}
-                        </select>
+                        <div class="input-group">
+                            <i class="input-group-icon fas fa-book"></i>
+                            <select id="matiere" name="matiere" class="form-select" required>
+                                <option value="" disabled selected>Choisir...</option>
+                                ${getMatieresOptions()}
+                            </select>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="est_pp">Professeur principal</label>
-                        <select id="est_pp" name="est_pp">
+                        <select id="est_pp" name="est_pp" class="form-select">
                             <option value="0" selected>Non</option>
                             <option value="1">Oui</option>
                         </select>
@@ -309,21 +298,24 @@ $pageTitle = "Inscription d'un nouvel utilisateur";
                 fields += `
                     <div class="form-group">
                         <label for="enfant">Nom de l'enfant (facultatif)</label>
-                        <input type="text" id="enfant" name="enfant" placeholder="Vous pourrez associer l'enfant plus tard">
+                        <div class="input-group">
+                            <i class="input-group-icon fas fa-child"></i>
+                            <input type="text" id="enfant" name="enfant" class="form-control input-with-icon" placeholder="Vous pourrez associer l'enfant plus tard">
+                        </div>
                     </div>
                 `;
             } else if (profil === 'vie_scolaire') {
                 fields += `
                     <div class="form-group">
                         <label for="est_CPE">CPE</label>
-                        <select id="est_CPE" name="est_CPE">
+                        <select id="est_CPE" name="est_CPE" class="form-select">
                             <option value="0" selected>Non</option>
                             <option value="1">Oui</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="est_infirmerie">Infirmerie</label>
-                        <select id="est_infirmerie" name="est_infirmerie">
+                        <select id="est_infirmerie" name="est_infirmerie" class="form-select">
                             <option value="0" selected>Non</option>
                             <option value="1">Oui</option>
                         </select>
@@ -333,12 +325,15 @@ $pageTitle = "Inscription d'un nouvel utilisateur";
                 fields += `
                     <div class="form-group">
                         <label for="role">Rôle administratif</label>
-                        <select id="role" name="role" required>
-                            <option value="" disabled selected>Choisir...</option>
-                            <option value="direction">Direction</option>
-                            <option value="secretariat">Secrétariat</option>
-                            <option value="technique">Support technique</option>
-                        </select>
+                        <div class="input-group">
+                            <i class="input-group-icon fas fa-user-shield"></i>
+                            <select id="role" name="role" class="form-select" required>
+                                <option value="" disabled selected>Choisir...</option>
+                                <option value="direction">Direction</option>
+                                <option value="secretariat">Secrétariat</option>
+                                <option value="technique">Support technique</option>
+                            </select>
+                        </div>
                     </div>
                 `;
             }
