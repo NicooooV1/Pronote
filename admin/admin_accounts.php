@@ -162,13 +162,18 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             padding: 0;
             margin: 0;
             min-height: 100vh;
-            background-color: var(--background-color);
+            background-color: #f5f6fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
         }
         
         .admin-container {
             max-width: 900px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
         
         /* Structure principale de l'application */
@@ -182,18 +187,19 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             width: 260px;
             background-color: #0f4c81;
             color: white;
-            padding: 20px 0;
+            padding: 0;
             display: flex;
             flex-direction: column;
             position: fixed;
             height: 100vh;
             overflow-y: auto;
+            z-index: 10;
         }
         
         .logo-container {
             display: flex;
             align-items: center;
-            padding: 0 20px 20px;
+            padding: 20px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             margin-bottom: 20px;
             text-decoration: none;
@@ -211,7 +217,7 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             justify-content: center;
             font-weight: bold;
             font-size: 24px;
-            margin-right: 10px;
+            margin-right: 15px;
         }
         
         .app-title {
@@ -221,7 +227,7 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
         }
         
         .sidebar-section {
-            margin-bottom: 30px;
+            margin-bottom: 25px;
             padding: 0 20px;
         }
         
@@ -229,9 +235,10 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             font-size: 12px;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             color: rgba(255, 255, 255, 0.6);
             font-weight: 600;
+            padding: 0 15px;
         }
         
         .sidebar-nav {
@@ -246,7 +253,7 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             text-decoration: none;
             color: rgba(255, 255, 255, 0.8);
             border-radius: 6px;
-            margin-bottom: 5px;
+            margin-bottom: 2px;
             transition: background-color 0.2s, color 0.2s;
         }
         
@@ -256,8 +263,8 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
         }
         
         .sidebar-nav-icon {
-            margin-right: 10px;
-            width: 24px;
+            margin-right: 12px;
+            width: 20px;
             text-align: center;
             font-size: 16px;
         }
@@ -270,6 +277,7 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             display: flex;
             flex-direction: column;
             min-height: 100vh;
+            background-color: #f5f6fa;
         }
         
         /* En-tête */
@@ -284,6 +292,7 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             font-size: 28px;
             font-weight: 500;
             color: #0f4c81;
+            margin: 0;
         }
         
         .header-actions {
@@ -316,32 +325,55 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             font-size: 16px;
         }
         
+        /* Table styles */
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
         
         th, td {
-            padding: 10px;
-            border: 1px solid #ddd;
+            padding: 12px 15px;
             text-align: left;
+            border-bottom: 1px solid #eee;
         }
         
         th {
-            background-color: #f2f2f2;
+            background-color: #f5f7fa;
+            font-weight: 600;
+            color: #4a5568;
+            font-size: 14px;
         }
         
+        tr:last-child td {
+            border-bottom: none;
+        }
+        
+        tr:hover {
+            background-color: #f9fafb;
+        }
+        
+        /* Action buttons */
         .action-buttons {
             display: flex;
             gap: 10px;
         }
         
-        .btn-primary, .btn-secondary {
+        .btn-primary, .btn-secondary, .btn-danger, .btn-success {
             padding: 8px 12px;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
+            font-weight: 500;
+            transition: opacity 0.2s;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         
         .btn-primary {
@@ -357,21 +389,19 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
         .btn-danger {
             background-color: #dc3545;
             color: white;
-            padding: 8px 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
         }
         
         .btn-success {
             background-color: #28a745;
             color: white;
-            padding: 8px 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
         }
         
+        .btn-primary:hover, .btn-secondary:hover, 
+        .btn-danger:hover, .btn-success:hover {
+            opacity: 0.9;
+        }
+        
+        /* Modals */
         .modal {
             display: none;
             position: fixed;
@@ -380,15 +410,17 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             width: 100%;
             height: 100%;
             background-color: rgba(0,0,0,0.5);
+            z-index: 100;
         }
         
         .modal-content {
             background-color: white;
-            margin: 15% auto;
-            padding: 20px;
-            border-radius: 5px;
-            width: 70%;
+            margin: 10% auto;
+            padding: 25px;
+            border-radius: 10px;
+            width: 90%;
             max-width: 500px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
         }
         
         .close {
@@ -397,12 +429,14 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             font-size: 28px;
             font-weight: bold;
             cursor: pointer;
+            line-height: 0.6;
         }
         
         .close:hover {
             color: black;
         }
         
+        /* Status indicators */
         .active-status {
             color: #28a745;
             font-weight: bold;
@@ -412,31 +446,111 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             color: #dc3545;
         }
         
+        /* Form elements */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        }
+        
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 25px;
+        }
+        
+        /* Password info */
         .password-requirements {
-            margin-top: 10px;
-            font-size: 0.9em;
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            font-size: 14px;
             color: #6c757d;
         }
         
+        .password-requirements ul {
+            margin-top: 8px;
+            padding-left: 25px;
+        }
+        
+        .password-requirements li {
+            margin-bottom: 5px;
+        }
+        
+        /* Alerts */
         .alert {
-            padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        
+        .alert i {
+            font-size: 20px;
+            flex-shrink: 0;
         }
         
         .alert-success {
             background-color: #d4edda;
             color: #155724;
+            border: 1px solid #c3e6cb;
         }
         
         .alert-danger {
             background-color: #f8d7da;
             color: #721c24;
+            border: 1px solid #f5c6cb;
         }
         
         .current-user {
-            font-weight: bold;
+            font-weight: 600;
             background-color: #e8f4f8;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            .admin-container {
+                max-width: 100%;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .app-container {
+                flex-direction: column;
+            }
         }
     </style>
 </head>

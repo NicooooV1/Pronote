@@ -121,70 +121,170 @@ $pageTitle = "Réinitialisation de mot de passe";
             padding: 0;
             margin: 0;
             min-height: 100vh;
-            background-color: var(--background-color);
+            background-color: #f5f6fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
         }
         
         .auth-container {
-            box-shadow: none;
-            border-radius: 0;
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
         
-        .users-list {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        
-        .users-list th, .users-list td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .users-list th {
-            background-color: #f5f5f5;
-            font-weight: 500;
-        }
-        
-        .users-list tr:hover {
-            background-color: rgba(15, 76, 129, 0.05);
-        }
-        
-        .search-form {
+        /* Structure principale de l'application */
+        .app-container {
             display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
+            min-height: 100vh;
         }
         
-        .search-input {
+        /* Barre latérale */
+        .sidebar {
+            width: 260px;
+            background-color: #0f4c81;
+            color: white;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 10;
+        }
+        
+        .logo-container {
+            display: flex;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+            text-decoration: none;
+            color: white;
+        }
+        
+        .app-logo {
+            width: 40px;
+            height: 40px;
+            background-color: #fff;
+            color: #0f4c81;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 24px;
+            margin-right: 15px;
+        }
+        
+        .app-title {
+            font-size: 22px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        
+        .sidebar-section {
+            margin-bottom: 25px;
+            padding: 0 20px;
+        }
+        
+        .sidebar-section-header {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 600;
+            padding: 0 15px;
+        }
+        
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar-nav-item {
+            padding: 12px 15px;
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            color: rgba(255, 255, 255, 0.8);
+            border-radius: 6px;
+            margin-bottom: 2px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        
+        .sidebar-nav-item:hover, .sidebar-nav-item.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        .sidebar-nav-icon {
+            margin-right: 12px;
+            width: 20px;
+            text-align: center;
+            font-size: 16px;
+        }
+        
+        /* Contenu principal */
+        .main-content {
             flex: 1;
-            min-width: 200px;
+            margin-left: 260px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: #f5f6fa;
         }
         
-        .user-info {
-            background-color: #f5f5f5;
-            padding: 15px;
-            border-radius: var(--radius-md);
-            margin-bottom: 20px;
+        /* En-tête */
+        .top-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
         }
         
-        .user-detail {
-            margin-bottom: 10px;
-        }
-        
-        .user-label {
+        .page-title h1 {
+            font-size: 28px;
             font-weight: 500;
-            display: inline-block;
-            width: 150px;
+            color: #0f4c81;
+            margin: 0;
         }
         
-        .user-value {
-            font-weight: normal;
+        .header-actions {
+            display: flex;
+            align-items: center;
         }
+        
+        .logout-button {
+            text-decoration: none;
+            color: #777;
+            font-size: 20px;
+            margin-right: 20px;
+            transition: color 0.2s;
+        }
+        
+        .logout-button:hover {
+            color: #ff3b30;
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background-color: #0f4c81;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+            font-size: 16px;
+        }
+        
+        /* ...existing code for the rest of the styles... */
     </style>
 </head>
 <body>

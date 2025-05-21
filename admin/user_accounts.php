@@ -134,13 +134,18 @@ $pageTitle = "Gestion des comptes utilisateur";
             padding: 0;
             margin: 0;
             min-height: 100vh;
-            background-color: var(--background-color);
+            background-color: #f5f6fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
         }
         
         .user-container {
             max-width: 960px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
         
         /* Structure principale de l'application */
@@ -154,18 +159,19 @@ $pageTitle = "Gestion des comptes utilisateur";
             width: 260px;
             background-color: #0f4c81;
             color: white;
-            padding: 20px 0;
+            padding: 0;
             display: flex;
             flex-direction: column;
             position: fixed;
             height: 100vh;
             overflow-y: auto;
+            z-index: 10;
         }
         
         .logo-container {
             display: flex;
             align-items: center;
-            padding: 0 20px 20px;
+            padding: 20px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             margin-bottom: 20px;
             text-decoration: none;
@@ -183,7 +189,7 @@ $pageTitle = "Gestion des comptes utilisateur";
             justify-content: center;
             font-weight: bold;
             font-size: 24px;
-            margin-right: 10px;
+            margin-right: 15px;
         }
         
         .app-title {
@@ -193,7 +199,7 @@ $pageTitle = "Gestion des comptes utilisateur";
         }
         
         .sidebar-section {
-            margin-bottom: 30px;
+            margin-bottom: 25px;
             padding: 0 20px;
         }
         
@@ -201,9 +207,10 @@ $pageTitle = "Gestion des comptes utilisateur";
             font-size: 12px;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             color: rgba(255, 255, 255, 0.6);
             font-weight: 600;
+            padding: 0 15px;
         }
         
         .sidebar-nav {
@@ -218,7 +225,7 @@ $pageTitle = "Gestion des comptes utilisateur";
             text-decoration: none;
             color: rgba(255, 255, 255, 0.8);
             border-radius: 6px;
-            margin-bottom: 5px;
+            margin-bottom: 2px;
             transition: background-color 0.2s, color 0.2s;
         }
         
@@ -228,8 +235,8 @@ $pageTitle = "Gestion des comptes utilisateur";
         }
         
         .sidebar-nav-icon {
-            margin-right: 10px;
-            width: 24px;
+            margin-right: 12px;
+            width: 20px;
             text-align: center;
             font-size: 16px;
         }
@@ -242,6 +249,7 @@ $pageTitle = "Gestion des comptes utilisateur";
             display: flex;
             flex-direction: column;
             min-height: 100vh;
+            background-color: #f5f6fa;
         }
         
         /* En-tête */
