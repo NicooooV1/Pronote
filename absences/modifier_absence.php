@@ -131,16 +131,16 @@ $_SESSION['csrf_token'] = $csrf_token;
 </head>
 <body>
   <div class="app-container">
-    <!-- Sidebar -->
+    <!-- Sidebar - Style harmonisé avec l'accueil -->
     <div class="sidebar">
-      <div class="logo-container">
+      <a href="../accueil/accueil.php" class="logo-container">
         <div class="app-logo">P</div>
         <div class="app-title">PRONOTE</div>
-      </div>
+      </a>
       
       <!-- Module de navigation principal -->
       <div class="sidebar-section">
-        <div class="sidebar-section-header">Navigation</div>
+        <div class="sidebar-section-header">NAVIGATION</div>
         <div class="sidebar-nav">
           <a href="../accueil/accueil.php" class="sidebar-nav-item">
             <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
@@ -169,9 +169,9 @@ $_SESSION['csrf_token'] = $csrf_token;
         </div>
       </div>
       
-      <!-- Actions spécifiques au module absences -->
+      <!-- Même structure et typographie que l'accueil -->
       <div class="sidebar-section">
-        <div class="sidebar-section-header">Actions</div>
+        <div class="sidebar-section-header">ACTIONS</div>
         <div class="sidebar-nav">
           <a href="absences.php" class="sidebar-nav-item">
             <span class="sidebar-nav-icon"><i class="fas fa-list"></i></span>

@@ -54,6 +54,7 @@ $absences_page = array_slice($absences, $debut_absences, $absences_par_page);
  */
 ?>
 <div class="absences-list">
+    <!-- En-tête de liste style accueil -->
     <div class="list-header">
         <div class="list-row header-row">
             <?php if (isAdmin() || isVieScolaire() || isTeacher()): ?>
@@ -94,7 +95,7 @@ $absences_page = array_slice($absences, $debut_absences, $absences_par_page);
                 $duree .= $interval->i . ' minute' . ($interval->i > 1 ? 's' : '');
             }
             ?>
-            <div class="list-row">
+            <div class="list-row absence-item">
                 <?php if (isAdmin() || isVieScolaire() || isTeacher()): ?>
                     <div class="list-cell">
                         <strong><?= htmlspecialchars($absence['nom']) ?></strong> <?= htmlspecialchars($absence['prenom']) ?>
@@ -147,38 +148,28 @@ $absences_page = array_slice($absences, $debut_absences, $absences_par_page);
                 </div>
                 
                 <div class="list-actions">
-                    <div class="action-buttons">
-                        <a href="details_absence.php?id=<?= $absence['id'] ?>" class="btn-icon" title="Voir les détails">
-                            <i class="fas fa-eye"></i>
+                    <a href="details_absence.php?id=<?= $absence['id'] ?>" class="btn-icon" title="Voir les détails">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                    
+                    <?php if (canManageAbsences()): ?>
+                        <a href="modifier_absence.php?id=<?= $absence['id'] ?>" class="btn-icon" title="Modifier">
+                            <i class="fas fa-edit"></i>
                         </a>
                         
-                        <?php if (canManageAbsences()): ?>
-                            <a href="modifier_absence.php?id=<?= $absence['id'] ?>" class="btn-icon" title="Modifier">
-                                <i class="fas fa-edit"></i>
+                        <?php if (isAdmin() || isVieScolaire()): ?>
+                            <a href="supprimer_absence.php?id=<?= $absence['id'] ?>" class="btn-icon btn-danger" 
+                               title="Supprimer" onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette absence ?');">
+                                <i class="fas fa-trash"></i>
                             </a>
-                            
-                            <?php if (isAdmin() || isVieScolaire()): ?>
-                                <a href="supprimer_absence.php?id=<?= $absence['id'] ?>" class="btn-icon btn-danger" 
-                                   title="Supprimer" onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette absence ?');">
-                                    <i class="fas fa-trash"></i>
-                                </a>
-                            <?php endif; ?>
                         <?php endif; ?>
-                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
         <?php endforeach; ?>
     </div>
     
-    <?php
-    // Code de pagination si nécessaire
-    $totalAbsences = count($absences); // Idéalement, récupéré par une requête SQL COUNT
-    $itemsPerPage = 20;
-    $totalPages = ceil($totalAbsences / $itemsPerPage);
-    $currentPage = isset($_GET['page']) ? max(1, min($totalPages, intval($_GET['page']))) : 1;
-    
-    if ($totalPages > 1):
-    ?>
+    <?php if ($totalPages > 1): ?>
     <div class="pagination">
         <a href="?<?= http_build_query(array_merge($_GET, ['page' => max(1, $currentPage - 1)])) ?>" class="page-link" <?= $currentPage === 1 ? 'disabled' : '' ?>>
             <i class="fas fa-chevron-left"></i> Précédent
@@ -198,3 +189,27 @@ $absences_page = array_slice($absences, $debut_absences, $absences_par_page);
     </div>
     <?php endif; ?>
 </div>
+
+<style>
+/* Style supplémentaire pour s'aligner avec l'accueil */
+.absence-item {
+    padding: 10px 0;
+    transition: background-color 0.2s;
+}
+
+.absence-item:hover {
+    background-color: #f8f9fa;
+}
+
+.list-cell {
+    padding: 10px 15px;
+}
+
+.text-small {
+    font-size: 12px;
+}
+
+.text-muted {
+    color: #6c757d;
+}
+</style>

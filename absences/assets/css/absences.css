@@ -5,11 +5,11 @@
 
 /* Variables spécifiques au module */
 :root {
-  --accent-absences: #ff3b30;
-  --bg-absences-light: rgba(255, 59, 48, 0.1);
-  --border-absences: rgba(255, 59, 48, 0.5);
+  --accent-absences: #e4443b; /* Rouge exact de l'accueil */
+  --bg-absences-light: rgba(228, 68, 59, 0.1);
+  --border-absences: rgba(228, 68, 59, 0.5);
   --justified-color: #34c759;
-  --unjustified-color: #ff3b30;
+  --unjustified-color: #e4443b;
   --late-color: #ff9500;
 }
 
@@ -36,7 +36,7 @@ body {
 
 /* Barre latérale */
 .sidebar {
-  width: 260px;
+  width: 172px; /* Exactement comme sur l'accueil */
   background-color: #0f4c81;
   color: white;
   padding: 0;
@@ -51,24 +51,24 @@ body {
 .logo-container {
   display: flex;
   align-items: center;
-  padding: 20px;
+  padding: 15px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 20px;
+  margin-bottom: 15px;
   text-decoration: none;
   color: white;
 }
 
 .app-logo {
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   background-color: white;
   color: #0f4c81;
-  border-radius: 8px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 24px;
+  font-size: 18px;
   margin-right: 10px;
 }
 
@@ -84,13 +84,13 @@ body {
 }
 
 .sidebar-section-header {
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 10px;
-  color: rgba(255, 255, 255, 0.6);
-  font-weight: 600;
-  padding: 0 10px;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+  padding: 0 15px;
 }
 
 .sidebar-nav {
@@ -106,6 +106,7 @@ body {
   text-decoration: none;
   color: rgba(255, 255, 255, 0.8);
   border-radius: 6px;
+  margin-bottom: 5px; /* Mis à jour selon les spec */
   transition: all 0.2s ease;
 }
 
@@ -182,7 +183,7 @@ body {
 /* Contenu principal */
 .main-content {
   flex: 1;
-  margin-left: 260px;
+  margin-left: 172px; /* Même valeur que la largeur de la sidebar */
   padding: 20px;
   background-color: #f5f6fa;
   min-height: 100vh;
@@ -254,24 +255,26 @@ body {
 /* Bannière de bienvenue */
 .welcome-banner {
   background: linear-gradient(to right, #0f4c81, #2d7dd2);
-  border-radius: 10px;
-  padding: 20px 25px;
+  height: 120px;
+  border-radius: 0; /* Pas de coins arrondis comme sur l'accueil */
+  padding: 25px 40px; /* Même padding que l'accueil */
   color: white;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
+  box-shadow: none;
 }
 
 .welcome-content h2 {
   font-size: 24px;
-  font-weight: 500;
-  margin-bottom: 5px;
+  font-weight: 400; /* Police moins grasse comme sur l'accueil */
+  margin-bottom: 8px;
 }
 
 .welcome-content p {
+  font-size: 14px;
   opacity: 0.8;
-  font-size: 15px;
 }
 
 .welcome-icon {
@@ -282,8 +285,8 @@ body {
 /* Conteneur de contenu */
 .content-container {
   background-color: white;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-radius: 0; /* Pas de coins arrondis comme sur l'accueil */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   margin-bottom: 20px;
   overflow: hidden;
 }
@@ -294,10 +297,11 @@ body {
   align-items: center;
   padding: 15px 20px;
   border-bottom: 1px solid #eee;
+  background-color: #f9f9f9;
 }
 
 .content-header h2 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 500;
   color: #333;
   margin: 0;
@@ -454,17 +458,17 @@ textarea {
 
 /* Boutons */
 .btn {
-  padding: 10px 16px;
+  padding: 8px 12px;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px; /* Coins moins arrondis comme sur l'accueil */
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 400; /* Police moins grasse */
   text-decoration: none;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  transition: background-color 0.2s, transform 0.1s;
-  font-size: 14px;
+  gap: 6px;
+  transition: background-color 0.2s;
+  font-size: 13px;
 }
 
 .btn:active {
@@ -474,10 +478,11 @@ textarea {
 .btn-primary {
   background-color: var(--accent-absences);
   color: white;
+  box-shadow: none; /* Pas d'ombre sur les boutons de l'accueil */
 }
 
 .btn-primary:hover {
-  background-color: #e12e1c;
+  background-color: #d13e35; /* Version légèrement plus foncée */
 }
 
 .btn-secondary {
@@ -517,20 +522,25 @@ textarea {
   background-color: #2eb14f;
 }
 
+/* Remplacer les boutons circulaires par des boutons rectangulaires */
 .btn-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  padding: 8px 12px;
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background-color: #f1f3f4;
   color: #333;
   text-decoration: none;
+  transition: background-color 0.2s, transform 0.1s;
 }
 
 .btn-icon:hover {
   background-color: #e5e7e9;
+}
+
+.btn-icon:active {
+  transform: translateY(1px);
 }
 
 .btn-icon.btn-danger {
@@ -549,17 +559,30 @@ textarea {
   margin-top: 25px;
 }
 
-/* Liste des absences */
+/* Liste des absences - Style revu pour être plus proche des widgets */
 .absences-list {
   width: 100%;
-  border-collapse: collapse;
+  background-color: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.list-header {
-  background-color: rgba(0, 0, 0, 0.02);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+.absences-list .list-header {
+  background-color: #f9f9f9;
 }
 
+.absences-list .header-row {
+  font-weight: 500;
+  color: #555;
+  border-bottom: 1px solid #eee;
+}
+
+.list-row {
+  display: flex;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 10px 0;
+}
+
+/* Styles pour la compatibilité avec l'ancien format */
 .list-row {
   display: flex;
   border-bottom: 1px solid #f0f0f0;
@@ -589,21 +612,16 @@ textarea {
   flex: 0 0 100px;
   display: flex;
   justify-content: flex-end;
-  gap: 5px;
+  gap: 8px;
   padding: 15px;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 5px;
 }
 
 /* Badges */
 .badge {
   padding: 4px 8px;
-  border-radius: 12px;
+  border-radius: 12px; /* Coins plus arrondis */
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 400; /* Moins épais */
   display: inline-block;
 }
 
@@ -746,13 +764,13 @@ textarea {
 /* Filtres */
 .filters-bar {
   background-color: white;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-radius: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 15px 20px;
   margin-bottom: 20px;
   display: flex;
   flex-wrap: wrap;
-  gap: 15px;
+  gap: 12px;
   align-items: center;
 }
 
@@ -852,6 +870,12 @@ textarea {
   border-radius: 10px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.widget:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
 }
 
 .widget-header {
@@ -894,30 +918,14 @@ textarea {
   border-bottom: none;
 }
 
-.widget-list-content {
-  display: flex;
-  flex-direction: column;
-}
-
-.widget-list-title {
-  font-weight: 500;
-  color: #333;
-  margin-bottom: 5px;
-}
-
-.widget-list-subtitle {
-  color: #777;
-  font-size: 12px;
-}
-
-/* Responsive design */
+/* Responsive design - Mis à jour pour correspondre à l'accueil */
 @media (max-width: 1024px) {
-  .form-grid {
+  .widgets-section, .stats-grid {
     grid-template-columns: 1fr;
   }
   
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .form-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -927,15 +935,19 @@ textarea {
   }
   
   .sidebar {
-    position: relative;
     width: 100%;
     height: auto;
-    max-height: 300px;
+    position: relative;
+    overflow: visible;
   }
   
   .main-content {
     margin-left: 0;
     padding: 15px;
+  }
+  
+  .modules-grid {
+    grid-template-columns: 1fr 1fr;
   }
   
   .list-row {
@@ -955,10 +967,6 @@ textarea {
     width: 100%;
     justify-content: flex-start;
     padding: 8px 15px 15px;
-  }
-  
-  .stats-grid {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -985,5 +993,9 @@ textarea {
   .filters-bar {
     flex-direction: column;
     align-items: stretch;
+  }
+  
+  .modules-grid {
+    grid-template-columns: 1fr;
   }
 }

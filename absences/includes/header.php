@@ -12,6 +12,7 @@ $currentPage = $currentPage ?? '';
 if (!isset($user_initials) && isset($_SESSION['user'])) {
     $user = $_SESSION['user'];
     $user_initials = strtoupper(substr($user['prenom'], 0, 1) . substr($user['nom'], 0, 1));
+    $user_fullname = $user['prenom'] . ' ' . $user['nom'];
 }
 
 // Pour l'onglet actif dans le menu
@@ -49,9 +50,9 @@ if (!function_exists('canManageAbsences')) {
                 <div class="app-title">PRONOTE</div>
             </a>
             
-            <!-- Module de navigation principal -->
+            <!-- Module de navigation principal - Même casse que l'accueil -->
             <div class="sidebar-section">
-                <div class="sidebar-section-header">Navigation</div>
+                <div class="sidebar-section-header">NAVIGATION</div>
                 <div class="sidebar-nav">
                     <a href="../accueil/accueil.php" class="sidebar-nav-item">
                         <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
@@ -80,9 +81,9 @@ if (!function_exists('canManageAbsences')) {
                 </div>
             </div>
             
-            <!-- Actions spécifiques au module absences -->
+            <!-- Actions spécifiques au module absences - Même casse que l'accueil -->
             <div class="sidebar-section">
-                <div class="sidebar-section-header">Actions</div>
+                <div class="sidebar-section-header">ACTIONS</div>
                 <div class="sidebar-nav">
                     <a href="absences.php" class="sidebar-nav-item <?= isActiveLink('liste') ?>">
                         <span class="sidebar-nav-icon"><i class="fas fa-list"></i></span>
