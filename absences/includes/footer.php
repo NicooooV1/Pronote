@@ -6,6 +6,8 @@
                     <div class="footer-links">
                         <a href="#">Mentions Légales</a>
                         <a href="#">Confidentialité</a>
+                        <a href="#">Aide</a>
+                        <a href="#">Contact</a>
                     </div>
                     <div class="footer-copyright">
                         &copy; <?= date('Y') ?> PRONOTE - Tous droits réservés
@@ -54,6 +56,25 @@
                     const form = this.closest('form');
                     if (form) form.submit();
                 });
+            });
+        }
+        
+        // Support pour la navigation mobile
+        const mobileMenuToggle = document.querySelector('.mobile-menu-toggle');
+        const sidebar = document.querySelector('.sidebar');
+        const pageOverlay = document.querySelector('.page-overlay');
+        
+        if (mobileMenuToggle && sidebar && pageOverlay) {
+            mobileMenuToggle.addEventListener('click', function() {
+                sidebar.classList.toggle('mobile-visible');
+                pageOverlay.classList.toggle('visible');
+                document.body.classList.toggle('no-scroll');
+            });
+            
+            pageOverlay.addEventListener('click', function() {
+                sidebar.classList.remove('mobile-visible');
+                pageOverlay.classList.remove('visible');
+                document.body.classList.remove('no-scroll');
             });
         }
     });

@@ -1,53 +1,32 @@
 /**
  * Styles pour le module Absences
- * Harmonisé avec le design système Pronote (accueil et cahier de textes)
+ * Extension du design système Pronote
  */
 
-/* Variables spécifiques au module */
+/* Importer les styles communs */
+@import url('../../assets/css/pronote-core.css');
+
+/* Surcharges et styles spécifiques au module Absences */
 :root {
-  --accent-absences: #e4443b; /* Rouge pour le module Absences */
-  --bg-absences-light: rgba(228, 68, 59, 0.1);
-  --border-absences: rgba(228, 68, 59, 0.5);
-  --justified-color: #34c759;
-  --unjustified-color: #e4443b;
-  --late-color: #ff9500;
+  /* Les variables d'accent pour le module Absences sont déjà définies dans pronote-core.css */
+  --justified-color: var(--success-color);
+  --unjustified-color: var(--accent-absences);
+  --late-color: var(--warning-color);
 }
 
-/* Modification de l'apparence pour ce module */
+/* Modification spécifique de la bannière pour le module Absences */
 .welcome-banner {
-  background: linear-gradient(to right, #d13e35, #e4443b);
-  height: 120px;
-  border-radius: 0;
-  padding: 25px 40px;
-  color: white;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  box-shadow: none;
-}
-
-.welcome-content h2 {
-  font-size: 24px;
-  font-weight: 400;
-  margin-bottom: 8px;
-  color: white;
-}
-
-.welcome-content p {
-  font-size: 14px;
-  opacity: 0.8;
+  background: linear-gradient(to right, #e02e24, var(--accent-absences));
 }
 
 /* Surcharge du bouton principal avec la couleur du module */
 .btn-primary {
   background-color: var(--accent-absences);
   color: white;
-  box-shadow: none;
 }
 
 .btn-primary:hover {
-  background-color: #d13e35;
+  background-color: #e02e24;
 }
 
 .sidebar-nav-item.active {
@@ -64,35 +43,37 @@
 }
 
 .badge-success {
-  background-color: rgba(52, 199, 89, 0.15);
-  color: #34c759;
+  background-color: var(--pastel-cahier);
+  color: var(--success-color);
 }
 
 .badge-danger {
-  background-color: rgba(255, 59, 48, 0.15);
-  color: #ff3b30;
+  background-color: var(--pastel-absences);
+  color: var(--error-color);
 }
 
 .badge-cours {
-  background-color: rgba(0, 122, 255, 0.15);
-  color: #007aff;
+  background-color: var(--pastel-agenda);
+  color: var(--info-color);
 }
 
 .badge-demi-journee {
-  background-color: rgba(255, 149, 0, 0.15);
-  color: #ff9500;
+  background-color: var(--pastel-notes);
+  color: var(--warning-color);
 }
 
 .badge-journee {
-  background-color: rgba(255, 59, 48, 0.15);
-  color: #ff3b30;
+  background-color: var(--pastel-absences);
+  color: var(--error-color);
 }
 
 /* Liste des absences */
 .absences-list {
   width: 100%;
   background-color: white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-light);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
 .absences-list .list-header {
@@ -101,13 +82,13 @@
 
 .absences-list .header-row {
   font-weight: 500;
-  color: #555;
-  border-bottom: 1px solid #eee;
+  color: var(--text-light);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .list-row {
   display: flex;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
   padding: 10px 0;
   transition: background-color 0.2s;
 }
@@ -135,12 +116,12 @@
   padding: 10px 15px;
 }
 
-/* Conteneurs de contenu harmonisés */
+/* Conteneurs de contenu harmonisés - utilisent maintenant les classes standards */
 .content-container {
-  background-color: white;
-  border-radius: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
+  background-color: var(--white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-light);
+  margin-bottom: var(--space-md);
   overflow: hidden;
 }
 
@@ -149,29 +130,29 @@
   justify-content: space-between;
   align-items: center;
   padding: 15px 20px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
   background-color: #f9f9f9;
 }
 
 .content-header h2 {
   font-size: 16px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-color);
   margin: 0;
 }
 
 /* Styles du calendrier */
 .calendar-container {
-  background-color: white;
-  border-radius: 0;
+  background-color: var(--white);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-light);
 }
 
 .calendar-header {
   padding: 15px;
   background-color: #f9f9f9;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .calendar-navigation {
@@ -211,7 +192,7 @@
 }
 
 .calendar-day.has-absences {
-  background-color: var(--bg-absences-light);
+  background-color: var(--pastel-absences);
 }
 
 .calendar-absence-item {
@@ -219,7 +200,7 @@
   border-left: 3px solid var(--accent-absences);
   padding: 5px 8px;
   margin-bottom: 3px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.8rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -231,17 +212,17 @@
   border-left-color: var(--justified-color);
 }
 
-/* Styles pour les détails d'absence */
+/* Styles pour les détails d'absence - adapté aux classes standard */
 .details-container {
-  background-color: white;
-  border-radius: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background-color: var(--white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-light);
   overflow: hidden;
 }
 
 .details-header {
   padding: 15px 20px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -249,20 +230,20 @@
 }
 
 .details-content {
-  padding: 20px;
+  padding: var(--space-md);
 }
 
 .details-section {
-  margin-bottom: 30px;
+  margin-bottom: var(--space-lg);
 }
 
 .details-section h3 {
   font-size: 16px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-color);
   margin-bottom: 15px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .details-grid {
@@ -278,83 +259,39 @@
 
 .details-label {
   font-weight: 500;
-  color: #666;
+  color: var(--text-light);
   width: 140px;
   flex-shrink: 0;
 }
 
 .details-value {
-  color: #333;
+  color: var(--text-color);
 }
 
 .details-text {
   line-height: 1.5;
-  color: #333;
-}
-
-/* Formulaires */
-.form-container {
-  background-color: white;
-  padding: 25px;
-  border-radius: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-}
-
-.form-group.form-full {
-  grid-column: span 2;
-}
-
-input[type="text"],
-input[type="date"],
-input[type="time"],
-select,
-textarea,
-.form-control {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-family: inherit;
-  font-size: 14px;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-input[type="text"]:focus,
-input[type="date"]:focus,
-input[type="time"]:focus,
-select:focus,
-textarea:focus,
-.form-control:focus {
-  outline: none;
-  border-color: var(--accent-absences);
-  box-shadow: 0 0 0 3px var(--bg-absences-light);
+  color: var(--text-color);
 }
 
 /* Styles spécifiques aux statistiques */
 .stats-section {
-  background-color: white;
-  border-radius: 0;
-  padding: 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background-color: var(--white);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+  box-shadow: var(--shadow-light);
 }
 
 .stats-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 20px;
+  gap: var(--space-md);
 }
 
 .stats-card {
   background-color: #f9f9f9;
-  border-radius: 8px;
-  padding: 20px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-md);
   display: flex;
   align-items: center;
 }
@@ -362,8 +299,8 @@ textarea:focus,
 .stats-icon {
   width: 60px;
   height: 60px;
-  background-color: var(--bg-absences-light);
-  border-radius: 50%;
+  background-color: var(--pastel-absences);
+  border-radius: var(--radius-circle);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -374,17 +311,17 @@ textarea:focus,
 .stats-value {
   font-size: 24px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-color);
   margin-top: 5px;
 }
 
 /* Barre de filtres */
 .filters-bar {
-  background-color: white;
-  border-radius: 0;
+  background-color: var(--white);
+  border-radius: var(--radius-md);
   padding: 15px 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: var(--space-md);
+  box-shadow: var(--shadow-light);
 }
 
 .filter-form {
@@ -399,18 +336,13 @@ textarea:focus,
   min-width: 180px;
 }
 
-.filter-buttons {
-  display: flex;
-  gap: 10px;
-}
-
 /* Message d'absence de données */
 .no-data-message {
   text-align: center;
   padding: 40px 20px;
-  background-color: white;
-  border-radius: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background-color: var(--white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-light);
 }
 
 .no-data-message i {
@@ -424,16 +356,16 @@ textarea:focus,
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-top: 20px;
+  margin-top: var(--space-md);
   gap: 5px;
 }
 
 .page-link, .page-number {
   padding: 5px 10px;
   background-color: #f5f5f5;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   text-decoration: none;
-  color: #333;
+  color: var(--text-color);
   transition: background-color 0.2s;
 }
 
@@ -451,82 +383,4 @@ textarea:focus,
   pointer-events: none;
 }
 
-/* Responsive design */
-@media (max-width: 1024px) {
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .details-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .stats-cards {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .welcome-banner {
-    flex-direction: column;
-    text-align: center;
-    height: auto;
-    padding: 20px;
-  }
-  
-  .welcome-icon {
-    margin-top: 15px;
-  }
-  
-  .filter-form {
-    flex-direction: column;
-  }
-  
-  .filter-item {
-    width: 100%;
-  }
-  
-  .list-row {
-    flex-direction: column;
-    padding: 15px;
-  }
-  
-  .list-cell {
-    padding: 5px 0;
-  }
-  
-  .list-actions {
-    padding: 10px 0 0 0;
-    justify-content: flex-start;
-  }
-  
-  .details-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .details-actions {
-    margin-top: 15px;
-    display: flex;
-    gap: 10px;
-  }
-}
-
-@media (max-width: 576px) {
-  .form-actions {
-    flex-direction: column;
-  }
-  
-  .btn {
-    width: 100%;
-  }
-  
-  .stats-card {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .stats-icon {
-    margin: 0 0 15px 0;
-  }
-}
+/* Les styles responsive sont déjà définis dans pronote-core.css */
