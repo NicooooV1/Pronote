@@ -14,23 +14,49 @@
   --late-color: var(--warning-color);
 }
 
+<<<<<<< Updated upstream
 /* Modification spécifique de la bannière pour le module Absences */
 .welcome-banner {
   background: linear-gradient(to right, #e02e24, var(--accent-absences));
+=======
+/* Modification de la bannière pour correspondre au design système (utilisation des couleurs primaires) */
+.welcome-banner {
+  background: linear-gradient(to right, var(--primary-color), var(--primary-light));
 }
 
-/* Surcharge du bouton principal avec la couleur du module */
+/* On garde uniquement l'accent spécifique pour les éléments propres au module */
+.welcome-banner .module-accent {
+  color: var(--accent-absences);
+}
+
+/* Les styles de bouton actif utilisent la couleur d'accent du module */
+.sidebar-nav-item.active {
+  border-left: 3px solid var(--accent-absences);
+>>>>>>> Stashed changes
+}
+
+/* Boutons primaires avec la couleur du système, non plus spécifique au module */
 .btn-primary {
-  background-color: var(--accent-absences);
+  background-color: var(--primary-color);
   color: white;
 }
 
 .btn-primary:hover {
+<<<<<<< Updated upstream
   background-color: #e02e24;
+=======
+  background-color: var(--primary-dark);
+>>>>>>> Stashed changes
 }
 
-.sidebar-nav-item.active {
-  border-left: 3px solid var(--accent-absences);
+/* Boutons d'action spécifiques au module qui doivent conserver la couleur d'accent */
+.btn-module-accent {
+  background-color: var(--accent-absences);
+  color: white;
+}
+
+.btn-module-accent:hover {
+  background-color: #e02e24;
 }
 
 /* Badges pour les types d'absences */
