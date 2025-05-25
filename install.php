@@ -53,6 +53,12 @@ $allowedIPs = ['127.0.0.1', '::1']; // IPs locales uniquement par défaut
 // Récupérer l'IP du client de façon sécurisée
 $clientIP = filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP);
 
+// DIAGNOSTIC TEMPORAIRE - À SUPPRIMER APRÈS RÉSOLUTION
+echo "<!-- DEBUG: IP détectée: " . $clientIP . " -->\n";
+echo "<!-- DEBUG: Contenu de \$_SERVER['REMOTE_ADDR']: " . ($_SERVER['REMOTE_ADDR'] ?? 'non défini') . " -->\n";
+echo "<!-- DEBUG: Contenu de \$_SERVER['HTTP_X_FORWARDED_FOR']: " . ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? 'non défini') . " -->\n";
+echo "<!-- DEBUG: Contenu de \$_SERVER['HTTP_X_REAL_IP']: " . ($_SERVER['HTTP_X_REAL_IP'] ?? 'non défini') . " -->\n";
+
 if (!in_array($clientIP, $allowedIPs) && 
     (!isset($_SERVER['SERVER_ADDR']) || $clientIP !== $_SERVER['SERVER_ADDR'])) {
     
@@ -63,18 +69,39 @@ if (!in_array($clientIP, $allowedIPs) &&
     $envFile = __DIR__ . '/.env';
     $additionalIpAllowed = false;
     
+    // DIAGNOSTIC TEMPORAIRE
+    echo "<!-- DEBUG: Fichier .env existe: " . (file_exists($envFile) ? 'oui' : 'non') . " -->\n";
+    echo "<!-- DEBUG: Fichier .env lisible: " . (is_readable($envFile) ? 'oui' : 'non') . " -->\n";
+    
     if (file_exists($envFile) && is_readable($envFile)) {
         $envContent = file_get_contents($envFile);
+        echo "<!-- DEBUG: Contenu du fichier .env: " . htmlspecialchars($envContent) . " -->\n";
+        
         if (preg_match('/ALLOWED_INSTALL_IP\s*=\s*(.+)/', $envContent, $matches)) {
             $additionalIP = trim($matches[1]);
-            if (filter_var($additionalIP, FILTER_VALIDATE_IP) && $additionalIP === $clientIP) {
-                $additionalIpAllowed = true;
+            echo "<!-- DEBUG: IP trouvées dans .env: " . htmlspecialchars($additionalIP) . " -->\n";
+            
+            // Gérer une liste d'IPs séparées par des virgules
+            $ipList = array_map('trim', explode(',', $additionalIP));
+            echo "<!-- DEBUG: Liste des IPs après explosion: " . implode(', ', $ipList) . " -->\n";
+            
+            foreach ($ipList as $ip) {
+                echo "<!-- DEBUG: Vérification IP: " . htmlspecialchars($ip) . " vs " . htmlspecialchars($clientIP) . " -->\n";
+                if (filter_var($ip, FILTER_VALIDATE_IP) && $ip === $clientIP) {
+                    $additionalIpAllowed = true;
+                    echo "<!-- DEBUG: IP autorisée trouvée: " . htmlspecialchars($ip) . " -->\n";
+                    break;
+                }
             }
+        } else {
+            echo "<!-- DEBUG: Aucune correspondance trouvée pour ALLOWED_INSTALL_IP dans le fichier .env -->\n";
         }
     }
     
+    echo "<!-- DEBUG: additionalIpAllowed: " . ($additionalIpAllowed ? 'true' : 'false') . " -->\n";
+    
     if (!$additionalIpAllowed) {
-        die('Accès non autorisé depuis votre adresse IP.');
+        die('Accès non autorisé depuis votre adresse IP: ' . $clientIP . '. IPs autorisées: ' . implode(', ', $allowedIPs));
     }
 }
 
