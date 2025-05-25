@@ -11,6 +11,11 @@ error_reporting(E_ALL); // Mais les capturer toutes
 // Configurer une limite de temps d'exécution plus élevée pour l'installation
 set_time_limit(120);
 
+// Définir les en-têtes de sécurité via PHP au lieu de meta tags
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('X-XSS-Protection: 1; mode=block');
+
 // Vérifier si l'installation est déjà terminée
 $installLockFile = __DIR__ . '/install.lock';
 if (file_exists($installLockFile)) {
@@ -128,7 +133,7 @@ $baseUrl = filter_var($baseUrl, FILTER_SANITIZE_URL);
 // Vérifier les permissions des dossiers
 $directories = [
     'API/logs',
-    'API/config',
+    'API/config', 
     'uploads',
     'temp'
 ];
@@ -137,22 +142,34 @@ $permissionIssues = [];
 foreach ($directories as $dir) {
     $path = $installDir . '/' . $dir;
     
-    // Créer le dossier s'il n'existe pas
+    // Créer le dossier s'il n'existe pas avec gestion d'erreur améliorée
     if (!is_dir($path)) {
         try {
+            // Créer avec des permissions appropriées
             if (!mkdir($path, 0755, true)) {
-                $permissionIssues[] = "Impossible de créer le dossier {$dir}";
+                $permissionIssues[] = "Impossible de créer le dossier {$dir}. Vérifiez les permissions du répertoire parent.";
+            } else {
+                // Vérifier que le répertoire a bien été créé avec les bonnes permissions
+                if (!is_writable($path)) {
+                    // Essayer de corriger les permissions
+                    @chmod($path, 0755);
+                    if (!is_writable($path)) {
+                        $permissionIssues[] = "Le dossier {$dir} a été créé mais n'est pas accessible en écriture. Exécutez: chmod 755 {$path}";
+                    }
+                }
             }
         } catch (Exception $e) {
-            $permissionIssues[] = "Erreur lors de la création du dossier {$dir}: " . $e->getMessage();
+            $permissionIssues[] = "Erreur lors de la création du dossier {$dir}: " . $e->getMessage() . ". Exécutez manuellement: mkdir -p {$path} && chmod 755 {$path}";
         }
     } else if (!is_writable($path)) {
-        $permissionIssues[] = "Le dossier {$dir} n'est pas accessible en écriture";
+        // Le répertoire existe mais n'est pas accessible en écriture
+        $permissionIssues[] = "Le dossier {$dir} n'est pas accessible en écriture. Exécutez: chmod 755 {$path}";
     }
 }
 
-// Génération d'un jeton CSRF unique
-if (!isset($_SESSION['install_token']) || empty($_SESSION['install_token'])) {
+// Génération d'un jeton CSRF unique avec gestion d'expiration améliorée
+if (!isset($_SESSION['install_token']) || empty($_SESSION['install_token']) || 
+    !isset($_SESSION['token_time']) || (time() - $_SESSION['token_time']) > 1800) { // 30 minutes au lieu de 1 heure
     try {
         $_SESSION['install_token'] = bin2hex(random_bytes(32));
         $_SESSION['token_time'] = time();
@@ -168,12 +185,39 @@ $installed = false;
 $dbError = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Validation du jeton CSRF
-    if (!isset($_POST['install_token']) || !isset($_SESSION['install_token']) || 
-        $_POST['install_token'] !== $_SESSION['install_token'] ||
-        !isset($_SESSION['token_time']) || (time() - $_SESSION['token_time']) > 3600) {
-        $dbError = "Erreur de sécurité: jeton de formulaire invalide ou expiré.";
+    // Validation du jeton CSRF avec diagnostic amélioré
+    $csrfValid = true;
+    $csrfError = '';
+    
+    if (!isset($_POST['install_token'])) {
+        $csrfValid = false;
+        $csrfError = "Jeton de sécurité manquant dans le formulaire.";
+    } elseif (!isset($_SESSION['install_token'])) {
+        $csrfValid = false;
+        $csrfError = "Jeton de sécurité manquant dans la session. La session a peut-être expiré.";
+    } elseif ($_POST['install_token'] !== $_SESSION['install_token']) {
+        $csrfValid = false;
+        $csrfError = "Jeton de sécurité invalide. Veuillez recharger la page et réessayer.";
+    } elseif (!isset($_SESSION['token_time']) || (time() - $_SESSION['token_time']) > 1800) {
+        $csrfValid = false;
+        $csrfError = "Jeton de sécurité expiré (plus de 30 minutes). Veuillez recharger la page et réessayer.";
+    }
+    
+    if (!$csrfValid) {
+        $dbError = "Erreur de sécurité: " . $csrfError;
+        
+        // Régénérer un nouveau jeton pour la prochaine tentative
+        try {
+            $_SESSION['install_token'] = bin2hex(random_bytes(32));
+            $_SESSION['token_time'] = time();
+            $install_token = $_SESSION['install_token'];
+        } catch (Exception $e) {
+            $_SESSION['install_token'] = hash('sha256', uniqid(mt_rand(), true));
+            $_SESSION['token_time'] = time();
+            $install_token = $_SESSION['install_token'];
+        }
     } else {
+        // Le jeton CSRF est valide, continuer le traitement
         try {
             // Valider les entrées utilisateur
             $dbHost = filter_input(INPUT_POST, 'db_host', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: 'localhost';
@@ -245,11 +289,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $apiDir = $installDir . '/API';
                 $configDir = $apiDir . '/config';
                 
-                if (!is_dir($configDir)) {
-                    if (!mkdir($configDir, 0755, true)) {
-                        throw new Exception("Impossible de créer le répertoire de configuration.");
+                // Améliorer la création du répertoire de configuration avec diagnostic détaillé
+                if (!is_dir($apiDir)) {
+                    if (!mkdir($apiDir, 0755, true)) {
+                        throw new Exception("Impossible de créer le répertoire API. Permissions insuffisantes sur " . dirname($apiDir) . ". Exécutez: mkdir -p {$apiDir} && chmod 755 {$apiDir}");
                     }
                 }
+                
+                if (!is_dir($configDir)) {
+                    if (!mkdir($configDir, 0755, true)) {
+                        throw new Exception("Impossible de créer le répertoire de configuration. Permissions insuffisantes sur {$apiDir}. Exécutez: mkdir -p {$configDir} && chmod 755 {$configDir}");
+                    }
+                }
+                
+                // Vérifier que le répertoire est accessible en écriture avec diagnostic détaillé
+                if (!is_writable($configDir)) {
+                    // Essayer de corriger automatiquement les permissions
+                    @chmod($configDir, 0755);
+                    if (!is_writable($configDir)) {
+                        $perms = substr(sprintf('%o', fileperms($configDir)), -4);
+                        $owner = function_exists('posix_getpwuid') ? posix_getpwuid(fileowner($configDir))['name'] : 'inconnu';
+                        throw new Exception("Le répertoire de configuration n'est pas accessible en écriture. Permissions actuelles: {$perms}, Propriétaire: {$owner}. Exécutez: chmod 755 {$configDir} && chown webadmin:www-data {$configDir}");
+                    }
+                }
+                
+                $installTime = date('Y-m-d H:i:s');
                 
                 // Améliorer la sécurité des sessions
                 $sessionSecure = $isHttps ? 'true' : 'false';
@@ -300,11 +364,64 @@ if (!defined('LOG_ENABLED')) define('LOG_ENABLED', true);
 if (!defined('LOG_LEVEL')) define('LOG_LEVEL', '{$appEnv}' === 'development' ? 'debug' : 'error');
 CONFIG;
 
-                // Sauvegarder le fichier de configuration de manière sécurisée
-                if (file_put_contents($apiDir . '/config/env.php', $configContent, LOCK_EX) === false) {
-                    throw new Exception("Impossible d'écrire le fichier de configuration.");
+                // Tenter d'écrire le fichier avec différentes méthodes
+                $configFile = $configDir . '/env.php';
+                $writeSuccess = false;
+                $lastError = '';
+                
+                // Méthode 1: file_put_contents avec LOCK_EX
+                try {
+                    $result = file_put_contents($configFile, $configContent, LOCK_EX);
+                    if ($result !== false) {
+                        $writeSuccess = true;
+                    } else {
+                        $lastError = "file_put_contents a retourné false";
+                    }
+                } catch (Exception $e) {
+                    $lastError = "Erreur file_put_contents: " . $e->getMessage();
                 }
-                chmod($apiDir . '/config/env.php', 0640); // Permissions restreintes
+                
+                // Méthode 2: Si la première méthode échoue, essayer fopen/fwrite
+                if (!$writeSuccess) {
+                    try {
+                        $handle = fopen($configFile, 'w');
+                        if ($handle !== false) {
+                            if (flock($handle, LOCK_EX)) {
+                                $result = fwrite($handle, $configContent);
+                                flock($handle, LOCK_UN);
+                                if ($result !== false) {
+                                    $writeSuccess = true;
+                                } else {
+                                    $lastError = "fwrite a échoué";
+                                }
+                            } else {
+                                $lastError = "Impossible de verrouiller le fichier";
+                            }
+                            fclose($handle);
+                        } else {
+                            $lastError = "Impossible d'ouvrir le fichier pour écriture";
+                        }
+                    } catch (Exception $e) {
+                        $lastError = "Erreur fopen/fwrite: " . $e->getMessage();
+                    }
+                }
+                
+                if (!$writeSuccess) {
+                    throw new Exception("Impossible d'écrire le fichier de configuration. Dernière erreur: " . $lastError . ". Vérifiez les permissions du répertoire: " . $configDir);
+                }
+                
+                // Vérifier que le fichier a bien été créé et qu'il contient le bon contenu
+                if (!file_exists($configFile)) {
+                    throw new Exception("Le fichier de configuration a été créé mais est introuvable.");
+                }
+                
+                $writtenContent = file_get_contents($configFile);
+                if (strlen($writtenContent) < 100) {
+                    throw new Exception("Le fichier de configuration semble incomplet ou corrompu.");
+                }
+                
+                // Définir les permissions restreintes après création
+                chmod($configFile, 0640); // Permissions restreintes
                 
                 // Créer un fichier .htaccess pour protéger les fichiers de config
                 $htaccessContent = <<<HTACCESS
@@ -468,8 +585,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    <meta http-equiv="X-Frame-Options" content="DENY">
     <title>Installation de Pronote</title>
     <style>
         body { 
@@ -543,6 +658,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             padding-bottom: 10px;
             margin-top: 30px;
         }
+        .form-section {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
@@ -592,77 +713,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <li><?= htmlspecialchars($issue) ?></li>
                     <?php endforeach; ?>
                 </ul>
-                <p>Veuillez résoudre ces problèmes de permissions avant de continuer.</p>
+                <p><strong>Commandes à exécuter sur votre serveur :</strong></p>
+                <pre>
+# Se placer dans le répertoire de l'application
+cd /var/www/html/pronote
+
+# Créer tous les répertoires nécessaires
+mkdir -p API/config API/logs uploads temp
+
+# Définir les permissions appropriées
+chmod 755 API API/config API/logs uploads temp
+
+# Définir le propriétaire approprié (ajustez selon votre configuration)
+chown webadmin:www-data API/config API/logs uploads temp
+
+# Vérifier les permissions
+ls -la API/
+</pre>
+                <p>Après avoir exécuté ces commandes, rechargez cette page pour continuer l'installation.</p>
             </div>
         <?php else: ?>
             <form method="post" action="">
-                <h2 class="section-title">Configuration de l'application</h2>
-                <div class="form-group">
-                    <label for="base_url">URL de base de l'application</label>
-                    <input type="text" id="base_url" name="base_url" value="<?= htmlspecialchars($baseUrl) ?>" required>
-                    <small>Par exemple: /pronote ou laisser vide si installé à la racine</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="app_env">Environnement</label>
-                    <select id="app_env" name="app_env">
-                        <option value="development">Développement</option>
-                        <option value="production" selected>Production</option>
-                        <option value="test">Test</option>
-                    </select>
-                </div>
-                
-                <h2 class="section-title">Configuration de la base de données</h2>
-                <div class="form-group">
-                    <label for="db_host">Hôte de la base de données</label>
-                    <input type="text" id="db_host" name="db_host" value="localhost" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="db_name">Nom de la base de données</label>
-                    <input type="text" id="db_name" name="db_name" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="db_user">Utilisateur de la base de données</label>
-                    <input type="text" id="db_user" name="db_user" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="db_pass">Mot de passe de la base de données</label>
-                    <input type="password" id="db_pass" name="db_pass">
-                </div>
-                
-                <h2 class="section-title">Création du compte administrateur principal</h2>
-                <p>Ce compte sera le seul compte administrateur autorisé. Aucun autre compte administrateur ne pourra être créé ultérieurement.</p>
-                
-                <div class="form-group">
-                    <label for="admin_nom">Nom</label>
-                    <input type="text" id="admin_nom" name="admin_nom" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="admin_prenom">Prénom</label>
-                    <input type="text" id="admin_prenom" name="admin_prenom" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="admin_mail">Email</label>
-                    <input type="email" id="admin_mail" name="admin_mail" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="admin_password">Mot de passe</label>
-                    <input type="password" id="admin_password" name="admin_password" required minlength="12" 
-                           pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{12,}"
-                           title="Le mot de passe doit contenir au moins 12 caractères, incluant au moins une majuscule, une minuscule, un chiffre et un caractère spécial">
-                    <small>Minimum 12 caractères incluant au moins une majuscule, une minuscule, un chiffre et un caractère spécial</small>
-                </div>
-                
                 <!-- Champ caché pour le jeton CSRF -->
                 <input type="hidden" name="install_token" value="<?= htmlspecialchars($install_token) ?>">
                 
-                <button type="submit">Installer</button>
+                <div class="form-section">
+                    <h2 class="section-title">Configuration de l'application</h2>
+                    <div class="form-group">
+                        <label for="base_url">URL de base de l'application</label>
+                        <input type="text" id="base_url" name="base_url" value="<?= htmlspecialchars($baseUrl) ?>" required>
+                        <small>Par exemple: /pronote ou laisser vide si installé à la racine</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="app_env">Environnement</label>
+                        <select id="app_env" name="app_env">
+                            <option value="development">Développement</option>
+                            <option value="production" selected>Production</option>
+                            <option value="test">Test</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h2 class="section-title">Configuration de la base de données</h2>
+                    <div class="form-group">
+                        <label for="db_host">Hôte de la base de données</label>
+                        <input type="text" id="db_host" name="db_host" value="localhost" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="db_name">Nom de la base de données</label>
+                        <input type="text" id="db_name" name="db_name" value="pronote" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="db_user">Utilisateur de la base de données</label>
+                        <input type="text" id="db_user" name="db_user" value="pronote_user" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="db_pass">Mot de passe de la base de données</label>
+                        <input type="password" id="db_pass" name="db_pass" placeholder="Entrez le mot de passe de la base de données">
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h2 class="section-title">Création du compte administrateur principal</h2>
+                    <p>Ce compte sera le seul compte administrateur autorisé. Aucun autre compte administrateur ne pourra être créé ultérieurement.</p>
+                    
+                    <div class="form-group">
+                        <label for="admin_nom">Nom</label>
+                        <input type="text" id="admin_nom" name="admin_nom" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="admin_prenom">Prénom</label>
+                        <input type="text" id="admin_prenom" name="admin_prenom" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="admin_mail">Email</label>
+                        <input type="email" id="admin_mail" name="admin_mail" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="admin_password">Mot de passe</label>
+                        <input type="password" id="admin_password" name="admin_password" required minlength="12" 
+                               pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{12,}"
+                               title="Le mot de passe doit contenir au moins 12 caractères, incluant au moins une majuscule, une minuscule, un chiffre et un caractère spécial">
+                        <small>Minimum 12 caractères incluant au moins une majuscule, une minuscule, un chiffre et un caractère spécial</small>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px; padding: 10px; background-color: #f0f8ff; border-radius: 5px;">
+                    <p><strong>Information :</strong> Le jeton de sécurité expire au bout de 30 minutes. Si vous obtenez une erreur de jeton expiré, rechargez simplement la page.</p>
+                </div>
+                
+                <button type="submit" style="margin-top: 20px;">Installer</button>
             </form>
         <?php endif; ?>
     <?php endif; ?>
