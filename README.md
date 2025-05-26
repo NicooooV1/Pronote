@@ -102,14 +102,6 @@ pronote/
 - **`fix_permissions.php`** : Correction automatique des permissions
 - **`install_guard.php`** : Protection automatique du fichier d'installation
 
-### Scripts supprimés/intégrés
-
-Les scripts suivants ont été supprimés car leurs fonctionnalités sont intégrées :
-- ~~`check_database_health.php`~~ → Intégré dans `diagnostic.php`
-- ~~`fix_complete_database.php`~~ → Intégré dans `install.php`
-- ~~`test_permissions.php`~~ → Intégré dans `diagnostic.php` et `fix_permissions.php`
-- ~~`test_db_connection.php`~~ → Intégré dans `diagnostic.php`
-
 ## Dépannage
 
 ### Problèmes courants
@@ -155,4 +147,4 @@ Si nécessaire, pour réinstaller complètement :
 
 ---
 
-© 2023 Projet Pronote - Tous droits réservés
+© 2025 Projet Pronote - Tous droits réservés

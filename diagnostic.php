@@ -1173,61 +1173,236 @@ if ($installStatus['install_exists'] && $installStatus['lock_exists']) {
     
     <div id="permissions" class="tab-content">
         <div class="section">
-            <h2>Permissions des répertoires</h2>
+            <h2>Diagnostic avancé des permissions</h2>
+            
+            <h3>Informations système</h3>
             <table>
                 <tr>
-                    <th>Répertoire</th>
-                    <th>Existe</th>
-                    <th>Lecture</th>
-                    <th>Écriture</th>
-                    <th>Création de fichier</th>
+                    <th>Élément</th>
+                    <th>Valeur</th>
                 </tr>
-                <?php foreach ($directories as $name => $path): ?>
-                    <?php $perms = testDirectoryPermissions($path); ?>
-                    <tr>
-                        <td><?= htmlspecialchars($name) ?></td>
-                        <td class="<?= $perms['exists'] ? 'success' : 'error' ?>">
-                            <?= $perms['exists'] ? 'Oui' : 'Non' ?>
-                        </td>
-                        <td class="<?= $perms['readable'] ? 'success' : 'error' ?>">
-                            <?= $perms['readable'] ? 'Oui' : 'Non' ?>
-                        </td>
-                        <td class="<?= $perms['writable'] ? 'success' : 'error' ?>">
-                            <?= $perms['writable'] ? 'Oui' : 'Non' ?>
-                        </td>
-                        <td class="<?= isset($perms['can_write_file']) && $perms['can_write_file'] ? 'success' : 'error' ?>">
-                            <?= isset($perms['can_write_file']) && $perms['can_write_file'] ? 'Oui' : 'Non' ?>
-                            <?= isset($perms['error']) ? ' - ' . htmlspecialchars($perms['error']) : '' ?>
-                        </td>
-                    </tr>
+                <tr>
+                    <td>Utilisateur PHP</td>
+                    <td><?= htmlspecialchars($advancedDiagnostic['php_user']['name']) ?> (UID: <?= $advancedDiagnostic['php_user']['uid'] ?>)</td>
+                </tr>
+                <tr>
+                    <td>Groupe PHP</td>
+                    <td>GID: <?= $advancedDiagnostic['php_user']['gid'] ?></td>
+                </tr>
+                <tr>
+                    <td>Umask</td>
+                    <td><?= $advancedDiagnostic['php_user']['umask'] ?></td>
+                </tr>
+                <tr>
+                    <td>Répertoire courant</td>
+                    <td><?= htmlspecialchars(sanitizePath($advancedDiagnostic['current_directory']['path'])) ?></td>
+                </tr>
+                <tr>
+                    <td>Propriétaire du répertoire racine</td>
+                    <td><?= $advancedDiagnostic['current_directory']['owner'] ?></td>
+                </tr>
+                <tr>
+                    <td>Groupe du répertoire racine</td>
+                    <td><?= $advancedDiagnostic['current_directory']['group'] ?></td>
+                </tr>
+                <tr>
+                    <td>Permissions répertoire racine</td>
+                    <td><?= $advancedDiagnostic['current_directory']['permissions'] ?></td>
+                </tr>
+            </table>
+            
+            <h3>Capacités de base</h3>
+            <table>
+                <tr>
+                    <th>Test</th>
+                    <th>Résultat</th>
+                </tr>
+                <tr>
+                    <td>Créer un répertoire</td>
+                    <td class="<?= $advancedDiagnostic['capabilities']['create_directory'] ? 'success' : 'error' ?>">
+                        <?= $advancedDiagnostic['capabilities']['create_directory'] ? 'Succès' : 'Échec' ?>
+                    </td>
+                </tr>
+                <tr>
+                    <td>Écrire un fichier</td>
+                    <td class="<?= $advancedDiagnostic['capabilities']['write_file'] ? 'success' : 'error' ?>">
+                        <?= $advancedDiagnostic['capabilities']['write_file'] ? 'Succès' : 'Échec' ?>
+                    </td>
+                </tr>
+            </table>
+            
+            <h3>Configuration PHP affectant les permissions</h3>
+            <table>
+                <tr>
+                    <th>Directive</th>
+                    <th>Valeur</th>
+                </tr>
+                <?php foreach ($advancedDiagnostic['php_config'] as $key => $value): ?>
+                <tr>
+                    <td><?= htmlspecialchars($key) ?></td>
+                    <td><?= htmlspecialchars($value) ?></td>
+                </tr>
                 <?php endforeach; ?>
             </table>
         </div>
         
         <div class="section">
-            <h2>Fichiers d'authentification</h2>
+            <h2>Analyse détaillée des répertoires</h2>
             <table>
                 <tr>
-                    <th>Fichier</th>
+                    <th>Répertoire</th>
                     <th>Existe</th>
-                    <th>Lisible</th>
-                    <th>Dernière modification</th>
+                    <th>Permissions</th>
+                    <th>Détail</th>
+                    <th>Propriétaire</th>
+                    <th>Groupe</th>
+                    <th>Test écriture</th>
+                    <th>Diagnostic</th>
                 </tr>
-                <?php foreach ($authFilesStatus as $name => $status): ?>
+                <?php foreach ($detailedDirectoryAnalysis as $name => $analysis): ?>
                     <tr>
                         <td><?= htmlspecialchars($name) ?></td>
-                        <td class="<?= $status['exists'] ? 'success' : 'error' ?>">
-                            <?= $status['exists'] ? 'Oui' : 'Non' ?>
+                        <td class="<?= $analysis['exists'] ? 'success' : 'error' ?>">
+                            <?= $analysis['exists'] ? 'Oui' : 'Non' ?>
                         </td>
-                        <td class="<?= $status['readable'] ? 'success' : 'error' ?>">
-                            <?= $status['readable'] ? 'Oui' : 'Non' ?>
+                        <td>
+                            <?= $analysis['exists'] ? $analysis['permissions'] : 'N/A' ?>
                         </td>
-                        <td><?= htmlspecialchars($status['modified']) ?></td>
+                        <td>
+                            <?= $analysis['exists'] ? $analysis['permissions_string'] : 'N/A' ?>
+                        </td>
+                        <td>
+                            <?= $analysis['exists'] ? $analysis['owner'] : 'N/A' ?>
+                        </td>
+                        <td>
+                            <?= $analysis['exists'] ? $analysis['group'] : 'N/A' ?>
+                        </td>
+                        <td class="<?= isset($analysis['write_test']) && $analysis['write_test'] ? 'success' : 'error' ?>">
+                            <?= isset($analysis['write_test']) && $analysis['write_test'] ? 'Succès' : 'Échec' ?>
+                        </td>
+                        <td>
+                            <?php if (!$analysis['exists']): ?>
+                                <span class="error">Répertoire manquant</span>
+                            <?php elseif (!$analysis['writable']): ?>
+                                <span class="error">Pas d'écriture PHP</span>
+                            <?php elseif (!$analysis['write_test']): ?>
+                                <span class="error">Test écriture échoué</span>
+                            <?php else: ?>
+                                <span class="success">OK</span>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
             </table>
         </div>
-        
+
+        <div class="section">
+            <h2>Solutions recommandées</h2>
+            
+            <?php
+            $hasWriteIssues = false;
+            $hasOwnershipIssues = false;
+            $currentUser = $advancedDiagnostic['php_user']['uid'];
+            $currentDir = $advancedDiagnostic['current_directory'];
+            
+            foreach ($detailedDirectoryAnalysis as $analysis) {
+                if ($analysis['exists'] && !$analysis['write_test']) {
+                    $hasWriteIssues = true;
+                    if ($analysis['owner'] !== $currentUser) {
+                        $hasOwnershipIssues = true;
+                    }
+                }
+            }
+            ?>
+            
+            <?php if ($hasWriteIssues): ?>
+                <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                    <h3>⚠️ Problèmes d'écriture détectés</h3>
+                    
+                    <?php if ($hasOwnershipIssues): ?>
+                        <h4>Problème de propriétaire</h4>
+                        <p>Les répertoires appartiennent à un utilisateur différent de celui qui exécute PHP.</p>
+                        <p><strong>Solutions (exécutez via SSH) :</strong></p>
+                        <pre><?php
+echo "cd " . __DIR__ . "\n\n";
+echo "# Option 1 - Changer le propriétaire (serveur dédié/VPS)\n";
+foreach ($directories as $name => $path) {
+    echo "chown " . $advancedDiagnostic['php_user']['name'] . ":" . $advancedDiagnostic['php_user']['name'] . " " . basename($path) . "\n";
+}
+echo "\n# Option 2 - Utiliser www-data (Apache/Ubuntu)\n";
+foreach ($directories as $name => $path) {
+    echo "sudo chown www-data:www-data " . basename($path) . "\n";
+}
+echo "\n# Option 3 - Utiliser nginx (Nginx)\n";
+foreach ($directories as $name => $path) {
+    echo "sudo chown nginx:nginx " . basename($path) . "\n";
+}
+                        ?></pre>
+                    <?php else: ?>
+                        <h4>Problème de permissions</h4>
+                        <p>Le propriétaire est correct mais les permissions sont insuffisantes.</p>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+            
+            <div style="background: #d1ecf1; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                <h3>🔧 Actions automatiques disponibles</h3>
+                <form method="post" action="">
+                    <input type="hidden" name="diag_token" value="<?= htmlspecialchars($diagToken) ?>">
+                    <button type="submit" name="create_missing_dirs" class="button">Créer les répertoires manquants</button>
+                    <button type="submit" name="fix_permissions" class="button">Corriger permissions (755)</button>
+                    <button type="submit" name="test_777_permissions" class="button" style="background: #e67e22;">Test permissions 777 (temporaire)</button>
+                    <button type="submit" name="clean_temp_files" class="button">Nettoyer fichiers temporaires</button>
+                </form>
+                
+                <p><strong>Note :</strong> Si les actions automatiques échouent, utilisez les commandes SSH ci-dessous.</p>
+            </div>
+            
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px;">
+                <h3>📋 Commandes SSH complètes</h3>
+                <p>Copiez et exécutez ces commandes via SSH :</p>
+                <pre><?php
+echo "# Naviguer vers le répertoire de l'application\n";
+echo "cd " . __DIR__ . "\n\n";
+
+echo "# Créer tous les répertoires manquants\n";
+foreach ($directories as $name => $path) {
+    echo "mkdir -p " . basename($path) . "\n";
+}
+
+echo "\n# Méthode 1 - Permissions standard (755)\n";
+foreach ($directories as $name => $path) {
+    echo "chmod 755 " . basename($path) . "\n";
+}
+
+echo "\n# Méthode 2 - Permissions complètes (777) - TEMPORAIRE SEULEMENT\n";
+foreach ($directories as $name => $path) {
+    echo "chmod 777 " . basename($path) . "\n";
+}
+
+echo "\n# Méthode 3 - Ajuster le propriétaire (serveur Apache)\n";
+foreach ($directories as $name => $path) {
+    echo "sudo chown www-data:www-data " . basename($path) . "\n";
+}
+echo "sudo chmod 755 " . implode(' ', array_map('basename', array_values($directories))) . "\n";
+
+echo "\n# Méthode 4 - Serveur Nginx\n";
+foreach ($directories as $name => $path) {
+    echo "sudo chown nginx:nginx " . basename($path) . "\n";
+}
+
+echo "\n# Méthode 5 - Serveur partagé\n";
+foreach ($directories as $name => $path) {
+    echo "chown " . $advancedDiagnostic['php_user']['name'] . " " . basename($path) . "\n";
+}
+
+echo "\n# Vérifier les permissions après correction\n";
+echo "ls -la " . implode(' ', array_map('basename', array_values($directories))) . "\n";
+                ?></pre>
+                <button class="copy-button" onclick="copyToClipboard(this.previousElementSibling)">Copier</button>
+            </div>
+        </div>
+
         <div class="section">
             <h2>Actions de maintenance</h2>
             <?php if (isset($message)): ?>
@@ -1241,18 +1416,11 @@ if ($installStatus['install_exists'] && $installStatus['lock_exists']) {
                 </div>
             <?php endif; ?>
             
-            <form method="post" action="">
-                <input type="hidden" name="diag_token" value="<?= htmlspecialchars($diagToken) ?>">
-                <button type="submit" name="create_missing_dirs" class="button">Créer les répertoires manquants</button>
-                <button type="submit" name="fix_permissions" class="button">Corriger les permissions</button>
-                <button type="submit" name="clean_temp_files" class="button">Nettoyer les fichiers temporaires</button>
-            </form>
-            
             <h3>Outils de diagnostic avancés</h3>
             <p>Les anciens scripts de diagnostic ont été intégrés dans cette page :</p>
             <ul>
                 <li><strong>Santé de la base de données</strong> : Voir l'onglet "Base de données"</li>
-                <li><strong>Test de permissions</strong> : Utilisez les boutons ci-dessus</li>
+                <li><strong>Test de permissions</strong> : Utilisez le diagnostic ci-dessus</li>
                 <li><strong>Test de connexion DB</strong> : Voir l'onglet "Base de données"</li>
                 <li><strong>Correction complète</strong> : Relancez l'installation si nécessaire</li>
             </ul>
@@ -1526,6 +1694,23 @@ if ($installStatus['install_exists'] && $installStatus['lock_exists']) {
         } else {
             columnsRow.style.display = 'none';
         }
+    }
+    
+    // Fonction pour copier dans le presse-papier
+    function copyToClipboard(element) {
+        const text = element.textContent;
+        navigator.clipboard.writeText(text).then(function() {
+            alert('Commandes copiées dans le presse-papier !');
+        }, function() {
+            // Fallback pour les navigateurs plus anciens
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            alert('Commandes copiées dans le presse-papier !');
+        });
     }
     </script>
 </body>

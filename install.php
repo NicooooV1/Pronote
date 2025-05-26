@@ -119,19 +119,44 @@ $directories = [
 ];
 
 $permissionErrors = [];
+$permissionWarnings = [];
+
 foreach ($directories as $dir) {
     $path = $installDir . '/' . $dir;
     
+    // Créer le répertoire s'il n'existe pas
     if (!is_dir($path)) {
-        if (!mkdir($path, 0755, true)) {
+        if (!@mkdir($path, 0755, true)) {
             $permissionErrors[] = "Impossible de créer le dossier {$dir}";
+            continue;
         }
     }
     
-    if (!is_writable($path)) {
-        @chmod($path, 0755);
-        if (!is_writable($path)) {
-            $permissionErrors[] = "Le dossier {$dir} n'est pas accessible en écriture";
+    // Test d'écriture réel
+    $testFile = $path . '/test_install_' . time() . '.txt';
+    $canWrite = @file_put_contents($testFile, 'test d\'installation') !== false;
+    
+    if ($canWrite) {
+        @unlink($testFile);
+    } else {
+        // Essayer de corriger automatiquement
+        $fixed = false;
+        
+        // Essayer différentes permissions
+        $permissions = [0755, 0775, 0777];
+        foreach ($permissions as $perm) {
+            if (@chmod($path, $perm)) {
+                $testFile = $path . '/test_chmod_' . time() . '.txt';
+                if (@file_put_contents($testFile, 'test chmod') !== false) {
+                    @unlink($testFile);
+                    $fixed = true;
+                    break;
+                }
+            }
+        }
+        
+        if (!$fixed) {
+            $permissionWarnings[] = "Le dossier {$dir} n'est pas accessible en écriture";
         }
     }
 }
@@ -816,14 +841,24 @@ HTACCESS;
         
         <div class="content">
             <?php if (!empty($permissionErrors)): ?>
+                <div class="error">
+                    <h3>❌ Erreurs critiques de permissions</h3>
+                    <?php foreach ($permissionErrors as $error): ?>
+                        <p><?= htmlspecialchars($error) ?></p>
+                    <?php endforeach; ?>
+                    <p><strong>Action requise:</strong> Corrigez ces problèmes avant de continuer.</p>
+                    <p><a href='test_permissions.php' class='btn'>🔧 Outil de correction automatique</a></p>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!empty($permissionWarnings)): ?>
                 <div class="warning">
                     <h3>⚠️ Problèmes de permissions détectés</h3>
-                    <ul>
-                        <?php foreach ($permissionErrors as $error): ?>
-                            <li><?= htmlspecialchars($error) ?></li>
-                        <?php endforeach; ?>
-                    </ul>
+                    <?php foreach ($permissionWarnings as $warning): ?>
+                        <p><?= htmlspecialchars($warning) ?></p>
+                    <?php endforeach; ?>
                     <p>L'installation peut continuer, mais certaines fonctionnalités peuvent être limitées.</p>
+                    <p><a href='test_permissions.php' class='btn'>🔧 Corriger automatiquement</a></p>
                 </div>
             <?php endif; ?>
 
