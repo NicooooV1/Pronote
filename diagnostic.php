@@ -1,7 +1,7 @@
 <?php
 /**
  * Page de diagnostic pour Pronote - RÉSERVÉE AUX ADMINISTRATEURS
- * Cette page permet de diagnostiquer les problèmes de configuration, de permissions et de redirections
+ * Cette page remplace tous les anciens scripts de diagnostic
  */
 
 // Vérification immédiate des tentatives d'accès direct
@@ -1229,12 +1229,33 @@ if ($installStatus['install_exists'] && $installStatus['lock_exists']) {
         </div>
         
         <div class="section">
-            <h2>Actions</h2>
+            <h2>Actions de maintenance</h2>
+            <?php if (isset($message)): ?>
+                <div style="padding: 10px; background: #d4edda; color: #155724; border-radius: 5px; margin-bottom: 15px;">
+                    <?= htmlspecialchars($message) ?>
+                </div>
+            <?php endif; ?>
+            <?php if (isset($error)): ?>
+                <div style="padding: 10px; background: #f8d7da; color: #721c24; border-radius: 5px; margin-bottom: 15px;">
+                    <?= htmlspecialchars($error) ?>
+                </div>
+            <?php endif; ?>
+            
             <form method="post" action="">
                 <input type="hidden" name="diag_token" value="<?= htmlspecialchars($diagToken) ?>">
                 <button type="submit" name="create_missing_dirs" class="button">Créer les répertoires manquants</button>
                 <button type="submit" name="fix_permissions" class="button">Corriger les permissions</button>
+                <button type="submit" name="clean_temp_files" class="button">Nettoyer les fichiers temporaires</button>
             </form>
+            
+            <h3>Outils de diagnostic avancés</h3>
+            <p>Les anciens scripts de diagnostic ont été intégrés dans cette page :</p>
+            <ul>
+                <li><strong>Santé de la base de données</strong> : Voir l'onglet "Base de données"</li>
+                <li><strong>Test de permissions</strong> : Utilisez les boutons ci-dessus</li>
+                <li><strong>Test de connexion DB</strong> : Voir l'onglet "Base de données"</li>
+                <li><strong>Correction complète</strong> : Relancez l'installation si nécessaire</li>
+            </ul>
         </div>
     </div>
     
