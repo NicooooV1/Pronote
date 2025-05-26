@@ -463,356 +463,100 @@ HTACCESS;
                 }
                 
                 // Créer le compte administrateur initial
-                // Vérifier d'abord que la table existe
+                // Vérifier d'abord que la table existe et a la bonne structure
                 $tableExists = false;
+                $tableHasCorrectStructure = false;
+                
                 try {
                     $checkTable = $pdo->query("SHOW TABLES LIKE 'administrateurs'");
                     $tableExists = $checkTable && $checkTable->rowCount() > 0;
+                    
+                    if ($tableExists) {
+                        // Vérifier la structure de la table
+                        $columns = $pdo->query("DESCRIBE administrateurs")->fetchAll(PDO::FETCH_COLUMN);
+                        $requiredColumns = ['id', 'nom', 'prenom', 'mail', 'identifiant', 'mot_de_passe', 'date_creation', 'adresse', 'role', 'actif'];
+                        $missingColumns = array_diff($requiredColumns, $columns);
+                        
+                        if (empty($missingColumns)) {
+                            $tableHasCorrectStructure = true;
+                        } else {
+                            // Essayer de corriger la structure
+                            foreach ($missingColumns as $column) {
+                                try {
+                                    switch ($column) {
+                                        case 'adresse':
+                                            $pdo->exec("ALTER TABLE administrateurs ADD COLUMN `adresse` varchar(255) DEFAULT NULL");
+                                            break;
+                                        case 'role':
+                                            $pdo->exec("ALTER TABLE administrateurs ADD COLUMN `role` varchar(50) NOT NULL DEFAULT 'administrateur'");
+                                            break;
+                                        case 'actif':
+                                            $pdo->exec("ALTER TABLE administrateurs ADD COLUMN `actif` tinyint(1) NOT NULL DEFAULT '1'");
+                                            break;
+                                    }
+                                } catch (PDOException $e) {
+                                    // Ignorer les erreurs de colonnes qui existent déjà
+                                }
+                            }
+                            
+                            // Vérifier à nouveau après correction
+                            $columns = $pdo->query("DESCRIBE administrateurs")->fetchAll(PDO::FETCH_COLUMN);
+                            $missingColumns = array_diff($requiredColumns, $columns);
+                            $tableHasCorrectStructure = empty($missingColumns);
+                        }
+                    }
                 } catch (PDOException $e) {
                     // Ignorer cette erreur et essayer de créer la table
                 }
                 
-                // Si la table n'existe pas, la créer
-                if (!$tableExists) {
-                    $pdo->exec("CREATE TABLE IF NOT EXISTS `administrateurs` (
-                        `id` int(11) NOT NULL AUTO_INCREMENT,
-                        `nom` varchar(50) NOT NULL,
-                        `prenom` varchar(50) NOT NULL,
-                        `mail` varchar(100) NOT NULL,
-                        `identifiant` varchar(50) NOT NULL,
-                        `mot_de_passe` varchar(255) NOT NULL,
-                        `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        `adresse` varchar(255) DEFAULT NULL,
-                        `role` varchar(50) NOT NULL DEFAULT 'administration',
-                        `actif` tinyint(1) NOT NULL DEFAULT '1',
-                        PRIMARY KEY (`id`),
-                        UNIQUE KEY `identifiant` (`identifiant`),
-                        UNIQUE KEY `mail` (`mail`)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-                }
-                
-                // Hachage du mot de passe avec une méthode sécurisée
-                $passwordHash = password_hash($adminPassword, PASSWORD_DEFAULT);
-                
-                // Générer un identifiant au format nom.prenom
-                $identifiant = strtolower(
-                    transliterator_transliterate(
-                        'Any-Latin; Latin-ASCII; [^a-zA-Z0-9\.] Remove;', 
-                        $adminNom
-                    ) . '.' . 
-                    transliterator_transliterate(
-                        'Any-Latin; Latin-ASCII; [^a-zA-Z0-9] Remove;', 
-                        $adminPrenom
-                    )
-                );
-                
-                // En cas de problème avec transliterator, utiliser un fallback simple
-                if (empty($identifiant)) {
-                    $identifiant = strtolower(
-                        preg_replace('/[^a-zA-Z0-9]/', '', $adminNom) . '.' . 
-                        preg_replace('/[^a-zA-Z0-9]/', '', $adminPrenom)
-                    );
-                }
-                
-                // Insérer l'administrateur en utilisant une requête préparée
-                $stmt = $pdo->prepare("
-                    INSERT INTO administrateurs 
-                    (nom, prenom, mail, identifiant, mot_de_passe, role, adresse) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ");
-                $stmt->execute([
-                    $adminNom,
-                    $adminPrenom,
-                    $adminMail,
-                    $identifiant,
-                    $passwordHash,
-                    'administrateur', // Rôle par défaut
-                    'N/A' // Adresse par défaut
-                ]);
-                
-                // Créer un fichier de verrouillage des comptes admin
-                $adminLockFile = $installDir . '/admin.lock';
-                $adminLockContent = "ADMIN_CREATED=true\nDATE=" . date('Y-m-d H:i:s');
-                file_put_contents($adminLockFile, $adminLockContent, LOCK_EX);
-                chmod($adminLockFile, 0400); // Rendre le fichier en lecture seule
-                
-                // Créer un fichier de verrou pour empêcher l'exécution future de l'installation
-                $installTime = date('Y-m-d H:i:s');
-                $lockContent = <<<LOCK
-Installation completed on: {$installTime}
-IP: {$clientIP}
-Admin account created: {$adminNom} {$adminPrenom} ({$identifiant})
-DO NOT DELETE THIS FILE UNLESS YOU WANT TO REINSTALL THE APPLICATION
-LOCK;
-
-                file_put_contents($installLockFile, $lockContent, LOCK_EX);
-                
-                // Indiquer que l'installation est réussie
-                $installed = true;
-                $adminIdentifiant = $identifiant;
-                
-                // Sécuriser le fichier d'installation immédiatement
-                if (file_exists(__DIR__ . '/install_guard.php')) {
-                    include_once __DIR__ . '/install_guard.php';
-                }
-                
-            } catch (PDOException $e) {
-                throw new Exception("Erreur de connexion à la base de données: " . $e->getMessage());
-            }
-        } catch (Exception $e) {
-            $dbError = $e->getMessage();
-        }
-    }
-}
-
-// Renouvellement du jeton CSRF après la soumission pour éviter les attaques par réutilisation
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        $_SESSION['install_token'] = bin2hex(random_bytes(32));
-        $_SESSION['token_time'] = time();
-        $install_token = $_SESSION['install_token'];
-    } catch (Exception $e) {
-        // Fallback si random_bytes échoue
-        $_SESSION['install_token'] = hash('sha256', uniqid(mt_rand(), true));
-        $_SESSION['token_time'] = time();
-        $install_token = $_SESSION['install_token'];
-    }
-}
-?>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex, nofollow">
-    <title>Installation de Pronote</title>
-    <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            max-width: 800px; 
-            margin: 0 auto; 
-            padding: 20px;
-            line-height: 1.6;
-        }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"], input[type="password"], input[type="email"], select { 
-            width: 100%; 
-            padding: 8px; 
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        .error { 
-            color: #721c24;
-            padding: 12px;
-            background: #f8d7da;
-            border: 1px solid #f5c6cb; 
-            border-radius: 5px; 
-            margin-bottom: 20px; 
-        }
-        .warning {
-            color: #856404;
-            background-color: #fff3cd;
-            border: 1px solid #ffeeba;
-            padding: 12px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-        .success { 
-            color: #155724; 
-            padding: 12px; 
-            background: #d4edda; 
-            border: 1px solid #c3e6cb; 
-            border-radius: 5px; 
-            margin-bottom: 20px; 
-        }
-        button { 
-            padding: 10px 15px; 
-            background-color: #4CAF50; 
-            color: white; 
-            border: none; 
-            border-radius: 4px;
-            cursor: pointer; 
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        .requirements {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-        .requirements ul {
-            margin-bottom: 0;
-        }
-        code {
-            background-color: #f1f1f1;
-            padding: 2px 5px;
-            border-radius: 3px;
-            font-family: monospace;
-        }
-        .section-title {
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 10px;
-            margin-top: 30px;
-        }
-        .form-section {
-            background: #f9f9f9;
-            padding: 20px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-    </style>
-</head>
-<body>
-    <h1>Installation de Pronote</h1>
-    
-    <?php if (isset($httpsWarning)): ?>
-        <div class="warning">
-            <p><?= htmlspecialchars($httpsWarning) ?></p>
-        </div>
-    <?php endif; ?>
-    
-    <?php if ($installed): ?>
-        <div class="success">
-            <h2>Installation réussie!</h2>
-            <p>Pronote a été correctement configuré.</p>
-            <p><strong>Compte administrateur créé:</strong> Identifiant: <code><?= htmlspecialchars($adminIdentifiant) ?></code></p>
-            <p><strong>Important:</strong> Par mesure de sécurité, le script d'installation a été désactivé et aucun autre compte administrateur ne pourra être créé ultérieurement.</p>
-            <p><a href="<?= htmlspecialchars($baseUrl) ?>/login/public/index.php">Accéder à l'application</a></p>
-        </div>
-    <?php else: ?>
-        <div class="requirements">
-            <h3>Prérequis vérifiés</h3>
-            <ul>
-                <li>PHP Version: <strong><?= htmlspecialchars(PHP_VERSION) ?></strong> ✓</li>
-                <li>Extensions PHP requises: <strong>Présentes</strong> ✓</li>
-                <li>Répertoires avec permissions d'écriture
-                    <?php if (!empty($permissionIssues)): ?>
-                        <span style="color: red;">✗</span>
-                    <?php else: ?>
-                        ✓
-                    <?php endif; ?>
-                </li>
-            </ul>
-        </div>
-        
-        <?php if (!empty($dbError)): ?>
-            <div class="error">
-                <p>Erreur: <?= htmlspecialchars($dbError) ?></p>
-            </div>
-        <?php endif; ?>
-        
-        <?php if (!empty($permissionIssues)): ?>
-            <div class="error">
-                <h3>Problèmes de permissions</h3>
-                <ul>
-                    <?php foreach ($permissionIssues as $issue): ?>
-                        <li><?= htmlspecialchars($issue) ?></li>
-                    <?php endforeach; ?>
-                </ul>
-                <p><strong>Commandes à exécuter sur votre serveur :</strong></p>
-                <pre>
-# Se placer dans le répertoire de l'application
-cd /var/www/html/pronote
-
-# Créer tous les répertoires nécessaires
-mkdir -p API/config API/logs uploads temp
-
-# Définir les permissions appropriées
-chmod 755 API API/config API/logs uploads temp
-
-# Définir le propriétaire approprié (ajustez selon votre configuration)
-chown webadmin:www-data API/config API/logs uploads temp
-
-# Vérifier les permissions
-ls -la API/
-</pre>
-                <p>Après avoir exécuté ces commandes, rechargez cette page pour continuer l'installation.</p>
-            </div>
-        <?php else: ?>
-            <form method="post" action="">
-                <!-- Champ caché pour le jeton CSRF -->
-                <input type="hidden" name="install_token" value="<?= htmlspecialchars($install_token) ?>">
-                
-                <div class="form-section">
-                    <h2 class="section-title">Configuration de l'application</h2>
-                    <div class="form-group">
-                        <label for="base_url">URL de base de l'application</label>
-                        <input type="text" id="base_url" name="base_url" value="<?= htmlspecialchars($baseUrl) ?>" required>
-                        <small>Par exemple: /pronote ou laisser vide si installé à la racine</small>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="app_env">Environnement</label>
-                        <select id="app_env" name="app_env">
-                            <option value="development">Développement</option>
-                            <option value="production" selected>Production</option>
-                            <option value="test">Test</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div class="form-section">
-                    <h2 class="section-title">Configuration de la base de données</h2>
-                    <div class="form-group">
-                        <label for="db_host">Hôte de la base de données</label>
-                        <input type="text" id="db_host" name="db_host" value="localhost" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="db_name">Nom de la base de données</label>
-                        <input type="text" id="db_name" name="db_name" value="pronote" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="db_user">Utilisateur de la base de données</label>
-                        <input type="text" id="db_user" name="db_user" value="pronote_user" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="db_pass">Mot de passe de la base de données</label>
-                        <input type="password" id="db_pass" name="db_pass" placeholder="Entrez le mot de passe de la base de données">
-                    </div>
-                </div>
-                
-                <div class="form-section">
-                    <h2 class="section-title">Création du compte administrateur principal</h2>
-                    <p>Ce compte sera le seul compte administrateur autorisé. Aucun autre compte administrateur ne pourra être créé ultérieurement.</p>
-                    
-                    <div class="form-group">
-                        <label for="admin_nom">Nom</label>
-                        <input type="text" id="admin_nom" name="admin_nom" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="admin_prenom">Prénom</label>
-                        <input type="text" id="admin_prenom" name="admin_prenom" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="admin_mail">Email</label>
-                        <input type="email" id="admin_mail" name="admin_mail" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="admin_password">Mot de passe</label>
-                        <input type="password" id="admin_password" name="admin_password" required minlength="12" 
-                               pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{12,}"
-                               title="Le mot de passe doit contenir au moins 12 caractères, incluant au moins une majuscule, une minuscule, un chiffre et un caractère spécial">
-                        <small>Minimum 12 caractères incluant au moins une majuscule, une minuscule, un chiffre et un caractère spécial</small>
-                    </div>
-                </div>
-                
-                <div style="margin-top: 20px; padding: 10px; background-color: #f0f8ff; border-radius: 5px;">
-                    <p><strong>Information :</strong> Le jeton de sécurité expire au bout de 30 minutes. Si vous obtenez une erreur de jeton expiré, rechargez simplement la page.</p>
-                </div>
-                
-                <button type="submit" style="margin-top: 20px;">Installer</button>
-            </form>
-        <?php endif; ?>
-    <?php endif; ?>
-</body>
-</html>
+                // Si la table n'existe pas ou n'a pas la bonne structure, la créer/recréer
+                if (!$tableExists || !$tableHasCorrectStructure) {
+                    try {
+                        // Sauvegarder les données existantes si la table existe
+                        $existingAdminData = [];
+                        if ($tableExists) {
+                            try {
+                                $existingAdmins = $pdo->query("SELECT * FROM administrateurs")->fetchAll();
+                                $existingAdminData = $existingAdmins;
+                            } catch (PDOException $e) {
+                                // Ignorer si on ne peut pas lire les données existantes
+                            }
+                        }
+                        
+                        // Créer la table avec la bonne structure
+                        $pdo->exec("CREATE TABLE IF NOT EXISTS `administrateurs` (
+                            `id` int(11) NOT NULL AUTO_INCREMENT,
+                            `nom` varchar(50) NOT NULL,
+                            `prenom` varchar(50) NOT NULL,
+                            `mail` varchar(100) NOT NULL,
+                            `identifiant` varchar(50) NOT NULL,
+                            `mot_de_passe` varchar(255) NOT NULL,
+                            `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            `adresse` varchar(255) DEFAULT NULL,
+                            `role` varchar(50) NOT NULL DEFAULT 'administrateur',
+                            `actif` tinyint(1) NOT NULL DEFAULT '1',
+                            PRIMARY KEY (`id`),
+                            UNIQUE KEY `identifiant` (`identifiant`),
+                            UNIQUE KEY `mail` (`mail`)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+                        
+                        // Restaurer les données existantes si nécessaire
+                        if (!empty($existingAdminData)) {
+                            foreach ($existingAdminData as $admin) {
+                                try {
+                                    $stmt = $pdo->prepare("
+                                        INSERT IGNORE INTO administrateurs 
+                                        (nom, prenom, mail, identifiant, mot_de_passe, date_creation, adresse, role, actif) 
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    ");
+                                    $stmt->execute([
+                                        $admin['nom'] ?? '',
+                                        $admin['prenom'] ?? '',
+                                        $admin['mail'] ?? '',
+                                        $admin['identifiant'] ?? '',
+                                        $admin['mot_de_passe'] ?? '',
+                                        $admin['date_creation'] ?? date('Y-m-d H:i:s'),
+                                        $admin['adresse'] ?? 'N/A',
+                                        $admin['role'] ?? 'administrateur',
+                                        isset($admin['actif']) ? $admin['actif'] : 1
+                                    ]);
