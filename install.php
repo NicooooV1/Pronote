@@ -5,10 +5,32 @@
  * Il corrige automatiquement tous les problèmes de structure de base de données
  */
 
-// Configuration de sécurité
-ini_set('display_errors', 0);
+// Configuration de sécurité et gestion d'erreurs améliorée
+ini_set('display_errors', 1);
 error_reporting(E_ALL);
 set_time_limit(300); // 5 minutes pour l'installation complète
+
+// Gestion des erreurs fatales
+register_shutdown_function('handleFatalError');
+
+function handleFatalError() {
+    $error = error_get_last();
+    if ($error !== null && $error['type'] === E_ERROR) {
+        echo "<div style='background: #f8d7da; color: #721c24; padding: 20px; border-radius: 5px; margin: 20px;'>";
+        echo "<h3>❌ Erreur fatale détectée</h3>";
+        echo "<p><strong>Message:</strong> " . htmlspecialchars($error['message']) . "</p>";
+        echo "<p><strong>Fichier:</strong> " . htmlspecialchars($error['file']) . "</p>";
+        echo "<p><strong>Ligne:</strong> " . $error['line'] . "</p>";
+        echo "<h4>Solutions possibles:</h4>";
+        echo "<ul>";
+        echo "<li>Vérifiez que tous les répertoires ont les bonnes permissions (755 ou 777)</li>";
+        echo "<li>Vérifiez que la base de données est accessible</li>";
+        echo "<li>Consultez les logs d'erreur du serveur web</li>";
+        echo "<li>Exécutez le script fix_permissions.php avant l'installation</li>";
+        echo "</ul>";
+        echo "</div>";
+    }
+}
 
 // Définir les en-têtes de sécurité
 header('X-Content-Type-Options: nosniff');
@@ -132,31 +154,62 @@ foreach ($directories as $dir) {
         }
     }
     
-    // Test d'écriture réel
-    $testFile = $path . '/test_install_' . time() . '.txt';
-    $canWrite = @file_put_contents($testFile, 'test d\'installation') !== false;
+    // Test d'écriture réel avec un nom de fichier spécifique selon le répertoire
+    $testFileName = ($dir === 'API/config') ? 'test_config_' . time() . '.php' : 'test_install_' . time() . '.txt';
+    $testFile = $path . '/' . $testFileName;
+    $testContent = ($dir === 'API/config') ? "<?php\n// Test de configuration\ndefine('TEST', true);\n?>" : 'test d\'installation';
+    
+    $canWrite = @file_put_contents($testFile, $testContent, LOCK_EX) !== false;
     
     if ($canWrite) {
         @unlink($testFile);
     } else {
-        // Essayer de corriger automatiquement
+        // Essayer de corriger automatiquement avec plus de stratégies
         $fixed = false;
         
-        // Essayer différentes permissions
+        // Stratégie 1: Essayer différentes permissions
         $permissions = [0755, 0775, 0777];
         foreach ($permissions as $perm) {
             if (@chmod($path, $perm)) {
-                $testFile = $path . '/test_chmod_' . time() . '.txt';
-                if (@file_put_contents($testFile, 'test chmod') !== false) {
-                    @unlink($testFile);
+                $testFile2 = $path . '/test_chmod_' . time() . '.txt';
+                if (@file_put_contents($testFile2, 'test après chmod') !== false) {
+                    @unlink($testFile2);
                     $fixed = true;
                     break;
                 }
             }
         }
         
+        // Stratégie 2: Essayer de changer le propriétaire si on est root
+        if (!$fixed && function_exists('posix_getuid') && posix_getuid() === 0) {
+            $currentUser = posix_getpwuid(posix_getuid());
+            if (@chown($path, $currentUser['uid']) && @chgrp($path, $currentUser['gid'])) {
+                $testFile3 = $path . '/test_chown_' . time() . '.txt';
+                if (@file_put_contents($testFile3, 'test après chown') !== false) {
+                    @unlink($testFile3);
+                    $fixed = true;
+                }
+            }
+        }
+        
+        // Stratégie 3: Essayer de recréer le répertoire avec des permissions différentes
+        if (!$fixed && $dir !== 'API/config') { // Ne pas supprimer le répertoire config s'il existe déjà
+            @rmdir($path);
+            if (@mkdir($path, 0777, true)) {
+                $testFile4 = $path . '/test_recreate_' . time() . '.txt';
+                if (@file_put_contents($testFile4, 'test après recréation') !== false) {
+                    @unlink($testFile4);
+                    $fixed = true;
+                }
+            }
+        }
+        
         if (!$fixed) {
-            $permissionWarnings[] = "Le dossier {$dir} n'est pas accessible en écriture";
+            if ($dir === 'API/config') {
+                $permissionErrors[] = "CRITIQUE: Le dossier {$dir} n'est pas accessible en écriture - Installation impossible";
+            } else {
+                $permissionWarnings[] = "Le dossier {$dir} n'est pas accessible en écriture";
+            }
         }
     }
 }
@@ -173,7 +226,7 @@ if (!isset($_SESSION['install_token']) || !isset($_SESSION['token_time']) ||
 }
 $install_token = $_SESSION['install_token'];
 
-// Traitement du formulaire
+// Traitement du formulaire avec gestion d'erreur améliorée
 $installed = false;
 $dbError = '';
 $step = isset($_POST['step']) ? intval($_POST['step']) : 1;
@@ -184,7 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dbError = "Erreur de sécurité: Jeton de sécurité invalide";
     } else {
         try {
-            // Valider les entrées
+            // Valider les entrées avec validation renforcée
             $dbHost = filter_input(INPUT_POST, 'db_host', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: 'localhost';
             $dbName = filter_input(INPUT_POST, 'db_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: '';
             $dbUser = filter_input(INPUT_POST, 'db_user', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: '';
@@ -199,334 +252,500 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $adminPassword = $_POST['admin_password'] ?? '';
             
             if (!in_array($appEnv, ['development', 'production', 'test'])) {
-                $appEnv = 'production';
+                throw new Exception("Environnement non valide");
             }
             
-            // Validations
+            // Validations renforcées
             if (empty($dbName) || empty($dbUser)) {
-                throw new Exception("Le nom de la base de données et l'utilisateur sont obligatoires.");
+                throw new Exception("Le nom de la base de données et l'utilisateur sont requis");
             }
             
             if (empty($adminNom) || empty($adminPrenom) || empty($adminMail) || empty($adminPassword)) {
-                throw new Exception("Tous les champs du compte administrateur sont obligatoires.");
+                throw new Exception("Toutes les informations administrateur sont requises");
             }
             
             if (!filter_var($adminMail, FILTER_VALIDATE_EMAIL)) {
-                throw new Exception("L'adresse email de l'administrateur n'est pas valide.");
+                throw new Exception("L'adresse email administrateur n'est pas valide");
             }
             
-            if (strlen($adminPassword) < 12) {
-                throw new Exception("Le mot de passe administrateur doit contenir au moins 12 caractères.");
+            if (strlen($adminPassword) < 8) {
+                throw new Exception("Le mot de passe administrateur doit contenir au moins 8 caractères");
             }
             
-            // Vérifier la robustesse du mot de passe
-            if (!preg_match('/[A-Z]/', $adminPassword) || !preg_match('/[a-z]/', $adminPassword) || 
-                !preg_match('/[0-9]/', $adminPassword) || !preg_match('/[^a-zA-Z0-9]/', $adminPassword)) {
-                throw new Exception("Le mot de passe doit contenir au moins une majuscule, une minuscule, un chiffre et un caractère spécial.");
+            // Vérifier la robustesse du mot de passe (version simplifiée)
+            $hasUpper = preg_match('/[A-Z]/', $adminPassword);
+            $hasLower = preg_match('/[a-z]/', $adminPassword);
+            $hasNumber = preg_match('/[0-9]/', $adminPassword);
+            $hasSpecial = preg_match('/[^A-Za-z0-9]/', $adminPassword);
+            
+            $validationCount = $hasUpper + $hasLower + $hasNumber + $hasSpecial;
+            
+            if ($validationCount < 3) {
+                throw new Exception("Le mot de passe doit contenir au moins 3 des 4 types de caractères suivants : majuscule, minuscule, chiffre, caractère spécial");
             }
             
-            // ÉTAPE 1: Tester et configurer la base de données
+            // ÉTAPE 1: Tester et configurer la base de données avec gestion d'erreur
+            echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
+            echo "<h3>🔧 Étape 1: Test de la base de données</h3>";
+            
             $dsn = "mysql:host={$dbHost};charset=utf8mb4";
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false
+                PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::ATTR_TIMEOUT => 10
             ];
             
-            $pdo = new PDO($dsn, $dbUser, $dbPass, $options);
+            try {
+                $pdo = new PDO($dsn, $dbUser, $dbPass, $options);
+                echo "<p>✅ Connexion au serveur MySQL réussie</p>";
+            } catch (PDOException $e) {
+                throw new Exception("Impossible de se connecter au serveur MySQL: " . $e->getMessage());
+            }
             
             // Créer la base de données si elle n'existe pas
-            $dbNameSafe = str_replace('`', '', $dbName);
-            $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$dbNameSafe}`");
-            $pdo->exec("USE `{$dbNameSafe}`");
+            try {
+                $dbNameSafe = preg_replace('/[^a-zA-Z0-9_]/', '', $dbName);
+                $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$dbNameSafe}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                $pdo->exec("USE `{$dbNameSafe}`");
+                echo "<p>✅ Base de données '{$dbNameSafe}' sélectionnée</p>";
+            } catch (PDOException $e) {
+                throw new Exception("Impossible de créer/sélectionner la base de données: " . $e->getMessage());
+            }
             
-            // ÉTAPE 2: Créer la configuration
+            echo "</div>";
+            
+            // ÉTAPE 2: Créer la configuration avec vérification approfondie
+            echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
+            echo "<h3>🔧 Étape 2: Création de la configuration</h3>";
+            
             $configDir = $installDir . '/API/config';
+            
+            // Vérifier à nouveau que le répertoire config est vraiment accessible
             if (!is_dir($configDir)) {
-                mkdir($configDir, 0755, true);
+                if (!@mkdir($configDir, 0755, true)) {
+                    throw new Exception("Impossible de créer le répertoire de configuration: {$configDir}");
+                }
+                echo "<p>✅ Répertoire de configuration créé</p>";
             }
             
-            $sessionSecure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'true' : 'false';
-            $installTime = date('Y-m-d H:i:s');
+            // Test d'écriture spécifique pour le fichier de configuration
+            $tempConfigFile = $configDir . '/test_env_' . time() . '.php';
+            $testConfigContent = "<?php\n// Test de configuration\ndefine('TEST_CONFIG', true);\n?>";
             
-            $configContent = <<<CONFIG
-<?php
-/**
- * Configuration d'environnement - Généré par l'installation
- * Date: {$installTime}
- */
-
-// Environnement
-if (!defined('APP_ENV')) define('APP_ENV', '{$appEnv}');
-
-// Configuration de base
-if (!defined('APP_NAME')) define('APP_NAME', 'Pronote');
-if (!defined('APP_VERSION')) define('APP_VERSION', '1.0.0');
-if (!defined('APP_ROOT')) define('APP_ROOT', realpath(__DIR__ . '/../../'));
-
-// URLs de base
-if (!defined('BASE_URL')) define('BASE_URL', '{$baseUrlInput}');
-if (!defined('APP_URL')) define('APP_URL', '{$baseUrlInput}');
-if (!defined('LOGIN_URL')) define('LOGIN_URL', BASE_URL . '/login/public/index.php');
-if (!defined('LOGOUT_URL')) define('LOGOUT_URL', BASE_URL . '/login/public/logout.php');
-if (!defined('HOME_URL')) define('HOME_URL', BASE_URL . '/accueil/accueil.php');
-
-// Base de données
-if (!defined('DB_HOST')) define('DB_HOST', '{$dbHost}');
-if (!defined('DB_NAME')) define('DB_NAME', '{$dbName}');
-if (!defined('DB_USER')) define('DB_USER', '{$dbUser}');
-if (!defined('DB_PASS')) define('DB_PASS', '{$dbPass}');
-if (!defined('DB_CHARSET')) define('DB_CHARSET', 'utf8mb4');
-
-// Sessions
-if (!defined('SESSION_NAME')) define('SESSION_NAME', 'pronote_session');
-if (!defined('SESSION_LIFETIME')) define('SESSION_LIFETIME', 3600);
-if (!defined('SESSION_PATH')) define('SESSION_PATH', '/');
-if (!defined('SESSION_SECURE')) define('SESSION_SECURE', {$sessionSecure});
-if (!defined('SESSION_HTTPONLY')) define('SESSION_HTTPONLY', true);
-if (!defined('SESSION_SAMESITE')) define('SESSION_SAMESITE', 'Lax');
-
-// Logs
-if (!defined('LOG_ENABLED')) define('LOG_ENABLED', true);
-if (!defined('LOG_LEVEL')) define('LOG_LEVEL', '{$appEnv}' === 'development' ? 'debug' : 'error');
-CONFIG;
-
+            if (@file_put_contents($tempConfigFile, $testConfigContent, LOCK_EX) === false) {
+                // Essayer des corrections d'urgence
+                @chmod($configDir, 0777);
+                if (@file_put_contents($tempConfigFile, $testConfigContent, LOCK_EX) === false) {
+                    throw new Exception("Le répertoire de configuration n'est pas accessible en écriture. Permissions actuelles: " . substr(sprintf('%o', fileperms($configDir)), -4) . ". Exécutez: chmod 777 {$configDir}");
+                }
+            }
+            
+            @unlink($tempConfigFile);
+            echo "<p>✅ Test d'écriture dans le répertoire de configuration réussi</p>";
+            
+            // Générer la configuration avec gestion d'erreur
+            $jwtSecret = bin2hex(random_bytes(32));
+            $configContent = "<?php\n";
+            $configContent .= "/**\n";
+            $configContent .= " * Configuration automatique générée le " . date('Y-m-d H:i:s') . "\n";
+            $configContent .= " * NE PAS MODIFIER MANUELLEMENT\n";
+            $configContent .= " */\n\n";
+            $configContent .= "// Configuration de la base de données\n";
+            $configContent .= "define('DB_HOST', " . var_export($dbHost, true) . ");\n";
+            $configContent .= "define('DB_NAME', " . var_export($dbNameSafe, true) . ");\n";
+            $configContent .= "define('DB_USER', " . var_export($dbUser, true) . ");\n";
+            $configContent .= "define('DB_PASS', " . var_export($dbPass, true) . ");\n\n";
+            $configContent .= "// Configuration de l'application\n";
+            $configContent .= "define('APP_ENV', " . var_export($appEnv, true) . ");\n";
+            $configContent .= "define('BASE_URL', " . var_export(rtrim($baseUrlInput, '/'), true) . ");\n";
+            $configContent .= "define('APP_ROOT', " . var_export($installDir, true) . ");\n";
+            $configContent .= "define('JWT_SECRET', " . var_export($jwtSecret, true) . ");\n\n";
+            $configContent .= "// Configuration de sécurité\n";
+            $configContent .= "define('SECURE_MODE', " . var_export($appEnv === 'production', true) . ");\n";
+            $configContent .= "define('DEBUG_MODE', " . var_export($appEnv === 'development', true) . ");\n\n";
+            $configContent .= "// Fuseau horaire\n";
+            $configContent .= "date_default_timezone_set('Europe/Paris');\n\n";
+            $configContent .= "?>";
+            
+            // Écrire le fichier avec plusieurs tentatives et gestion d'erreur améliorée
             $configFile = $configDir . '/env.php';
-            if (file_put_contents($configFile, $configContent, LOCK_EX) === false) {
-                throw new Exception("Impossible d'écrire le fichier de configuration");
+            
+            // Sauvegarder l'ancien fichier s'il existe
+            if (file_exists($configFile)) {
+                $backupFile = $configFile . '.backup.' . date('Y-m-d-H-i-s');
+                if (!@copy($configFile, $backupFile)) {
+                    error_log("Impossible de sauvegarder l'ancien fichier de configuration");
+                }
             }
             
-            chmod($configFile, 0640);
+            // Écrire le fichier avec plusieurs tentatives
+            $writeSuccess = false;
+            $attempts = 0;
+            $maxAttempts = 3;
             
-            // ÉTAPE 3: Créer/corriger TOUTES les tables de la base de données
-            $this->createCompleteDatabase($pdo);
+            while (!$writeSuccess && $attempts < $maxAttempts) {
+                $attempts++;
+                
+                // Essayer d'écrire le fichier
+                $bytesWritten = @file_put_contents($configFile, $configContent, LOCK_EX);
+                
+                if ($bytesWritten !== false && $bytesWritten > 0) {
+                    // Vérifier que le fichier a été correctement écrit
+                    if (file_exists($configFile) && filesize($configFile) > 100) {
+                        $writeSuccess = true;
+                    }
+                }
+                
+                if (!$writeSuccess) {
+                    // Tentatives de correction
+                    if ($attempts === 1) {
+                        // Première tentative : changer les permissions du répertoire
+                        @chmod($configDir, 0777);
+                        echo "<p>⚠️ Tentative de correction des permissions (777)</p>";
+                    } elseif ($attempts === 2) {
+                        // Deuxième tentative : essayer un nom de fichier temporaire puis renommer
+                        $tempFile = $configDir . '/env_temp_' . time() . '.php';
+                        if (@file_put_contents($tempFile, $configContent, LOCK_EX) !== false) {
+                            if (@rename($tempFile, $configFile)) {
+                                $writeSuccess = true;
+                                echo "<p>✅ Fichier créé via méthode alternative</p>";
+                            } else {
+                                @unlink($tempFile);
+                            }
+                        }
+                    }
+                    
+                    if (!$writeSuccess && $attempts < $maxAttempts) {
+                        usleep(500000); // Attendre 0.5 seconde avant de réessayer
+                    }
+                }
+            }
+            
+            if (!$writeSuccess) {
+                // Diagnostic détaillé de l'erreur
+                $errorDetails = [];
+                $errorDetails[] = "Répertoire: " . $configDir;
+                $errorDetails[] = "Fichier cible: " . $configFile;
+                $errorDetails[] = "Répertoire existe: " . (is_dir($configDir) ? 'Oui' : 'Non');
+                $errorDetails[] = "Répertoire lisible: " . (is_readable($configDir) ? 'Oui' : 'Non');
+                $errorDetails[] = "Répertoire accessible en écriture: " . (is_writable($configDir) ? 'Oui' : 'Non');
+                
+                if (file_exists($configFile)) {
+                    $errorDetails[] = "Fichier existe déjà: Oui";
+                    $errorDetails[] = "Fichier accessible en écriture: " . (is_writable($configFile) ? 'Oui' : 'Non');
+                    $errorDetails[] = "Permissions fichier: " . substr(sprintf('%o', fileperms($configFile)), -4);
+                }
+                
+                $errorDetails[] = "Permissions répertoire: " . substr(sprintf('%o', fileperms($configDir)), -4);
+                
+                if (function_exists('posix_getuid')) {
+                    $errorDetails[] = "UID PHP: " . posix_getuid();
+                    $errorDetails[] = "GID PHP: " . posix_getgid();
+                    
+                    $stat = stat($configDir);
+                    $errorDetails[] = "UID répertoire: " . $stat['uid'];
+                    $errorDetails[] = "GID répertoire: " . $stat['gid'];
+                }
+                
+                throw new Exception("Impossible d'écrire le fichier de configuration après {$attempts} tentatives.\n\nDétails:\n" . implode("\n", $errorDetails) . "\n\nSolution: Exécutez ces commandes via SSH:\nchmod 777 " . $configDir . "\nchown " . get_current_user() . " " . $configDir);
+            }
+            
+            // Vérifier que le fichier est lisible après écriture
+            if (!is_readable($configFile)) {
+                throw new Exception("Le fichier de configuration a été créé mais n'est pas lisible");
+            }
+            
+            // Sécuriser le fichier après création
+            @chmod($configFile, 0640);
+            echo "<p>✅ Fichier de configuration créé et sécurisé</p>";
+            echo "</div>";
+            
+            // ÉTAPE 3: Créer la structure de base de données
+            echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
+            echo "<h3>🔧 Étape 3: Création de la base de données</h3>";
+            
+            try {
+                createCompleteDatabase($pdo);
+                echo "<p>✅ Structure de base de données créée</p>";
+            } catch (Exception $e) {
+                throw new Exception("Erreur lors de la création de la base de données: " . $e->getMessage());
+            }
+            
+            echo "</div>";
             
             // ÉTAPE 4: Créer le compte administrateur
-            $this->createAdminAccount($pdo, $adminNom, $adminPrenom, $adminMail, $adminPassword);
+            echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
+            echo "<h3>🔧 Étape 4: Création du compte administrateur</h3>";
             
-            // ÉTAPE 5: Finaliser l'installation
-            $this->finalizeInstallation();
+            try {
+                createAdminAccount($pdo, $adminNom, $adminPrenom, $adminMail, $adminPassword);
+                echo "<p>✅ Compte administrateur créé</p>";
+            } catch (Exception $e) {
+                throw new Exception("Erreur lors de la création du compte administrateur: " . $e->getMessage());
+            }
+            
+            echo "</div>";
+            
+            // ÉTAPE 5: Finalisation
+            echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
+            echo "<h3>🔧 Étape 5: Finalisation</h3>";
+            
+            try {
+                finalizeInstallation();
+                echo "<p>✅ Installation finalisée</p>";
+            } catch (Exception $e) {
+                throw new Exception("Erreur lors de la finalisation: " . $e->getMessage());
+            }
+            
+            echo "</div>";
             
             $installed = true;
             
         } catch (Exception $e) {
             $dbError = $e->getMessage();
+            echo "<div style='background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
+            echo "<h3>❌ Erreur d'installation</h3>";
+            echo "<p>" . htmlspecialchars($dbError) . "</p>";
+            echo "</div>";
         }
     }
 }
 
-// Fonction pour créer toute la structure de base de données
+// Fonction pour créer toute la structure de base de données avec gestion d'erreur
 function createCompleteDatabase($pdo) {
-    // Tables principales avec structure complète
+    // Tables principales avec structure complète et gestion d'erreur
     $tables = [
         'administrateurs' => "CREATE TABLE IF NOT EXISTS `administrateurs` (
             `id` int(11) NOT NULL AUTO_INCREMENT,
-            `nom` varchar(50) NOT NULL,
-            `prenom` varchar(50) NOT NULL,
-            `mail` varchar(100) NOT NULL,
+            `nom` varchar(100) NOT NULL,
+            `prenom` varchar(100) NOT NULL,
+            `mail` varchar(200) NOT NULL,
             `identifiant` varchar(50) NOT NULL,
             `mot_de_passe` varchar(255) NOT NULL,
-            `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            `adresse` varchar(255) DEFAULT NULL,
+            `adresse` text,
             `role` varchar(50) NOT NULL DEFAULT 'administrateur',
             `actif` tinyint(1) NOT NULL DEFAULT '1',
+            `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (`id`),
-            UNIQUE KEY `identifiant` (`identifiant`),
-            UNIQUE KEY `mail` (`mail`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+            UNIQUE KEY `mail` (`mail`),
+            UNIQUE KEY `identifiant` (`identifiant`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
         
         'eleves' => "CREATE TABLE IF NOT EXISTS `eleves` (
             `id` int(11) NOT NULL AUTO_INCREMENT,
             `nom` varchar(100) NOT NULL,
             `prenom` varchar(100) NOT NULL,
-            `date_naissance` date NOT NULL,
-            `classe` varchar(50) NOT NULL,
-            `lieu_naissance` varchar(100) NOT NULL,
-            `adresse` varchar(255) NOT NULL,
-            `mail` varchar(150) NOT NULL,
-            `telephone` varchar(20) DEFAULT NULL,
             `identifiant` varchar(50) NOT NULL,
             `mot_de_passe` varchar(255) NOT NULL,
-            `date_creation` datetime DEFAULT current_timestamp(),
+            `classe_id` int(11) DEFAULT NULL,
+            `date_naissance` date DEFAULT NULL,
+            `adresse` text,
+            `telephone` varchar(20) DEFAULT NULL,
+            `mail_personnel` varchar(200) DEFAULT NULL,
+            `actif` tinyint(1) NOT NULL DEFAULT '1',
+            `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (`id`),
-            UNIQUE KEY `mail` (`mail`),
-            UNIQUE KEY `identifiant` (`identifiant`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;",
+            UNIQUE KEY `identifiant` (`identifiant`),
+            KEY `idx_classe` (`classe_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
         
         'professeurs' => "CREATE TABLE IF NOT EXISTS `professeurs` (
             `id` int(11) NOT NULL AUTO_INCREMENT,
             `nom` varchar(100) NOT NULL,
             `prenom` varchar(100) NOT NULL,
-            `mail` varchar(150) NOT NULL,
-            `adresse` varchar(255) NOT NULL,
-            `telephone` varchar(20) DEFAULT NULL,
             `identifiant` varchar(50) NOT NULL,
             `mot_de_passe` varchar(255) NOT NULL,
-            `professeur_principal` varchar(50) NOT NULL DEFAULT 'non',
-            `matiere` varchar(100) NOT NULL,
-            `date_creation` datetime DEFAULT current_timestamp(),
+            `mail` varchar(200) NOT NULL,
+            `specialite` varchar(100) DEFAULT NULL,
+            `telephone` varchar(20) DEFAULT NULL,
+            `actif` tinyint(1) NOT NULL DEFAULT '1',
+            `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (`id`),
-            UNIQUE KEY `mail` (`mail`),
-            UNIQUE KEY `identifiant` (`identifiant`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;",
+            UNIQUE KEY `identifiant` (`identifiant`),
+            UNIQUE KEY `mail` (`mail`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
         
         'parents' => "CREATE TABLE IF NOT EXISTS `parents` (
             `id` int(11) NOT NULL AUTO_INCREMENT,
             `nom` varchar(100) NOT NULL,
             `prenom` varchar(100) NOT NULL,
-            `mail` varchar(150) NOT NULL,
-            `adresse` varchar(255) NOT NULL,
-            `telephone` varchar(20) DEFAULT NULL,
-            `metier` varchar(100) DEFAULT NULL,
             `identifiant` varchar(50) NOT NULL,
             `mot_de_passe` varchar(255) NOT NULL,
-            `est_parent_eleve` enum('oui','non') NOT NULL DEFAULT 'non',
-            `date_creation` datetime DEFAULT current_timestamp(),
+            `mail` varchar(200) NOT NULL,
+            `telephone` varchar(20) DEFAULT NULL,
+            `adresse` text,
+            `actif` tinyint(1) NOT NULL DEFAULT '1',
+            `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (`id`),
-            UNIQUE KEY `mail` (`mail`),
-            UNIQUE KEY `identifiant` (`identifiant`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;",
+            UNIQUE KEY `identifiant` (`identifiant`),
+            UNIQUE KEY `mail` (`mail`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
         
         'vie_scolaire' => "CREATE TABLE IF NOT EXISTS `vie_scolaire` (
             `id` int(11) NOT NULL AUTO_INCREMENT,
             `nom` varchar(100) NOT NULL,
             `prenom` varchar(100) NOT NULL,
-            `mail` varchar(150) NOT NULL,
-            `telephone` varchar(20) DEFAULT NULL,
             `identifiant` varchar(50) NOT NULL,
             `mot_de_passe` varchar(255) NOT NULL,
-            `est_CPE` enum('oui','non') NOT NULL DEFAULT 'non',
-            `est_infirmerie` enum('oui','non') NOT NULL DEFAULT 'non',
-            `date_creation` datetime DEFAULT current_timestamp(),
+            `mail` varchar(200) NOT NULL,
+            `poste` varchar(100) DEFAULT NULL,
+            `actif` tinyint(1) NOT NULL DEFAULT '1',
+            `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (`id`),
-            UNIQUE KEY `mail` (`mail`),
-            UNIQUE KEY `identifiant` (`identifiant`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;",
-        
-        'notes' => "CREATE TABLE IF NOT EXISTS `notes` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `id_eleve` int(11) NOT NULL,
-            `id_matiere` int(11) NOT NULL,
-            `note` decimal(4,2) NOT NULL,
-            `coefficient` decimal(3,2) DEFAULT '1.00',
-            `commentaire` text,
-            `date_note` date NOT NULL,
-            `trimestre` int(1) NOT NULL DEFAULT '1',
-            `type_evaluation` varchar(50) DEFAULT 'controle',
-            `date_creation` datetime DEFAULT current_timestamp(),
-            PRIMARY KEY (`id`),
-            KEY `idx_eleve_matiere` (`id_eleve`, `id_matiere`),
-            KEY `idx_date` (`date_note`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;",
-        
-        'absences' => "CREATE TABLE IF NOT EXISTS `absences` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `id_eleve` int(11) NOT NULL,
-            `date_debut` datetime NOT NULL,
-            `date_fin` datetime NOT NULL,
-            `motif` varchar(255) DEFAULT NULL,
-            `justifiee` enum('oui','non') NOT NULL DEFAULT 'non',
-            `type_absence` enum('absence','retard') NOT NULL DEFAULT 'absence',
-            `commentaire` text,
-            `date_creation` datetime DEFAULT current_timestamp(),
-            PRIMARY KEY (`id`),
-            KEY `idx_eleve` (`id_eleve`),
-            KEY `idx_date` (`date_debut`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;",
-        
-        'devoirs' => "CREATE TABLE IF NOT EXISTS `devoirs` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `titre` varchar(255) NOT NULL,
-            `description` text NOT NULL,
-            `id_matiere` int(11) NOT NULL,
-            `classe` varchar(50) NOT NULL,
-            `date_pour` date NOT NULL,
-            `date_creation` datetime DEFAULT current_timestamp(),
-            `id_professeur` int(11) NOT NULL,
-            PRIMARY KEY (`id`),
-            KEY `idx_matiere` (`id_matiere`),
-            KEY `idx_classe` (`classe`),
-            KEY `idx_date` (`date_pour`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;",
-        
-        'cahier_texte' => "CREATE TABLE IF NOT EXISTS `cahier_texte` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `id_matiere` int(11) NOT NULL,
-            `classe` varchar(50) NOT NULL,
-            `contenu` text NOT NULL,
-            `date_cours` date NOT NULL,
-            `date_creation` datetime DEFAULT current_timestamp(),
-            `id_professeur` int(11) NOT NULL,
-            PRIMARY KEY (`id`),
-            KEY `idx_matiere_classe` (`id_matiere`, `classe`),
-            KEY `idx_date` (`date_cours`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;",
-        
-        'evenements' => "CREATE TABLE IF NOT EXISTS `evenements` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `titre` varchar(255) NOT NULL,
-            `description` text,
-            `date_debut` datetime NOT NULL,
-            `date_fin` datetime NOT NULL,
-            `lieu` varchar(255) DEFAULT NULL,
-            `type_evenement` varchar(50) DEFAULT 'general',
-            `date_creation` datetime DEFAULT current_timestamp(),
-            `id_createur` int(11) NOT NULL,
-            PRIMARY KEY (`id`),
-            KEY `idx_date` (`date_debut`),
-            KEY `idx_type` (`type_evenement`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;",
-        
-        'messages' => "CREATE TABLE IF NOT EXISTS `messages` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `expediteur_id` int(11) NOT NULL,
-            `expediteur_type` varchar(20) NOT NULL,
-            `destinataire_id` int(11) NOT NULL,
-            `destinataire_type` varchar(20) NOT NULL,
-            `sujet` varchar(255) NOT NULL,
-            `contenu` text NOT NULL,
-            `date_envoi` datetime DEFAULT current_timestamp(),
-            `lu` enum('oui','non') NOT NULL DEFAULT 'non',
-            `date_lecture` datetime DEFAULT NULL,
-            PRIMARY KEY (`id`),
-            KEY `idx_destinataire` (`destinataire_id`, `destinataire_type`),
-            KEY `idx_expediteur` (`expediteur_id`, `expediteur_type`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;",
+            UNIQUE KEY `identifiant` (`identifiant`),
+            UNIQUE KEY `mail` (`mail`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
         
         'matieres' => "CREATE TABLE IF NOT EXISTS `matieres` (
             `id` int(11) NOT NULL AUTO_INCREMENT,
             `nom` varchar(100) NOT NULL,
             `code` varchar(10) NOT NULL,
-            `coefficient` decimal(3,2) DEFAULT '1.00',
+            `coefficient` decimal(3,2) NOT NULL DEFAULT '1.00',
             `couleur` varchar(7) DEFAULT '#3498db',
             `actif` tinyint(1) NOT NULL DEFAULT '1',
             PRIMARY KEY (`id`),
             UNIQUE KEY `code` (`code`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
         
         'classes' => "CREATE TABLE IF NOT EXISTS `classes` (
             `id` int(11) NOT NULL AUTO_INCREMENT,
             `nom` varchar(50) NOT NULL,
             `niveau` varchar(20) NOT NULL,
-            `annee_scolaire` varchar(9) NOT NULL,
+            `annee_scolaire` varchar(10) NOT NULL,
             `professeur_principal_id` int(11) DEFAULT NULL,
             `actif` tinyint(1) NOT NULL DEFAULT '1',
             PRIMARY KEY (`id`),
             UNIQUE KEY `nom_annee` (`nom`, `annee_scolaire`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;",
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+        
+        'notes' => "CREATE TABLE IF NOT EXISTS `notes` (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `eleve_id` int(11) NOT NULL,
+            `matiere_id` int(11) NOT NULL,
+            `professeur_id` int(11) NOT NULL,
+            `note` decimal(4,2) NOT NULL,
+            `note_sur` decimal(4,2) NOT NULL DEFAULT '20.00',
+            `coefficient` decimal(3,2) NOT NULL DEFAULT '1.00',
+            `type_evaluation` varchar(50) DEFAULT 'Contrôle',
+            `date_note` date NOT NULL,
+            `commentaire` text,
+            `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            KEY `idx_eleve` (`eleve_id`),
+            KEY `idx_matiere` (`matiere_id`),
+            KEY `idx_date` (`date_note`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+        
+        'absences' => "CREATE TABLE IF NOT EXISTS `absences` (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `eleve_id` int(11) NOT NULL,
+            `date_debut` datetime NOT NULL,
+            `date_fin` datetime NOT NULL,
+            `motif` varchar(200) DEFAULT NULL,
+            `justifiee` tinyint(1) NOT NULL DEFAULT '0',
+            `justificatif_id` int(11) DEFAULT NULL,
+            `saisie_par` int(11) NOT NULL,
+            `type_saisie` enum('administrateur','vie_scolaire','professeur') NOT NULL,
+            `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            KEY `idx_eleve` (`eleve_id`),
+            KEY `idx_date` (`date_debut`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+        
+        'devoirs' => "CREATE TABLE IF NOT EXISTS `devoirs` (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `matiere_id` int(11) NOT NULL,
+            `professeur_id` int(11) NOT NULL,
+            `classe_id` int(11) NOT NULL,
+            `titre` varchar(200) NOT NULL,
+            `description` text,
+            `date_pour` date NOT NULL,
+            `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            KEY `idx_matiere` (`matiere_id`),
+            KEY `idx_classe` (`classe_id`),
+            KEY `idx_date` (`date_pour`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+        
+        'cahier_texte' => "CREATE TABLE IF NOT EXISTS `cahier_texte` (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `matiere_id` int(11) NOT NULL,
+            `professeur_id` int(11) NOT NULL,
+            `classe_id` int(11) NOT NULL,
+            `date_cours` date NOT NULL,
+            `contenu` text NOT NULL,
+            `ressources` text,
+            `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            KEY `idx_matiere` (`matiere_id`),
+            KEY `idx_classe` (`classe_id`),
+            KEY `idx_date` (`date_cours`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+        
+        'evenements' => "CREATE TABLE IF NOT EXISTS `evenements` (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `titre` varchar(200) NOT NULL,
+            `description` text,
+            `date_debut` datetime NOT NULL,
+            `date_fin` datetime NOT NULL,
+            `type_evenement` varchar(50) NOT NULL,
+            `concerne_classes` text,
+            `createur_id` int(11) NOT NULL,
+            `type_createur` enum('administrateur','professeur','vie_scolaire') NOT NULL,
+            `date_creation` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            KEY `idx_type` (`type_evenement`),
+            KEY `idx_date` (`date_debut`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+        
+        'messages' => "CREATE TABLE IF NOT EXISTS `messages` (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `expediteur_id` int(11) NOT NULL,
+            `expediteur_type` enum('administrateur','professeur','parent','vie_scolaire') NOT NULL,
+            `destinataire_id` int(11) NOT NULL,
+            `destinataire_type` enum('administrateur','professeur','parent','vie_scolaire') NOT NULL,
+            `objet` varchar(200) NOT NULL,
+            `contenu` text NOT NULL,
+            `lu` tinyint(1) NOT NULL DEFAULT '0',
+            `date_lecture` datetime DEFAULT NULL,
+            `date_envoi` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            KEY `idx_expediteur` (`expediteur_id`, `expediteur_type`),
+            KEY `idx_destinataire` (`destinataire_id`, `destinataire_type`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+        
+        'justificatifs' => "CREATE TABLE IF NOT EXISTS `justificatifs` (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `eleve_id` int(11) NOT NULL,
+            `nom_fichier` varchar(255) NOT NULL,
+            `fichier_path` varchar(500) NOT NULL,
+            `type_fichier` varchar(10) NOT NULL,
+            `taille_fichier` int(11) NOT NULL,
+            `date_upload` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `valide` tinyint(1) DEFAULT NULL,
+            `valide_par` int(11) DEFAULT NULL,
+            `date_validation` datetime DEFAULT NULL,
+            PRIMARY KEY (`id`),
+            KEY `idx_eleve` (`eleve_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
         
         'demandes_reinitialisation' => "CREATE TABLE IF NOT EXISTS `demandes_reinitialisation` (
             `id` int(11) NOT NULL AUTO_INCREMENT,
+            `email` varchar(200) NOT NULL,
+            `token` varchar(100) NOT NULL,
+            `type_utilisateur` enum('administrateur','professeur','parent','eleve','vie_scolaire') NOT NULL,
             `user_id` int(11) NOT NULL,
-            `user_type` varchar(30) NOT NULL,
-            `date_demande` datetime NOT NULL,
-            `status` varchar(20) NOT NULL DEFAULT 'pending',
-            `date_traitement` datetime DEFAULT NULL,
-            `admin_id` int(11) DEFAULT NULL,
+            `date_demande` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `date_expiration` datetime NOT NULL,
+            `utilise` tinyint(1) NOT NULL DEFAULT '0',
+            `date_utilisation` datetime DEFAULT NULL,
+            `status` enum('pending','used','expired') NOT NULL DEFAULT 'pending',
             PRIMARY KEY (`id`),
-            KEY `idx_user` (`user_id`, `user_type`),
-            KEY `idx_status` (`status`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;"
+            UNIQUE KEY `token` (`token`),
+            KEY `idx_status` (`status`),
+            KEY `idx_expiration` (`date_expiration`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"
     ];
     
     // Vérifier et corriger automatiquement toutes les tables
@@ -540,17 +759,14 @@ function createCompleteDatabase($pdo) {
     foreach ($tables as $tableName => $sql) {
         try {
             $pdo->exec($sql);
-            
-            // Si la table existait déjà, vérifier sa structure
-            if (in_array($tableName, $existingTables)) {
-                correctTableStructure($pdo, $tableName);
-            }
+            echo "<p>✅ Table '{$tableName}' vérifiée/créée</p>";
         } catch (PDOException $e) {
             throw new Exception("Erreur lors de la création de la table {$tableName}: " . $e->getMessage());
         }
     }
     
     // Insérer les matières par défaut
+    $stmt = $pdo->prepare("INSERT IGNORE INTO matieres (nom, code, coefficient, couleur) VALUES (?, ?, ?, ?)");
     $defaultMatieres = [
         ['Mathématiques', 'MATH', 4.00, '#e74c3c'],
         ['Français', 'FR', 4.00, '#3498db'],
@@ -566,15 +782,18 @@ function createCompleteDatabase($pdo) {
     
     foreach ($defaultMatieres as $matiere) {
         try {
-            $stmt = $pdo->prepare("INSERT IGNORE INTO matieres (nom, code, coefficient, couleur) VALUES (?, ?, ?, ?)");
             $stmt->execute($matiere);
         } catch (PDOException $e) {
             // Ignorer les erreurs de doublons
+            if (strpos($e->getMessage(), 'Duplicate entry') === false) {
+                throw new Exception("Erreur lors de l'insertion de la matière {$matiere[0]}: " . $e->getMessage());
+            }
         }
     }
     
     // Insérer les classes par défaut
     $currentYear = date('Y') . '-' . (date('Y') + 1);
+    $stmt = $pdo->prepare("INSERT IGNORE INTO classes (nom, niveau, annee_scolaire) VALUES (?, ?, ?)");
     $defaultClasses = [
         ['6ème A', '6ème', $currentYear],
         ['6ème B', '6ème', $currentYear],
@@ -588,49 +807,17 @@ function createCompleteDatabase($pdo) {
     
     foreach ($defaultClasses as $classe) {
         try {
-            $stmt = $pdo->prepare("INSERT IGNORE INTO classes (nom, niveau, annee_scolaire) VALUES (?, ?, ?)");
             $stmt->execute($classe);
         } catch (PDOException $e) {
             // Ignorer les erreurs de doublons
-        }
-    }
-}
-
-// Nouvelle fonction pour corriger automatiquement les structures de tables
-function correctTableStructure($pdo, $tableName) {
-    $corrections = [
-        'administrateurs' => [
-            'adresse' => "ALTER TABLE administrateurs ADD COLUMN `adresse` varchar(255) DEFAULT NULL",
-            'role' => "ALTER TABLE administrateurs ADD COLUMN `role` varchar(50) NOT NULL DEFAULT 'administrateur'",
-            'actif' => "ALTER TABLE administrateurs ADD COLUMN `actif` tinyint(1) NOT NULL DEFAULT '1'"
-        ],
-        'eleves' => [
-            'telephone' => "ALTER TABLE eleves ADD COLUMN `telephone` varchar(20) DEFAULT NULL"
-        ],
-        'professeurs' => [
-            'telephone' => "ALTER TABLE professeurs ADD COLUMN `telephone` varchar(20) DEFAULT NULL"
-        ]
-    ];
-    
-    if (isset($corrections[$tableName])) {
-        // Obtenir les colonnes existantes
-        $stmt = $pdo->query("DESCRIBE {$tableName}");
-        $existingColumns = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        
-        // Ajouter les colonnes manquantes
-        foreach ($corrections[$tableName] as $column => $sql) {
-            if (!in_array($column, $existingColumns)) {
-                try {
-                    $pdo->exec($sql);
-                } catch (PDOException $e) {
-                    // Ignorer les erreurs si la colonne existe déjà
-                }
+            if (strpos($e->getMessage(), 'Duplicate entry') === false) {
+                throw new Exception("Erreur lors de l'insertion de la classe {$classe[0]}: " . $e->getMessage());
             }
         }
     }
 }
 
-// Fonction pour créer le compte administrateur
+// Fonction pour créer le compte administrateur avec gestion d'erreur
 function createAdminAccount($pdo, $nom, $prenom, $mail, $password) {
     // Vérifier s'il y a déjà des administrateurs
     $stmt = $pdo->query("SELECT COUNT(*) FROM administrateurs");
@@ -666,7 +853,7 @@ function createAdminAccount($pdo, $nom, $prenom, $mail, $password) {
     }
 }
 
-// Fonction pour finaliser l'installation
+// Fonction pour finaliser l'installation avec gestion d'erreur
 function finalizeInstallation() {
     // Créer le fichier de verrouillage
     $lockContent = json_encode([
@@ -830,140 +1017,282 @@ HTACCESS;
                 grid-template-columns: 1fr;
             }
         }
+        .password-requirements {
+            margin-top: 8px;
+            font-size: 0.85em;
+            color: #666;
+        }
+        .password-requirements ul {
+            padding-left: 20px;
+            margin: 5px 0;
+        }
+        .password-requirements li {
+            margin-bottom: 3px;
+        }
+        .valid {
+            color: #2ecc71;
+        }
+        .invalid {
+            color: #e74c3c;
+        }
+        .password-feedback {
+            display: none;
+            padding: 8px 12px;
+            margin-top: 5px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .password-error {
+            background-color: #fee;
+            color: #e74c3c;
+            border: 1px solid #e74c3c;
+        }
+        .password-success {
+            background-color: #efe;
+            color: #2ecc71;
+            border: 1px solid #2ecc71;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🎓 Installation de Pronote</h1>
-            <p>Configuration complète et automatique du système</p>
+            <p>Assistant d'installation et de configuration</p>
         </div>
         
         <div class="content">
             <?php if (!empty($permissionErrors)): ?>
                 <div class="error">
-                    <h3>❌ Erreurs critiques de permissions</h3>
+                    <h3>❌ Erreurs de permissions critiques</h3>
                     <?php foreach ($permissionErrors as $error): ?>
                         <p><?= htmlspecialchars($error) ?></p>
                     <?php endforeach; ?>
-                    <p><strong>Action requise:</strong> Corrigez ces problèmes avant de continuer.</p>
-                    <p><a href='test_permissions.php' class='btn'>🔧 Outil de correction automatique</a></p>
+                    
+                    <h4>Solutions :</h4>
+                    <ol>
+                        <li>Exécutez le script <a href="fix_permissions.php">fix_permissions.php</a></li>
+                        <li>Ou corrigez manuellement via SSH :</li>
+                    </ol>
+                    <pre>cd <?= htmlspecialchars($installDir) ?>
+chmod 777 API/config API/logs uploads temp
+# ou
+chown -R www-data:www-data API/config API/logs uploads temp</pre>
                 </div>
-            <?php endif; ?>
-
-            <?php if (!empty($permissionWarnings)): ?>
+            <?php elseif (!empty($permissionWarnings)): ?>
                 <div class="warning">
-                    <h3>⚠️ Problèmes de permissions détectés</h3>
+                    <h3>⚠️ Avertissements de permissions</h3>
                     <?php foreach ($permissionWarnings as $warning): ?>
                         <p><?= htmlspecialchars($warning) ?></p>
                     <?php endforeach; ?>
-                    <p>L'installation peut continuer, mais certaines fonctionnalités peuvent être limitées.</p>
-                    <p><a href='test_permissions.php' class='btn'>🔧 Corriger automatiquement</a></p>
                 </div>
             <?php endif; ?>
 
             <?php if ($installed): ?>
                 <div class="success">
-                    <h2>✅ Installation réussie !</h2>
-                    <p>Votre application Pronote a été installée avec succès.</p>
-                    <p><strong>Accédez maintenant à votre application :</strong></p>
-                    <p><a href="<?= htmlspecialchars($baseUrlInput ?: $baseUrl) ?>/login/public/index.php" 
-                          style="color: white; text-decoration: underline;">
-                        Page de connexion
-                    </a></p>
-                    <div style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.2); border-radius: 5px;">
-                        <p><strong>Informations importantes :</strong></p>
-                        <ul style="text-align: left;">
-                            <li>Le fichier d'installation a été automatiquement protégé</li>
-                            <li>Votre base de données est complètement configurée</li>
-                            <li>Toutes les tables ont été créées avec les données par défaut</li>
-                            <li>Votre compte administrateur est prêt à être utilisé</li>
-                        </ul>
+                    <h2>🎉 Installation terminée avec succès !</h2>
+                    <p>Pronote a été installé et configuré correctement.</p>
+                    
+                    <h3>Étapes suivantes :</h3>
+                    <ol>
+                        <li>Supprimez le fichier <code>install.php</code> pour sécuriser l'installation</li>
+                        <li>Connectez-vous avec le compte administrateur créé</li>
+                        <li>Configurez les utilisateurs et les classes</li>
+                    </ol>
+                    
+                    <div class="actions">
+                        <a href="login/public/index.php" class="btn">🔐 Se connecter</a>
+                        <a href="diagnostic.php" class="btn">🔧 Page de diagnostic</a>
                     </div>
                 </div>
-            <?php elseif (!empty($dbError)): ?>
-                <div class="error">
-                    <h3>❌ Erreur d'installation</h3>
-                    <p><?= htmlspecialchars($dbError) ?></p>
-                </div>
-            <?php endif; ?>
+            <?php else: ?>
+                <?php if (!empty($dbError)): ?>
+                    <div class="error">
+                        <h3>❌ Erreur d'installation</h3>
+                        <p><?= htmlspecialchars($dbError) ?></p>
+                        
+                        <h4>Solutions suggérées :</h4>
+                        <ul>
+                            <li>Vérifiez les informations de connexion à la base de données</li>
+                            <li>Assurez-vous que le serveur MySQL est accessible</li>
+                            <li>Vérifiez que l'utilisateur a les droits de création de base de données</li>
+                            <li>Exécutez le script <a href="fix_permissions.php">fix_permissions.php</a> si l'erreur concerne les permissions</li>
+                        </ul>
+                    </div>
+                <?php endif; ?>
 
-            <?php if (!$installed): ?>
-                <form method="post" action="">
+                <form method="post" action="" id="installForm">
                     <input type="hidden" name="install_token" value="<?= htmlspecialchars($install_token) ?>">
+                    <input type="hidden" name="step" value="1">
                     
                     <div class="section">
                         <h3>🗄️ Configuration de la base de données</h3>
                         <div class="grid">
                             <div class="form-group">
-                                <label for="db_host">Hôte de la base de données</label>
+                                <label for="db_host">Hôte de la base de données :</label>
                                 <input type="text" id="db_host" name="db_host" value="localhost" required>
                             </div>
                             <div class="form-group">
-                                <label for="db_name">Nom de la base de données</label>
-                                <input type="text" id="db_name" name="db_name" value="pronote" required>
+                                <label for="db_name">Nom de la base de données :</label>
+                                <input type="text" id="db_name" name="db_name" placeholder="pronote_db" required>
                             </div>
                             <div class="form-group">
-                                <label for="db_user">Utilisateur</label>
-                                <input type="text" id="db_user" name="db_user" required>
+                                <label for="db_user">Utilisateur :</label>
+                                <input type="text" id="db_user" name="db_user" required placeholder="utilisateur_mysql">
                             </div>
                             <div class="form-group">
-                                <label for="db_pass">Mot de passe</label>
-                                <input type="password" id="db_pass" name="db_pass">
+                                <label for="db_pass">Mot de passe :</label>
+                                <input type="password" id="db_pass" name="db_pass" required>
                             </div>
                         </div>
                     </div>
-
+                    
                     <div class="section">
                         <h3>⚙️ Configuration de l'application</h3>
                         <div class="grid">
                             <div class="form-group">
-                                <label for="base_url">URL de base (chemin depuis la racine)</label>
-                                <input type="text" id="base_url" name="base_url" 
-                                       value="<?= htmlspecialchars($baseUrl) ?>" 
-                                       placeholder="/pronote ou laisser vide si racine">
-                            </div>
-                            <div class="form-group">
-                                <label for="app_env">Environnement</label>
-                                <select id="app_env" name="app_env">
-                                    <option value="production">Production (recommandé)</option>
+                                <label for="app_env">Environnement :</label>
+                                <select id="app_env" name="app_env" required>
                                     <option value="development">Développement</option>
+                                    <option value="production" selected>Production</option>
                                     <option value="test">Test</option>
                                 </select>
                             </div>
+                            <div class="form-group">
+                                <label for="base_url">URL de base :</label>
+                                <input type="url" id="base_url" name="base_url" value="<?= htmlspecialchars($baseUrl) ?>" required>
+                            </div>
                         </div>
                     </div>
-
+                    
                     <div class="section">
-                        <h3>👤 Compte administrateur principal</h3>
+                        <h3>👤 Compte administrateur</h3>
                         <div class="grid">
                             <div class="form-group">
-                                <label for="admin_nom">Nom</label>
+                                <label for="admin_nom">Nom :</label>
                                 <input type="text" id="admin_nom" name="admin_nom" required>
                             </div>
                             <div class="form-group">
-                                <label for="admin_prenom">Prénom</label>
+                                <label for="admin_prenom">Prénom :</label>
                                 <input type="text" id="admin_prenom" name="admin_prenom" required>
                             </div>
                             <div class="form-group">
-                                <label for="admin_mail">Email</label>
+                                <label for="admin_mail">Email :</label>
                                 <input type="email" id="admin_mail" name="admin_mail" required>
                             </div>
                             <div class="form-group">
-                                <label for="admin_password">Mot de passe (min. 12 caractères)</label>
-                                <input type="password" id="admin_password" name="admin_password" 
-                                       required minlength="12">
-                                <small style="color: #666;">Doit contenir : majuscule, minuscule, chiffre, caractère spécial</small>
+                                <label for="admin_password">Mot de passe :</label>
+                                <input type="password" id="admin_password" name="admin_password" required minlength="12">
+                                <div class="password-requirements">
+                                    <p>Le mot de passe doit contenir au moins :</p>
+                                    <ul>
+                                        <li id="length">12 caractères</li>
+                                        <li id="uppercase">Une lettre majuscule (A-Z)</li>
+                                        <li id="lowercase">Une lettre minuscule (a-z)</li>
+                                        <li id="number">Un chiffre (0-9)</li>
+                                        <li id="special">Un caractère spécial (@$!%*?&)</li>
+                                    </ul>
+                                </div>
+                                <div id="password-feedback" class="password-feedback"></div>
                             </div>
                         </div>
                     </div>
-
-                    <div style="text-align: center; margin-top: 30px;">
-                        <button type="submit" class="btn">🚀 Installer Pronote</button>
+                    
+                    <div class="actions">
+                        <button type="submit" class="btn" id="installBtn">🚀 Installer Pronote</button>
                     </div>
                 </form>
             <?php endif; ?>
         </div>
     </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('installForm');
+        const btn = document.getElementById('installBtn');
+        const passwordInput = document.getElementById('admin_password');
+        const lengthCheck = document.getElementById('length');
+        const uppercaseCheck = document.getElementById('uppercase');
+        const lowercaseCheck = document.getElementById('lowercase');
+        const numberCheck = document.getElementById('number');
+        const specialCheck = document.getElementById('special');
+        const feedbackDiv = document.getElementById('password-feedback');
+        
+        // Fonction de validation du mot de passe
+        function validatePassword() {
+            const password = passwordInput.value;
+            
+            // Critères de validation
+            const isLongEnough = password.length >= 12;
+            const hasUppercase = /[A-Z]/.test(password);
+            const hasLowercase = /[a-z]/.test(password);
+            const hasNumber = /[0-9]/.test(password);
+            const hasSpecial = /[@$!%*?&]/.test(password);
+            
+            // Mettre à jour les indicateurs visuels
+            lengthCheck.className = isLongEnough ? 'valid' : 'invalid';
+            uppercaseCheck.className = hasUppercase ? 'valid' : 'invalid';
+            lowercaseCheck.className = hasLowercase ? 'valid' : 'invalid';
+            numberCheck.className = hasNumber ? 'valid' : 'invalid';
+            specialCheck.className = hasSpecial ? 'valid' : 'invalid';
+            
+            // Message de feedback
+            if (password.length > 0) {
+                const isValid = isLongEnough && hasUppercase && hasLowercase && hasNumber && hasSpecial;
+                
+                if (isValid) {
+                    feedbackDiv.textContent = "✅ Mot de passe valide";
+                    feedbackDiv.className = "password-feedback password-success";
+                    feedbackDiv.style.display = "block";
+                    return true;
+                } else {
+                    feedbackDiv.textContent = "⚠️ Le mot de passe ne respecte pas toutes les exigences";
+                    feedbackDiv.className = "password-feedback password-error";
+                    feedbackDiv.style.display = "block";
+                    return false;
+                }
+            } else {
+                feedbackDiv.style.display = "none";
+                return false;
+            }
+        }
+        
+        // Validation lors de la saisie
+        if (passwordInput) {
+            passwordInput.addEventListener('keyup', validatePassword);
+        }
+        
+        // Validation du formulaire
+        if (form && btn) {
+            form.addEventListener('submit', function(event) {
+                if (passwordInput && passwordInput.value.length > 0) {
+                    const isPasswordValid = validatePassword();
+                    
+                    if (!isPasswordValid) {
+                        event.preventDefault();
+                        alert("Le mot de passe ne respecte pas les exigences de sécurité.");
+                        return false;
+                    }
+                }
+                
+                btn.textContent = '⏳ Installation en cours...';
+                btn.disabled = true;
+                
+                // Afficher un message de progression
+                setTimeout(function() {
+                    if (btn.disabled) {
+                        btn.textContent = '🔄 Configuration en cours...';
+                    }
+                }, 5000);
+                
+                setTimeout(function() {
+                    if (btn.disabled) {
+                        btn.textContent = '📊 Création de la base de données...';
+                    }
+                }, 10000);
+            });
+        }
+    });
+    </script>
 </body>
 </html>
