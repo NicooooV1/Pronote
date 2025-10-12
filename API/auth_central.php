@@ -1,231 +1,374 @@
 <?php
 /**
- * Système centralisé d'authentification et d'autorisation pour Pronote
- * Ce fichier est le point d'entrée pour toutes les fonctions d'authentification
- * et d'autorisation utilisées dans l'application.
+ * Système d'authentification centralisé et sécurisé
+ * Version 2.0 - Sécurité renforcée
  */
 
-// Démarrer la session si elle n'est pas déjà active
+// Prévenir l'inclusion multiple
+if (defined('PRONOTE_AUTH_LOADED')) {
+    return;
+}
+define('PRONOTE_AUTH_LOADED', true);
+
+// Inclure les dépendances
+require_once __DIR__ . '/core/security.php';
+
+// Configuration sécurisée des sessions
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    session_start([
+        'cookie_httponly' => true,
+        'cookie_secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
+        'use_strict_mode' => true,
+        'use_only_cookies' => true,
+        'cookie_samesite' => 'Strict'
+    ]);
 }
 
-// Constantes pour les rôles - vérifier si elles sont déjà définies
-if (!defined('USER_TYPE_ADMIN')) define('USER_TYPE_ADMIN', 'administrateur');
-if (!defined('USER_TYPE_TEACHER')) define('USER_TYPE_TEACHER', 'professeur');
-if (!defined('USER_TYPE_STUDENT')) define('USER_TYPE_STUDENT', 'eleve');
-if (!defined('USER_TYPE_PARENT')) define('USER_TYPE_PARENT', 'parent');
-if (!defined('USER_TYPE_STAFF')) define('USER_TYPE_STAFF', 'vie_scolaire');
+// Nettoyer les sessions expirées
+cleanExpiredSessions();
 
 /**
- * Vérifie si l'utilisateur est connecté
- * @return bool True si l'utilisateur est connecté
+ * Vérification de connexion sécurisée
  */
 function isLoggedIn() {
-    return isset($_SESSION['user']) && !empty($_SESSION['user']);
+    if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
+        return false;
+    }
+    
+    // Vérifier l'intégrité de la session
+    if (!isset($_SESSION['user']['id'], $_SESSION['user']['profil'], $_SESSION['auth_time'])) {
+        return false;
+    }
+    
+    // Vérifier l'expiration de session
+    $sessionLifetime = 3600; // 1 heure
+    if (time() - $_SESSION['auth_time'] > $sessionLifetime) {
+        session_destroy();
+        return false;
+    }
+    
+    // Renouveler l'ID de session périodiquement
+    if (!isset($_SESSION['last_regeneration']) || 
+        time() - $_SESSION['last_regeneration'] > 300) { // 5 minutes
+        session_regenerate_id(true);
+        $_SESSION['last_regeneration'] = time();
+    }
+    
+    return true;
 }
 
 /**
- * Récupère les informations de l'utilisateur connecté
- * @return array|null Tableau des informations utilisateur ou null
+ * Authentification requise avec redirection
+ */
+function requireAuth() {
+    if (!isLoggedIn()) {
+        logSecurityEvent('unauthorized_access_attempt', [
+            'requested_url' => $_SERVER['REQUEST_URI'] ?? '',
+            'referer' => $_SERVER['HTTP_REFERER'] ?? ''
+        ]);
+        
+        redirectTo(LOGIN_URL ?? '../login/public/index.php', 'Connexion requise');
+    }
+}
+
+/**
+ * Récupération sécurisée de l'utilisateur courant
  */
 function getCurrentUser() {
-    return $_SESSION['user'] ?? null;
+    if (!isLoggedIn()) {
+        return null;
+    }
+    
+    return $_SESSION['user'];
 }
 
 /**
- * Récupère le rôle de l'utilisateur courant
- * @return string|null Rôle de l'utilisateur ou null
- */
-function getUserRole() {
-    $user = getCurrentUser();
-    return $user ? $user['profil'] : null;
-}
-
-/**
- * Récupère le nom complet de l'utilisateur
- * @return string Nom complet de l'utilisateur ou chaîne vide
+ * Nom complet de l'utilisateur
  */
 function getUserFullName() {
     $user = getCurrentUser();
-    return $user ? $user['prenom'] . ' ' . $user['nom'] : '';
+    if (!$user) {
+        return 'Utilisateur inconnu';
+    }
+    
+    return trim(($user['prenom'] ?? '') . ' ' . ($user['nom'] ?? ''));
 }
 
 /**
- * Récupère les initiales de l'utilisateur
- * @return string Initiales de l'utilisateur ou chaîne vide
+ * Initiales de l'utilisateur
  */
 function getUserInitials() {
     $user = getCurrentUser();
     if (!$user) {
-        return '';
+        return '??';
     }
-    return strtoupper(substr($user['prenom'], 0, 1) . substr($user['nom'], 0, 1));
+    
+    $prenom = $user['prenom'] ?? '';
+    $nom = $user['nom'] ?? '';
+    
+    return strtoupper(mb_substr($prenom, 0, 1) . mb_substr($nom, 0, 1));
 }
 
 /**
- * Vérifie si l'utilisateur est un administrateur
- * @return bool True si l'utilisateur est un administrateur
+ * Rôle de l'utilisateur
+ */
+function getUserRole() {
+    $user = getCurrentUser();
+    return $user['profil'] ?? 'guest';
+}
+
+/**
+ * Vérifications de rôles
  */
 function isAdmin() {
-    return getUserRole() === USER_TYPE_ADMIN;
+    return getUserRole() === 'administrateur';
 }
 
-/**
- * Vérifie si l'utilisateur est un professeur
- * @return bool True si l'utilisateur est un professeur
- */
 function isTeacher() {
-    return getUserRole() === USER_TYPE_TEACHER;
+    return getUserRole() === 'professeur';
 }
 
-/**
- * Vérifie si l'utilisateur est un élève
- * @return bool True si l'utilisateur est un élève
- */
 function isStudent() {
-    return getUserRole() === USER_TYPE_STUDENT;
+    return getUserRole() === 'eleve';
 }
 
-/**
- * Vérifie si l'utilisateur est un parent
- * @return bool True si l'utilisateur est un parent
- */
 function isParent() {
-    return getUserRole() === USER_TYPE_PARENT;
+    return getUserRole() === 'parent';
 }
 
-/**
- * Vérifie si l'utilisateur fait partie de la vie scolaire
- * @return bool True si l'utilisateur fait partie de la vie scolaire
- */
 function isVieScolaire() {
-    return getUserRole() === USER_TYPE_STAFF;
+    return getUserRole() === 'vie_scolaire';
 }
 
 /**
- * Vérifie si l'utilisateur peut gérer les absences
- * @return bool True si l'utilisateur peut gérer les absences
- */
-function canManageAbsences() {
-    return in_array(getUserRole(), [USER_TYPE_ADMIN, USER_TYPE_TEACHER, USER_TYPE_STAFF]);
-}
-
-/**
- * Vérifie si l'utilisateur peut gérer les notes
- * @return bool True si l'utilisateur peut gérer les notes
+ * Permissions pour gérer les notes
  */
 function canManageNotes() {
-    return in_array(getUserRole(), [USER_TYPE_ADMIN, USER_TYPE_TEACHER, USER_TYPE_STAFF]);
+    $role = getUserRole();
+    return in_array($role, ['administrateur', 'professeur', 'vie_scolaire']);
 }
 
 /**
- * Vérifie si l'utilisateur peut gérer les devoirs
- * @return bool True si l'utilisateur peut gérer les devoirs
+ * Permissions pour gérer les absences
+ */
+function canManageAbsences() {
+    $role = getUserRole();
+    return in_array($role, ['administrateur', 'vie_scolaire', 'professeur']);
+}
+
+/**
+ * Permissions pour gérer les devoirs
  */
 function canManageDevoirs() {
-    return in_array(getUserRole(), [USER_TYPE_ADMIN, USER_TYPE_TEACHER, USER_TYPE_STAFF]);
+    $role = getUserRole();
+    return in_array($role, ['administrateur', 'professeur']);
 }
 
 /**
- * Force l'utilisateur à être connecté, redirige sinon
- * @return array|null Informations de l'utilisateur connecté ou null après redirection
+ * Permissions pour gérer les événements
  */
-function requireLogin() {
-    if (!isLoggedIn()) {
-        // Déterminer l'URL de redirection
-        $loginUrl = defined('LOGIN_URL') ? LOGIN_URL : '../login/public/index.php';
-        
-        // Journaliser la tentative d'accès non autorisé
-        error_log('Tentative d\'accès non autorisé: redirection vers ' . $loginUrl);
-        
-        // Rediriger vers la page de connexion
-        header('Location: ' . $loginUrl);
-        exit;
+function canManageEvents() {
+    $role = getUserRole();
+    return in_array($role, ['administrateur', 'professeur', 'vie_scolaire']);
+}
+
+/**
+ * Permissions pour la messagerie
+ */
+function canUseMessaging() {
+    $role = getUserRole();
+    return in_array($role, ['administrateur', 'professeur', 'vie_scolaire', 'eleve', 'parent']);
+}
+
+/**
+ * Connexion sécurisée
+ */
+function loginUser($userType, $userData, $remember = false) {
+    // Validation des données
+    if (!$userData || !is_array($userData) || !isset($userData['id'])) {
+        return false;
     }
-    return getCurrentUser();
-}
-
-/**
- * Vérifie si l'utilisateur a un rôle spécifique, redirige sinon
- * @param string|array $roles Rôle(s) autorisé(s)
- * @return bool True si l'utilisateur a le rôle requis
- */
-function requireRole($roles) {
-    requireLogin();
     
-    $userRole = getUserRole();
-    $roles = is_array($roles) ? $roles : [$roles];
+    // Régénérer l'ID de session pour éviter la fixation
+    session_regenerate_id(true);
     
-    if (!in_array($userRole, $roles)) {
-        // Journaliser la tentative d'accès non autorisé
-        error_log('Accès refusé: rôle ' . $userRole . ' non autorisé');
+    // Stocker les données utilisateur
+    $_SESSION['user'] = [
+        'id' => $userData['id'],
+        'nom' => $userData['nom'] ?? '',
+        'prenom' => $userData['prenom'] ?? '',
+        'mail' => $userData['mail'] ?? '',
+        'profil' => $userType,
+        'identifiant' => $userData['identifiant'] ?? ''
+    ];
+    
+    $_SESSION['auth_time'] = time();
+    $_SESSION['last_regeneration'] = time();
+    
+    // Logging de sécurité
+    logSecurityEvent('user_login', [
+        'user_id' => $userData['id'],
+        'user_type' => $userType,
+        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown'
+    ]);
+    
+    // Gestion du "Se souvenir de moi" (optionnel)
+    if ($remember) {
+        $token = bin2hex(random_bytes(32));
+        setcookie('remember_token', $token, time() + (30 * 24 * 3600), '/', '', 
+                  isset($_SERVER['HTTPS']), true);
         
-        // Rediriger vers une page d'erreur ou d'accueil
-        $homeUrl = defined('HOME_URL') ? HOME_URL : '../accueil/accueil.php';
-        header('Location: ' . $homeUrl . '?error=unauthorized');
-        exit;
+        // Stocker le token en base de données (à implémenter)
+        // storeRememberToken($userData['id'], $userType, $token);
     }
     
     return true;
 }
 
 /**
- * Détermine si l'utilisateur est professeur principal d'une classe
- * @param string $classe Classe à vérifier
- * @return bool True si l'utilisateur est professeur principal de la classe
+ * Déconnexion sécurisée
  */
-function isProfesseurPrincipal($classe = null) {
-    if (!isTeacher()) {
-        return false;
-    }
-    
+function logoutUser() {
     $user = getCurrentUser();
-    if (!isset($user['professeur_principal']) || !$user['professeur_principal']) {
-        return false;
+    
+    if ($user) {
+        logSecurityEvent('user_logout', [
+            'user_id' => $user['id'],
+            'user_type' => $user['profil']
+        ]);
     }
     
-    // Si aucune classe n'est spécifiée, vérifier si l'utilisateur est professeur principal de n'importe quelle classe
-    if ($classe === null) {
-        return true;
-    }
-    
-    // Si une classe est spécifiée, vérifier si l'utilisateur est professeur principal de cette classe
-    // Cette vérification nécessite une requête à la base de données dans un cas réel
-    // Pour l'instant, on suppose que c'est le cas si l'utilisateur est professeur principal
-    return true;
-}
-
-/**
- * Déconnecte l'utilisateur courant
- */
-function logout() {
-    // Détruire toutes les variables de session
+    // Détruire toutes les données de session
     $_SESSION = [];
     
-    // Si un cookie de session est utilisé, le détruire
+    // Détruire le cookie de session
     if (ini_get("session.use_cookies")) {
         $params = session_get_cookie_params();
-        setcookie(
-            session_name(),
-            '',
-            time() - 42000,
-            $params["path"],
-            $params["domain"],
-            $params["secure"],
-            $params["httponly"]
+        setcookie(session_name(), '', time() - 42000,
+            $params["path"], $params["domain"],
+            $params["secure"], $params["httponly"]
         );
     }
     
+    // Détruire le cookie "remember me"
+    setcookie('remember_token', '', time() - 3600, '/');
+    
     // Détruire la session
     session_destroy();
+    
+    return true;
 }
 
 /**
- * Vérifie si la création de comptes administrateur est autorisée
- * @return bool True si la création de comptes administrateur est autorisée
+ * Vérification de permission spécifique
  */
-function isAdminCreationAllowed() {
-    $adminLockFile = __DIR__ . '/../admin.lock';
-    return !file_exists($adminLockFile);
+function hasPermission($permission) {
+    $user = getCurrentUser();
+    if (!$user) {
+        return false;
+    }
+    
+    $permissions = [
+        'manage_users' => ['administrateur'],
+        'manage_notes' => ['administrateur', 'professeur', 'vie_scolaire'],
+        'manage_absences' => ['administrateur', 'vie_scolaire', 'professeur'],
+        'manage_devoirs' => ['administrateur', 'professeur'],
+        'manage_events' => ['administrateur', 'professeur', 'vie_scolaire'],
+        'use_messaging' => ['administrateur', 'professeur', 'vie_scolaire', 'eleve', 'parent'],
+        'view_all_notes' => ['administrateur', 'vie_scolaire'],
+        'view_own_notes' => ['professeur', 'eleve', 'parent'],
+        'export_data' => ['administrateur', 'vie_scolaire']
+    ];
+    
+    if (!isset($permissions[$permission])) {
+        return false;
+    }
+    
+    return in_array($user['profil'], $permissions[$permission]);
+}
+
+/**
+ * Middleware de vérification de permission
+ */
+function requirePermission($permission) {
+    if (!hasPermission($permission)) {
+        logSecurityEvent('permission_denied', [
+            'permission' => $permission,
+            'user_role' => getUserRole()
+        ]);
+        
+        http_response_code(403);
+        die('Accès refusé - Permission insuffisante');
+    }
+}
+
+/**
+ * Obtenir l'URL de redirection après connexion
+ */
+function getRedirectURL() {
+    $role = getUserRole();
+    
+    $redirects = [
+        'administrateur' => '/admin/dashboard.php',
+        'professeur' => '/accueil/accueil.php',
+        'vie_scolaire' => '/absences/absences.php',
+        'eleve' => '/accueil/accueil.php',
+        'parent' => '/accueil/accueil.php'
+    ];
+    
+    return $redirects[$role] ?? '/accueil/accueil.php';
+}
+
+/**
+ * Vérification de la sécurité du mot de passe
+ */
+function checkPasswordSecurity($password, $username = '') {
+    $errors = [];
+    
+    // Longueur minimale
+    if (strlen($password) < 12) {
+        $errors[] = "Le mot de passe doit contenir au moins 12 caractères";
+    }
+    
+    // Complexité
+    if (!preg_match('/[A-Z]/', $password)) {
+        $errors[] = "Le mot de passe doit contenir au moins une majuscule";
+    }
+    
+    if (!preg_match('/[a-z]/', $password)) {
+        $errors[] = "Le mot de passe doit contenir au moins une minuscule";
+    }
+    
+    if (!preg_match('/[0-9]/', $password)) {
+        $errors[] = "Le mot de passe doit contenir au moins un chiffre";
+    }
+    
+    if (!preg_match('/[^a-zA-Z0-9]/', $password)) {
+        $errors[] = "Le mot de passe doit contenir au moins un caractère spécial";
+    }
+    
+    // Vérifier qu'il ne contient pas le nom d'utilisateur
+    if ($username && stripos($password, $username) !== false) {
+        $errors[] = "Le mot de passe ne doit pas contenir le nom d'utilisateur";
+    }
+    
+    return empty($errors) ? true : $errors;
+}
+
+/**
+ * Hachage sécurisé des mots de passe
+ */
+function hashPassword($password) {
+    return password_hash($password, PASSWORD_ARGON2ID, [
+        'memory_cost' => 65536, // 64 MB
+        'time_cost' => 4,       // 4 iterations
+        'threads' => 3          // 3 threads
+    ]);
+}
+
+/**
+ * Vérification des mots de passe
+ */
+function verifyPassword($password, $hash) {
+    return password_verify($password, $hash);
 }

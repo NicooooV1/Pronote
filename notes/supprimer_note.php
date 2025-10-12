@@ -2,266 +2,134 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Inclure les fichiers nécessaires
+// Inclure les fichiers nécessaires de manière sécurisée
+require_once __DIR__ . '/../API/auth_central.php';
 require_once 'includes/db.php';
-require_once 'includes/auth.php';
 
-// Vérifier les permissions pour gérer les notes
+// Vérifier les permissions pour gérer les notes avec validation stricte
+requireAuth();
 if (!canManageNotes()) {
-    header('Location: notes.php');
-    exit;
+    redirectTo('notes.php', 'Accès non autorisé');
 }
 
-// Récupérer les informations de l'utilisateur connecté
+// Récupérer les informations de l'utilisateur connecté via l'API centralisée
 $user = getCurrentUser();
 $user_fullname = getUserFullName();
-$user_initials = isset($user['prenom'], $user['nom']) ? 
-    strtoupper(mb_substr($user['prenom'], 0, 1) . mb_substr($user['nom'], 0, 1)) : '';
-$user_role = $user['profil'];
+$user_initials = getUserInitials();
+$user_role = getUserRole();
 
-// Validation de l'ID
+// Validation stricte et sécurisée de l'ID
 $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
-if (!$id) {
-    $_SESSION['error_message'] = "Identifiant de note invalide.";
-    header('Location: notes.php');
-    exit;
+if (!$id || $id <= 0) {
+    setFlashMessage('error', "Identifiant de note invalide.");
+    redirectTo('notes.php');
 }
 
-// Vérification des autorisations spécifiques selon le rôle
+// Vérification des autorisations spécifiques selon le rôle avec requête préparée
 try {
     if (isTeacher() && !isAdmin() && !isVieScolaire()) {
-        $stmt = $pdo->prepare('SELECT * FROM notes WHERE id = ? AND nom_professeur = ?');
-        $stmt->execute([$id, $user_fullname]);
+        // Vérifier que l'enseignant ne peut supprimer que ses propres notes
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM notes WHERE id = ? AND id_professeur = ?");
+        $stmt->execute([$id, $user['id']]);
         
-        if ($stmt->rowCount() === 0) {
-            $_SESSION['error_message'] = "Vous n'êtes pas autorisé à supprimer cette note.";
-            header('Location: notes.php');
-            exit;
-        }
-    } else {
-        $stmt = $pdo->prepare('SELECT * FROM notes WHERE id = ?');
-        $stmt->execute([$id]);
-        
-        if ($stmt->rowCount() === 0) {
-            $_SESSION['error_message'] = "Note introuvable.";
-            header('Location: notes.php');
-            exit;
+        if ($stmt->fetchColumn() == 0) {
+            setFlashMessage('error', "Vous ne pouvez supprimer que vos propres notes.");
+            redirectTo('notes.php');
         }
     }
-
-    // Récupérer les informations sur la note à supprimer
-    $stmt = $pdo->prepare('SELECT * FROM notes WHERE id = ?');
+    
+    // Récupérer les détails de la note pour vérification
+    $stmt = $pdo->prepare("SELECT * FROM notes WHERE id = ?");
     $stmt->execute([$id]);
-    $note = $stmt->fetch();
-
-    // Traitement de la suppression
+    $note = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$note) {
+        setFlashMessage('error', "Note non trouvée.");
+        redirectTo('notes.php');
+    }
+    
+    // Traitement de la suppression avec confirmation CSRF
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        // Vérification du token CSRF
-        if (!isset($_POST['csrf_token']) || !isset($_SESSION['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-            $_SESSION['error_message'] = "Erreur de sécurité. Veuillez réessayer.";
-            header('Location: notes.php');
-            exit;
+        validateCSRFToken($_POST['csrf_token'] ?? '');
+        
+        // Transaction pour garantir l'intégrité
+        $pdo->beginTransaction();
+        
+        try {
+            $stmt = $pdo->prepare("DELETE FROM notes WHERE id = ?");
+            $result = $stmt->execute([$id]);
+            
+            if ($result) {
+                // Log de sécurité
+                logSecurityEvent('note_deleted', [
+                    'note_id' => $id,
+                    'deleted_by' => $user['id'],
+                    'user_role' => $user_role
+                ]);
+                
+                $pdo->commit();
+                setFlashMessage('success', "Note supprimée avec succès.");
+            } else {
+                throw new Exception("Erreur lors de la suppression");
+            }
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            logError("Erreur suppression note: " . $e->getMessage());
+            setFlashMessage('error', "Erreur lors de la suppression.");
         }
         
-        $stmt = $pdo->prepare('DELETE FROM notes WHERE id = ?');
-        $stmt->execute([$id]);
-        
-        // Journalisation de l'action
-        $action = "Suppression de la note ID=$id, Élève={$note['nom_eleve']}, Matière={$note['matiere']}, Note={$note['note']}";
-        error_log($action);
-        
-        $_SESSION['success_message'] = "La note a été supprimée avec succès.";
-        header('Location: notes.php');
-        exit;
+        redirectTo('notes.php');
     }
-} catch (PDOException $e) {
-    error_log("Erreur lors de la suppression d'une note: " . $e->getMessage());
-    $_SESSION['error_message'] = "Une erreur est survenue lors du traitement de votre demande.";
-    header('Location: notes.php');
-    exit;
+    
+} catch (Exception $e) {
+    logError("Erreur dans supprimer_note.php: " . $e->getMessage());
+    setFlashMessage('error', "Une erreur est survenue.");
+    redirectTo('notes.php');
 }
 
-// Générer un token CSRF pour protéger le formulaire
-$csrf_token = bin2hex(random_bytes(32));
-$_SESSION['csrf_token'] = $csrf_token;
+// Génération du token CSRF pour le formulaire
+$csrf_token = generateCSRFToken();
 
-// Variables pour le template
-$pageTitle = "Supprimer une note";
+// Inclure l'en-tête avec protection XSS
+include 'includes/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><?= $pageTitle ?> - PRONOTE</title>
-  <link rel="stylesheet" href="assets/css/notes.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-</head>
-<body>
-  <div class="app-container">
-    <!-- Menu mobile -->
-    <div class="mobile-menu-toggle" id="mobile-menu-toggle">
-        <i class="fas fa-bars"></i>
-    </div>
-    <div class="page-overlay" id="page-overlay"></div>
-    
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="logo-container">
-            <div class="app-logo">P</div>
-            <div class="app-title">PRONOTE</div>
-        </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Navigation</div>
-            <div class="sidebar-nav">
-                <a href="../accueil/accueil.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
-                    <span>Accueil</span>
-                </a>
-                <a href="notes.php" class="sidebar-nav-item active">
-                    <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
-                    <span>Notes</span>
-                </a>
-                <a href="../agenda/agenda.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar"></i></span>
-                    <span>Agenda</span>
-                </a>
-                <a href="../cahierdetextes/cahierdetextes.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-book"></i></span>
-                    <span>Cahier de textes</span>
-                </a>
-                <a href="../messagerie/index.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
-                    <span>Messagerie</span>
-                </a>
-                <?php if ($user_role === 'vie_scolaire' || $user_role === 'administrateur'): ?>
-                <a href="../absences/absences.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
-                    <span>Absences</span>
-                </a>
-                <?php endif; ?>
-            </div>
-        </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Actions</div>
-            <div class="sidebar-nav">
-                <a href="notes.php" class="create-button">
-                    <i class="fas fa-arrow-left"></i> Retour aux notes
-                </a>
-            </div>
-        </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Informations</div>
-            <div class="info-item">
-                <div class="info-label">Date</div>
-                <div class="info-value"><?= date('d/m/Y') ?></div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Période</div>
-                <div class="info-value"><?= $trimestre_actuel ?>ème trimestre</div>
-            </div>
-        </div>
+
+<div class="content-wrapper">
+    <div class="content-header">
+        <h2>Suppression de la note</h2>
     </div>
     
-    <!-- Main Content -->
-    <div class="main-content">
-      <div class="top-header">
-        <div class="page-title">
-          <h1>Supprimer une note</h1>
+    <div class="confirmation-form">
+        <div class="alert alert-warning">
+            <strong>Attention !</strong> Cette action est irréversible.
         </div>
         
-        <div class="header-actions">
-          <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">
-            <i class="fas fa-sign-out-alt"></i>
-          </a>
-          <div class="user-avatar" title="<?= htmlspecialchars($nom_utilisateur) ?>"><?= $user_initials ?></div>
+        <div class="note-details">
+            <h4>Détails de la note à supprimer :</h4>
+            <ul>
+                <li><strong>Élève :</strong> <?= htmlspecialchars($note['nom_eleve'] ?? '', ENT_QUOTES, 'UTF-8') ?></li>
+                <li><strong>Note :</strong> <?= htmlspecialchars($note['note'] ?? '', ENT_QUOTES, 'UTF-8') ?>/20</li>
+                <li><strong>Matière :</strong> <?= htmlspecialchars($note['matiere'] ?? '', ENT_QUOTES, 'UTF-8') ?></li>
+                <li><strong>Date :</strong> <?= htmlspecialchars(formatDate($note['date_ajout'] ?? ''), ENT_QUOTES, 'UTF-8') ?></li>
+            </ul>
         </div>
-      </div>
-      
-      <!-- Welcome Banner -->
-      <div class="welcome-banner">
-          <div class="welcome-content">
-              <h2>Supprimer une note</h2>
-              <p>Vous êtes sur le point de supprimer définitivement une note</p>
-          </div>
-          <div class="welcome-logo">
-              <i class="fas fa-trash"></i>
-          </div>
-      </div>
-      
-      <div class="content-container">
-        <div class="confirmation-box">
-          <h3>Confirmation de suppression</h3>
-          
-          <div class="note-details">
-            <p><strong>Élève :</strong> <?= htmlspecialchars($note['nom_eleve']) ?></p>
-            <p><strong>Classe :</strong> <?= htmlspecialchars($note['classe']) ?></p>
-            <p><strong>Matière :</strong> <?= htmlspecialchars($note['matiere']) ?></p>
-            <p><strong>Note :</strong> <?= number_format($note['note'], 1) ?>/20</p>
-            <p><strong>Coefficient :</strong> <?= $note['coefficient'] ?></p>
-            <p><strong>Date :</strong> <?= date('d/m/Y', strtotime($note['date_ajout'])) ?></p>
-            <p><strong>Description :</strong> <?= htmlspecialchars($note['commentaire']) ?></p>
-          </div>
-          
-          <div class="warning">
-            <i class="fas fa-exclamation-triangle"></i>
-            <p>Attention : cette action est irréversible. La note sera définitivement supprimée.</p>
-          </div>
-          
-          <div class="confirmation-actions">
-            <a href="notes.php" class="btn btn-secondary">
-              <i class="fas fa-times"></i> Annuler
-            </a>
-            <form method="post">
-              <input type="hidden" name="confirm_delete" value="1">
-              <button type="submit" class="btn btn-danger">
-                <i class="fas fa-trash"></i> Confirmer la suppression
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Footer -->
-      <div class="footer">
-          <div class="footer-content">
-              <div class="footer-links">
-                  <a href="#">Mentions Légales</a>
-              </div>
-              <div class="footer-copyright">
-                  &copy; <?= date('Y') ?> PRONOTE - Tous droits réservés
-              </div>
-          </div>
-      </div>
-    </div>
-  </div>
-  
-  <script>
-    // Navigation mobile
-    document.addEventListener('DOMContentLoaded', function() {
-        const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
-        const sidebar = document.getElementById('sidebar');
-        const pageOverlay = document.getElementById('page-overlay');
         
-        if (mobileMenuToggle && sidebar && pageOverlay) {
-            mobileMenuToggle.addEventListener('click', function() {
-                sidebar.classList.toggle('mobile-visible');
-                pageOverlay.classList.toggle('visible');
-            });
+        <form method="post" action="" class="deletion-form">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8') ?>">
             
-            pageOverlay.addEventListener('click', function() {
-                sidebar.classList.remove('mobile-visible');
-                pageOverlay.classList.remove('visible');
-            });
-        }
-    });
-  </script>
-</body>
-</html>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-danger" onclick="return confirm('Êtes-vous certain de vouloir supprimer cette note ?')">
+                    <i class="fas fa-trash"></i> Confirmer la suppression
+                </button>
+                <a href="notes.php" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Annuler
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
 
 <?php
+include 'includes/footer.php';
 ob_end_flush();
 ?>

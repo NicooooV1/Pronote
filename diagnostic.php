@@ -1,7 +1,7 @@
 <?php
 /**
  * Page de diagnostic pour Pronote - RÉSERVÉE AUX ADMINISTRATEURS
- * Cette page remplace tous les anciens scripts de diagnostic
+ * Version améliorée avec sécurité renforcée et diagnostics avancés
  */
 
 // Vérification immédiate des tentatives d'accès direct
@@ -893,6 +893,153 @@ if ($installStatus['install_exists'] && $installStatus['lock_exists']) {
         $installStatus['install_protected'] = 
             strpos($htaccessContent, 'install.php') !== false || 
             !is_readable($installFile);
+    }
+}
+
+// Diagnostic avancé des permissions (ajout après la section permissions existante)
+$advancedDiagnostic = [
+    'php_user' => [
+        'name' => get_current_user(),
+        'uid' => getmyuid(),
+        'gid' => getmygid(),
+        'umask' => sprintf('%04o', umask())
+    ],
+    'current_directory' => [
+        'path' => __DIR__,
+        'owner' => 'unknown',
+        'group' => 'unknown',
+        'permissions' => 'unknown'
+    ],
+    'capabilities' => [
+        'create_directory' => false,
+        'write_file' => false
+    ],
+    'php_config' => [
+        'open_basedir' => ini_get('open_basedir') ?: 'Non défini',
+        'safe_mode' => ini_get('safe_mode') ? 'Activé' : 'Désactivé',
+        'disabled_functions' => ini_get('disable_functions') ?: 'Aucune',
+        'max_execution_time' => ini_get('max_execution_time'),
+        'memory_limit' => ini_get('memory_limit'),
+        'upload_max_filesize' => ini_get('upload_max_filesize'),
+        'post_max_size' => ini_get('post_max_size')
+    ]
+];
+
+// Tests avancés des capacités système
+if (function_exists('posix_getpwuid') && function_exists('stat')) {
+    $stat = stat(__DIR__);
+    $owner = posix_getpwuid($stat['uid']);
+    $group = posix_getgrgid($stat['gid']);
+    
+    $advancedDiagnostic['current_directory']['owner'] = $owner ? $owner['name'] : "UID:{$stat['uid']}";
+    $advancedDiagnostic['current_directory']['group'] = $group ? $group['name'] : "GID:{$stat['gid']}";
+    $advancedDiagnostic['current_directory']['permissions'] = sprintf('%o', $stat['mode'] & 0777);
+}
+
+// Test de création de répertoire
+$testDir = __DIR__ . '/test_diagnostic_' . uniqid();
+$advancedDiagnostic['capabilities']['create_directory'] = @mkdir($testDir, 0755);
+if ($advancedDiagnostic['capabilities']['create_directory']) {
+    @rmdir($testDir);
+}
+
+// Test d'écriture de fichier
+$testFile = __DIR__ . '/test_write_' . uniqid() . '.tmp';
+$advancedDiagnostic['capabilities']['write_file'] = @file_put_contents($testFile, 'test') !== false;
+if ($advancedDiagnostic['capabilities']['write_file']) {
+    @unlink($testFile);
+}
+
+// Analyse détaillée des répertoires
+$detailedDirectoryAnalysis = [];
+foreach ($directories as $name => $path) {
+    $analysis = [
+        'exists' => is_dir($path),
+        'readable' => false,
+        'writable' => false,
+        'permissions' => 'N/A',
+        'permissions_string' => 'N/A',
+        'owner' => 'N/A',
+        'group' => 'N/A',
+        'write_test' => false
+    ];
+    
+    if ($analysis['exists']) {
+        $analysis['readable'] = is_readable($path);
+        $analysis['writable'] = is_writable($path);
+        
+        if (function_exists('stat') && function_exists('posix_getpwuid')) {
+            $stat = stat($path);
+            $owner = posix_getpwuid($stat['uid']);
+            $group = posix_getgrgid($stat['gid']);
+            
+            $analysis['permissions'] = sprintf('%o', $stat['mode'] & 0777);
+            $analysis['permissions_string'] = sprintf('%04o', $stat['mode'] & 0777);
+            $analysis['owner'] = $owner ? $owner['name'] : "UID:{$stat['uid']}";
+            $analysis['group'] = $group ? $group['name'] : "GID:{$stat['gid']}";
+        }
+        
+        // Test d'écriture réel
+        $testFile = $path . '/diagnostic_test_' . uniqid() . '.tmp';
+        $analysis['write_test'] = @file_put_contents($testFile, 'diagnostic test') !== false;
+        if ($analysis['write_test']) {
+            @unlink($testFile);
+        }
+    }
+    
+    $detailedDirectoryAnalysis[$name] = $analysis;
+}
+
+// Traitement des actions de maintenance
+$message = '';
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['diag_token'])) {
+    if (!isset($_SESSION['diag_token']) || !hash_equals($_SESSION['diag_token'], $_POST['diag_token'])) {
+        $error = "Token de sécurité invalide";
+    } else {
+        if (isset($_POST['create_missing_dirs'])) {
+            $created = 0;
+            foreach ($directories as $name => $path) {
+                if (!is_dir($path)) {
+                    if (@mkdir($path, 0755, true)) {
+                        $created++;
+                    }
+                }
+            }
+            $message = "Répertoires créés: {$created}";
+        }
+        
+        if (isset($_POST['fix_permissions'])) {
+            $fixed = 0;
+            foreach ($directories as $name => $path) {
+                if (is_dir($path) && @chmod($path, 0755)) {
+                    $fixed++;
+                }
+            }
+            $message = "Permissions corrigées: {$fixed}";
+        }
+        
+        if (isset($_POST['test_777_permissions'])) {
+            $changed = 0;
+            foreach ($directories as $name => $path) {
+                if (is_dir($path) && @chmod($path, 0777)) {
+                    $changed++;
+                }
+            }
+            $message = "Permissions 777 appliquées (temporaire): {$changed}";
+        }
+        
+        if (isset($_POST['clean_temp_files'])) {
+            $cleaned = 0;
+            $tempFiles = glob(__DIR__ . '/temp/*');
+            foreach ($tempFiles as $file) {
+                if (is_file($file) && @unlink($file)) {
+                    $cleaned++;
+                }
+            }
+            $message = "Fichiers temporaires nettoyés: {$cleaned}";
+        }
     }
 }
 ?>
