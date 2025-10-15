@@ -2,28 +2,14 @@
 // Démarrer la mise en mémoire tampon de sortie pour éviter l'erreur "headers already sent"
 ob_start();
 
-// Démarrer une session si nécessaire
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+// Inclure l'API centralisée - SEULE source de configuration DB
+require_once __DIR__ . '/../API/core.php';
 
-require_once 'includes/db.php';
+// Vérifier l'authentification via l'API
+requireAuth();
 
-// Vérifier si l'utilisateur est connecté
-function userIsLoggedIn() {
-    return isset($_SESSION['user']) && !empty($_SESSION['user']);
-}
-
-// Rediriger vers la page de connexion uniquement si l'utilisateur n'est pas connecté
-if (!userIsLoggedIn()) {
-    // Chemin direct vers la page de connexion
-    $loginUrl = '/~u22405372/SAE/Pronote/login/public/index.php';
-    header("Location: $loginUrl");
-    exit;
-}
-
-// Récupération des données utilisateur directement depuis la session
-$user = $_SESSION['user'];
+// Récupération des données utilisateur via l'API
+$user = getCurrentUser();
 $eleve_nom = $user['prenom'] . ' ' . $user['nom'];
 $classe = isset($user['classe']) ? $user['classe'] : '';
 $user_role = $user['profil'];
@@ -61,6 +47,14 @@ if (file_exists($json_file)) {
 
 // Nom de l'établissement
 $nom_etablissement = $etablissement_data['nom'] ?? 'Établissement Scolaire';
+
+// Récupérer la connexion à la base de données via l'API centralisée UNIQUEMENT
+try {
+    $pdo = getDatabaseConnection();
+} catch (Exception $e) {
+    error_log("Erreur de connexion DB dans accueil: " . $e->getMessage());
+    $pdo = null;
+}
 
 // Récupérer les prochains événements de l'agenda (exemple)
 $prochains_evenements = [];
@@ -270,7 +264,7 @@ $isAdmin = isset($user['profil']) && $user['profil'] === 'administrateur';
             </div>
             
             <div class="header-actions">
-                <a href="/~u22405372/SAE/Pronote/login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
+                <a href="<?= BASE_URL ?>/login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
                 <div class="user-avatar"><?= $user_initials ?></div>
             </div>
         </div>

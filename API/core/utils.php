@@ -186,3 +186,56 @@ function getCurrentTrimester(\DateTime $date = null) {
         return 3; // Troisième trimestre: avril à août
     }
 }
+
+/**
+ * Redirection sécurisée
+ */
+function redirect($path, $message = null, $type = 'info') {
+    if ($message) {
+        $_SESSION['flash'][$type][] = $message;
+    }
+    
+    // Validation de l'URL
+    if (!filter_var($path, FILTER_VALIDATE_URL)) {
+        $path = BASE_URL . '/' . ltrim($path, '/');
+    }
+    
+    header('Location: ' . $path);
+    exit;
+}
+
+/**
+ * Messages flash
+ */
+function setFlash($type, $message) {
+    $_SESSION['flash'][$type][] = $message;
+}
+
+function getFlash($type = null) {
+    if ($type === null) {
+        $flash = $_SESSION['flash'] ?? [];
+        unset($_SESSION['flash']);
+        return $flash;
+    }
+    
+    $messages = $_SESSION['flash'][$type] ?? [];
+    unset($_SESSION['flash'][$type]);
+    return $messages;
+}
+
+/**
+ * Nettoyage des entrées
+ */
+function cleanInput($data) {
+    if (is_array($data)) {
+        return array_map('cleanInput', $data);
+    }
+    return htmlspecialchars(trim($data), ENT_QUOTES, 'UTF-8');
+}
+
+/**
+ * Validation d'email
+ */
+function isValidEmail($email) {
+    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}

@@ -9,6 +9,23 @@ require_once __DIR__ . '/config/constants.php';
 require_once __DIR__ . '/core/utils.php';
 require_once __DIR__ . '/core/auth.php';
 
+// Inclure l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+
+// Vérifier l'authentification
+requireAuth();
+
+// Récupérer l'utilisateur actuel
+$user = getCurrentUser();
+
+// Récupérer la connexion à la base de données
+try {
+    $pdo = getDatabaseConnection();
+} catch (Exception $e) {
+    logError("Erreur de connexion DB dans messagerie: " . $e->getMessage());
+    die("Erreur de connexion à la base de données");
+}
+
 // Assurer que les fonctions d'authentification sont disponibles
 if (!function_exists('isLoggedIn')) {
     function isLoggedIn() {
@@ -22,8 +39,6 @@ if (!isLoggedIn()) {
     header('Location: ' . $loginPage);
     exit;
 }
-
-$user = $_SESSION['user'];
 
 // S'assurer que la propriété 'type' existe dans $user, sinon définir une valeur par défaut
 if (!isset($user['type']) && isset($user['profil'])) {

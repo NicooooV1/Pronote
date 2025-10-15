@@ -387,11 +387,8 @@ $autoloadFile = __DIR__ . '/API/autoload.php';
 if (file_exists($autoloadFile) && is_readable($autoloadFile)) {
     require_once $autoloadFile;
 } else {
-    // Charger manuellement les fichiers nécessaires
-    $configFile = __DIR__ . '/API/config/config.php';
-    if (file_exists($configFile) && is_readable($configFile)) {
-        require_once $configFile;
-    }
+    // Charger UNIQUEMENT l'API centralisée - pas de config directe
+    require_once __DIR__ . '/API/core.php';
 }
 
 // Génération d'un token pour la protection du formulaire de diagnostic
@@ -525,31 +522,23 @@ $phpSecurity = testPhpSecurity();
 // Vérifications de mises à jour de sécurité
 $securityUpdates = checkSecurityUpdates();
 
-// Tenter de charger la configuration directement
+// Tenter de charger la configuration UNIQUEMENT depuis l'API centralisée
 $dbCredentials = [
-    'host' => 'localhost',
-    'dbname' => '',
-    'user' => '',
-    'pass' => ''
+    'host' => defined('DB_HOST') ? DB_HOST : 'Non configuré',
+    'dbname' => defined('DB_NAME') ? DB_NAME : 'Non configuré',
+    'user' => defined('DB_USER') ? DB_USER : 'Non configuré',
+    'pass' => defined('DB_PASS') ? '***' : 'Non configuré'
 ];
 
-// Essayer de charger les constantes depuis env.php
-$envFile = __DIR__ . '/API/config/env.php';
-if (file_exists($envFile) && is_readable($envFile)) {
-    include_once $envFile;
-    if (defined('DB_HOST')) $dbCredentials['host'] = DB_HOST;
-    if (defined('DB_NAME')) $dbCredentials['dbname'] = DB_NAME;
-    if (defined('DB_USER')) $dbCredentials['user'] = DB_USER;
-    if (defined('DB_PASS')) $dbCredentials['pass'] = DB_PASS;
+// Tester la connexion à la base de données UNIQUEMENT via l'API
+$dbTest = ['success' => false, 'error' => 'Configuration non disponible'];
+try {
+    if (defined('DB_HOST') && defined('DB_NAME') && defined('DB_USER') && defined('DB_PASS')) {
+        $dbTest = testDatabaseConnection(DB_HOST, DB_NAME, DB_USER, DB_PASS);
+    }
+} catch (Exception $e) {
+    $dbTest = ['success' => false, 'error' => $e->getMessage()];
 }
-
-// Tester la connexion à la base de données
-$dbTest = testDatabaseConnection(
-    $dbCredentials['host'], 
-    $dbCredentials['dbname'], 
-    $dbCredentials['user'], 
-    $dbCredentials['pass']
-);
 
 // Vérifier la structure des tables essentielles de façon sécurisée
 try {

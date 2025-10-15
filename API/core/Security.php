@@ -1,7 +1,6 @@
 <?php
 /**
  * Module de sécurité centralisé
- * Gestion des tokens CSRF, validation, logging sécurisé
  */
 
 if (!defined('PRONOTE_SECURITY_LOADED')) {
@@ -20,20 +19,15 @@ function generateCSRFToken() {
         $_SESSION['csrf_tokens'] = [];
     }
     
-    // Nettoyer les anciens tokens (plus de 1 heure)
+    // Nettoyer les tokens expirés
     $now = time();
     foreach ($_SESSION['csrf_tokens'] as $token => $timestamp) {
-        if ($now - $timestamp > 3600) {
+        if ($now - $timestamp > CSRF_TOKEN_LIFETIME) {
             unset($_SESSION['csrf_tokens'][$token]);
         }
     }
     
-    try {
-        $token = bin2hex(random_bytes(32));
-    } catch (Exception $e) {
-        $token = hash('sha256', uniqid(mt_rand(), true));
-    }
-    
+    $token = bin2hex(random_bytes(32));
     $_SESSION['csrf_tokens'][$token] = $now;
     
     return $token;
@@ -218,10 +212,10 @@ function logError($message, $context = []) {
  */
 function checkRateLimit($identifier, $maxAttempts = 5, $timeWindow = 300) {
     if (session_status() === PHP_SESSION_NONE) {
-        session_start();
+        return true;
     }
     
-    $key = 'rate_limit_' . md5($identifier);
+    $key = 'rate_limit_' . hash('sha256', $identifier);
     $now = time();
     
     if (!isset($_SESSION[$key])) {
@@ -231,21 +225,15 @@ function checkRateLimit($identifier, $maxAttempts = 5, $timeWindow = 300) {
     
     $data = $_SESSION[$key];
     
-    // Reset si la fenêtre de temps est écoulée
     if ($now - $data['start'] > $timeWindow) {
         $_SESSION[$key] = ['count' => 1, 'start' => $now];
         return true;
     }
     
-    // Incrémenter le compteur
     $_SESSION[$key]['count']++;
     
-    // Vérifier la limite
     if ($data['count'] >= $maxAttempts) {
-        logSecurityEvent('rate_limit_exceeded', [
-            'identifier' => $identifier,
-            'attempts' => $data['count']
-        ]);
+        logSecurityEvent('rate_limit_exceeded', ['identifier' => $identifier]);
         return false;
     }
     

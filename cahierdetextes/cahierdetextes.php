@@ -2,9 +2,22 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Inclure les fichiers nécessaires
-require_once 'includes/auth.php';
-require_once 'includes/db.php';
+// Inclure l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+
+// Vérifier l'authentification
+requireAuth();
+
+// Récupérer l'utilisateur actuel
+$user = getCurrentUser();
+
+// Récupérer la connexion à la base de données
+try {
+    $pdo = getDatabaseConnection();
+} catch (Exception $e) {
+    logError("Erreur de connexion DB dans cahier de textes: " . $e->getMessage());
+    die("Erreur de connexion à la base de données");
+}
 
 // Vérifier si l'utilisateur est connecté
 if (!isLoggedIn()) {

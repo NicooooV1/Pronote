@@ -58,18 +58,25 @@ echo "<style>
 echo "<div class='container'>";
 echo "<h1>🔌 Test de Connexion Base de Données</h1>";
 
-// Charger la configuration
+// Charger la configuration UNIQUEMENT depuis l'API centralisée
 $config = [];
-$configFile = __DIR__ . '/API/config/env.php';
-
-if (file_exists($configFile)) {
-    include $configFile;
+try {
+    require_once __DIR__ . '/API/core.php';
+    
     if (defined('DB_HOST')) $config['host'] = DB_HOST;
     if (defined('DB_NAME')) $config['name'] = DB_NAME;
     if (defined('DB_USER')) $config['user'] = DB_USER;
     if (defined('DB_PASS')) $config['pass'] = DB_PASS;
-} else {
-    echo "<p class='error'>❌ Fichier de configuration non trouvé</p>";
+} catch (Exception $e) {
+    echo "<p class='error'>❌ Impossible de charger la configuration centralisée</p>";
+    echo "<p>Erreur: " . htmlspecialchars($e->getMessage()) . "</p>";
+    echo "<p>Veuillez d'abord installer l'application.</p>";
+    echo "</div></body></html>";
+    exit;
+}
+
+if (empty($config)) {
+    echo "<p class='error'>❌ Configuration de base de données non trouvée</p>";
     echo "<p>Veuillez d'abord installer l'application.</p>";
     echo "</div></body></html>";
     exit;

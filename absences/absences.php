@@ -2,10 +2,27 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Inclure les fichiers nécessaires dans le bon ordre
-require_once __DIR__ . '/includes/auth.php';  // Ceci inclut auth_central.php
-require_once __DIR__ . '/includes/db.php';
-require_once __DIR__ . '/includes/functions.php';
+// Inclure UNIQUEMENT l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+
+// Vérifier l'authentification
+requireAuth();
+
+// Récupérer l'utilisateur actuel
+$user = getCurrentUser();
+
+// Vérifier les droits d'accès (vie scolaire ou administrateur)
+if (!in_array($user['profil'], ['vie_scolaire', 'administrateur'])) {
+    redirect('/accueil/accueil.php');
+}
+
+// Récupérer la connexion UNIQUEMENT via l'API
+try {
+    $pdo = getDatabaseConnection();
+} catch (Exception $e) {
+    logError("Erreur de connexion DB dans absences: " . $e->getMessage());
+    die("Erreur de connexion à la base de données");
+}
 
 // Vérifier que l'utilisateur est connecté
 if (!isLoggedIn()) {

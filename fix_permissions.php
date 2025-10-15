@@ -201,8 +201,9 @@ echo "<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <h1>🔧 Correction des permissions pour l'installation de Pronote</h1>
-    
+    <div class='container'>";
+
+echo "<h1>🔧 Correction des permissions pour l'installation de Pronote</h1>
     <div class='status-box'>";
 
 echo "<p>Détection de l'environnement du serveur :</p>

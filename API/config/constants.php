@@ -1,40 +1,50 @@
 <?php
 /**
- * Constantes de l'application
+ * Constantes globales de l'application
  */
 
-// Types d'utilisateurs
-if (!defined('USER_TYPE_ADMIN')) define('USER_TYPE_ADMIN', 'administrateur');
-if (!defined('USER_TYPE_TEACHER')) define('USER_TYPE_TEACHER', 'professeur');
-if (!defined('USER_TYPE_STUDENT')) define('USER_TYPE_STUDENT', 'eleve');
-if (!defined('USER_TYPE_PARENT')) define('USER_TYPE_PARENT', 'parent');
-if (!defined('USER_TYPE_STAFF')) define('USER_TYPE_STAFF', 'vie_scolaire');
+if (!defined('PRONOTE_CONSTANTS_LOADED')) {
+    define('PRONOTE_CONSTANTS_LOADED', true);
+}
 
-// Types d'absence
-if (!defined('ABSENCE_TYPE_COURSE')) define('ABSENCE_TYPE_COURSE', 'cours');
-if (!defined('ABSENCE_TYPE_HALF_DAY')) define('ABSENCE_TYPE_HALF_DAY', 'demi-journee');
-if (!defined('ABSENCE_TYPE_FULL_DAY')) define('ABSENCE_TYPE_FULL_DAY', 'journee');
+// Version de l'application
+if (!defined('APP_VERSION')) define('APP_VERSION', '3.0.0');
+if (!defined('APP_NAME')) define('APP_NAME', 'Pronote SAE');
 
-// Types de retard
-if (!defined('DELAY_JUSTIFIED')) define('DELAY_JUSTIFIED', 'justified');
-if (!defined('DELAY_UNJUSTIFIED')) define('DELAY_UNJUSTIFIED', 'unjustified');
+// Statuts
+if (!defined('STATUS_ACTIVE')) define('STATUS_ACTIVE', 1);
+if (!defined('STATUS_INACTIVE')) define('STATUS_INACTIVE', 0);
+if (!defined('STATUS_PENDING')) define('STATUS_PENDING', 2);
+if (!defined('STATUS_SUSPENDED')) define('STATUS_SUSPENDED', 3);
 
-// Types de messages
-if (!defined('MESSAGE_TYPE_STANDARD')) define('MESSAGE_TYPE_STANDARD', 'standard');
-if (!defined('MESSAGE_TYPE_ANNOUNCEMENT')) define('MESSAGE_TYPE_ANNOUNCEMENT', 'annonce');
-if (!defined('MESSAGE_TYPE_INFORMATION')) define('MESSAGE_TYPE_INFORMATION', 'information');
+// Types d'absences
+if (!defined('ABSENCE_TYPE_COURS')) define('ABSENCE_TYPE_COURS', 'cours');
+if (!defined('ABSENCE_TYPE_DEMI_JOURNEE')) define('ABSENCE_TYPE_DEMI_JOURNEE', 'demi-journee');
+if (!defined('ABSENCE_TYPE_JOURNEE')) define('ABSENCE_TYPE_JOURNEE', 'journee');
 
-// Statuts de justificatif
-if (!defined('JUSTIFICATION_PENDING')) define('JUSTIFICATION_PENDING', 'pending');
-if (!defined('JUSTIFICATION_APPROVED')) define('JUSTIFICATION_APPROVED', 'approved');
-if (!defined('JUSTIFICATION_REJECTED')) define('JUSTIFICATION_REJECTED', 'rejected');
+// Trimestres
+if (!defined('TRIMESTRE_1')) define('TRIMESTRE_1', 1);
+if (!defined('TRIMESTRE_2')) define('TRIMESTRE_2', 2);
+if (!defined('TRIMESTRE_3')) define('TRIMESTRE_3', 3);
 
-// Autres constantes métier
-if (!defined('GRADES_SCALE')) define('GRADES_SCALE', 20); // Notes sur 20
-if (!defined('SCHOOL_START_TIME')) define('SCHOOL_START_TIME', '08:00');
-if (!defined('SCHOOL_END_TIME')) define('SCHOOL_END_TIME', '18:00');
+// Périodes de l'année scolaire
+if (!defined('TRIMESTRE_1_START')) define('TRIMESTRE_1_START', '09-01');
+if (!defined('TRIMESTRE_1_END')) define('TRIMESTRE_1_END', '12-31');
+if (!defined('TRIMESTRE_2_START')) define('TRIMESTRE_2_START', '01-01');
+if (!defined('TRIMESTRE_2_END')) define('TRIMESTRE_2_END', '03-31');
+if (!defined('TRIMESTRE_3_START')) define('TRIMESTRE_3_START', '04-01');
+if (!defined('TRIMESTRE_3_END')) define('TRIMESTRE_3_END', '07-31');
 
-// URLs communes - Utiliser BASE_URL au lieu de APP_URL
-if (!defined('LOGIN_URL')) define('LOGIN_URL', BASE_URL . '/login/public/index.php');
-if (!defined('LOGOUT_URL')) define('LOGOUT_URL', BASE_URL . '/login/public/logout.php');
-if (!defined('HOME_URL')) define('HOME_URL', BASE_URL . '/accueil/accueil.php');
+// Codes d'erreur standardisés
+if (!defined('ERROR_INVALID_INPUT')) define('ERROR_INVALID_INPUT', 'E001');
+if (!defined('ERROR_NOT_FOUND')) define('ERROR_NOT_FOUND', 'E002');
+if (!defined('ERROR_UNAUTHORIZED')) define('ERROR_UNAUTHORIZED', 'E003');
+if (!defined('ERROR_FORBIDDEN')) define('ERROR_FORBIDDEN', 'E004');
+if (!defined('ERROR_DATABASE')) define('ERROR_DATABASE', 'E005');
+if (!defined('ERROR_SYSTEM')) define('ERROR_SYSTEM', 'E006');
+
+// Formats de date
+if (!defined('DATE_FORMAT_SQL')) define('DATE_FORMAT_SQL', 'Y-m-d');
+if (!defined('DATE_FORMAT_FRENCH')) define('DATE_FORMAT_FRENCH', 'd/m/Y');
+if (!defined('DATETIME_FORMAT_SQL')) define('DATETIME_FORMAT_SQL', 'Y-m-d H:i:s');
+if (!defined('DATETIME_FORMAT_FRENCH')) define('DATETIME_FORMAT_FRENCH', 'd/m/Y à H:i');

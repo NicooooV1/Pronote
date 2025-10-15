@@ -2,11 +2,13 @@
 /**
  * Modèle pour la gestion des utilisateurs
  */
-class UserModel extends Model
-{
+
+require_once __DIR__ . '/../core/Model.php';
+
+class UserModel extends Model {
     protected $table = 'users';
     protected $primaryKey = 'id';
-    protected $fillable = ['nom', 'prenom', 'email', 'password', 'profil', 'active'];
+    protected $fillable = ['nom', 'prenom', 'email', 'password', 'profil', 'actif'];
     
     protected $validationRules = [
         'nom' => [
@@ -44,27 +46,22 @@ class UserModel extends Model
      * @param string $password Mot de passe
      * @return array|bool Données de l'utilisateur ou false
      */
-    public function authenticate($email, $password)
-    {
-        $sql = "SELECT * FROM {$this->table} WHERE email = ? AND active = 1";
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
+    public function authenticate($email, $password) {
+        $sql = "SELECT * FROM {$this->table} WHERE email = ? AND actif = 1";
+        $user = $this->db->fetchOne($sql, [$email]);
         
-        if (!$user) {
+        if (!$user || !password_verify($password, $user['mot_de_passe'])) {
             return false;
         }
         
-        if (Security::verifyPassword($password, $user['password'])) {
-            // Mettre à jour la date de dernière connexion
-            $this->updateLastLogin($user['id']);
-            
-            // Retourner les données de l'utilisateur (sans le mot de passe)
-            unset($user['password']);
-            return $user;
-        }
+        // Mettre à jour dernière connexion
+        $this->db->execute(
+            "UPDATE {$this->table} SET last_login = NOW() WHERE id = ?",
+            [$user['id']]
+        );
         
-        return false;
+        unset($user['mot_de_passe']);
+        return $user;
     }
     
     /**

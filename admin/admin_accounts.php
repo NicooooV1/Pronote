@@ -20,6 +20,24 @@ require_once __DIR__ . '/../login/src/auth.php';
 require_once __DIR__ . '/../login/src/user.php';
 require_once __DIR__ . '/../API/config/admin_config.php';
 
+// Inclure l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+
+// Vérifier l'authentification et les droits administrateur
+requireAuth();
+requireRole('administrateur');
+
+// Récupérer l'utilisateur actuel
+$user = getCurrentUser();
+
+// Récupérer la connexion à la base de données
+try {
+    $pdo = getDatabaseConnection();
+} catch (Exception $e) {
+    logError("Erreur de connexion DB dans admin accounts: " . $e->getMessage());
+    die("Erreur de connexion à la base de données");
+}
+
 // Initialiser les objets Auth et User
 $auth = new Auth($pdo);
 $user = new User($pdo);

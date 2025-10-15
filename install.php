@@ -344,63 +344,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
             echo "<h3>🔧 Étape 2: Création de la configuration</h3>";
             
-            $configDir = $installDir . '/API/config';
+            // Créer la configuration dans le fichier .env à la racine
+            $configFile = $installDir . '/.env';
             
-            // Vérifier à nouveau que le répertoire config est vraiment accessible
-            if (!is_dir($configDir)) {
-                if (!@mkdir($configDir, 0755, true)) {
-                    throw new Exception("Impossible de créer le répertoire de configuration: {$configDir}");
-                }
-                echo "<p>✅ Répertoire de configuration créé</p>";
-            }
-            
-            // Test d'écriture spécifique pour le fichier de configuration
-            $tempConfigFile = $configDir . '/test_env_' . time() . '.php';
-            $testConfigContent = "<?php\n// Test de configuration\ndefine('TEST_CONFIG', true);\n?>";
+            // Test d'écriture pour le fichier de configuration
+            $tempConfigFile = $installDir . '/test_env_' . time() . '.tmp';
+            $testConfigContent = "# Test de configuration\nTEST_CONFIG=true\n";
             
             if (@file_put_contents($tempConfigFile, $testConfigContent, LOCK_EX) === false) {
-                // Essayer des corrections d'urgence
-                @chmod($configDir, 0777);
-                if (@file_put_contents($tempConfigFile, $testConfigContent, LOCK_EX) === false) {
-                    throw new Exception("Le répertoire de configuration n'est pas accessible en écriture. Permissions actuelles: " . substr(sprintf('%o', fileperms($configDir)), -4) . ". Exécutez: chmod 777 {$configDir}");
-                }
+                throw new Exception("Le répertoire racine n'est pas accessible en écriture. Exécutez: chmod 777 {$installDir}");
             }
             
             @unlink($tempConfigFile);
-            echo "<p>✅ Test d'écriture dans le répertoire de configuration réussi</p>";
+            echo "<p>✅ Test d'écriture dans le répertoire racine réussi</p>";
             
-            // Générer la configuration avec gestion d'erreur
-            $jwtSecret = bin2hex(random_bytes(32));
-            $configContent = "<?php\n";
-            $configContent .= "/**\n";
-            $configContent .= " * Configuration automatique générée le " . date('Y-m-d H:i:s') . "\n";
-            $configContent .= " * NE PAS MODIFIER MANUELLEMENT\n";
-            $configContent .= " */\n\n";
-            $configContent .= "// Configuration de la base de données\n";
-            $configContent .= "define('DB_HOST', " . var_export($dbHost, true) . ");\n";
-            $configContent .= "define('DB_NAME', " . var_export($dbNameSafe, true) . ");\n";
-            $configContent .= "define('DB_USER', " . var_export($dbUser, true) . ");\n";
-            $configContent .= "define('DB_PASS', " . var_export($dbPass, true) . ");\n\n";
-            $configContent .= "// Configuration de l'application\n";
-            $configContent .= "define('APP_ENV', " . var_export($appEnv, true) . ");\n";
-            $configContent .= "define('BASE_URL', " . var_export(rtrim($baseUrlInput, '/'), true) . ");\n";
-            $configContent .= "define('APP_ROOT', " . var_export($installDir, true) . ");\n";
-            $configContent .= "define('JWT_SECRET', " . var_export($jwtSecret, true) . ");\n\n";
-            $configContent .= "// Configuration de sécurité\n";
-            $configContent .= "define('SECURE_MODE', " . var_export($appEnv === 'production', true) . ");\n";
-            $configContent .= "define('DEBUG_MODE', " . var_export($appEnv === 'development', true) . ");\n\n";
-            $configContent .= "// Fuseau horaire\n";
-            $configContent .= "date_default_timezone_set('Europe/Paris');\n\n";
-            $configContent .= "?>";
+            // Générer la configuration .env avec gestion d'erreur
+            $configContent = "# Configuration Pronote - Généré automatiquement le " . date('Y-m-d H:i:s') . "\n";
+            $configContent .= "# Ne pas modifier manuellement ce fichier\n\n";
             
-            // Écrire le fichier avec plusieurs tentatives et gestion d'erreur améliorée
-            $configFile = $configDir . '/env.php';
+            $configContent .= "# Configuration de sécurité pour l'installation\n";
+            $configContent .= "ALLOWED_INSTALL_IP={$clientIP}\n\n";
+            
+            $configContent .= "# Configuration de base de données\n";
+            $configContent .= "DB_HOST={$dbHost}\n";
+            $configContent .= "DB_NAME={$dbNameSafe}\n";
+            $configContent .= "DB_USER={$dbUser}\n";
+            $configContent .= "DB_PASS={$dbPass}\n\n";
+            
+            $configContent .= "# Configuration de l'application\n";
+            $configContent .= "BASE_URL=" . rtrim($baseUrlInput, '/') . "\n";
+            $configContent .= "APP_ENV={$appEnv}\n";
+            $configContent .= "APP_DEBUG=" . ($appEnv === 'development' ? 'true' : 'false') . "\n\n";
+            
+            $configContent .= "# Configuration de sécurité\n";
+            $configContent .= "SESSION_SECURE=" . (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'true' : 'false') . "\n";
+            $configContent .= "SESSION_HTTPONLY=true\n\n";
+            
+            $configContent .= "# Clés de chiffrement\n";
+            $configContent .= "JWT_SECRET=" . bin2hex(random_bytes(32)) . "\n";
+            $configContent .= "APP_KEY=" . bin2hex(random_bytes(16)) . "\n";
+            $configContent .= "CSRF_SECRET=" . bin2hex(random_bytes(16)) . "\n\n";
+            
+            $configContent .= "# Configuration des logs\n";
+            $configContent .= "LOG_LEVEL=error\n";
+            $configContent .= "LOG_RETENTION_DAYS=30\n";
             
             // Sauvegarder l'ancien fichier s'il existe
             if (file_exists($configFile)) {
                 $backupFile = $configFile . '.backup.' . date('Y-m-d-H-i-s');
                 if (!@copy($configFile, $backupFile)) {
-                    error_log("Impossible de sauvegarder l'ancien fichier de configuration");
+                    error_log("Impossible de sauvegarder l'ancien fichier .env");
                 }
             }
             
@@ -426,11 +419,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Tentatives de correction
                     if ($attempts === 1) {
                         // Première tentative : changer les permissions du répertoire
-                        @chmod($configDir, 0777);
+                        @chmod($installDir, 0777);
                         echo "<p>⚠️ Tentative de correction des permissions (777)</p>";
                     } elseif ($attempts === 2) {
                         // Deuxième tentative : essayer un nom de fichier temporaire puis renommer
-                        $tempFile = $configDir . '/env_temp_' . time() . '.php';
+                        $tempFile = $installDir . '/env_temp_' . time() . '.tmp';
                         if (@file_put_contents($tempFile, $configContent, LOCK_EX) !== false) {
                             if (@rename($tempFile, $configFile)) {
                                 $writeSuccess = true;
@@ -448,42 +441,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             if (!$writeSuccess) {
-                // Diagnostic détaillé de l'erreur
-                $errorDetails = [];
-                $errorDetails[] = "Répertoire: " . $configDir;
-                $errorDetails[] = "Fichier cible: " . $configFile;
-                $errorDetails[] = "Répertoire existe: " . (is_dir($configDir) ? 'Oui' : 'Non');
-                $errorDetails[] = "Répertoire lisible: " . (is_readable($configDir) ? 'Oui' : 'Non');
-                $errorDetails[] = "Répertoire accessible en écriture: " . (is_writable($configDir) ? 'Oui' : 'Non');
-                
-                if (file_exists($configFile)) {
-                    $errorDetails[] = "Fichier existe déjà: Oui";
-                    $errorDetails[] = "Fichier accessible en écriture: " . (is_writable($configFile) ? 'Oui' : 'Non');
-                    $errorDetails[] = "Permissions fichier: " . substr(sprintf('%o', fileperms($configFile)), -4);
-                }
-                
-                $errorDetails[] = "Permissions répertoire: " . substr(sprintf('%o', fileperms($configDir)), -4);
-                
-                if (function_exists('posix_getuid')) {
-                    $errorDetails[] = "UID PHP: " . posix_getuid();
-                    $errorDetails[] = "GID PHP: " . posix_getgid();
-                    
-                    $stat = stat($configDir);
-                    $errorDetails[] = "UID répertoire: " . $stat['uid'];
-                    $errorDetails[] = "GID répertoire: " . $stat['gid'];
-                }
-                
-                throw new Exception("Impossible d'écrire le fichier de configuration après {$attempts} tentatives.\n\nDétails:\n" . implode("\n", $errorDetails) . "\n\nSolution: Exécutez ces commandes via SSH:\nchmod 777 " . $configDir . "\nchown " . get_current_user() . " " . $configDir);
+                throw new Exception("Impossible d'écrire le fichier .env après {$attempts} tentatives. Vérifiez les permissions du répertoire racine.");
             }
             
             // Vérifier que le fichier est lisible après écriture
             if (!is_readable($configFile)) {
-                throw new Exception("Le fichier de configuration a été créé mais n'est pas lisible");
+                throw new Exception("Le fichier .env a été créé mais n'est pas lisible");
             }
             
-            // Sécuriser le fichier après création
-            @chmod($configFile, 0640);
-            echo "<p>✅ Fichier de configuration créé et sécurisé</p>";
+            // Créer aussi le fichier API/config/env.php pour la compatibilité
+            $apiConfigDir = $installDir . '/API/config';
+            if (!is_dir($apiConfigDir)) {
+                @mkdir($apiConfigDir, 0755, true);
+            }
+            
+            $apiConfigFile = $apiConfigDir . '/env.php';
+            $apiConfigContent = "<?php\n";
+            $apiConfigContent .= "/**\n";
+            $apiConfigContent .= " * Configuration générée automatiquement le " . date('Y-m-d H:i:s') . "\n";
+            $apiConfigContent .= " * Ce fichier charge la configuration depuis .env\n";
+            $apiConfigContent .= " */\n\n";
+            $apiConfigContent .= "// Charger la configuration depuis .env\n";
+            $apiConfigContent .= "\$envFile = dirname(dirname(__DIR__)) . '/.env';\n";
+            $apiConfigContent .= "if (file_exists(\$envFile)) {\n";
+            $apiConfigContent .= "    \$lines = file(\$envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);\n";
+            $apiConfigContent .= "    foreach (\$lines as \$line) {\n";
+            $apiConfigContent .= "        if (strpos(\$line, '#') === 0 || strpos(\$line, '=') === false) continue;\n";
+            $apiConfigContent .= "        list(\$key, \$value) = explode('=', \$line, 2);\n";
+            $apiConfigContent .= "        \$key = trim(\$key);\n";
+            $apiConfigContent .= "        \$value = trim(\$value);\n";
+            $apiConfigContent .= "        if (!defined(\$key)) {\n";
+            $apiConfigContent .= "            define(\$key, \$value);\n";
+            $apiConfigContent .= "        }\n";
+            $apiConfigContent .= "    }\n";
+            $apiConfigContent .= "}\n\n";
+            $apiConfigContent .= "// Fuseau horaire\n";
+            $apiConfigContent .= "date_default_timezone_set('Europe/Paris');\n";
+            $apiConfigContent .= "?>";
+            
+            @file_put_contents($apiConfigFile, $apiConfigContent, LOCK_EX);
+            
+            echo "<p>✅ Fichier de configuration .env créé</p>";
+            echo "<p>✅ Fichier de compatibilité API créé</p>";
             echo "</div>";
             
             // ÉTAPE 2bis: Charger l'API après création de la configuration
@@ -913,33 +912,24 @@ function createAdminAccount($pdo, $nom, $prenom, $mail, $password) {
                 return true;
             } else {
                 echo "<p>⚠️ Création via API échouée, utilisation du fallback SQL</p>";
-                // Continuer avec la méthode SQL de fallback
             }
         } catch (Exception $e) {
             echo "<p>⚠️ Erreur API: " . htmlspecialchars($e->getMessage()) . ", utilisation du fallback SQL</p>";
-            // Continuer avec la méthode SQL de fallback
         }
     }
     
-    // Fallback : méthode SQL directe si l'API n'est pas disponible ou échoue
+    // Fallback : méthode SQL directe - UTILISE LA CONNEXION EXISTANTE, PAS DE NOUVELLE CONFIG
     $identifiant = 'admin_' . uniqid();
     $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
     
-    // Insérer l'administrateur
     $stmt = $pdo->prepare("
         INSERT INTO administrateurs (nom, prenom, mail, identifiant, mot_de_passe, adresse, role, actif) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ");
     
     $result = $stmt->execute([
-        $nom,
-        $prenom, 
-        $mail,
-        $identifiant,
-        $hashedPassword,
-        'Non spécifiée',
-        'administrateur',
-        1
+        $nom, $prenom, $mail, $identifiant, $hashedPassword,
+        'Non spécifiée', 'administrateur', 1
     ]);
     
     if (!$result) {
