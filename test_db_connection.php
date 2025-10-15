@@ -5,12 +5,42 @@
 
 header('Content-Type: text/html; charset=UTF-8');
 
-// Vérifier l'accès sécurisé
-$allowedIPs = ['127.0.0.1', '::1', '192.168.1.80', '82.65.180.135', '192.168.1.163', '192.168.1.193'];
+// Vérification de l'accès sécurisé améliorée
+$allowedIPs = ['127.0.0.1', '::1'];
 $clientIP = $_SERVER['REMOTE_ADDR'] ?? '';
 
-if (!in_array($clientIP, $allowedIPs)) {
-    die('Accès non autorisé depuis: ' . $clientIP);
+// Vérifier le fichier .env pour les IPs supplémentaires
+$envFile = __DIR__ . '/.env';
+$additionalIpAllowed = false;
+
+if (file_exists($envFile) && is_readable($envFile)) {
+    $envContent = file_get_contents($envFile);
+    if (preg_match('/ALLOWED_INSTALL_IP\s*=\s*(.+)/', $envContent, $matches)) {
+        $ipList = array_map('trim', explode(',', trim($matches[1])));
+        foreach ($ipList as $ip) {
+            if (filter_var($ip, FILTER_VALIDATE_IP) && $ip === $clientIP) {
+                $additionalIpAllowed = true;
+                break;
+            }
+        }
+    }
+}
+
+// Vérifier si c'est une IP du réseau local
+$isLocalNetwork = false;
+if ($clientIP) {
+    $localNetworks = ['192.168.', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', '172.26.', '172.27.', '172.28.', '172.29.', '172.30.', '172.31.'];
+    
+    foreach ($localNetworks as $network) {
+        if (strpos($clientIP, $network) === 0) {
+            $isLocalNetwork = true;
+            break;
+        }
+    }
+}
+
+if (!in_array($clientIP, $allowedIPs) && !$additionalIpAllowed && !$isLocalNetwork) {
+    die('Accès non autorisé depuis: ' . $clientIP . '. Ajoutez votre IP au fichier .env');
 }
 
 // Style CSS simple

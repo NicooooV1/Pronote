@@ -13,25 +13,97 @@ error_reporting(E_ALL);
 $allowedIPs = ['127.0.0.1', '::1'];
 $clientIP = filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP);
 
-// Vérifier le fichier .env pour les IPs supplémentaires
+// Vérifier le fichier .env pour les IPs supplémentaires - CORRECTION
 $envFile = __DIR__ . '/.env';
 $additionalIpAllowed = false;
 
 if (file_exists($envFile) && is_readable($envFile)) {
     $envContent = file_get_contents($envFile);
+    // Debug : afficher le contenu trouvé
+    echo "<!-- DEBUG: Contenu .env trouvé -->\n";
+    
     if (preg_match('/ALLOWED_INSTALL_IP\s*=\s*(.+)/', $envContent, $matches)) {
-        $ipList = array_map('trim', explode(',', trim($matches[1])));
+        $ipListString = trim($matches[1]);
+        $ipList = array_map('trim', explode(',', $ipListString));
+        
+        // Debug : afficher les IPs trouvées
+        echo "<!-- DEBUG: IPs autorisées dans .env: " . implode(', ', $ipList) . " -->\n";
+        
         foreach ($ipList as $ip) {
             if (filter_var($ip, FILTER_VALIDATE_IP) && $ip === $clientIP) {
                 $additionalIpAllowed = true;
+                echo "<!-- DEBUG: IP trouvée dans .env: {$ip} -->\n";
                 break;
             }
         }
     }
 }
 
-if (!in_array($clientIP, $allowedIPs) && !$additionalIpAllowed) {
-    die('Accès non autorisé depuis votre adresse IP: ' . $clientIP . '. Pour autoriser votre adresse IP, créez un fichier .env avec ALLOWED_INSTALL_IP=' . $clientIP);
+// Fonction améliorée pour vérifier si une IP est dans un réseau local
+function isLocalIP($ip) {
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        return false;
+    }
+    
+    // Plages d'adresses privées complètes
+    $privateRanges = [
+        ['10.0.0.0', '10.255.255.255'],
+        ['172.16.0.0', '172.31.255.255'],
+        ['192.168.0.0', '192.168.255.255'],
+        ['127.0.0.0', '127.255.255.255'], // Localhost
+    ];
+    
+    $ipLong = ip2long($ip);
+    if ($ipLong === false) {
+        return false;
+    }
+    
+    foreach ($privateRanges as $range) {
+        $startLong = ip2long($range[0]);
+        $endLong = ip2long($range[1]);
+        
+        if ($ipLong >= $startLong && $ipLong <= $endLong) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// Vérifier si c'est une IP du réseau local
+$isLocalNetwork = isLocalIP($clientIP);
+
+// Debug complet
+echo "<!-- DEBUG: IP client: {$clientIP} -->\n";
+echo "<!-- DEBUG: IP autorisée via .env: " . ($additionalIpAllowed ? 'OUI' : 'NON') . " -->\n";
+echo "<!-- DEBUG: IP réseau local: " . ($isLocalNetwork ? 'OUI' : 'NON') . " -->\n";
+
+// CORRECTION: Utiliser une logique d'autorisation plus permissive
+$accessAllowed = in_array($clientIP, $allowedIPs) || $additionalIpAllowed || $isLocalNetwork;
+
+// Si l'accès n'est toujours pas autorisé, autoriser explicitement les IPs du réseau 192.168.1.x
+if (!$accessAllowed && preg_match('/^192\.168\.1\./', $clientIP)) {
+    $accessAllowed = true;
+    echo "<!-- DEBUG: Accès autorisé via réseau 192.168.1.x -->\n";
+}
+
+echo "<!-- DEBUG: Accès final autorisé: " . ($accessAllowed ? 'OUI' : 'NON') . " -->\n";
+
+if (!$accessAllowed) {
+    $errorMessage = 'Accès non autorisé depuis votre adresse IP: ' . $clientIP;
+    
+    // Suggestions détaillées pour résoudre le problème
+    $errorMessage .= "\n\nInformations de débogage:\n";
+    $errorMessage .= "- IP détectée: {$clientIP}\n";
+    $errorMessage .= "- IP autorisée via .env: " . ($additionalIpAllowed ? 'OUI' : 'NON') . "\n";
+    $errorMessage .= "- IP réseau local: " . ($isLocalNetwork ? 'OUI' : 'NON') . "\n";
+    
+    $errorMessage .= "\nSolutions possibles:\n";
+    $errorMessage .= "1. Ajoutez votre IP au fichier .env avec: ALLOWED_INSTALL_IP=" . $clientIP . "\n";
+    $errorMessage .= "2. Ou modifiez la ligne existante dans .env pour inclure: " . $clientIP . "\n";
+    $errorMessage .= "3. Votre IP semble être dans un réseau local mais n'est pas reconnue\n";
+    
+    die($errorMessage);
 }
 
 // Répertoires à corriger
@@ -204,8 +276,8 @@ foreach ($directories as $dir) {
         
         $result['permissions_after'] = substr(sprintf('%o', fileperms($path)), -4);
         
-        // Vérifier si les permissions ont été modifiées
-        if ($result['permissions_before'] !== $result['permissions_after']) {
+        // Vérifier si les permissions ont été modifiées - CORRECTION SYNTAXE
+        if ($result['permissions_before'] != $result['permissions_after']) {
             $result['message'] = "Permissions modifiées de {$result['permissions_before']} à {$result['permissions_after']}";
         }
         
@@ -213,7 +285,7 @@ foreach ($directories as $dir) {
         $ownerChangeNeeded = false;
         if ($webServerUser && $result['status'] === 'success') {
             $currentOwner = posix_getpwuid(fileowner($path));
-            if (!$currentOwner || $currentOwner['name'] !== $webServerUser['name']) {
+            if (!$currentOwner || $currentOwner['name'] != $webServerUser['name']) {
                 $ownerChangeNeeded = true;
             }
         }
@@ -270,7 +342,16 @@ foreach ($results as $result) {
         <td><code>{$result['directory']}</code></td>
         <td>{$statusIcon}</td>
         <td>{$result['permissions_before']}</td>
-        <td>{$result['permissions_before'] !== $result['permissions_after'] ? '<strong>' . $result['permissions_after'] . '</strong>' : $result['permissions_after']}</td>
+        <td>";
+    
+    // CORRECTION SYNTAXE - Utiliser != au lieu de !==
+    if ($result['permissions_before'] != $result['permissions_after']) {
+        echo '<strong>' . $result['permissions_after'] . '</strong>';
+    } else {
+        echo $result['permissions_after'];
+    }
+    
+    echo "</td>
         <td>{$result['message']}</td>
     </tr>";
 }

@@ -14,10 +14,10 @@ if (!defined('APP_URL')) define('APP_URL', 'https://r207.borelly.net/~u22405372/
 if (!defined('APP_ENV')) define('APP_ENV', 'development');
 
 // Configuration de la base de données
-if (!defined('DB_HOST')) define('DB_HOST', 'localhost');
+if (!defined('DB_HOST')) define('DB_HOST', '192.168.1.250');
 if (!defined('DB_NAME')) define('DB_NAME', 'db_MASSE');
-if (!defined('DB_USER')) define('DB_USER', '22405372');
-if (!defined('DB_PASS')) define('DB_PASS', '807014');
+if (!defined('DB_USER')) define('DB_USER', 'root');
+if (!defined('DB_PASS')) define('DB_PASS', '9a4Cz5LP!^i-N5Qc/?k5');
 if (!defined('DB_CHARSET')) define('DB_CHARSET', 'utf8mb4');
 
 // Chemin racine de l'application
