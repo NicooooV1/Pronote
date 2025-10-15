@@ -303,14 +303,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("Impossible de se connecter au serveur MySQL: " . $e->getMessage());
             }
             
-            // Créer la base de données si elle n'existe pas
+            // Créer la base de données si elle n'existe pas - Version améliorée
             try {
                 $dbNameSafe = preg_replace('/[^a-zA-Z0-9_]/', '', $dbName);
-                $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$dbNameSafe}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-                $pdo->exec("USE `{$dbNameSafe}`");
-                echo "<p>✅ Base de données '{$dbNameSafe}' sélectionnée</p>";
-            } catch (PDOException $e) {
-                throw new Exception("Impossible de créer/sélectionner la base de données: " . $e->getMessage());
+                
+                // D'abord, essayer de se connecter à la base existante
+                try {
+                    $pdo->exec("USE `{$dbNameSafe}`");
+                    echo "<p>✅ Base de données '{$dbNameSafe}' trouvée et sélectionnée</p>";
+                } catch (PDOException $useException) {
+                    // La base n'existe pas, essayer de la créer
+                    echo "<p>ℹ️ Base de données '{$dbNameSafe}' non trouvée, tentative de création...</p>";
+                    
+                    try {
+                        $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$dbNameSafe}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                        $pdo->exec("USE `{$dbNameSafe}`");
+                        echo "<p>✅ Base de données '{$dbNameSafe}' créée et sélectionnée</p>";
+                    } catch (PDOException $createException) {
+                        // Si la création échoue, donner des instructions claires
+                        echo "<p class='warning'>⚠️ Impossible de créer automatiquement la base de données</p>";
+                        echo "<p><strong>Solution :</strong> Créez manuellement la base de données '{$dbNameSafe}' ou donnez les privilèges CREATE à l'utilisateur '{$dbUser}'.</p>";
+                        echo "<p><strong>Commande SQL :</strong><br><code>CREATE DATABASE `{$dbNameSafe}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;</code></p>";
+                        
+                        // Essayer une dernière fois de se connecter (au cas où elle aurait été créée entre temps)
+                        try {
+                            $pdo->exec("USE `{$dbNameSafe}`");
+                            echo "<p>✅ Base de données '{$dbNameSafe}' maintenant accessible</p>";
+                        } catch (PDOException $finalException) {
+                            throw new Exception("Base de données '{$dbNameSafe}' inaccessible. Veuillez la créer manuellement ou vérifier les privilèges de l'utilisateur '{$dbUser}'. Erreur: " . $finalException->getMessage());
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                throw new Exception("Erreur de configuration de la base de données: " . $e->getMessage());
             }
             
             echo "</div>";
@@ -461,7 +486,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo "<p>✅ Fichier de configuration créé et sécurisé</p>";
             echo "</div>";
             
-            // ÉTAPE 3: Créer la structure de base de données
+            // ÉTAPE 2bis: Charger l'API après création de la configuration
+            echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
+            echo "<h3>🔧 Étape 2bis: Initialisation de l'API</h3>";
+            
+            try {
+                // Maintenant que la configuration existe, charger l'API
+                $apiCorePath = __DIR__ . '/API/core.php';
+                if (file_exists($apiCorePath)) {
+                    require_once $apiCorePath;
+                    echo "<p>✅ API centralisée chargée</p>";
+                    
+                    // Vérifier que l'API a bien chargé la configuration
+                    if (defined('DB_HOST') && defined('DB_NAME')) {
+                        echo "<p>✅ Configuration chargée par l'API</p>";
+                        
+                        // Utiliser la connexion de l'API au lieu de $pdo local
+                        global $pdo;
+                        if (!isset($pdo)) {
+                            // Forcer la création de la connexion via l'API
+                            $pdo = new PDO(
+                                "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
+                                DB_USER,
+                                DB_PASS,
+                                [
+                                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                                    PDO::ATTR_EMULATE_PREPARES => false
+                                ]
+                            );
+                        }
+                        echo "<p>✅ Connexion base de données via API</p>";
+                    } else {
+                        throw new Exception("L'API n'a pas pu charger la configuration");
+                    }
+                } else {
+                    throw new Exception("Fichier API core.php non trouvé");
+                }
+            } catch (Exception $e) {
+                echo "<p class='warning'>⚠️ API non disponible, utilisation de la connexion directe</p>";
+                // Fallback: utiliser la connexion directe créée à l'étape 1
+            }
+            
+            echo "</div>";
+            
+            // ÉTAPE 3: Créer la structure de base de données (utilise $pdo qui peut venir de l'API ou direct)
             echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
             echo "<h3>🔧 Étape 3: Création de la base de données</h3>";
             
@@ -827,7 +896,32 @@ function createAdminAccount($pdo, $nom, $prenom, $mail, $password) {
         throw new Exception("Un compte administrateur existe déjà. L'installation ne peut pas continuer.");
     }
     
-    // Générer un identifiant unique
+    // Essayer d'abord la création via l'API si disponible
+    if (function_exists('createUser')) {
+        try {
+            $adminData = [
+                'nom' => $nom,
+                'prenom' => $prenom,
+                'mail' => $mail,
+                'adresse' => 'Non spécifiée'
+            ];
+            
+            $result = createUser('administrateur', $adminData);
+            
+            if ($result && isset($result['success']) && $result['success']) {
+                echo "<p>✅ Administrateur créé via l'API</p>";
+                return true;
+            } else {
+                echo "<p>⚠️ Création via API échouée, utilisation du fallback SQL</p>";
+                // Continuer avec la méthode SQL de fallback
+            }
+        } catch (Exception $e) {
+            echo "<p>⚠️ Erreur API: " . htmlspecialchars($e->getMessage()) . ", utilisation du fallback SQL</p>";
+            // Continuer avec la méthode SQL de fallback
+        }
+    }
+    
+    // Fallback : méthode SQL directe si l'API n'est pas disponible ou échoue
     $identifiant = 'admin_' . uniqid();
     $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
     
@@ -851,6 +945,9 @@ function createAdminAccount($pdo, $nom, $prenom, $mail, $password) {
     if (!$result) {
         throw new Exception("Erreur lors de la création du compte administrateur");
     }
+    
+    echo "<p>✅ Administrateur créé via SQL (fallback)</p>";
+    return true;
 }
 
 // Fonction pour finaliser l'installation avec gestion d'erreur

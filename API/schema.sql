@@ -1,26 +1,45 @@
--- SQL Schema for Pronote - Structure complète et corrigée
--- This file contains only the database structure without any sample data
-
+-- Pronote empty schema (structure only) - corrected
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
-SET SESSION FOREIGN_KEY_CHECKS=0;
+SET SESSION FOREIGN_KEY_CHECKS = 0;
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
 /*!40101 SET NAMES utf8mb4 */;
 
--- Créer la base de données si elle n'existe pas
-CREATE DATABASE IF NOT EXISTS `pronote` 
-  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- Create and select database
+CREATE DATABASE IF NOT EXISTS `pronote` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `pronote`;
 
 -- --------------------------------------------------------
--- Structure de la table `administrateurs`
+-- Drop existing tables (if any)
+-- --------------------------------------------------------
+DROP TABLE IF EXISTS `message_notifications`;
+DROP TABLE IF EXISTS `message_attachments`;
+DROP TABLE IF EXISTS `messages`;
+DROP TABLE IF EXISTS `notifications`;
+DROP TABLE IF EXISTS `notes`;
+DROP TABLE IF EXISTS `absences`;
+DROP TABLE IF EXISTS `professeur_classes`;
+DROP TABLE IF EXISTS `rate_limits`;
+DROP TABLE IF EXISTS `retards`;
+DROP TABLE IF EXISTS `user_notification_preferences`;
+DROP TABLE IF EXISTS `classes`;
+DROP TABLE IF EXISTS `matieres`;
+DROP TABLE IF EXISTS `vie_scolaire`;
+DROP TABLE IF EXISTS `parents`;
+DROP TABLE IF EXISTS `professeurs`;
+DROP TABLE IF EXISTS `eleves`;
+DROP TABLE IF EXISTS `administrateurs`;
+DROP TABLE IF EXISTS `audit_log`;
+DROP TABLE IF EXISTS `session_security`;
+
+-- --------------------------------------------------------
+-- Tables
 -- --------------------------------------------------------
 
-DROP TABLE IF EXISTS `administrateurs`;
 CREATE TABLE `administrateurs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nom` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -43,11 +62,6 @@ CREATE TABLE `administrateurs` (
   UNIQUE KEY `mail` (`mail`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Structure de la table `eleves`
--- --------------------------------------------------------
-
-DROP TABLE IF EXISTS `eleves`;
 CREATE TABLE `eleves` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nom` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -72,11 +86,6 @@ CREATE TABLE `eleves` (
   KEY `idx_classe` (`classe`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Structure de la table `professeurs`
--- --------------------------------------------------------
-
-DROP TABLE IF EXISTS `professeurs`;
 CREATE TABLE `professeurs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nom` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -100,11 +109,6 @@ CREATE TABLE `professeurs` (
   KEY `idx_matiere` (`matiere`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Structure de la table `parents`
--- --------------------------------------------------------
-
-DROP TABLE IF EXISTS `parents`;
 CREATE TABLE `parents` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nom` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -127,11 +131,6 @@ CREATE TABLE `parents` (
   UNIQUE KEY `identifiant` (`identifiant`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Structure de la table `vie_scolaire`
--- --------------------------------------------------------
-
-DROP TABLE IF EXISTS `vie_scolaire`;
 CREATE TABLE `vie_scolaire` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nom` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -153,11 +152,6 @@ CREATE TABLE `vie_scolaire` (
   UNIQUE KEY `identifiant` (`identifiant`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Structure de la table `matieres`
--- --------------------------------------------------------
-
-DROP TABLE IF EXISTS `matieres`;
 CREATE TABLE `matieres` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nom` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -169,11 +163,6 @@ CREATE TABLE `matieres` (
   UNIQUE KEY `code` (`code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Structure de la table `classes`
--- --------------------------------------------------------
-
-DROP TABLE IF EXISTS `classes`;
 CREATE TABLE `classes` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nom` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -184,13 +173,8 @@ CREATE TABLE `classes` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `nom_annee` (`nom`, `annee_scolaire`),
   KEY `idx_professeur_principal` (`professeur_principal_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Structure de la table `notes`
--- --------------------------------------------------------
-
-DROP TABLE IF EXISTS `notes`;
 CREATE TABLE `notes` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `id_eleve` int(11) NOT NULL,
@@ -210,13 +194,8 @@ CREATE TABLE `notes` (
   KEY `idx_professeur` (`id_professeur`),
   KEY `idx_date` (`date_note`),
   KEY `idx_trimestre` (`trimestre`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Structure de la table `absences`
--- --------------------------------------------------------
-
-DROP TABLE IF EXISTS `absences`;
 CREATE TABLE `absences` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `id_eleve` int(11) NOT NULL,
@@ -232,20 +211,24 @@ CREATE TABLE `absences` (
   PRIMARY KEY (`id`),
   KEY `idx_eleve` (`id_eleve`),
   KEY `idx_date` (`date_debut`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- --------------------------------------------------------
--- Structure de la table `retards`
--- --------------------------------------------------------
+-- MESSAGES (needed for FKs)
+CREATE TABLE `messages` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `conversation_id` int(11) NOT NULL,
+  `sender_id` int(11) NOT NULL,
+  `sender_type` enum('eleve','parent','professeur','vie_scolaire','administrateur') NOT NULL,
+  `body` text NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `status` enum('normal','important','urgent','annonce') NOT NULL DEFAULT 'normal',
+  PRIMARY KEY (`id`),
+  KEY `idx_conversation` (`conversation_id`),
+  KEY `idx_sender` (`sender_id`,`sender_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-DROP TABLE IF EXISTS `retards`;
-CREATE TABLE `retards` (
-  `id` int(11) NOT NULL AUTO_INCREMENT
---
--- Structure de la table `message_attachments`
---
-
-CREATE TABLE IF NOT EXISTS `message_attachments` (
+CREATE TABLE `message_attachments` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `message_id` int(11) NOT NULL,
   `file_name` varchar(255) NOT NULL,
@@ -255,13 +238,7 @@ CREATE TABLE IF NOT EXISTS `message_attachments` (
   KEY `message_id` (`message_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
-
---
--- Structure de la table `message_notifications`
---
-
-CREATE TABLE IF NOT EXISTS `message_notifications` (
+CREATE TABLE `message_notifications` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `user_type` enum('eleve','parent','professeur','vie_scolaire','administrateur') NOT NULL,
@@ -272,40 +249,10 @@ CREATE TABLE IF NOT EXISTS `message_notifications` (
   `read_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `message_id` (`message_id`),
-  KEY `idx_message_notifications_user_read` (`user_id`,`user_type`,`is_read`),
-  KEY `idx_message_notif_user_read` (`user_id`,`user_type`,`is_read`)
+  KEY `idx_message_notifications_user_read` (`user_id`,`user_type`,`is_read`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
-
---
--- Structure de la table `notes`
---
-
-CREATE TABLE IF NOT EXISTS `notes` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `nom_eleve` varchar(255) NOT NULL,
-  `nom_matiere` varchar(255) NOT NULL,
-  `nom_professeur` varchar(255) NOT NULL,
-  `note` float NOT NULL,
-  `date_ajout` date NOT NULL,
-  `classe` varchar(10) DEFAULT NULL,
-  `coefficient` int(11) NOT NULL DEFAULT 1,
-  `description` varchar(255) DEFAULT NULL,
-  `date_evaluation` date DEFAULT NULL,
-  `date_creation` timestamp NOT NULL DEFAULT current_timestamp(),
-  `matiere` varchar(100) NOT NULL,
-  `trimestre` int(11) DEFAULT 1,
-  PRIMARY KEY (`id`)
-) ;
-
--- --------------------------------------------------------
-
---
--- Structure de la table `notifications`
---
-
-CREATE TABLE IF NOT EXISTS `notifications` (
+CREATE TABLE `notifications` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `type` enum('creation','rappel','correction') NOT NULL,
   `id_devoir` int(11) NOT NULL,
@@ -314,75 +261,17 @@ CREATE TABLE IF NOT EXISTS `notifications` (
   `date_envoi` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `id_devoir` (`id_devoir`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
-
---
--- Structure de la table `parents`
---
-
-CREATE TABLE IF NOT EXISTS `parents` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `nom` varchar(100) NOT NULL,
-  `prenom` varchar(100) NOT NULL,
-  `mail` varchar(150) NOT NULL,
-  `adresse` varchar(255) NOT NULL,
-  `telephone` varchar(20) DEFAULT NULL,
-  `metier` varchar(100) DEFAULT NULL,
-  `identifiant` varchar(50) NOT NULL,
-  `mot_de_passe` varchar(255) NOT NULL,
-  `est_parent_eleve` enum('oui','non') NOT NULL DEFAULT 'non',
-  `date_creation` datetime DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `mail` (`mail`),
-  UNIQUE KEY `identifiant` (`identifiant`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Structure de la table `professeurs`
---
-
-CREATE TABLE IF NOT EXISTS `professeurs` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `nom` varchar(100) NOT NULL,
-  `prenom` varchar(100) NOT NULL,
-  `mail` varchar(150) NOT NULL,
-  `adresse` varchar(255) NOT NULL,
-  `telephone` varchar(20) DEFAULT NULL,
-  `identifiant` varchar(50) NOT NULL,
-  `mot_de_passe` varchar(255) NOT NULL,
-  `professeur_principal` varchar(50) NOT NULL DEFAULT 'non',
-  `matiere` varchar(100) NOT NULL,
-  `date_creation` datetime DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `mail` (`mail`),
-  UNIQUE KEY `identifiant` (`identifiant`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Structure de la table `professeur_classes`
---
-
-CREATE TABLE IF NOT EXISTS `professeur_classes` (
+CREATE TABLE `professeur_classes` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `id_professeur` int(11) NOT NULL,
   `nom_classe` varchar(50) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_prof_class` (`id_professeur`,`nom_classe`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
-
---
--- Structure de la table `rate_limits`
---
-
-CREATE TABLE IF NOT EXISTS `rate_limits` (
+CREATE TABLE `rate_limits` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `rate_key` varchar(255) NOT NULL,
   `attempts` int(11) NOT NULL DEFAULT 1,
@@ -390,15 +279,9 @@ CREATE TABLE IF NOT EXISTS `rate_limits` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `rate_key` (`rate_key`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
-
---
--- Structure de la table `retards`
---
-
-CREATE TABLE IF NOT EXISTS `retards` (
+CREATE TABLE `retards` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `id_eleve` int(11) NOT NULL,
   `date_retard` datetime NOT NULL,
@@ -411,15 +294,9 @@ CREATE TABLE IF NOT EXISTS `retards` (
   `date_modification` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `id_eleve` (`id_eleve`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
-
---
--- Structure de la table `user_notification_preferences`
---
-
-CREATE TABLE IF NOT EXISTS `user_notification_preferences` (
+CREATE TABLE `user_notification_preferences` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `user_type` enum('eleve','parent','professeur','vie_scolaire','administrateur') NOT NULL,
@@ -434,195 +311,56 @@ CREATE TABLE IF NOT EXISTS `user_notification_preferences` (
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_user` (`user_id`,`user_type`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
-
---
--- Structure de la table `vie_scolaire`
---
-
-CREATE TABLE IF NOT EXISTS `vie_scolaire` (
+-- Optional tables seen earlier
+CREATE TABLE `audit_log` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `nom` varchar(100) NOT NULL,
-  `prenom` varchar(100) NOT NULL,
-  `mail` varchar(150) NOT NULL,
-  `telephone` varchar(20) DEFAULT NULL,
-  `identifiant` varchar(50) NOT NULL,
-  `mot_de_passe` varchar(255) NOT NULL,
-  `est_CPE` enum('oui','non') NOT NULL DEFAULT 'non',
-  `est_infirmerie` enum('oui','non') NOT NULL DEFAULT 'non',
-  `date_creation` datetime DEFAULT current_timestamp(),
+  `user_id` int(11) DEFAULT NULL,
+  `user_type` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `action` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `table_affected` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `record_id` int(11) DEFAULT NULL,
+  `old_values` json DEFAULT NULL,
+  `new_values` json DEFAULT NULL,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_agent` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `mail` (`mail`),
-  UNIQUE KEY `identifiant` (`identifiant`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  KEY `idx_user` (`user_id`, `user_type`),
+  KEY `idx_action` (`action`),
+  KEY `idx_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `session_security` (
+  `id` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `user_type` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_agent` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `last_activity` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `expires_at` timestamp NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  KEY `idx_user` (`user_id`, `user_type`),
+  KEY `idx_expires` (`expires_at`),
+  KEY `idx_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
+-- Foreign keys (add after all tables exist)
+-- --------------------------------------------------------
 
--- AUTO_INCREMENT pour les tables déchargées
---
-
---
--- AUTO_INCREMENT pour la table `absences`
---
-ALTER TABLE `absences`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `administrateurs`
---
-ALTER TABLE `administrateurs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `cahier_texte`
---
-ALTER TABLE `cahier_texte`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `conversations`
---
-ALTER TABLE `conversations`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `conversation_participants`
---
-ALTER TABLE `conversation_participants`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `devoirs`
---
-ALTER TABLE `devoirs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `devoirs_status`
---
-ALTER TABLE `devoirs_status`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `eleves`
---
-ALTER TABLE `eleves`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `evenements`
---
-ALTER TABLE `evenements`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `justificatifs`
---
-ALTER TABLE `justificatifs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `messages`
---
-ALTER TABLE `messages`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `message_attachments`
---
 ALTER TABLE `message_attachments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  ADD CONSTRAINT `message_attachments_ibfk_1`
+    FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE;
 
---
--- AUTO_INCREMENT pour la table `message_notifications`
---
 ALTER TABLE `message_notifications`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  ADD CONSTRAINT `message_notifications_ibfk_1`
+    FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE;
 
---
--- AUTO_INCREMENT pour la table `notes`
---
-ALTER TABLE `notes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `notifications`
---
-ALTER TABLE `notifications`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `parents`
---
-ALTER TABLE `parents`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `professeurs`
---
-ALTER TABLE `professeurs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `professeur_classes`
---
-ALTER TABLE `professeur_classes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `rate_limits`
---
-ALTER TABLE `rate_limits`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `retards`
---
-ALTER TABLE `retards`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `user_notification_preferences`
---
-ALTER TABLE `user_notification_preferences`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT pour la table `vie_scolaire`
---
-ALTER TABLE `vie_scolaire`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- Contraintes pour les tables déchargées
---
-
---
--- Contraintes pour la table `conversation_participants`
---
-ALTER TABLE `conversation_participants`
-  ADD CONSTRAINT `conversation_participants_ibfk_1` FOREIGN KEY (`conversation_id`) REFERENCES `conversations` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `conversation_participants_ibfk_2` FOREIGN KEY (`last_read_message_id`) REFERENCES `messages` (`id`);
-
---
--- Contraintes pour la table `messages`
---
-ALTER TABLE `messages`
-  ADD CONSTRAINT `messages_ibfk_1` FOREIGN KEY (`conversation_id`) REFERENCES `conversations` (`id`) ON DELETE CASCADE;
-
---
--- Contraintes pour la table `message_attachments`
---
-ALTER TABLE `message_attachments`
-  ADD CONSTRAINT `message_attachments_ibfk_1` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE;
-
---
--- Contraintes pour la table `message_notifications`
---
-ALTER TABLE `message_notifications`
-  ADD CONSTRAINT `message_notifications_ibfk_1` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE;
+SET SESSION FOREIGN_KEY_CHECKS = 1;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
