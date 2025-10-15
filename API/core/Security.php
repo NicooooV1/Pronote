@@ -1,25 +1,25 @@
 <?php
 /**
- * Module de sécurité centralisé
+ * Module de sécurité CENTRALISÉ UNIQUE
+ * Toutes les fonctions de sécurité de l'application
+ * 
+ * @version 4.0
  */
 
 if (!defined('PRONOTE_SECURITY_LOADED')) {
     define('PRONOTE_SECURITY_LOADED', true);
 }
 
-/**
- * Génère un token CSRF sécurisé
- */
+// ==================== CSRF ====================
+
 function generateCSRFToken() {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
+    if (session_status() === PHP_SESSION_NONE) session_start();
     
     if (!isset($_SESSION['csrf_tokens'])) {
         $_SESSION['csrf_tokens'] = [];
     }
     
-    // Nettoyer les tokens expirés
+    // Nettoyer tokens expirés
     $now = time();
     foreach ($_SESSION['csrf_tokens'] as $token => $timestamp) {
         if ($now - $timestamp > CSRF_TOKEN_LIFETIME) {
@@ -33,113 +33,68 @@ function generateCSRFToken() {
     return $token;
 }
 
-/**
- * Valide un token CSRF
- */
 function validateCSRFToken($token) {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
+    if (session_status() === PHP_SESSION_NONE) session_start();
     
     if (empty($token) || !isset($_SESSION['csrf_tokens'][$token])) {
-        logSecurityEvent('csrf_token_invalid', ['token' => substr($token, 0, 8) . '...']);
+        logSecurityEvent('csrf_invalid', ['token' => substr($token, 0, 8)]);
         http_response_code(403);
         die('Token de sécurité invalide');
     }
     
-    // Vérifier l'expiration
-    if (time() - $_SESSION['csrf_tokens'][$token] > 3600) {
+    if (time() - $_SESSION['csrf_tokens'][$token] > CSRF_TOKEN_LIFETIME) {
         unset($_SESSION['csrf_tokens'][$token]);
-        logSecurityEvent('csrf_token_expired', ['token' => substr($token, 0, 8) . '...']);
+        logSecurityEvent('csrf_expired', ['token' => substr($token, 0, 8)]);
         http_response_code(403);
         die('Token de sécurité expiré');
     }
     
-    // Token valide, le supprimer pour usage unique
     unset($_SESSION['csrf_tokens'][$token]);
-    
     return true;
 }
 
-/**
- * Validation d'email sécurisée
- */
+// ==================== VALIDATION ====================
+
 function validateEmail($email) {
-    if (empty($email)) {
+    if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         return false;
     }
     
-    // Validation de base
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        return false;
-    }
-    
-    // Vérifications supplémentaires
     if (strlen($email) > 254) {
         return false;
     }
     
-    // Vérifier les domaines suspects
-    $suspiciousDomains = ['tempmail.', 'guerrillamail.', '10minutemail.'];
-    foreach ($suspiciousDomains as $domain) {
-        if (strpos($email, $domain) !== false) {
-            return false;
-        }
-    }
-    
     return true;
 }
 
-/**
- * Validation de mot de passe sécurisée
- */
 function validatePassword($password) {
     $errors = [];
     
-    if (strlen($password) < 12) {
-        $errors[] = "Le mot de passe doit contenir au moins 12 caractères";
+    if (strlen($password) < PASSWORD_MIN_LENGTH) {
+        $errors[] = "Le mot de passe doit contenir au moins " . PASSWORD_MIN_LENGTH . " caractères";
     }
     
     if (!preg_match('/[A-Z]/', $password)) {
-        $errors[] = "Le mot de passe doit contenir au moins une majuscule";
+        $errors[] = "Au moins une majuscule requise";
     }
     
     if (!preg_match('/[a-z]/', $password)) {
-        $errors[] = "Le mot de passe doit contenir au moins une minuscule";
+        $errors[] = "Au moins une minuscule requise";
     }
     
     if (!preg_match('/[0-9]/', $password)) {
-        $errors[] = "Le mot de passe doit contenir au moins un chiffre";
+        $errors[] = "Au moins un chiffre requis";
     }
     
     if (!preg_match('/[^a-zA-Z0-9]/', $password)) {
-        $errors[] = "Le mot de passe doit contenir au moins un caractère spécial";
-    }
-    
-    // Vérifier les mots de passe communs
-    $commonPasswords = ['password123', 'admin123', 'azerty123', 'qwerty123'];
-    if (in_array(strtolower($password), $commonPasswords)) {
-        $errors[] = "Ce mot de passe est trop commun";
+        $errors[] = "Au moins un caractère spécial requis";
     }
     
     return empty($errors) ? true : $errors;
 }
 
-/**
- * Validation de date
- */
-function validateDate($date, $format = 'Y-m-d') {
-    $d = DateTime::createFromFormat($format, $date);
-    return $d && $d->format($format) === $date;
-}
-
-/**
- * Nettoyage sécurisé des entrées
- */
 function sanitizeInput($input, $type = 'string') {
-    if ($input === null) {
-        return null;
-    }
+    if ($input === null) return null;
     
     switch ($type) {
         case 'string':
@@ -157,63 +112,10 @@ function sanitizeInput($input, $type = 'string') {
     }
 }
 
-/**
- * Logging sécurisé des événements
- */
-function logSecurityEvent($event, $data = []) {
-    $logDir = __DIR__ . '/../logs';
-    if (!is_dir($logDir)) {
-        @mkdir($logDir, 0755, true);
-    }
-    
-    $logFile = $logDir . '/security_' . date('Y-m-d') . '.log';
-    
-    $logEntry = [
-        'timestamp' => date('Y-m-d H:i:s'),
-        'event' => $event,
-        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
-        'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown',
-        'user_id' => $_SESSION['user']['id'] ?? 'anonymous',
-        'data' => $data
-    ];
-    
-    $logLine = json_encode($logEntry) . "\n";
-    
-    @file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
-}
+// ==================== RATE LIMITING ====================
 
-/**
- * Logging des erreurs sécurisé
- */
-function logError($message, $context = []) {
-    $logDir = __DIR__ . '/../logs';
-    if (!is_dir($logDir)) {
-        @mkdir($logDir, 0755, true);
-    }
-    
-    $logFile = $logDir . '/error_' . date('Y-m-d') . '.log';
-    
-    $logEntry = [
-        'timestamp' => date('Y-m-d H:i:s'),
-        'level' => 'ERROR',
-        'message' => $message,
-        'context' => $context,
-        'file' => debug_backtrace()[1]['file'] ?? 'unknown',
-        'line' => debug_backtrace()[1]['line'] ?? 'unknown'
-    ];
-    
-    $logLine = json_encode($logEntry) . "\n";
-    
-    @file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
-}
-
-/**
- * Protection contre les attaques par force brute
- */
 function checkRateLimit($identifier, $maxAttempts = 5, $timeWindow = 300) {
-    if (session_status() === PHP_SESSION_NONE) {
-        return true;
-    }
+    if (session_status() === PHP_SESSION_NONE) return true;
     
     $key = 'rate_limit_' . hash('sha256', $identifier);
     $now = time();
@@ -232,100 +134,42 @@ function checkRateLimit($identifier, $maxAttempts = 5, $timeWindow = 300) {
     
     $_SESSION[$key]['count']++;
     
-    if ($data['count'] >= $maxAttempts) {
-        logSecurityEvent('rate_limit_exceeded', ['identifier' => $identifier]);
-        return false;
-    }
-    
-    return true;
+    return $data['count'] < $maxAttempts;
 }
 
-/**
- * Redirection sécurisée
- */
-function redirectTo($url, $message = null, $type = 'info') {
-    if ($message) {
-        setFlashMessage($type, $message);
-    }
-    
-    // Validation de l'URL pour éviter les redirections ouvertes
-    if (!filter_var($url, FILTER_VALIDATE_URL) && !preg_match('/^[a-zA-Z0-9\/_\-\.]+\.php(\?.*)?$/', $url)) {
-        $url = '/';
-    }
-    
-    header('Location: ' . $url);
-    exit;
-}
+// ==================== LOGGING ====================
 
-/**
- * Gestion des messages flash
- */
-function setFlashMessage($type, $message) {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
+function logSecurityEvent($event, $data = []) {
+    $logDir = LOGS_PATH;
+    if (!is_dir($logDir)) @mkdir($logDir, 0755, true);
     
-    if (!isset($_SESSION['flash_messages'])) {
-        $_SESSION['flash_messages'] = [];
-    }
-    
-    $_SESSION['flash_messages'][] = [
-        'type' => $type,
-        'message' => $message
+    $user = getCurrentUser();
+    $logEntry = [
+        'timestamp' => date('Y-m-d H:i:s'),
+        'event' => $event,
+        'user_id' => $user['id'] ?? null,
+        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+        'user_agent' => substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255),
+        'data' => $data
     ];
+    
+    $logFile = $logDir . '/security_' . date('Y-m-d') . '.log';
+    @file_put_contents($logFile, json_encode($logEntry) . "\n", FILE_APPEND | LOCK_EX);
 }
 
-/**
- * Récupération des messages flash
- */
-function getFlashMessages() {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
+function logError($message, $context = []) {
+    $logDir = LOGS_PATH;
+    if (!is_dir($logDir)) @mkdir($logDir, 0755, true);
     
-    $messages = $_SESSION['flash_messages'] ?? [];
-    unset($_SESSION['flash_messages']);
+    $logEntry = [
+        'timestamp' => date('Y-m-d H:i:s'),
+        'level' => 'ERROR',
+        'message' => $message,
+        'context' => $context,
+        'file' => debug_backtrace()[1]['file'] ?? 'unknown',
+        'line' => debug_backtrace()[1]['line'] ?? 'unknown'
+    ];
     
-    return $messages;
-}
-
-/**
- * Formatage sécurisé des dates
- */
-function formatDate($date, $format = 'd/m/Y') {
-    if (empty($date)) {
-        return '';
-    }
-    
-    try {
-        $dateObj = new DateTime($date);
-        return $dateObj->format($format);
-    } catch (Exception $e) {
-        return '';
-    }
-}
-
-/**
- * Nettoyage des sessions expirées
- */
-function cleanExpiredSessions() {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
-    
-    $now = time();
-    $sessionLifetime = ini_get('session.gc_maxlifetime') ?: 1440;
-    
-    if (!isset($_SESSION['last_activity'])) {
-        $_SESSION['last_activity'] = $now;
-        return true;
-    }
-    
-    if ($now - $_SESSION['last_activity'] > $sessionLifetime) {
-        session_destroy();
-        return false;
-    }
-    
-    $_SESSION['last_activity'] = $now;
-    return true;
+    $logFile = $logDir . '/error_' . date('Y-m-d') . '.log';
+    @file_put_contents($logFile, json_encode($logEntry) . "\n", FILE_APPEND | LOCK_EX);
 }

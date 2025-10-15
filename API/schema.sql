@@ -353,12 +353,25 @@ CREATE TABLE `session_security` (
 -- --------------------------------------------------------
 
 ALTER TABLE `message_attachments`
-  ADD CONSTRAINT `message_attachments_ibfk_1`
-    FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `message_attachments_ibfk_1` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE;
 
 ALTER TABLE `message_notifications`
-  ADD CONSTRAINT `message_notifications_ibfk_1`
-    FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `message_notifications_ibfk_1` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE;
+
+-- Additional recommended foreign keys
+ALTER TABLE `notes`
+  ADD CONSTRAINT `notes_ibfk_1` FOREIGN KEY (`id_eleve`) REFERENCES `eleves` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `notes_ibfk_2` FOREIGN KEY (`id_matiere`) REFERENCES `matieres` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `notes_ibfk_3` FOREIGN KEY (`id_professeur`) REFERENCES `professeurs` (`id`) ON DELETE CASCADE;
+
+ALTER TABLE `absences`
+  ADD CONSTRAINT `absences_ibfk_1` FOREIGN KEY (`id_eleve`) REFERENCES `eleves` (`id`) ON DELETE CASCADE;
+
+ALTER TABLE `professeur_classes`
+  ADD CONSTRAINT `professeur_classes_ibfk_1` FOREIGN KEY (`id_professeur`) REFERENCES `professeurs` (`id`) ON DELETE CASCADE;
+
+ALTER TABLE `classes`
+  ADD CONSTRAINT `classes_ibfk_1` FOREIGN KEY (`professeur_principal_id`) REFERENCES `professeurs` (`id`) ON DELETE SET NULL;
 
 SET SESSION FOREIGN_KEY_CHECKS = 1;
 COMMIT;
