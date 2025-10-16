@@ -1,8 +1,8 @@
 <?php
 /**
- * Script d'installation de Pronote - VERSION COMPLÈTE ET AUTO-CORRECTIVE
- * Ce script s'auto-désactivera après une installation réussie
- * Il corrige automatiquement tous les problèmes de structure de base de données
+ * Script d'installation de Pronote - VERSION COMPLÈTE ET AUTO-DESTRUCTRICE
+ * Ce script se supprime automatiquement après une installation réussie
+ * Il supprime définitivement tous les fichiers temporaires et recrée une base de données vierge
  */
 
 // Configuration de sécurité et gestion d'erreurs améliorée
@@ -37,25 +37,25 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('X-XSS-Protection: 1; mode=block');
 
-// NETTOYAGE AUTOMATIQUE DES FICHIERS TEMPORAIRES
-$filesToClean = [
+// SUPPRESSION DÉFINITIVE DES FICHIERS TEMPORAIRES ET DE TEST
+$filesToDelete = [
     'check_database_health.php',
     'fix_complete_database.php', 
     'test_permissions.php',
     'test_db_connection.php',
-    'debug_ip.php'
+    'debug_ip.php',
+    'fix_permissions.php',
+    'diagnostic.php'
 ];
 
-foreach ($filesToClean as $file) {
+foreach ($filesToDelete as $file) {
     $filePath = __DIR__ . '/' . $file;
     if (file_exists($filePath)) {
-        // Vérifier si le fichier contient du code de redirection (déjà nettoyé)
-        $content = file_get_contents($filePath);
-        if (strpos($content, 'Ce fichier a été supprimé') === false && 
-            strpos($content, 'fichier de débogage temporaire') === false) {
-            // Remplacer par une redirection de sécurité
-            $redirectContent = "<?php\n// Fichier supprimé - redirection de sécurité\nheader('Location: install.php');\nexit;\n?>";
-            @file_put_contents($filePath, $redirectContent);
+        // Suppression définitive sans redirection
+        if (@unlink($filePath)) {
+            error_log("Fichier temporaire supprimé : $file");
+        } else {
+            error_log("Impossible de supprimer le fichier temporaire : $file");
         }
     }
 }
@@ -63,7 +63,17 @@ foreach ($filesToClean as $file) {
 // Vérifier si l'installation est déjà terminée
 $installLockFile = __DIR__ . '/install.lock';
 if (file_exists($installLockFile)) {
-    die('L\'installation a déjà été effectuée. Pour réinstaller, supprimez le fichier install.lock du répertoire racine.');
+    die('<div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 5px; margin: 20px; font-family: Arial;">
+        <h2>🔒 Installation déjà effectuée</h2>
+        <p>Pronote a déjà été installé sur ce système.</p>
+        <h3>Pour réinstaller complètement :</h3>
+        <ol>
+            <li>Supprimez le fichier <code>install.lock</code></li>
+            <li>Recréez le fichier <code>install.php</code> depuis la distribution originale</li>
+            <li>Supprimez manuellement le fichier <code>.env</code> si nécessaire</li>
+        </ol>
+        <p><strong>⚠️ Attention :</strong> Une réinstallation supprimera toutes les données existantes.</p>
+    </div>');
 }
 
 // Vérification de la version PHP
@@ -284,9 +294,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("Le mot de passe doit contenir au moins 3 des 4 types de caractères suivants : majuscule, minuscule, chiffre, caractère spécial");
             }
             
-            // ÉTAPE 1: Tester et configurer la base de données avec gestion d'erreur
+            // ÉTAPE 1: Tester et configurer la base de données avec suppression/recréation
             echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
-            echo "<h3>🔧 Étape 1: Test de la base de données</h3>";
+            echo "<h3>🔧 Étape 1: Gestion de la base de données</h3>";
             
             $dsn = "mysql:host={$dbHost};charset=utf8mb4";
             $options = [
@@ -303,39 +313,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("Impossible de se connecter au serveur MySQL: " . $e->getMessage());
             }
             
-            // Créer la base de données si elle n'existe pas - Version améliorée
+            // Supprimer la base de données existante et en créer une nouvelle vierge
             try {
                 $dbNameSafe = preg_replace('/[^a-zA-Z0-9_]/', '', $dbName);
                 
-                // D'abord, essayer de se connecter à la base existante
-                try {
-                    $pdo->exec("USE `{$dbNameSafe}`");
-                    echo "<p>✅ Base de données '{$dbNameSafe}' trouvée et sélectionnée</p>";
-                } catch (PDOException $useException) {
-                    // La base n'existe pas, essayer de la créer
-                    echo "<p>ℹ️ Base de données '{$dbNameSafe}' non trouvée, tentative de création...</p>";
+                // Vérifier si la base de données existe
+                $stmt = $pdo->prepare("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?");
+                $stmt->execute([$dbNameSafe]);
+                $dbExists = $stmt->fetch();
+                
+                if ($dbExists) {
+                    echo "<p>⚠️ Base de données '{$dbNameSafe}' existante détectée</p>";
+                    echo "<p>🗑️ Suppression de l'ancienne base de données...</p>";
                     
                     try {
-                        $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$dbNameSafe}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-                        $pdo->exec("USE `{$dbNameSafe}`");
-                        echo "<p>✅ Base de données '{$dbNameSafe}' créée et sélectionnée</p>";
-                    } catch (PDOException $createException) {
-                        // Si la création échoue, donner des instructions claires
-                        echo "<p class='warning'>⚠️ Impossible de créer automatiquement la base de données</p>";
-                        echo "<p><strong>Solution :</strong> Créez manuellement la base de données '{$dbNameSafe}' ou donnez les privilèges CREATE à l'utilisateur '{$dbUser}'.</p>";
-                        echo "<p><strong>Commande SQL :</strong><br><code>CREATE DATABASE `{$dbNameSafe}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;</code></p>";
-                        
-                        // Essayer une dernière fois de se connecter (au cas où elle aurait été créée entre temps)
-                        try {
-                            $pdo->exec("USE `{$dbNameSafe}`");
-                            echo "<p>✅ Base de données '{$dbNameSafe}' maintenant accessible</p>";
-                        } catch (PDOException $finalException) {
-                            throw new Exception("Base de données '{$dbNameSafe}' inaccessible. Veuillez la créer manuellement ou vérifier les privilèges de l'utilisateur '{$dbUser}'. Erreur: " . $finalException->getMessage());
-                        }
+                        $pdo->exec("DROP DATABASE `{$dbNameSafe}`");
+                        echo "<p>✅ Ancienne base de données supprimée</p>";
+                    } catch (PDOException $dropException) {
+                        throw new Exception("Impossible de supprimer l'ancienne base de données '{$dbNameSafe}': " . $dropException->getMessage());
                     }
                 }
+                
+                // Créer une nouvelle base de données vierge
+                echo "<p>🆕 Création d'une nouvelle base de données vierge...</p>";
+                
+                try {
+                    $pdo->exec("CREATE DATABASE `{$dbNameSafe}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                    $pdo->exec("USE `{$dbNameSafe}`");
+                    echo "<p>✅ Nouvelle base de données '{$dbNameSafe}' créée et sélectionnée</p>";
+                } catch (PDOException $createException) {
+                    throw new Exception("Impossible de créer la nouvelle base de données '{$dbNameSafe}': " . $createException->getMessage());
+                }
+                
             } catch (Exception $e) {
-                throw new Exception("Erreur de configuration de la base de données: " . $e->getMessage());
+                throw new Exception("Erreur de gestion de la base de données: " . $e->getMessage());
             }
             
             echo "</div>";
@@ -940,20 +951,23 @@ function createAdminAccount($pdo, $nom, $prenom, $mail, $password) {
     return true;
 }
 
-// Fonction pour finaliser l'installation avec gestion d'erreur
+// Fonction pour finaliser l'installation avec suppression des fichiers
 function finalizeInstallation() {
+    $installDir = __DIR__;
+    
     // Créer le fichier de verrouillage
     $lockContent = json_encode([
         'installed_at' => date('Y-m-d H:i:s'),
         'version' => '1.0.0',
-        'php_version' => PHP_VERSION
+        'php_version' => PHP_VERSION,
+        'auto_cleanup' => true
     ]);
     
-    if (file_put_contents(__DIR__ . '/install.lock', $lockContent, LOCK_EX) === false) {
+    if (file_put_contents($installDir . '/install.lock', $lockContent, LOCK_EX) === false) {
         throw new Exception("Impossible de créer le fichier de verrouillage");
     }
     
-    // Créer un fichier .htaccess de protection
+    // Créer un fichier .htaccess de protection renforcée
     $htaccessContent = <<<HTACCESS
 # Protection des fichiers de configuration
 <Files ~ "^(env|config|settings)\.(php|inc)$">
@@ -967,34 +981,129 @@ function finalizeInstallation() {
     Deny from all
 </FilesMatch>
 
-# Protection du fichier d'installation après installation
+# Protection du fichier d'installation
 <Files "install.php">
     Order allow,deny
     Deny from all
 </Files>
+
+# Protection des fichiers de sauvegarde
+<Files ~ "\.(backup|bak|old|tmp)$">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Protection contre l'exécution de scripts dans uploads
+<Directory "uploads">
+    php_flag engine off
+    Options -ExecCGI
+    AddHandler cgi-script .php .pl .py .jsp .asp .sh .cgi
+</Directory>
 HTACCESS;
 
-    file_put_contents(__DIR__ . '/.htaccess', $htaccessContent, FILE_APPEND | LOCK_EX);
+    file_put_contents($installDir . '/.htaccess', $htaccessContent, FILE_APPEND | LOCK_EX);
     
-    // Nettoyer définitivement les fichiers temporaires
-    $filesToDelete = [
+    // SUPPRESSION DÉFINITIVE DE TOUS LES FICHIERS TEMPORAIRES ET DE TEST
+    $filesToDeleteFinal = [
         'check_database_health.php',
         'fix_complete_database.php', 
         'test_permissions.php',
         'test_db_connection.php',
-        'debug_ip.php'
+        'debug_ip.php',
+        'fix_permissions.php',
+        'diagnostic.php',
+        'README_INSTALL.md',
+        'INSTALL.txt'
     ];
     
-    foreach ($filesToDelete as $file) {
-        $filePath = __DIR__ . '/' . $file;
+    $deletedFiles = [];
+    $failedDeletions = [];
+    
+    foreach ($filesToDeleteFinal as $file) {
+        $filePath = $installDir . '/' . $file;
         if (file_exists($filePath)) {
-            @unlink($filePath);
+            if (@unlink($filePath)) {
+                $deletedFiles[] = $file;
+            } else {
+                $failedDeletions[] = $file;
+            }
         }
+    }
+    
+    // Log des suppressions
+    if (!empty($deletedFiles)) {
+        error_log("Fichiers temporaires supprimés lors de l'installation : " . implode(', ', $deletedFiles));
+    }
+    
+    if (!empty($failedDeletions)) {
+        error_log("ATTENTION: Fichiers temporaires non supprimés : " . implode(', ', $failedDeletions));
     }
     
     // Nettoyer la session
     unset($_SESSION['install_token']);
     unset($_SESSION['token_time']);
+    
+    // Programmer l'auto-destruction du script d'installation
+    scheduleInstallFileRemoval();
+}
+
+/**
+ * Programme la suppression du fichier d'installation
+ */
+function scheduleInstallFileRemoval() {
+    $installFilePath = __FILE__;
+    $installDir = __DIR__;
+    
+    // Créer un script de nettoyage qui s'exécutera après la fin de ce script
+    $cleanupScript = $installDir . '/cleanup_install.php';
+    $cleanupContent = <<<'PHP'
+<?php
+// Script de nettoyage automatique - Exécution unique
+$installFile = __DIR__ . '/install.php';
+$cleanupFile = __FILE__;
+
+// Attendre que le script d'installation se termine
+sleep(2);
+
+// Supprimer le fichier d'installation
+if (file_exists($installFile)) {
+    if (@unlink($installFile)) {
+        error_log("Script d'installation supprimé automatiquement");
+    } else {
+        error_log("ERREUR: Impossible de supprimer automatiquement le script d'installation");
+    }
+}
+
+// Se supprimer soi-même
+if (file_exists($cleanupFile)) {
+    @unlink($cleanupFile);
+}
+?>
+PHP;
+
+    // Créer le script de nettoyage
+    if (file_put_contents($cleanupScript, $cleanupContent, LOCK_EX) !== false) {
+        // Programmer l'exécution du script de nettoyage en arrière-plan
+        if (function_exists('exec') && !in_array('exec', explode(',', ini_get('disable_functions')))) {
+            // Utiliser exec si disponible
+            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                // Windows
+                @exec("start /B php \"$cleanupScript\" > NUL 2>&1");
+            } else {
+                // Unix/Linux
+                @exec("php \"$cleanupScript\" > /dev/null 2>&1 &");
+            }
+        } else {
+            // Fallback : utiliser ignore_user_abort et register_shutdown_function
+            ignore_user_abort(true);
+            register_shutdown_function(function() use ($cleanupScript) {
+                if (file_exists($cleanupScript)) {
+                    // Inclure et exécuter le script de nettoyage
+                    include $cleanupScript;
+                }
+            });
+        }
+    }
 }
 ?>
 
@@ -1178,18 +1287,37 @@ chown -R www-data:www-data API/config API/logs uploads temp</pre>
             <?php if ($installed): ?>
                 <div class="success">
                     <h2>🎉 Installation terminée avec succès !</h2>
-                    <p>Pronote a été installé et configuré correctement.</p>
+                    <p>Pronote a été installé et configuré correctement avec une base de données complètement vierge.</p>
                     
-                    <h3>Étapes suivantes :</h3>
+                    <div style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                        <h3>🔒 Sécurisation automatique</h3>
+                        <ul>
+                            <li>✅ Tous les fichiers temporaires ont été supprimés</li>
+                            <li>✅ Le script d'installation sera supprimé automatiquement</li>
+                            <li>✅ Protection .htaccess mise en place</li>
+                            <li>✅ Fichier de verrouillage créé</li>
+                        </ul>
+                    </div>
+                    
+                    <h3>🚀 Prochaines étapes :</h3>
                     <ol>
-                        <li>Supprimez le fichier <code>install.php</code> pour sécuriser l'installation</li>
-                        <li>Connectez-vous avec le compte administrateur créé</li>
-                        <li>Configurez les utilisateurs et les classes</li>
+                        <li><strong>Connectez-vous immédiatement</strong> avec le compte administrateur créé</li>
+                        <li>Configurez les utilisateurs, classes et matières</li>
+                        <li>Vérifiez les paramètres de sécurité</li>
                     </ol>
                     
-                    <div class="actions">
-                        <a href="login/public/index.php" class="btn">🔐 Se connecter</a>
-                        <a href="diagnostic.php" class="btn">🔧 Page de diagnostic</a>
+                    <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                        <h3>⚠️ Important :</h3>
+                        <p>Pour réinstaller Pronote, vous devrez :</p>
+                        <ol>
+                            <li>Supprimer manuellement le fichier <code>install.lock</code></li>
+                            <li>Recréer le fichier <code>install.php</code> depuis la distribution originale</li>
+                            <li>Supprimer le fichier <code>.env</code> si nécessaire</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="actions" style="text-align: center; margin-top: 30px;">
+                        <a href="login/public/index.php" class="btn" style="display: inline-block; margin: 10px; padding: 15px 30px; background: #2ecc71; color: white; text-decoration: none; border-radius: 6px;">🔐 Se connecter maintenant</a>
                     </div>
                 </div>
             <?php else: ?>
