@@ -3,10 +3,9 @@
  * Affichage et gestion d'une conversation
  */
 
-// Ensure config is loaded first for proper session initialization
+// Charger la configuration
 require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/constants.php';
-// Make sure utils is included before we use any of its functions
 require_once __DIR__ . '/core/utils.php';
 require_once __DIR__ . '/core/auth.php';
 require_once __DIR__ . '/models/conversation.php';
@@ -16,34 +15,8 @@ require_once __DIR__ . '/controllers/conversation.php';
 require_once __DIR__ . '/controllers/message.php';
 require_once __DIR__ . '/controllers/participant.php';
 
-// Debug session if needed
-if (defined('APP_ENV') && APP_ENV === 'development') {
-    error_log('Session ID in conversation.php: ' . session_id());
-    error_log('User in session: ' . (isset($_SESSION['user']) ? 'YES' : 'NO'));
-}
-
-// Vérifier l'authentification - use the safer checkAuth() first
-$user = checkAuth();
-
-// If checkAuth failed, try requireAuth which will redirect
-if (!$user) {
-    $user = requireAuth();
-}
-
-// Make sure user array has all required fields
-if (!isset($user['id'])) {
-    error_log('User ID is missing from session data');
-    die('Erreur de session: ID utilisateur manquant');
-}
-
-// Handle type/profil compatibility - some systems use 'type', others use 'profil'
-if (!isset($user['type']) && isset($user['profil'])) {
-    $user['type'] = $user['profil'];
-} elseif (!isset($user['type'])) {
-    // Default to a safe value if neither exists
-    $user['type'] = 'eleve';
-    error_log('Warning: User type not found in session, defaulting to "eleve"');
-}
+// Vérifier l'authentification
+$user = requireAuth();
 
 // Récupérer l'ID de la conversation
 $convId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -54,69 +27,41 @@ if (!$convId) {
 
 $error = '';
 $success = '';
-$messageContent = ''; // Pour conserver le contenu du message en cas d'erreur
+$messageContent = '';
 
 try {
     // Vérifier l'accès à la conversation
     $conversation = getConversationInfo($convId);
     
-    // Initialiser les variables par défaut pour éviter les erreurs
-    $messages = [];
-    $participants = [];
-    $isDeleted = false;
-    $isAdmin = false;
-    $isModerator = false;
-    $canReply = false;
-    
-    // Vérifier si la conversation existe
     if (!$conversation) {
         throw new Exception("La conversation n'existe pas");
     }
     
-    // Vérifier si l'utilisateur peut accéder à la conversation
+    // Vérifier les permissions
     $participantInfo = getParticipantInfo($convId, $user['id'], $user['type']);
     
-    // Si l'utilisateur n'est pas participant ou la conversation n'existe pas
     if (!$participantInfo) {
         throw new Exception("Vous n'êtes pas autorisé à accéder à cette conversation");
     }
     
-    // Mettre à jour les variables selon les informations du participant
-    $isDeleted = $participantInfo && $participantInfo['is_deleted'] == 1;
-    $isAdmin = $participantInfo && $participantInfo['is_admin'] == 1;
-    $isModerator = $participantInfo && ($participantInfo['is_moderator'] == 1 || $isAdmin);
+    $isDeleted = $participantInfo['is_deleted'] == 1;
+    $isAdmin = $participantInfo['is_admin'] == 1;
+    $isModerator = $participantInfo['is_moderator'] == 1 || $isAdmin;
     
-    // Récupérer les messages et participants seulement si la conversation n'est pas supprimée
-    // ou si on a besoin de les afficher même si supprimée (comportement à définir)
+    // Récupérer les messages et participants
     if (!$isDeleted) {
-        try {
-            $messages = getMessages($convId, $user['id'], $user['type']);
-        } catch (Exception $messageError) {
-            error_log("Error fetching messages: " . $messageError->getMessage());
-            $messages = []; // Fallback to empty array in case of error
-        }
+        $messages = getMessages($convId, $user['id'], $user['type']);
         $participants = getParticipants($convId);
     } else {
-        // Pour les conversations dans la corbeille, on peut vouloir quand même
-        // récupérer les messages et participants en lecture seule
-        try {
-            // Utiliser une fonction spéciale pour récupérer les messages même si deleted
-            $messages = getMessagesEvenIfDeleted($convId, $user['id'], $user['type']);
-            $participants = getParticipants($convId);
-        } catch (Exception $e) {
-            // Si erreur, on garde les tableaux vides
-            $messages = [];
-            $participants = [];
-        }
+        $messages = getMessagesEvenIfDeleted($convId, $user['id'], $user['type']);
+        $participants = getParticipants($convId);
     }
     
-    // Vérifier si l'utilisateur peut répondre à cette conversation
     $canReply = !$isDeleted && canReplyToAnnouncement($user['id'], $user['type'], $convId, $conversation['type']);
     
-    // Définir le titre de la page
     $pageTitle = 'Conversation - ' . $conversation['titre'];
     
-    // Traitement de l'envoi d'un nouveau message (uniquement si la conversation n'est pas dans la corbeille)
+    // Traitement des actions POST
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && !$isDeleted) {
         switch ($_POST['action']) {
             case 'send_message':
@@ -239,18 +184,15 @@ try {
     
 } catch (Exception $e) {
     $error = $e->getMessage();
-    
-    // Initialiser les variables manquantes en cas d'erreur
-    if (!isset($conversation)) $conversation = null;
-    if (!isset($messages)) $messages = [];
-    if (!isset($participants)) $participants = [];
-    if (!isset($isDeleted)) $isDeleted = false;
-    if (!isset($isAdmin)) $isAdmin = false;
-    if (!isset($isModerator)) $isModerator = false;
-    if (!isset($canReply)) $canReply = false;
+    $conversation = null;
+    $messages = [];
+    $participants = [];
+    $isDeleted = false;
+    $isAdmin = false;
+    $isModerator = false;
+    $canReply = false;
 }
 
-// Inclure l'en-tête
 include 'templates/header.php';
 ?>
 

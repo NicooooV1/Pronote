@@ -4,24 +4,27 @@
  * All providers must extend this class
  */
 
-namespace Pronote\Core;
+namespace API\Core;
 
-abstract class ServiceProvider {
+abstract class ServiceProvider
+{
     protected $app;
-    
-    public function __construct(Application $app) {
+
+    public function __construct($app)
+    {
         $this->app = $app;
     }
-    
+
     /**
-     * Register services in the container
+     * Enregistre les services
      */
     abstract public function register();
-    
+
     /**
-     * Boot services after all providers are registered
+     * Démarre les services
      */
-    public function boot() {
-        // Override in child classes if needed
+    public function boot()
+    {
+        // Peut être surchargé par les providers enfants
     }
 }

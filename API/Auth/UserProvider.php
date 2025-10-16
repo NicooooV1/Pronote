@@ -1,124 +1,94 @@
 <?php
+namespace API\Auth;
+
+use PDO;
+
 /**
- * User Provider - Data layer pour l'authentification
+ * Fournisseur d'utilisateurs
  */
+class UserProvider
+{
+    protected $pdo;
 
-namespace Pronote\Auth;
+    public function __construct(PDO $pdo)
+    {
+        $this->pdo = $pdo;
+    }
 
-class UserProvider {
-    protected $db;
-    
     /**
-     * Tables utilisateurs
+     * Récupère un utilisateur par son ID
      */
-    protected $tables = [
-        'eleve' => 'eleves',
-        'parent' => 'parents',
-        'professeur' => 'professeurs',
-        'vie_scolaire' => 'vie_scolaire',
-        'administrateur' => 'administrateurs',
-        'personnel' => ['vie_scolaire', 'administrateur'] // Multi-table
-    ];
-    
-    public function __construct($db) {
-        $this->db = $db;
-    }
-    
-    /**
-     * Récupère un utilisateur par ses credentials
-     */
-    public function retrieveByCredentials(array $credentials) {
-        if (!isset($credentials['identifiant']) || !isset($credentials['profil'])) {
+    public function retrieveById($userId, $userType)
+    {
+        $table = $this->getTableForUserType($userType);
+        
+        if (!$table) {
             return null;
         }
+
+        $stmt = $this->pdo->prepare("
+            SELECT id, nom, prenom, email, '{$userType}' as type 
+            FROM {$table} WHERE id = ?
+        ");
+        $stmt->execute([$userId]);
         
-        $profil = $credentials['profil'];
-        $identifiant = $credentials['identifiant'];
-        
-        // Gestion du type "personnel" (multi-table)
-        if ($profil === 'personnel') {
-            $user = $this->retrieveFromTable('vie_scolaire', $identifiant);
-            if (!$user) {
-                $user = $this->retrieveFromTable('administrateur', $identifiant);
-            }
-            return $user;
-        }
-        
-        if (!isset($this->tables[$profil])) {
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Récupère un utilisateur par ses identifiants
+     */
+    public function retrieveByCredentials($credentials)
+    {
+        $email = $credentials['email'] ?? null;
+        $userType = $credentials['type'] ?? null;
+
+        if (!$email || !$userType) {
             return null;
         }
+
+        $table = $this->getTableForUserType($userType);
         
-        return $this->retrieveFromTable($profil, $identifiant);
-    }
-    
-    /**
-     * Récupère depuis une table spécifique
-     */
-    protected function retrieveFromTable($profil, $identifiant) {
-        $table = is_array($this->tables[$profil]) 
-            ? $this->tables[$profil][0] 
-            : $this->tables[$profil];
-        
-        $sql = "SELECT * FROM `{$table}` WHERE identifiant = ? AND actif = 1 LIMIT 1";
-        
-        try {
-            $pdo = $this->db->getPDO();
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$identifiant]);
-            $user = $stmt->fetch(\PDO::FETCH_ASSOC);
-            
-            if ($user) {
-                $user['profil'] = $profil;
-                $user['table'] = $table;
-            }
-            
-            return $user ?: null;
-        } catch (\PDOException $e) {
-            error_log("UserProvider error: " . $e->getMessage());
+        if (!$table) {
             return null;
         }
+
+        $stmt = $this->pdo->prepare("
+            SELECT id, nom, prenom, email, mot_de_passe, '{$userType}' as type 
+            FROM {$table} WHERE email = ?
+        ");
+        $stmt->execute([$email]);
+        
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
-    
+
     /**
-     * Valide les credentials
+     * Valide les identifiants d'un utilisateur
      */
-    public function validateCredentials(array $user, array $credentials) {
-        if (!isset($credentials['password']) || !isset($user['mot_de_passe'])) {
+    public function validateCredentials($user, $credentials)
+    {
+        $password = $credentials['password'] ?? null;
+        
+        if (!$password || !isset($user['mot_de_passe'])) {
             return false;
         }
-        
-        return password_verify($credentials['password'], $user['mot_de_passe']);
+
+        return password_verify($password, $user['mot_de_passe']);
     }
-    
+
     /**
-     * Récupère un utilisateur par ID
+     * Retourne la table correspondant au type d'utilisateur
      */
-    public function retrieveById($id, $profil) {
-        if (!isset($this->tables[$profil])) {
-            return null;
-        }
-        
-        $table = is_array($this->tables[$profil]) 
-            ? $this->tables[$profil][0] 
-            : $this->tables[$profil];
-        
-        $sql = "SELECT * FROM `{$table}` WHERE id = ? LIMIT 1";
-        
-        try {
-            $pdo = $this->db->getPDO();
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$id]);
-            $user = $stmt->fetch(\PDO::FETCH_ASSOC);
-            
-            if ($user) {
-                $user['profil'] = $profil;
-                $user['table'] = $table;
-            }
-            
-            return $user ?: null;
-        } catch (\PDOException $e) {
-            error_log("UserProvider error: " . $e->getMessage());
-            return null;
-        }
+    protected function getTableForUserType($userType)
+    {
+        $tables = [
+            'eleve' => 'eleves',
+            'parent' => 'parents',
+            'professeur' => 'professeurs',
+            'vie_scolaire' => 'vie_scolaire',
+            'administrateur' => 'administrateurs'
+        ];
+
+        return $tables[$userType] ?? null;
     }
 }

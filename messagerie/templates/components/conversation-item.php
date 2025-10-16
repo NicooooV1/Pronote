@@ -1,101 +1,116 @@
 <?php
 /**
- * Composant d'élément de conversation dans la liste
+ * Composant pour afficher un élément de conversation dans la liste
  */
 
-// Extraire les données de la conversation
-$id = $conversation['id'];
-$title = !empty($conversation['titre']) ? $conversation['titre'] : '(Sans titre)';
-$preview = !empty($conversation['dernier_message']) ? $conversation['dernier_message'] : '(Pas de message)';
-$dateCreation = isset($conversation['date_creation']) ? strtotime($conversation['date_creation']) : time();
-$lastActivity = isset($conversation['date_dernier_message']) ? strtotime($conversation['date_dernier_message']) : time();
-$isRead = isset($conversation['non_lus']) ? $conversation['non_lus'] == 0 : true;
-$participants = $conversation['participants'] ?? [];
+// S'assurer que les variables nécessaires sont définies
+$convId = $conversation['id'] ?? 0;
+$titre = $conversation['titre'] ?? 'Sans titre';
 $type = $conversation['type'] ?? 'standard';
+$apercu = $conversation['apercu'] ?? '';
+$dernierMessage = $conversation['dernier_message'] ?? null;
+$nonLus = $conversation['non_lus'] ?? 0;
+$status = $conversation['status'] ?? 'normal';
 
-// Déterminer l'icône et la classe CSS selon le type
-$typeClasses = [
-    'standard' => '',
-    'annonce' => 'announcement',
-    'information' => 'info',
-    'urgent' => 'urgent'
-];
+// Déterminer si la conversation est lue
+$isRead = $nonLus == 0;
 
-$typeIcons = [
-    'standard' => 'comments',
-    'annonce' => 'bullhorn',
-    'information' => 'info-circle',
-    'urgent' => 'exclamation-triangle'
-];
+// Formater la date du dernier message
+$dateFormatted = $dernierMessage ? formatTimeAgo($dernierMessage) : 'Jamais';
 
-// Classes CSS pour l'élément de conversation
-$itemClass = 'conversation-item';
-if (!$isRead) $itemClass .= ' unread';
-if (isset($typeClasses[$type])) $itemClass .= ' ' . $typeClasses[$type];
+// Classes CSS conditionnelles
+$itemClasses = ['conversation-item'];
+if (!$isRead) {
+    $itemClasses[] = 'unread';
+}
+if ($status === 'important' || $status === 'urgent') {
+    $itemClasses[] = $status;
+}
 
-// Make sure baseUrl is defined
-if (!isset($baseUrl)) {
-    $baseUrl = defined('BASE_URL') ? BASE_URL : '';
+// Récupérer les noms des participants (limité aux 3 premiers)
+$participantNames = [];
+if (isset($conversation['participants']) && is_array($conversation['participants'])) {
+    foreach (array_slice($conversation['participants'], 0, 3) as $participant) {
+        if (isset($participant['nom_complet'])) {
+            $participantNames[] = $participant['nom_complet'];
+        }
+    }
+}
+$participantsText = !empty($participantNames) ? implode(', ', $participantNames) : 'Aucun participant';
+if (isset($conversation['participants']) && count($conversation['participants']) > 3) {
+    $participantsText .= ' +' . (count($conversation['participants']) - 3);
 }
 ?>
 
-<div class="<?= $itemClass ?>" data-id="<?= $id ?>">
-    <div class="conversation-checkbox" onclick="event.stopPropagation();">
-        <input type="checkbox" class="conversation-select" data-id="<?= $id ?>" data-read="<?= $isRead ? '1' : '0' ?>">
+<div class="<?= implode(' ', $itemClasses) ?>" data-id="<?= $convId ?>">
+    <div class="conversation-checkbox">
+        <input type="checkbox" class="conversation-select" 
+               data-id="<?= $convId ?>" 
+               data-read="<?= $isRead ? '1' : '0' ?>">
     </div>
-    <div class="conversation-content">
-        <a href="<?= $baseUrl ?>conversation.php?id=<?= $id ?>" class="conversation-link" style="display:block; text-decoration:none; color:inherit;">
+    
+    <a href="conversation.php?id=<?= $convId ?>" class="conversation-link">
+        <div class="conversation-icon">
+            <i class="fas fa-<?= getConversationIcon($type) ?>"></i>
+        </div>
+        
+        <div class="conversation-content">
             <div class="conversation-header">
-                <div class="conversation-info">
-                    <div class="conversation-title">
-                        <?php if (!$isRead): ?><span class="unread-indicator"></span><?php endif; ?>
-                        <?= htmlspecialchars($title) ?>
-                    </div>
-                    <?php if (!empty($participants)): ?>
-                    <div class="conversation-participants">
-                        <?php
-                        $displayNames = [];
-                        foreach ($participants as $p) {
-                            if (count($displayNames) < 3) {
-                                $displayNames[] = $p['nom_complet'];
-                            }
-                        }
-                        echo htmlspecialchars(implode(', ', $displayNames));
-                        if (count($participants) > 3) {
-                            echo ' et ' . (count($participants) - 3) . ' autre(s)';
-                        }
-                        ?>
-                    </div>
-                    <?php endif; ?>
-                </div>
-                <div class="conversation-timestamp" title="<?= date('d/m/Y H:i', $lastActivity) ?>">
-                    <?= isset($conversation['dernier_message']) ? date('d/m/Y H:i', strtotime($conversation['dernier_message'])) : date('d/m/Y H:i', time()) ?>
-                </div>
-            </div>
-            <div class="conversation-body">
-                <div class="conversation-preview">
-                    <?= htmlspecialchars($preview) ?>
-                </div>
-            </div>
-            <div class="conversation-footer">
-                <div class="conversation-status">
-                    <div class="conversation-type">
-                        <i class="fas fa-<?= $typeIcons[$type] ?? 'comments' ?>"></i>
-                        <?= ucfirst($type) ?>
-                    </div>
+                <h3 class="conversation-title">
+                    <?= h($titre) ?>
                     <?php if (!$isRead): ?>
-                    <span class="badge badge-primary"><?= isset($conversation['non_lus']) ? $conversation['non_lus'] : '!' ?> non lu(s)</span>
+                    <span class="badge unread-badge"><?= $nonLus ?></span>
                     <?php endif; ?>
-                </div>
-                <div class="conversation-actions">
-                    <button class="conversation-action" onclick="event.stopPropagation(); toggleQuickActions(<?= $id ?>)">
-                        <i class="fas fa-ellipsis-v"></i>
-                    </button>
-                </div>
+                </h3>
+                <span class="conversation-date"><?= $dateFormatted ?></span>
             </div>
-        </a>
-    </div>
-    <div class="quick-actions-menu" id="quick-actions-<?= $id ?>">
-        <!-- Actions rapides ajoutées via JavaScript -->
+            
+            <div class="conversation-participants">
+                <?= h($participantsText) ?>
+            </div>
+            
+            <?php if (!empty($apercu)): ?>
+            <div class="conversation-preview">
+                <?= h(truncate($apercu, 100)) ?>
+            </div>
+            <?php endif; ?>
+            
+            <?php if ($status === 'important' || $status === 'urgent'): ?>
+            <div class="conversation-badges">
+                <span class="badge <?= $status ?>"><?= ucfirst($status) ?></span>
+            </div>
+            <?php endif; ?>
+        </div>
+    </a>
+    
+    <div class="conversation-actions">
+        <button class="quick-actions-btn" onclick="toggleQuickActions(<?= $convId ?>); return false;" 
+                aria-label="Actions rapides">
+            <i class="fas fa-ellipsis-v"></i>
+        </button>
+        
+        <div class="quick-actions-menu" id="quick-actions-<?= $convId ?>">
+            <?php if ($currentFolder !== 'corbeille'): ?>
+            <a href="#" onclick="markConversationAsRead(<?= $convId ?>); return false;">
+                <i class="fas fa-envelope-open"></i> Marquer comme lu
+            </a>
+            <a href="#" onclick="markConversationAsUnread(<?= $convId ?>); return false;">
+                <i class="fas fa-envelope"></i> Marquer comme non lu
+            </a>
+            <a href="#" onclick="archiveConversation(<?= $convId ?>); return false;">
+                <i class="fas fa-archive"></i> Archiver
+            </a>
+            <a href="#" onclick="confirmDelete(<?= $convId ?>); return false;" class="danger">
+                <i class="fas fa-trash"></i> Supprimer
+            </a>
+            <?php else: ?>
+            <a href="#" onclick="restoreConversation(<?= $convId ?>); return false;">
+                <i class="fas fa-undo"></i> Restaurer
+            </a>
+            <a href="#" onclick="confirmDeletePermanently(<?= $convId ?>); return false;" class="danger">
+                <i class="fas fa-trash-alt"></i> Supprimer définitivement
+            </a>
+            <?php endif; ?>
+        </div>
     </div>
 </div>

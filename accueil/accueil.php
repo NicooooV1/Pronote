@@ -1,164 +1,122 @@
 <?php
-// Démarrer la mise en mémoire tampon de sortie pour éviter l'erreur "headers already sent"
 ob_start();
 
-// Inclure l'API centralisée - SEULE source de configuration DB
-require_once __DIR__ . '/../API/core.php';
+// Utilisation des Facades API
+require_once __DIR__ . '/../API/bootstrap.php';
 
-// Vérifier l'authentification via l'API
-requireAuth();
+use Pronote\Core\Facades\Auth;
+use Pronote\Core\Facades\DB;
 
-// Récupération des données utilisateur via l'API
-$user = getCurrentUser();
+// Authentification via API
+Auth::requireAuth();
+
+// Récupération des infos utilisateur via API
+$user = Auth::user();
 $eleve_nom = $user['prenom'] . ' ' . $user['nom'];
-$classe = isset($user['classe']) ? $user['classe'] : '';
+$classe = $user['classe'] ?? '';
 $user_role = $user['profil'];
 $user_initials = strtoupper(substr($user['prenom'], 0, 1) . substr($user['nom'], 0, 1));
 
-// Fonction pour déterminer le trimestre actuel
+// Détermination du trimestre
 function getTrimestre() {
     $mois = date('n');
-    if ($mois >= 9 && $mois <= 12) {
-        return "1er trimestre";
-    } elseif ($mois >= 1 && $mois <= 3) {
-        return "2ème trimestre";
-    } elseif ($mois >= 4 && $mois <= 6) {
-        return "3ème trimestre";
-    } else {
-        return "Période estivale";
-    }
+    if ($mois >= 9 && $mois <= 12) return "1er trimestre";
+    if ($mois >= 1 && $mois <= 3) return "2ème trimestre";
+    if ($mois >= 4 && $mois <= 6) return "3ème trimestre";
+    return "Période estivale";
 }
 
-// Récupérer la date du jour et le trimestre
 $aujourdhui = date('d/m/Y');
 $trimestre = getTrimestre();
-
-// Déterminer le jour de la semaine en français
 $jours = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 $jour = $jours[date('w')];
 
-// Charger les données depuis le fichier JSON d'établissement
-$json_file = __DIR__ . '/../login/data/etablissement.json';
-$etablissement_data = [];
-
-if (file_exists($json_file)) {
-    $etablissement_data = json_decode(file_get_contents($json_file), true);
-}
-
 // Nom de l'établissement
+$json_file = __DIR__ . '/../login/data/etablissement.json';
+$etablissement_data = file_exists($json_file) ? json_decode(file_get_contents($json_file), true) : [];
 $nom_etablissement = $etablissement_data['nom'] ?? 'Établissement Scolaire';
 
-// Récupérer la connexion à la base de données via l'API centralisée UNIQUEMENT
-try {
-    $pdo = getDatabaseConnection();
-} catch (Exception $e) {
-    error_log("Erreur de connexion DB dans accueil: " . $e->getMessage());
-    $pdo = null;
-}
+// Connexion DB via API
+$pdo = DB::getPDO();
 
-// Récupérer les prochains événements de l'agenda (exemple)
+// Prochains événements
 $prochains_evenements = [];
 try {
-    // Vérifier si la table existe
     $stmt_check = $pdo->query("SHOW TABLES LIKE 'evenements'");
     if ($stmt_check && $stmt_check->rowCount() > 0) {
-        // La table existe, récupérer les prochains événements
         $date_actuelle = date('Y-m-d');
-        
-        $query = "SELECT * FROM evenements WHERE date_debut >= ? ";
-        
-        // Filtrer selon le rôle
+        $query = "SELECT * FROM evenements WHERE date_debut >= ?";
+        $params = [$date_actuelle];
         if ($user_role == 'eleve') {
             $query .= " AND (visibilite = 'public' OR visibilite = 'eleves' OR visibilite LIKE ? OR classes LIKE ?)";
-            $params = [$date_actuelle, '%' . $classe . '%', '%' . $classe . '%'];
+            $params[] = '%' . $classe . '%';
+            $params[] = '%' . $classe . '%';
         } elseif ($user_role == 'professeur') {
             $query .= " AND (visibilite = 'public' OR visibilite = 'professeurs' OR nom_professeur = ?)";
 
-            $params = [$date_actuelle, $eleve_nom];
-        } else {
-            // Admin, vie scolaire, etc.
-            $params = [$date_actuelle];
+            $params[] = $eleve_nom;
         }
-        
         $query .= " ORDER BY date_debut ASC LIMIT 3";
-        
+
         $stmt = $pdo->prepare($query);
         $stmt->execute($params);
         $prochains_evenements = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-} catch (PDOException $e) {
-    // Gérer silencieusement l'erreur
-    error_log("Erreur lors de la récupération des événements: " . $e->getMessage());
+} catch (\PDOException $e) {
+    error_log("Erreur événements: " . $e->getMessage());
 }
 
-// Récupérer les devoirs à faire (exemple)
+// Devoirs à faire
 $devoirs_a_faire = [];
 try {
-    // Vérifier si la table existe
     $stmt_check = $pdo->query("SHOW TABLES LIKE 'devoirs'");
     if ($stmt_check && $stmt_check->rowCount() > 0) {
-        // La table existe, récupérer les prochains devoirs
         $date_actuelle = date('Y-m-d');
-        
-        $query = "SELECT * FROM devoirs WHERE date_rendu >= ? ";
-        
-        // Filtrer selon le rôle
+        $query = "SELECT * FROM devoirs WHERE date_rendu >= ?";
+        $params = [$date_actuelle];
         if ($user_role == 'eleve') {
             $query .= " AND classe = ?";
-            $params = [$date_actuelle, $classe];
+            $params[] = $classe;
         } elseif ($user_role == 'professeur') {
             $query .= " AND nom_professeur = ?";
-            $params = [$date_actuelle, $eleve_nom];
-        } else {
-            // Admin, vie scolaire, etc.
-            $params = [$date_actuelle];
+            $params[] = $eleve_nom;
         }
-        
         $query .= " ORDER BY date_rendu ASC LIMIT 3";
-        
+
         $stmt = $pdo->prepare($query);
         $stmt->execute($params);
         $devoirs_a_faire = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-} catch (PDOException $e) {
-    // Gérer silencieusement l'erreur
-    error_log("Erreur lors de la récupération des devoirs: " . $e->getMessage());
+} catch (\PDOException $e) {
+    error_log("Erreur devoirs: " . $e->getMessage());
 }
 
-// Récupérer les dernières notes (exemple)
+// Dernières notes
 $dernieres_notes = [];
 try {
-    // Vérifier si la table existe
     $stmt_check = $pdo->query("SHOW TABLES LIKE 'notes'");
     if ($stmt_check && $stmt_check->rowCount() > 0) {
-        // La table existe, récupérer les dernières notes
-        $query = "SELECT * FROM notes ";
-        
-        // Filtrer selon le rôle
+        $query = "SELECT * FROM notes";
+        $params = [];
         if ($user_role == 'eleve') {
             $query .= " WHERE nom_eleve = ?";
-            $params = [$eleve_nom];
+            $params[] = $eleve_nom;
         } elseif ($user_role == 'professeur') {
             $query .= " WHERE nom_professeur = ?";
-            $params = [$eleve_nom];
-        } else {
-            // Admin, vie scolaire, etc.
-            $params = [];
+            $params[] = $eleve_nom;
         }
-        
         $query .= " ORDER BY date_creation DESC LIMIT 3";
-        
+
         $stmt = $pdo->prepare($query);
         $stmt->execute($params);
         $dernieres_notes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-} catch (PDOException $e) {
-    // Gérer silencieusement l'erreur
-    error_log("Erreur lors de la récupération des notes: " . $e->getMessage());
+} catch (\PDOException $e) {
+    error_log("Erreur notes: " . $e->getMessage());
 }
 
-// Déterminer si l'utilisateur est un administrateur pour afficher les options d'administration
-$isAdmin = isset($user['profil']) && $user['profil'] === 'administrateur';
+// Détermination admin
+$isAdmin = $user_role === 'administrateur';
 ?>
 
 <!DOCTYPE html>
@@ -450,6 +408,5 @@ $isAdmin = isset($user['profil']) && $user['profil'] === 'administrateur';
 </html>
 
 <?php
-// Terminer la mise en mémoire tampon et envoyer la sortie
 ob_end_flush();
 ?>

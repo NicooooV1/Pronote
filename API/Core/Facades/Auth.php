@@ -1,11 +1,15 @@
 <?php
+namespace API\Core\Facades;
 
-namespace Pronote\Core\Facades;
+use API\Core\Facade;
 
-use Pronote\Core\Facade;
-
-class Auth extends Facade {
-    protected static function getFacadeAccessor() {
+/**
+ * Facade Auth
+ */
+class Auth extends Facade
+{
+    protected static function getFacadeAccessor()
+    {
         return 'auth';
     }
 }

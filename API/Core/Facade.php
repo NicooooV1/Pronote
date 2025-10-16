@@ -3,7 +3,7 @@
  * Facade Pattern - Accès statique aux services du container
  */
 
-namespace Pronote\Core;
+namespace API\Core;
 
 abstract class Facade {
     /**
@@ -19,7 +19,7 @@ abstract class Facade {
     /**
      * Définir l'application
      */
-    public static function setFacadeApplication($app) {
+    public static function setApplication($app) {
         static::$app = $app;
     }
     
@@ -27,7 +27,7 @@ abstract class Facade {
      * Obtenir l'accessor du facade (à implémenter)
      */
     protected static function getFacadeAccessor() {
-        throw new \Exception('Facade does not implement getFacadeAccessor method.');
+        throw new \RuntimeException('Facade does not implement getFacadeAccessor method.');
     }
     
     /**
@@ -49,10 +49,10 @@ abstract class Facade {
      * Appels statiques magiques
      */
     public static function __callStatic($method, $args) {
-        $instance = static::resolveFacadeInstance(static::getFacadeAccessor());
+        $instance = static::$app->make(static::getFacadeAccessor());
         
         if (!$instance) {
-            throw new \Exception('A facade root has not been set.');
+            throw new \RuntimeException('A facade root has not been set.');
         }
         
         return $instance->$method(...$args);

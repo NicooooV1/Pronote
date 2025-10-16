@@ -18,7 +18,15 @@
     <?php endif; ?>
 </h3>
 
+<?php
+// S'assurer que la variable $participants est définie
+$participants = $participants ?? [];
+?>
+
 <ul class="participants-list">
+    <?php if (empty($participants)): ?>
+    <li class="no-participants">Aucun participant</li>
+    <?php else: ?>
     <?php 
     // Regrouper les participants par statut
     $admins = [];
@@ -45,42 +53,48 @@
         ?>
         <li class="participant-item<?= $isCurrentUser ? ' current' : '' ?><?= $p['a_quitte'] ? ' left' : '' ?>">
             <div class="participant-info">
-                <span class="participant-name"><?= htmlspecialchars($p['nom_complet']) ?></span>
-                <span class="participant-type"><?= getParticipantType($p['utilisateur_type']) ?></span>
-                
-                <?php if ($p['est_administrateur']): ?>
-                <span class="admin-tag">Admin</span>
-                <?php elseif ($p['est_moderateur']): ?>
-                <span class="mod-tag">Mod</span>
-                <?php endif; ?>
-                
-                <?php if ($p['a_quitte']): ?>
-                <span class="left-tag">A quitté</span>
-                <?php endif; ?>
-                
-                <?php if ($isCurrentUser): ?>
-                <span class="current-tag">Vous</span>
-                <?php endif; ?>
+                <div class="participant-avatar">
+                    <?= strtoupper(substr(htmlspecialchars($p['nom_complet']), 0, 2)) ?>
+                </div>
+                <div class="participant-details">
+                    <div class="participant-name">
+                        <?= h(htmlspecialchars($p['nom_complet'])) ?>
+                        <?php if ($isCurrentUser): ?>
+                        <span class="badge current">Vous</span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="participant-type">
+                        <?= getParticipantType($p['utilisateur_type']) ?>
+                        <?php if ($p['est_administrateur']): ?>
+                        <span class="badge admin">Admin</span>
+                        <?php elseif ($p['est_moderateur']): ?>
+                        <span class="badge moderator">Modérateur</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
             </div>
             
             <?php if ($canManage): ?>
             <div class="participant-actions">
-                <?php if (!$p['est_moderateur']): ?>
-                <button class="action-btn promote-btn" title="Promouvoir en modérateur" 
-                        onclick="promoteToModerator(<?= $p['id'] ?>)">
-                    <i class="fas fa-chevron-up"></i>
+                <button class="btn-icon" onclick="toggleParticipantActions(<?= $p['id'] ?>)">
+                    <i class="fas fa-ellipsis-v"></i>
                 </button>
-                <?php else: ?>
-                <button class="action-btn demote-btn" title="Rétrograder" 
-                        onclick="demoteFromModerator(<?= $p['id'] ?>)">
-                    <i class="fas fa-chevron-down"></i>
-                </button>
-                <?php endif; ?>
-                
-                <button class="action-btn remove-btn" title="Retirer le participant" 
-                        onclick="removeParticipant(<?= $p['id'] ?>)">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div class="participant-actions-menu" id="participant-actions-<?= $p['id'] ?>">
+                    <?php if ($isAdmin): ?>
+                        <?php if (!$isModerator): ?>
+                        <a href="#" onclick="promoteToModerator(<?= $p['id'] ?>); return false;">
+                            <i class="fas fa-user-shield"></i> Promouvoir modérateur
+                        </a>
+                        <?php else: ?>
+                        <a href="#" onclick="demoteFromModerator(<?= $p['id'] ?>); return false;">
+                            <i class="fas fa-user"></i> Rétrograder
+                        </a>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                    <a href="#" onclick="removeParticipant(<?= $p['id'] ?>); return false;" class="danger">
+                        <i class="fas fa-user-minus"></i> Retirer
+                    </a>
+                </div>
             </div>
             <?php endif; ?>
         </li>
@@ -110,4 +124,5 @@
         }
     }
     ?>
+    <?php endif; ?>
 </ul>

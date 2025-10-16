@@ -316,20 +316,21 @@ CREATE TABLE `user_notification_preferences` (
 -- Optional tables seen earlier
 CREATE TABLE `audit_log` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `action` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `model` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `model_id` int(11) DEFAULT NULL,
   `user_id` int(11) DEFAULT NULL,
   `user_type` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `action` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `table_affected` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `record_id` int(11) DEFAULT NULL,
   `old_values` json DEFAULT NULL,
   `new_values` json DEFAULT NULL,
-  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `user_agent` text COLLATE utf8mb4_unicode_ci,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
-  KEY `idx_user` (`user_id`, `user_type`),
   KEY `idx_action` (`action`),
-  KEY `idx_created` (`created_at`)
+  KEY `idx_model` (`model`, `model_id`),
+  KEY `idx_user` (`user_id`, `user_type`),
+  KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `session_security` (

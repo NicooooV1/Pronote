@@ -1,24 +1,43 @@
 <?php
 
-namespace Pronote\Providers;
+namespace API\Providers;
 
-use Pronote\Core\ServiceProvider;
-use Pronote\Security\CSRF;
-use Pronote\Security\RateLimiter;
+use API\Core\ServiceProvider;
+use API\Security\CSRF;
+use API\Security\RateLimiter;
+use API\Security\Validator;
 
-class SecurityServiceProvider extends ServiceProvider {
-    public function register() {
+/**
+ * Service Provider pour la sécurité
+ */
+class SecurityServiceProvider extends ServiceProvider
+{
+    public function register()
+    {
+        // Enregistrer CSRF
         $this->app->singleton('csrf', function($app) {
-            $lifetime = $app->config('security.csrf_lifetime', 3600);
-            return new CSRF($lifetime);
+            return new CSRF(
+                config('security.csrf_lifetime', 3600),
+                config('security.csrf_max_tokens', 10)
+            );
         });
-        
+
+        // Enregistrer RateLimiter
         $this->app->singleton('rate_limiter', function($app) {
-            return new RateLimiter('session');
+            $limiter = new RateLimiter();
+            // Configurer depuis .env si nécessaire
+            return $limiter;
+        });
+
+        // Enregistrer Validator
+        $this->app->singleton('validator', function($app) {
+            return new Validator();
         });
     }
-    
-    public function boot() {
-        // Security services ready
+
+    public function boot()
+    {
+        // Initialiser CSRF
+        $this->app->make('csrf')->init();
     }
 }

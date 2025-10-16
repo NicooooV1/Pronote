@@ -1,290 +1,94 @@
 <?php
 /**
- * API pour les actions sur les messages
+ * API REST pour la gestion des messages
  */
+
 require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../controllers/message.php';
-require_once __DIR__ . '/../models/message.php';
 require_once __DIR__ . '/../core/auth.php';
-
-// Debug session if needed
-if (defined('APP_ENV') && APP_ENV === 'development') {
-    error_log('Session ID in API/messages.php: ' . session_id());
-    error_log('User in session: ' . (isset($_SESSION['user']) ? print_r($_SESSION['user'], true) : 'NO'));
-}
-
-// Pour le débogage, activer temporairement l'affichage des erreurs
-ini_set('display_errors', defined('APP_ENV') && APP_ENV === 'development' ? 1 : 0);
-error_reporting(defined('APP_ENV') && APP_ENV === 'development' ? E_ALL : 0);
-
-// Assurer que le dossier de logs existe
-$logDir = __DIR__ . '/../logs';
-if (!is_dir($logDir)) {
-    @mkdir($logDir, 0755, true);
-}
-
-// Fonction de journalisation
-function logApiMessage($message, $data = null) {
-    $logFile = __DIR__ . '/../logs/api_messages_' . date('Y-m-d') . '.log';
-    $timestamp = date('Y-m-d H:i:s');
-    $logMessage = "[{$timestamp}] {$message}";
-    
-    if ($data !== null) {
-        $logMessage .= " - Data: " . json_encode($data);
-    }
-    
-    file_put_contents($logFile, $logMessage . PHP_EOL, FILE_APPEND);
-}
-
-// Toujours répondre en JSON
-header('Content-Type: application/json');
+require_once __DIR__ . '/../models/message.php';
+require_once __DIR__ . '/../controllers/message.php';
 
 // Vérifier l'authentification
 $user = checkAuth();
 if (!$user) {
-    // Log authentication failure
-    logApiMessage("Authentication failed in messages.php API");
-    
-    echo json_encode([
-        'success' => false, 
-        'error' => 'Non authentifié', 
-        'session_id' => session_id(),
-        'session_status' => session_status()
-    ]);
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Non authentifié']);
     exit;
 }
 
-// Make sure user has required fields
-if (!isset($user['id'])) {
-    logApiMessage("User ID missing from authentication data", $user);
-    echo json_encode(['success' => false, 'error' => 'ID utilisateur manquant']);
-    exit;
-}
+// Définir le type de contenu JSON
+header('Content-Type: application/json');
 
-// Handle type/profil compatibility
-if (!isset($user['type']) && isset($user['profil'])) {
-    $user['type'] = $user['profil'];
-}
-if (!isset($user['type'])) {
-    $user['type'] = 'eleve';  // Default value
-    logApiMessage("User type not found, defaulting to 'eleve'");
-}
+$action = $_GET['action'] ?? '';
+$convId = isset($_GET['conv_id']) ? (int)$_GET['conv_id'] : 0;
 
-// Inclure le fichier qui contient les fonctions nécessaires
-if (!function_exists('getMessageById')) {
-    require_once __DIR__ . '/../models/message.php';
-}
-if (!function_exists('addMessage')) {
-    require_once __DIR__ . '/../models/message.php';
-}
-if (!function_exists('saveAttachments')) {
-    require_once __DIR__ . '/../models/attachment.php';
-}
-
-// Envoi d'un nouveau message via AJAX
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send_message') {
-    try {
-        logApiMessage("Démarrage de l'envoi de message", $_POST);
-        
-        $convId = isset($_POST['conversation_id']) ? (int)$_POST['conversation_id'] : 0;
-        $contenu = isset($_POST['contenu']) ? trim($_POST['contenu']) : '';
-        $importance = isset($_POST['importance']) ? $_POST['importance'] : 'normal';
-        $parentMessageId = isset($_POST['parent_message_id']) && !empty($_POST['parent_message_id']) ? 
-                          (int)$_POST['parent_message_id'] : null;
-        
-        if (!$convId) {
-            throw new Exception("ID de conversation invalide");
-        }
-        
-        if (empty($contenu)) {
-            throw new Exception("Le message ne peut pas être vide");
-        }
-        
-        // Vérification des fichiers reçus
-        $filesData = isset($_FILES['attachments']) ? $_FILES['attachments'] : [];
-        
-        // Vérification directe des fichiers et des permissions
-        if (!empty($filesData) && isset($filesData['name']) && !empty($filesData['name'][0])) {
-            logApiMessage("Fichiers reçus:", $filesData);
-            
-            // Vérifier si le répertoire d'upload existe et est accessible en écriture
-            $uploadDir = __DIR__ . '/../assets/uploads/';
-            
-            if (!is_dir($uploadDir)) {
-                logApiMessage("Le répertoire d'upload n'existe pas: " . $uploadDir);
-                $created = @mkdir($uploadDir, 0755, true);
-                logApiMessage("Tentative de création du répertoire: " . ($created ? "Réussi" : "Échec"));
+try {
+    switch ($action) {
+        case 'send_message':
+            // Envoi d'un message via AJAX
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new Exception('Méthode non autorisée');
             }
             
-            if (is_dir($uploadDir) && !is_writable($uploadDir)) {
-                logApiMessage("Le répertoire d'upload n'est pas accessible en écriture: " . $uploadDir);
+            $contenu = $_POST['contenu'] ?? '';
+            $importance = $_POST['importance'] ?? 'normal';
+            $parentMessageId = !empty($_POST['parent_message_id']) ? (int)$_POST['parent_message_id'] : null;
+            
+            $result = handleSendMessage(
+                $convId,
+                $user,
+                $contenu,
+                $importance,
+                $parentMessageId,
+                $_FILES['attachments'] ?? []
+            );
+            
+            if ($result['success']) {
+                // Récupérer le message envoyé
+                $message = getMessageById($result['messageId']);
+                echo json_encode([
+                    'success' => true,
+                    'message' => $message
+                ]);
+            } else {
+                throw new Exception($result['message']);
             }
-        }
-        
-        // Envoyer le message
-        $result = handleSendMessage($convId, $user, $contenu, $importance, $parentMessageId, $filesData);
-        logApiMessage("Résultat de l'envoi:", $result);
-        
-        if ($result['success'] && isset($result['messageId'])) {
-            // Récupérer les informations du message créé pour les renvoyer
-            $message = getMessageById($result['messageId']);
+            break;
+            
+        case 'check_updates':
+            // Vérifier les nouvelles mises à jour
+            $lastTimestamp = isset($_GET['last_timestamp']) ? (int)$_GET['last_timestamp'] : 0;
+            
+            global $pdo;
+            $stmt = $pdo->prepare("
+                SELECT COUNT(*) as new_count
+                FROM messages
+                WHERE conversation_id = ? 
+                AND UNIX_TIMESTAMP(created_at) > ?
+                AND sender_id != ? 
+                AND sender_type != ?
+            ");
+            $stmt->execute([$convId, $lastTimestamp, $user['id'], $user['type']]);
+            $result = $stmt->fetch();
             
             echo json_encode([
                 'success' => true,
-                'message' => $message
+                'has_updates' => $result['new_count'] > 0,
+                'new_count' => (int)$result['new_count']
             ]);
-        } else {
-            echo json_encode($result);
-        }
-    } catch (Exception $e) {
-        logApiMessage("Exception lors de l'envoi de message: " . $e->getMessage(), [
-            'trace' => $e->getTraceAsString()
-        ]);
-        
-        echo json_encode([
-            'success' => false,
-            'error' => $e->getMessage()
-        ]);
-    }
-    exit;
-}
-
-// Récupération des nouveaux messages d'une conversation
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['conv_id']) && isset($_GET['action']) && $_GET['action'] === 'get_new') {
-    $convId = (int)$_GET['conv_id'];
-    $lastTimestamp = isset($_GET['last_timestamp']) ? (int)$_GET['last_timestamp'] : 0;
-
-    if (!$convId) {
-        echo json_encode(['success' => false, 'error' => 'ID de conversation invalide']);
-        exit;
-    }
-
-    try {
-        // Vérifier que l'utilisateur est participant à la conversation
-        $checkParticipant = $pdo->prepare("
-            SELECT id FROM conversation_participants 
-            WHERE conversation_id = ? AND user_id = ? AND user_type = ? AND is_deleted = 0
-        ");
-        $checkParticipant->execute([$convId, $user['id'], $user['type']]);
-        if (!$checkParticipant->fetch()) {
-            throw new Exception("Vous n'êtes pas autorisé à accéder à cette conversation");
-        }
-        
-        // Récupérer les nouveaux messages - Remove reference to m.is_deleted
-        $stmt = $pdo->prepare("
-            SELECT m.*, 
-                   CASE 
-                       WHEN cp.last_read_at IS NULL OR m.created_at > cp.last_read_at THEN 0
-                       ELSE 1
-                   END as est_lu,
-                   CASE 
-                       WHEN m.sender_id = ? AND m.sender_type = ? THEN 1
-                       ELSE 0
-                   END as is_self,
-                   CASE 
-                       WHEN m.sender_type = 'eleve' THEN 
-                           (SELECT CONCAT(e.prenom, ' ', e.nom) FROM eleves e WHERE e.id = m.sender_id)
-                       WHEN m.sender_type = 'parent' THEN 
-                           (SELECT CONCAT(p.prenom, ' ', p.nom) FROM parents p WHERE p.id = m.sender_id)
-                       WHEN m.sender_type = 'professeur' THEN 
-                           (SELECT CONCAT(p.prenom, ' ', p.nom) FROM professeurs p WHERE p.id = m.sender_id)
-                       WHEN m.sender_type = 'vie_scolaire' THEN 
-                           (SELECT CONCAT(v.prenom, ' ', v.nom) FROM vie_scolaire v WHERE v.id = m.sender_id)
-                       WHEN m.sender_type = 'administrateur' THEN 
-                           (SELECT CONCAT(a.prenom, ' ', a.nom) FROM administrateurs a WHERE a.id = m.sender_id)
-                       ELSE 'Inconnu'
-                   END as expediteur_nom,
-                   m.body as contenu, 
-                   UNIX_TIMESTAMP(m.created_at) as timestamp
-            FROM messages m
-            LEFT JOIN conversation_participants cp ON (
-                m.conversation_id = cp.conversation_id AND 
-                cp.user_id = ? AND 
-                cp.user_type = ?
-            )
-            WHERE m.conversation_id = ? AND UNIX_TIMESTAMP(m.created_at) > ?
-            ORDER BY m.created_at ASC
-        ");
-        $stmt->execute([$user['id'], $user['type'], $user['id'], $user['type'], $convId, $lastTimestamp]);
-        $messages = $stmt->fetchAll();
-        
-        // Récupérer les pièces jointes pour chaque message
-        $attachmentStmt = $pdo->prepare("
-            SELECT id, message_id, file_name as nom_fichier, file_path as chemin
-            FROM message_attachments 
-            WHERE message_id = ?
-        ");
-        
-        foreach ($messages as &$message) {
-            $attachmentStmt->execute([$message['id']]);
-            $message['pieces_jointes'] = $attachmentStmt->fetchAll();
+            break;
             
-            // Marquer comme lu automatiquement
-            if (!$message['est_lu'] && !$message['is_self']) {
-                markMessageAsRead($message['id'], $user['id'], $user['type']);
-            }
-        }
-        
-        echo json_encode([
-            'success' => true,
-            'messages' => $messages
-        ]);
-    } catch (Exception $e) {
-        logApiMessage("Exception lors de la récupération des messages: " . $e->getMessage());
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-    }
-    exit;
-}
-
-// Vérification des mises à jour d'une conversation
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['conv_id']) && isset($_GET['action']) && $_GET['action'] === 'check_updates') {
-    $convId = (int)$_GET['conv_id'];
-    $lastTimestamp = isset($_GET['last_timestamp']) ? (int)$_GET['last_timestamp'] : 0;
-
-    if (!$convId) {
-        echo json_encode(['success' => false, 'error' => 'ID de conversation invalide']);
-        exit;
-    }
-
-    try {
-        // Vérifier que l'utilisateur est participant à la conversation
-        $checkParticipant = $pdo->prepare("
-            SELECT id FROM conversation_participants 
-            WHERE conversation_id = ? AND user_id = ? AND user_type = ? AND is_deleted = 0
-        ");
-        $checkParticipant->execute([$convId, $user['id'], $user['type']]);
-        if (!$checkParticipant->fetch()) {
-            throw new Exception("Vous n'êtes pas autorisé à accéder à cette conversation");
-        }
-        
-        // Vérifier s'il y a de nouveaux messages après le timestamp donné
-        $newMessagesStmt = $pdo->prepare("
-            SELECT COUNT(*) as count, MAX(UNIX_TIMESTAMP(created_at)) as last_message_timestamp 
-            FROM messages
-            WHERE conversation_id = ? AND UNIX_TIMESTAMP(created_at) > ?
-        ");
-        $newMessagesStmt->execute([$convId, $lastTimestamp]);
-        $newMessagesInfo = $newMessagesStmt->fetch();
-        $newMessagesCount = $newMessagesInfo['count'];
-        $lastMessageTimestamp = $newMessagesInfo['last_message_timestamp'];
-        
-        // Vérifier si les participants ont changé
-        $participantsChangedStmt = $pdo->prepare("
-            SELECT MAX(UNIX_TIMESTAMP(updated_at)) as last_update 
-            FROM conversation_participants
-            WHERE conversation_id = ?
-        ");
-        $participantsChangedStmt->execute([$convId]);
-        $lastParticipantUpdate = $participantsChangedStmt->fetchColumn() ?: 0;
-        $participantsChanged = $lastParticipantUpdate > $lastTimestamp;
-        
-        // Récupérer la liste des expéditeurs des nouveaux messages
-        $sendersInfo = [];
-        if ($newMessagesCount > 0) {
-            $sendersStmt = $pdo->prepare("
-                SELECT DISTINCT 
-                    m.sender_id,
-                    m.sender_type,
+        case 'get_new':
+            // Récupérer les nouveaux messages
+            $lastTimestamp = isset($_GET['last_timestamp']) ? (int)$_GET['last_timestamp'] : 0;
+            
+            global $pdo;
+            $stmt = $pdo->prepare("
+                SELECT m.*, 
+                    CASE 
+                        WHEN m.sender_id = ? AND m.sender_type = ? THEN 1
+                        ELSE 0
+                    END as is_self,
                     CASE 
                         WHEN m.sender_type = 'eleve' THEN 
                             (SELECT CONCAT(e.prenom, ' ', e.nom) FROM eleves e WHERE e.id = m.sender_id)
@@ -297,58 +101,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['conv_id']) && isset($_G
                         WHEN m.sender_type = 'administrateur' THEN 
                             (SELECT CONCAT(a.prenom, ' ', a.nom) FROM administrateurs a WHERE a.id = m.sender_id)
                         ELSE 'Inconnu'
-                    END as sender_name
+                    END as expediteur_nom,
+                    UNIX_TIMESTAMP(m.created_at) as timestamp
                 FROM messages m
-                WHERE m.conversation_id = ? AND UNIX_TIMESTAMP(m.created_at) > ?
-                ORDER BY m.created_at DESC
-                LIMIT 3
+                WHERE m.conversation_id = ? 
+                AND UNIX_TIMESTAMP(m.created_at) > ?
+                ORDER BY m.created_at ASC
             ");
-            $sendersStmt->execute([$convId, $lastTimestamp]);
-            $sendersInfo = $sendersStmt->fetchAll(PDO::FETCH_ASSOC);
-        }
-        
-        // Utiliser le timestamp du dernier message plutôt que le timestamp actuel
-        $timestampToReturn = $lastMessageTimestamp ? $lastMessageTimestamp : $lastTimestamp;
-        
-        echo json_encode([
-            'success' => true,
-            'hasUpdates' => $newMessagesCount > 0,
-            'updateCount' => $newMessagesCount,
-            'participantsChanged' => $participantsChanged,
-            'senders' => $sendersInfo,
-            'timestamp' => $timestampToReturn // Utiliser le timestamp du dernier message
-        ]);
-    } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            $stmt->execute([$user['id'], $user['type'], $convId, $lastTimestamp]);
+            $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Récupérer les pièces jointes pour chaque message
+            foreach ($messages as &$message) {
+                $attachStmt = $pdo->prepare("
+                    SELECT id, file_name as nom_fichier, file_path as chemin
+                    FROM message_attachments WHERE message_id = ?
+                ");
+                $attachStmt->execute([$message['id']]);
+                $message['pieces_jointes'] = $attachStmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+            
+            echo json_encode([
+                'success' => true,
+                'messages' => $messages
+            ]);
+            break;
+            
+        default:
+            throw new Exception('Action non spécifiée');
     }
-    exit;
+    
+} catch (Exception $e) {
+    http_response_code(400);
+    echo json_encode([
+        'success' => false,
+        'error' => $e->getMessage()
+    ]);
 }
-
-// Marquer un message comme lu/non lu
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['id']) && isset($_GET['action'])) {
-    $messageId = (int)$_GET['id'];
-    $action = $_GET['action'];
-
-    if (!$messageId || !in_array($action, ['mark_read', 'mark_unread'])) {
-        echo json_encode(['success' => false, 'error' => 'Paramètres invalides']);
-        exit;
-    }
-
-    try {
-        $result = null;
-        
-        if ($action === 'mark_read') {
-            $result = handleMarkMessageAsRead($messageId, $user);
-        } else {
-            $result = handleMarkMessageAsUnread($messageId, $user);
-        }
-        
-        echo json_encode($result);
-    } catch (Exception $e) {
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-    }
-    exit;
-}
-
-// Si aucune action reconnue n'est trouvée
-echo json_encode(['success' => false, 'error' => 'Action non supportée']);

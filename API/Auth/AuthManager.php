@@ -1,51 +1,71 @@
 <?php
+namespace API\Auth;
+
 /**
- * Auth Manager - Strategy Pattern pour guards
+ * Gestionnaire d'authentification
  */
+class AuthManager
+{
+    protected $guard;
+    protected $userProvider;
 
-namespace Pronote\Auth;
-
-class AuthManager {
-    protected $app;
-    protected $guards = [];
-    protected $defaultGuard = 'session';
-    
-    public function __construct($app) {
-        $this->app = $app;
+    public function __construct(SessionGuard $guard, UserProvider $userProvider)
+    {
+        $this->guard = $guard;
+        $this->userProvider = $userProvider;
     }
-    
+
     /**
-     * Récupère un guard
+     * Vérifie si l'utilisateur est authentifié
      */
-    public function guard($name = null) {
-        $name = $name ?? $this->defaultGuard;
+    public function check()
+    {
+        return $this->guard->check();
+    }
+
+    /**
+     * Retourne l'utilisateur actuel
+     */
+    public function user()
+    {
+        return $this->guard->user();
+    }
+
+    /**
+     * Authentifie un utilisateur
+     */
+    public function login($userId, $userType)
+    {
+        $user = $this->userProvider->retrieveById($userId, $userType);
         
-        if (!isset($this->guards[$name])) {
-            $this->guards[$name] = $this->createGuard($name);
+        if ($user) {
+            $this->guard->login($user);
+            return true;
         }
         
-        return $this->guards[$name];
+        return false;
     }
-    
+
     /**
-     * Crée un guard
+     * Déconnecte l'utilisateur
      */
-    protected function createGuard($name) {
-        switch ($name) {
-            case 'session':
-                return new SessionGuard(
-                    new UserProvider($this->app->make('db')),
-                    $this->app
-                );
-            default:
-                throw new \Exception("Guard [{$name}] is not defined.");
+    public function logout()
+    {
+        $this->guard->logout();
+    }
+
+    /**
+     * Tente une authentification avec identifiants
+     */
+    public function attempt($credentials)
+    {
+        $user = $this->userProvider->retrieveByCredentials($credentials);
+        
+        if ($user && $this->userProvider->validateCredentials($user, $credentials)) {
+            $this->guard->login($user);
+            return true;
         }
-    }
-    
-    /**
-     * Proxy vers le guard par défaut
-     */
-    public function __call($method, $parameters) {
-        return $this->guard()->$method(...$parameters);
+        
+        return false;
     }
 }

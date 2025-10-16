@@ -1,31 +1,29 @@
 <?php
 
-namespace Pronote\Providers;
+namespace API\Providers;
 
-use Pronote\Core\ServiceProvider;
-use Pronote\Database\Database;
-use Pronote\Database\QueryBuilder;
+use API\Core\ServiceProvider;
+use API\Database\Database;
 
-class DatabaseServiceProvider extends ServiceProvider {
-    public function register() {
+/**
+ * Service Provider pour la base de données
+ */
+class DatabaseServiceProvider extends ServiceProvider
+{
+    public function register()
+    {
         $this->app->singleton('db', function($app) {
-            // Build config array from app config
-            $config = [
-                'host' => $app->config('database.host', 'localhost'),
-                'name' => $app->config('database.name', 'pronote'),
-                'user' => $app->config('database.user', 'root'),
-                'pass' => $app->config('database.pass', ''),
-                'charset' => $app->config('database.charset', 'utf8mb4')
-            ];
-            return Database::getInstance($config);
-        });
-        
-        $this->app->bind('db.query', function($app) {
-            return $app->make('db')->query();
+            return new Database(config('database'));
         });
     }
-    
-    public function boot() {
-        // Database is ready
+
+    public function boot()
+    {
+        try {
+            // Établir la connexion au démarrage
+            $this->app->make('db')->connect();
+        } catch (\RuntimeException $e) {
+            die("Erreur de connexion à la base de données. Vérifiez votre configuration .env");
+        }
     }
 }

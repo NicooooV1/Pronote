@@ -1,106 +1,94 @@
 <?php
 /**
- * Item d'un message dans une conversation
- * 
- * @param array $message Le message à afficher
- * @param array $user L'utilisateur connecté
- * @param bool $canReply Si l'utilisateur peut répondre
+ * Composant pour afficher un message dans une conversation
  */
 
-// Classes CSS pour le message
-$messageClasses = [];
+// S'assurer que les variables nécessaires sont définies
+$messageId = $message['id'] ?? 0;
+$senderId = $message['sender_id'] ?? 0;
+$senderType = $message['sender_type'] ?? '';
+$senderName = $message['expediteur_nom'] ?? 'Inconnu';
+$content = $message['body'] ?? $message['contenu'] ?? '';
+$timestamp = $message['timestamp'] ?? time();
+$status = $message['status'] ?? 'normal';
+$isRead = isset($message['est_lu']) && $message['est_lu'] == 1;
+$attachments = $message['pieces_jointes'] ?? [];
 
-// Ensure all keys we need are available with default values
-$message['sender_id'] = $message['sender_id'] ?? ($message['expediteur_id'] ?? 0);
-$message['sender_type'] = $message['sender_type'] ?? ($message['expediteur_type'] ?? '');
-$message['body'] = $message['body'] ?? ($message['contenu'] ?? '');
-$message['created_at'] = $message['created_at'] ?? ($message['date_envoi'] ?? '');
-$message['expediteur_nom'] = $message['expediteur_nom'] ?? 'Utilisateur inconnu';
+// Déterminer si c'est le message de l'utilisateur actuel
+$isSelf = isCurrentUser($senderId, $senderType, $user);
 
-// Check if message is from current user
-$isSelf = isCurrentUser($message['sender_id'], $message['sender_type'], $user);
+// Classes CSS
+$messageClasses = ['message'];
 if ($isSelf) {
     $messageClasses[] = 'self';
 }
-
-// Importance/statut du message
-$importance = isset($message['status']) ? $message['status'] : 'normal';
-$messageClasses[] = $importance;
-
-// Message lu/non lu
-if (isset($message['est_lu']) && $message['est_lu']) {
+if ($isRead) {
     $messageClasses[] = 'read';
 }
-
-// Annonce
-if (isset($conversation) && isset($conversation['type']) && $conversation['type'] === 'annonce') {
-    $messageClasses[] = 'annonce';
+if ($status && $status !== 'normal') {
+    $messageClasses[] = $status;
 }
 
-// Filtrer les classes vides
-$messageClasses = array_filter($messageClasses);
-$messageClassString = implode(' ', $messageClasses);
-
-// Format timestamp for display
-$timestamp = isset($message['timestamp']) ? (int)$message['timestamp'] : time();
-
-// Check if formatTimeAgo function exists, otherwise use a simpler formatting
-if (function_exists('formatTimeAgo')) {
-    $formattedDate = formatTimeAgo($timestamp);
-} else {
-    $formattedDate = date('d/m/Y H:i', $timestamp);
-}
-
-// Prepare content safely
-$messageContent = nl2br(htmlspecialchars($message['body']));
+// Formater la date
+$dateFormatted = date('d/m/Y H:i', $timestamp);
 ?>
 
-<div class="message <?= $messageClassString ?>" data-id="<?= $message['id'] ?>" data-timestamp="<?= $timestamp ?>">
+<div class="<?= implode(' ', $messageClasses) ?>" data-id="<?= $messageId ?>" data-timestamp="<?= $timestamp ?>">
     <div class="message-header">
         <div class="sender">
-            <strong><?= htmlspecialchars($message['expediteur_nom']) ?></strong>
-            <span class="sender-type"><?= getParticipantType($message['sender_type']) ?></span>
+            <strong><?= h($senderName) ?></strong>
+            <span class="sender-type"><?= getParticipantType($senderType) ?></span>
         </div>
         <div class="message-meta">
-            <?php if ($importance !== 'normal'): ?>
-            <span class="importance-tag <?= $importance ?>"><?= ucfirst($importance) ?></span>
+            <?php if ($status && $status !== 'normal'): ?>
+            <span class="importance-tag <?= $status ?>"><?= ucfirst($status) ?></span>
             <?php endif; ?>
-            <span class="date" title="<?= date('d/m/Y H:i', $timestamp) ?>"><?= $formattedDate ?></span>
+            <span class="date" title="<?= $dateFormatted ?>"><?= formatTimeAgo($timestamp) ?></span>
         </div>
     </div>
     
     <div class="message-content">
-        <?= $messageContent ?>
-        
-        <?php if (!empty($message['pieces_jointes'])): ?>
-        <div class="attachments">
-            <?php foreach ($message['pieces_jointes'] as $piece): ?>
-            <a href="<?= $piece['chemin'] ?>" class="attachment" target="_blank" download>
-                <i class="fas fa-paperclip"></i> <?= htmlspecialchars($piece['nom_fichier']) ?>
-            </a>
-            <?php endforeach; ?>
-        </div>
-        <?php endif; ?>
+        <?= nl2br(linkify(h($content))) ?>
     </div>
+    
+    <?php if (!empty($attachments)): ?>
+    <div class="attachments">
+        <div class="attachments-header">
+            <i class="fas fa-paperclip"></i> Pièces jointes (<?= count($attachments) ?>)
+        </div>
+        <?php foreach ($attachments as $attachment): ?>
+        <div class="attachment-item">
+            <a href="<?= h($attachment['chemin'] ?? $attachment['file_path']) ?>" 
+               target="_blank" 
+               class="attachment-link">
+                <i class="fas fa-file"></i>
+                <?= h($attachment['nom_fichier'] ?? $attachment['file_name']) ?>
+            </a>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
     
     <div class="message-footer">
         <?php if ($isSelf): ?>
-        <!-- Pour ses propres messages: Status de lecture -->
-        <div class="message-read-status">
-            <?php if (isset($message['est_lu']) && $message['est_lu']): ?>
-            <div class="all-read"><i class="fas fa-check-double"></i> Vu</div>
-            <?php else: ?>
-            <div class="partial-read"><i class="fas fa-check"></i></div>
-            <?php endif; ?>
+        <div class="message-status">
+            <div class="message-read-status" data-message-id="<?= $messageId ?>">
+                <?php if ($isRead): ?>
+                <div class="all-read">
+                    <i class="fas fa-check-double"></i> Vu
+                </div>
+                <?php else: ?>
+                <div class="partial-read">
+                    <i class="fas fa-check"></i> <span class="read-count">0/<?= count($participants ?? []) - 1 ?></span>
+                </div>
+                <?php endif; ?>
+            </div>
         </div>
         <?php else: ?>
-        <!-- Pour les messages des autres: Actions -->
         <div class="message-actions">
-            <?php if ($canReply): ?>
-            <button class="btn-icon reply-btn" onclick="replyToMessage(<?= $message['id'] ?>, '<?= htmlspecialchars($message['expediteur_nom']) ?>')">
+            <button class="btn-icon" onclick="replyToMessage(<?= $messageId ?>, '<?= h($senderName) ?>')">
                 <i class="fas fa-reply"></i> Répondre
             </button>
-            <?php endif; ?>
         </div>
         <?php endif; ?>
     </div>

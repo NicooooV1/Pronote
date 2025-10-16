@@ -3,66 +3,25 @@
  * Interface principale de messagerie
  */
 
-// Inclure les fichiers nécessaires avec des chemins relatifs
+// Charger la configuration (qui charge l'API)
 require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/constants.php';
 require_once __DIR__ . '/core/utils.php';
 require_once __DIR__ . '/core/auth.php';
 
-// Inclure l'API centralisée
-require_once __DIR__ . '/../API/core.php';
+// Vérifier l'authentification via l'API
+$user = requireAuth();
 
-// Vérifier l'authentification
-requireAuth();
-
-// Récupérer l'utilisateur actuel
-$user = getCurrentUser();
-
-// Récupérer la connexion à la base de données
-try {
-    $pdo = getDatabaseConnection();
-} catch (Exception $e) {
-    logError("Erreur de connexion DB dans messagerie: " . $e->getMessage());
-    die("Erreur de connexion à la base de données");
-}
-
-// Assurer que les fonctions d'authentification sont disponibles
-if (!function_exists('isLoggedIn')) {
-    function isLoggedIn() {
-        return isset($_SESSION['user']) && !empty($_SESSION['user']);
-    }
-}
-
-// Vérifier l'authentification
-if (!isLoggedIn()) {
-    $loginPage = defined('BASE_URL') ? BASE_URL . '/login/public/index.php' : '../login/public/index.php';
-    header('Location: ' . $loginPage);
-    exit;
-}
-
-// S'assurer que la propriété 'type' existe dans $user, sinon définir une valeur par défaut
-if (!isset($user['type']) && isset($user['profil'])) {
-    $user['type'] = $user['profil']; // Utiliser 'profil' si 'type' n'existe pas
-} elseif (!isset($user['type'])) {
-    $user['type'] = 'eleve'; // Valeur par défaut
-}
-
-// Charger les modèles nécessaires 
+// La connexion PDO est déjà disponible via config.php
 require_once __DIR__ . '/models/conversation.php';
 require_once __DIR__ . '/models/notification.php';
 
 // Définir le titre de la page
 $pageTitle = 'Pronote - Messagerie';
 
-// Traitement des actions rapides si demandé
+// Traitement des actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['conv_id'])) {
     $convId = (int)$_POST['conv_id'];
-    
-    // Vérifier que ces fonctions existent
-    if (!function_exists('archiveConversation') || !function_exists('deleteConversation')) {
-        // Inclure le fichier qui définit ces fonctions
-        require_once __DIR__ . '/models/action_handlers.php';
-    }
     
     switch ($_POST['action']) {
         case 'archive':
@@ -79,46 +38,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['con
             restoreConversation($convId, $user['id'], $user['type']);
             redirect('index.php');
             break;
-            
-        case 'leave':
-            leaveConversation($convId, $user['id'], $user['type']);
-            redirect('index.php');
-            break;
     }
 }
 
 // Récupérer le dossier courant
 $currentFolder = isset($_GET['folder']) ? $_GET['folder'] : 'reception';
 
-// Définir le titre de la page en fonction du dossier
-switch ($currentFolder) {
-    case 'archives':
-        $folderTitle = 'Archives';
-        break;
-    case 'envoyes':
-        $folderTitle = 'Messages envoyés';
-        break;
-    case 'corbeille':
-        $folderTitle = 'Corbeille';
-        break;
-    case 'information':
-        $folderTitle = 'Informations & Annonces';
-        break;
-    default:
-        $folderTitle = 'Boîte de réception';
-}
+// Titre du dossier
+$folderTitles = [
+    'archives' => 'Archives',
+    'envoyes' => 'Messages envoyés',
+    'corbeille' => 'Corbeille',
+    'information' => 'Informations & Annonces',
+    'reception' => 'Boîte de réception'
+];
 
+$folderTitle = $folderTitles[$currentFolder] ?? 'Boîte de réception';
 $pageTitle = 'Pronote - Messagerie - ' . $folderTitle;
 
 // Récupérer les conversations
 $conversations = getConversations($user['id'], $user['type'], $currentFolder);
 
-// Pour le débogage si nécessaire
-// echo '<pre>'; print_r($conversations); echo '</pre>'; exit;
-
-// Si c'est une requête AJAX, renvoyer seulement le contenu partiel
+// Si requête AJAX
 if (isset($_GET['ajax']) && $_GET['ajax'] == 1) {
-    // Inclure uniquement le template de la liste des conversations
     foreach ($conversations as $conversation) {
         include 'templates/components/conversation-item.php';
     }
@@ -180,7 +122,4 @@ include 'templates/header.php';
     <?php endif; ?>
 </div>
 
-<?php
-// Inclure le pied de page
-include 'templates/footer.php';
-?>
+<?php include 'templates/footer.php'; ?>

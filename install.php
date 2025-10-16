@@ -24,6 +24,64 @@ function handleFatalError() {
 }
 
 /**
+ * Valide la robustesse d'un mot de passe
+ */
+function validatePasswordStrength($password) {
+    $errors = [];
+    
+    if (strlen($password) < 12) {
+        $errors[] = "Le mot de passe doit contenir au moins 12 caractères";
+    }
+    
+    if (!preg_match('/[A-Z]/', $password)) {
+        $errors[] = "Le mot de passe doit contenir au moins une majuscule";
+    }
+    
+    if (!preg_match('/[a-z]/', $password)) {
+        $errors[] = "Le mot de passe doit contenir au moins une minuscule";
+    }
+    
+    if (!preg_match('/[0-9]/', $password)) {
+        $errors[] = "Le mot de passe doit contenir au moins un chiffre";
+    }
+    
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        $errors[] = "Le mot de passe doit contenir au moins un caractère spécial (@, #, $, %, etc.)";
+    }
+    
+    // Vérifier les mots de passe courants
+    $commonPasswords = ['Password123!', 'Admin123!', 'Pronote123!', 'Azerty123!'];
+    if (in_array($password, $commonPasswords)) {
+        $errors[] = "Ce mot de passe est trop commun";
+    }
+    
+    return $errors;
+}
+
+/**
+ * Génère un mot de passe aléatoire robuste
+ */
+function generateSecurePassword($length = 16) {
+    $uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    $lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    $numbers = '0123456789';
+    $special = '!@#$%^&*()-_=+[]{}|;:,.<>?';
+    
+    $password = '';
+    $password .= $uppercase[random_int(0, strlen($uppercase) - 1)];
+    $password .= $lowercase[random_int(0, strlen($lowercase) - 1)];
+    $password .= $numbers[random_int(0, strlen($numbers) - 1)];
+    $password .= $special[random_int(0, strlen($special) - 1)];
+    
+    $allChars = $uppercase . $lowercase . $numbers . $special;
+    for ($i = 4; $i < $length; $i++) {
+        $password .= $allChars[random_int(0, strlen($allChars) - 1)];
+    }
+    
+    return str_shuffle($password);
+}
+
+/**
  * Fonction de vérification IP réseau local
  */
 function isLocalIP($ip) {
@@ -241,7 +299,7 @@ function getRequiredStructure() {
             'temp/.gitkeep' => ['content' => '', 'permissions' => 0644, 'critical' => false],
             'API/logs/.gitkeep' => ['content' => '', 'permissions' => 0644, 'critical' => false]
         ]
-    ];
+    };
 }
 
 /**
@@ -1130,6 +1188,8 @@ if (session_status() === PHP_SESSION_NONE) {
 // Détecter automatiquement les chemins
 $installDir = __DIR__;
 $baseUrl = '';
+$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 
 if (isset($_SERVER['REQUEST_URI'])) {
     $scriptPath = dirname($_SERVER['REQUEST_URI']);
@@ -1140,6 +1200,7 @@ if (isset($_SERVER['REQUEST_URI'])) {
 }
 
 $baseUrl = filter_var($baseUrl, FILTER_SANITIZE_URL);
+$fullUrl = $protocol . '://' . $host . $baseUrl;
 
 // ÉTAPE 0: Gestion automatique de la structure complète
 $forceMode = isset($_POST['force_structure']) && $_POST['force_structure'] === '1';
@@ -1176,19 +1237,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
         $dbError = "Erreur de sécurité: Jeton invalide";
     } else {
         try {
-            // Valider les entrées
+            // Valider les entrées - Base de données
             $dbHost = filter_input(INPUT_POST, 'db_host', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: 'localhost';
+            $dbPort = filter_input(INPUT_POST, 'db_port', FILTER_VALIDATE_INT) ?: 3306;
             $dbName = filter_input(INPUT_POST, 'db_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: '';
             $dbUser = filter_input(INPUT_POST, 'db_user', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: '';
             $dbPass = $_POST['db_pass'] ?? '';
-            $appEnv = filter_input(INPUT_POST, 'app_env', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-            $baseUrlInput = filter_input(INPUT_POST, 'base_url', FILTER_SANITIZE_URL) ?: $baseUrl;
+            $dbCharset = filter_input(INPUT_POST, 'db_charset', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: 'utf8mb4';
             
+            // Valider les entrées - Application
+            $appName = filter_input(INPUT_POST, 'app_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: 'Pronote';
+            $appEnv = filter_input(INPUT_POST, 'app_env', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+            $appDebug = filter_input(INPUT_POST, 'app_debug', FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            $baseUrlInput = filter_input(INPUT_POST, 'base_url', FILTER_SANITIZE_URL) ?: $baseUrl;
+            $appUrl = filter_input(INPUT_POST, 'app_url', FILTER_SANITIZE_URL) ?: $fullUrl;
+            
+            // Valider les entrées - Sécurité
+            $csrfLifetime = filter_input(INPUT_POST, 'csrf_lifetime', FILTER_VALIDATE_INT) ?: 3600;
+            $sessionLifetime = filter_input(INPUT_POST, 'session_lifetime', FILTER_VALIDATE_INT) ?: 7200;
+            $sessionName = filter_input(INPUT_POST, 'session_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: 'pronote_session';
+            $maxLoginAttempts = filter_input(INPUT_POST, 'max_login_attempts', FILTER_VALIDATE_INT) ?: 5;
+            $rateLimitAttempts = filter_input(INPUT_POST, 'rate_limit_attempts', FILTER_VALIDATE_INT) ?: 5;
+            $rateLimitDecay = filter_input(INPUT_POST, 'rate_limit_decay', FILTER_VALIDATE_INT) ?: 1;
+            
+            // Valider les entrées - Administrateur
             $adminNom = filter_input(INPUT_POST, 'admin_nom', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: '';
             $adminPrenom = filter_input(INPUT_POST, 'admin_prenom', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: '';
             $adminMail = filter_input(INPUT_POST, 'admin_mail', FILTER_SANITIZE_EMAIL) ?: '';
             $adminPassword = $_POST['admin_password'] ?? '';
             
+            // Validations
             if (!in_array($appEnv, ['development', 'production', 'test'])) {
                 throw new Exception("Environnement non valide");
             }
@@ -1205,8 +1283,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
                 throw new Exception("L'adresse email administrateur n'est pas valide");
             }
             
-            if (strlen($adminPassword) < 8) {
-                throw new Exception("Le mot de passe doit contenir au moins 8 caractères");
+            // Validation robuste du mot de passe
+            $passwordErrors = validatePasswordStrength($adminPassword);
+            if (!empty($passwordErrors)) {
+                throw new Exception("Mot de passe non conforme:\n• " . implode("\n• ", $passwordErrors));
             }
             
             // ÉTAPE 1: Créer la configuration .env
@@ -1214,31 +1294,118 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             echo "<h3>🔧 Étape 1: Création de la configuration</h3>";
             
             $configFile = $installDir . '/.env';
-            $configContent = "# Configuration Pronote - Généré le " . date('Y-m-d H:i:s') . "\n\n";
-            $configContent .= "# Sécurité installation\n";
+            $configContent = "# Configuration Pronote - Généré le " . date('Y-m-d H:i:s') . "\n";
+            $configContent .= "# ⚠️ NE PAS COMMITTER CE FICHIER DANS GIT\n";
+            $configContent .= "# ⚠️ NE PAS PARTAGER CE FICHIER\n\n";
+            
+            $configContent .= "# ==================================================\n";
+            $configContent .= "# SÉCURITÉ INSTALLATION\n";
+            $configContent .= "# ==================================================\n";
             $configContent .= "ALLOWED_INSTALL_IP={$clientIP}\n\n";
-            $configContent .= "# Base de données\n";
+            
+            $configContent .= "# ==================================================\n";
+            $configContent .= "# BASE DE DONNÉES\n";
+            $configContent .= "# ==================================================\n";
             $configContent .= "DB_HOST={$dbHost}\n";
+            $configContent .= "DB_PORT={$dbPort}\n";
             $configContent .= "DB_NAME={$dbName}\n";
             $configContent .= "DB_USER={$dbUser}\n";
-            $configContent .= "DB_PASS={$dbPass}\n\n";
-            $configContent .= "# Application\n";
-            $configContent .= "BASE_URL=" . rtrim($baseUrlInput, '/') . "\n";
+            $configContent .= "DB_PASS={$dbPass}\n";
+            $configContent .= "DB_CHARSET={$dbCharset}\n\n";
+            
+            $configContent .= "# ==================================================\n";
+            $configContent .= "# APPLICATION\n";
+            $configContent .= "# ==================================================\n";
+            $configContent .= "APP_NAME=\"{$appName}\"\n";
             $configContent .= "APP_ENV={$appEnv}\n";
-            $configContent .= "APP_DEBUG=" . ($appEnv === 'development' ? 'true' : 'false') . "\n";
-            $configContent .= "APP_NAME=Pronote\n\n";
-            $configContent .= "# Sécurité\n";
-            $configContent .= "CSRF_TOKEN_LIFETIME=3600\n";
-            $configContent .= "SESSION_LIFETIME=7200\n";
-            $configContent .= "MAX_LOGIN_ATTEMPTS=5\n\n";
-            $configContent .= "# Chemins\n";
+            $configContent .= "APP_DEBUG=" . ($appDebug ? 'true' : 'false') . "\n";
+            $configContent .= "APP_URL={$appUrl}\n";
+            $configContent .= "APP_BASE_PATH={$installDir}\n";
+            $configContent .= "BASE_URL=" . rtrim($baseUrlInput, '/') . "\n\n";
+            
+            $configContent .= "# ==================================================\n";
+            $configContent .= "# SÉCURITÉ\n";
+            $configContent .= "# ==================================================\n";
+            $configContent .= "# Durée de vie des tokens CSRF (en secondes)\n";
+            $configContent .= "CSRF_LIFETIME={$csrfLifetime}\n";
+            $configContent .= "CSRF_MAX_TOKENS=10\n\n";
+            
+            $configContent .= "# Configuration des sessions\n";
+            $configContent .= "SESSION_NAME={$sessionName}\n";
+            $configContent .= "SESSION_LIFETIME={$sessionLifetime}\n";
+            $configContent .= "SESSION_SECURE=" . ($protocol === 'https' ? 'true' : 'false') . "\n";
+            $configContent .= "SESSION_HTTPONLY=true\n";
+            $configContent .= "SESSION_SAMESITE=Lax\n\n";
+            
+            $configContent .= "# Limitations de connexion\n";
+            $configContent .= "MAX_LOGIN_ATTEMPTS={$maxLoginAttempts}\n";
+            $configContent .= "LOGIN_LOCKOUT_TIME=900\n\n";
+            
+            $configContent .= "# Rate limiting\n";
+            $configContent .= "RATE_LIMIT_ATTEMPTS={$rateLimitAttempts}\n";
+            $configContent .= "RATE_LIMIT_DECAY={$rateLimitDecay}\n\n";
+            
+            $configContent .= "# ==================================================\n";
+            $configContent .= "# CHEMINS\n";
+            $configContent .= "# ==================================================\n";
             $configContent .= "LOGS_PATH={$installDir}/API/logs\n";
+            $configContent .= "UPLOADS_PATH={$installDir}/uploads\n";
+            $configContent .= "TEMP_PATH={$installDir}/temp\n\n";
+            
+            $configContent .= "# ==================================================\n";
+            $configContent .= "# MAIL (à configurer ultérieurement)\n";
+            $configContent .= "# ==================================================\n";
+            $configContent .= "MAIL_MAILER=smtp\n";
+            $configContent .= "MAIL_HOST=\n";
+            $configContent .= "MAIL_PORT=587\n";
+            $configContent .= "MAIL_USERNAME=\n";
+            $configContent .= "MAIL_PASSWORD=\n";
+            $configContent .= "MAIL_ENCRYPTION=tls\n";
+            $configContent .= "MAIL_FROM_ADDRESS={$adminMail}\n";
+            $configContent .= "MAIL_FROM_NAME=\"{$appName}\"\n\n";
+            
+            $configContent .= "# ==================================================\n";
+            $configContent .= "# TIMEZONE\n";
+            $configContent .= "# ==================================================\n";
+            $configContent .= "APP_TIMEZONE=Europe/Paris\n";
             
             if (@file_put_contents($configFile, $configContent, LOCK_EX) === false) {
                 throw new Exception("Impossible d'écrire le fichier .env");
             }
             
-            echo "<p>✅ Fichier .env créé</p>";
+            // Protection du .env selon l'environnement
+            $chmodSuccess = false;
+            $chmodMsg = '';
+            if ($appEnv === 'production') {
+                // En production, rendre le .env illisible sauf pour le propriétaire
+                if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                    // Windows : lecture seule pour l'utilisateur
+                    $chmodSuccess = @chmod($configFile, 0600);
+                    $chmodMsg = $chmodSuccess
+                        ? "Le fichier .env est protégé (lecture seule pour l'utilisateur)."
+                        : "Impossible de restreindre les droits du fichier .env (Windows).";
+                } else {
+                    // Unix/Linux : aucune permission pour les autres
+                    $chmodSuccess = @chmod($configFile, 0600) && @chmod($configFile, 0000);
+                    $chmodMsg = $chmodSuccess
+                        ? "Le fichier .env est protégé (aucune lecture possible par le serveur web)."
+                        : "Impossible de restreindre les droits du fichier .env (Linux/Unix).";
+                }
+            } else {
+                // En développement, lecture/écriture pour l'utilisateur uniquement
+                $chmodSuccess = @chmod($configFile, 0600);
+                $chmodMsg = $chmodSuccess
+                    ? "Le fichier .env est protégé (lecture/écriture pour l'utilisateur uniquement)."
+                    : "Impossible de restreindre les droits du fichier .env.";
+            }
+
+            echo "<p style='color: #2980b9; font-size: 0.95em;'>$chmodMsg</p>";
+            
+            echo "<p>✅ Fichier .env créé avec toutes les configurations</p>";
+            echo "<p style='font-size: 0.9em; color: #666;'>→ Configuration base de données</p>";
+            echo "<p style='font-size: 0.9em; color: #666;'>→ Configuration application</p>";
+            echo "<p style='font-size: 0.9em; color: #666;'>→ Configuration sécurité</p>";
+            echo "<p style='font-size: 0.9em; color: #666;'>→ Configuration chemins</p>";
             
             // Créer les fichiers de configuration supplémentaires
             $configFiles = createConfigurationFiles($installDir, []);
@@ -1302,15 +1469,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             
             createDatabaseStructure($pdo);
             echo "<p>✅ Structure créée</p>";
+            
+            // Vérifier que la table audit_log existe bien
+            $stmt = $pdo->query("SHOW TABLES LIKE 'audit_log'");
+            if ($stmt->rowCount() > 0) {
+                echo "<p style='color: #28a745;'>✅ Système d'audit opérationnel</p>";
+                
+                // Compter les colonnes de la table audit_log
+                $stmt = $pdo->query("DESCRIBE audit_log");
+                $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                echo "<p style='font-size: 0.9em; color: #666;'>→ Table audit_log: " . count($columns) . " colonnes</p>";
+                echo "<p style='font-size: 0.9em; color: #666;'>→ Index créés: idx_action, idx_model, idx_user, idx_created_at</p>";
+            } else {
+                echo "<p style='color: #e74c3c;'>⚠️ Table audit_log non créée</p>";
+            }
+            
             echo "</div>";
             
             // ÉTAPE 5: Créer le compte admin
             echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
             echo "<h3>🔧 Étape 5: Compte administrateur</h3>";
             
-            // Utiliser directement PDO car UserProvider n'est pas encore configuré
             $identifiant = 'admin';
-            $hashedPassword = password_hash($adminPassword, PASSWORD_DEFAULT);
+            $hashedPassword = password_hash($adminPassword, PASSWORD_BCRYPT, ['cost' => 12]);
             
             $stmt = $pdo->prepare("
                 INSERT INTO administrateurs (nom, prenom, mail, identifiant, mot_de_passe, role, actif) 
@@ -1319,19 +1500,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             
             $stmt->execute([$adminNom, $adminPrenom, $adminMail, $identifiant, $hashedPassword]);
             
-            echo "<p>✅ Administrateur créé (identifiant: {$identifiant})</p>";
+            echo "<p>✅ Administrateur créé</p>";
+            echo "<p style='font-size: 0.9em; color: #666;'>→ Identifiant: <strong>{$identifiant}</strong></p>";
+            echo "<p style='font-size: 0.9em; color: #666;'>→ Nom: {$adminNom} {$adminPrenom}</p>";
+            echo "<p style='font-size: 0.9em; color: #666;'>→ Email: {$adminMail}</p>";
+            echo "<p style='font-size: 0.9em; color: #28a745;'>→ Mot de passe hashé avec BCRYPT (cost: 12)</p>";
             echo "</div>";
             
             // ÉTAPE 6: Finalisation
             echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
             echo "<h3>🔧 Étape 6: Finalisation</h3>";
             
+            // Log l'installation dans le système d'audit si disponible
+            try {
+                $pdo->exec("INSERT INTO audit_log (action, model, user_id, user_type, new_values, ip_address, user_agent, created_at) 
+                            VALUES ('system.installed', 'system', NULL, NULL, ?, ?, ?, NOW())");
+                $stmt = $pdo->prepare("INSERT INTO audit_log (action, model, user_id, user_type, new_values, ip_address, user_agent) 
+                                       VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([
+                    'system.installed',
+                    'system',
+                    null,
+                    null,
+                    json_encode([
+                        'version' => '1.0.0',
+                        'php_version' => PHP_VERSION,
+                        'install_date' => date('Y-m-d H:i:s'),
+                        'admin_email' => $adminMail
+                    ]),
+                    $clientIP,
+                    $_SERVER['HTTP_USER_AGENT'] ?? null
+                ]);
+                echo "<p style='color: #28a745;'>✅ Installation enregistrée dans l'audit</p>";
+            } catch (Exception $e) {
+                echo "<p style='color: #856404;'>⚠️ Audit log: " . $e->getMessage() . "</p>";
+            }
+            
             // Créer le fichier lock
             $lockContent = json_encode([
                 'installed_at' => date('Y-m-d H:i:s'),
                 'version' => '1.0.0',
                 'php_version' => PHP_VERSION,
-                'structure_report' => $structureReport
+                'structure_report' => $structureReport,
+                'features' => [
+                    'audit_log' => true,
+                    'session_security' => true,
+                    'rate_limiting' => true,
+                    'csrf_protection' => true
+                ]
             ]);
             file_put_contents($installLockFile, $lockContent, LOCK_EX);
             echo "<p>✅ Fichier de verrouillage créé</p>";
@@ -1339,6 +1555,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             // Créer un fichier de logs initial
             $initialLog = $installDir . '/API/logs/' . date('Y-m-d') . '.log';
             $logContent = "[" . date('Y-m-d H:i:s') . "] INFO: Installation complétée avec succès\n";
+            $logContent .= "[" . date('Y-m-d H:i:s') . "] INFO: Système d'audit activé\n";
+            $logContent .= "[" . date('Y-m-d H:i:s') . "] INFO: Protection CSRF activée\n";
+            $logContent .= "[" . date('Y-m-d H:i:s') . "] INFO: Rate limiting configuré\n";
             @file_put_contents($initialLog, $logContent, LOCK_EX);
             echo "<p>✅ Système de logs initialisé</p>";
             
@@ -1356,8 +1575,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             
         } catch (Exception $e) {
             $dbError = $e->getMessage();
+           
+
             echo "<div style='background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
-            echo "<h3>❌ Erreur: " . htmlspecialchars($dbError) . "</h3>";
+            echo "<h3>❌ Erreur: " . nl2br(htmlspecialchars($dbError)) . "</h3>";
             echo "</div>";
         }
     }
@@ -1376,6 +1597,10 @@ function createDatabaseStructure($pdo) {
             `role` varchar(50) DEFAULT 'administrateur',
             `actif` tinyint(1) DEFAULT 1,
             `date_creation` timestamp DEFAULT CURRENT_TIMESTAMP,
+            `last_login` timestamp NULL DEFAULT NULL,
+            `failed_login_attempts` int(3) DEFAULT 0,
+            `locked_until` timestamp NULL DEFAULT NULL,
+            `password_changed_at` timestamp NULL DEFAULT NULL,
             PRIMARY KEY (`id`),
             UNIQUE KEY `mail` (`mail`),
             UNIQUE KEY `identifiant` (`identifiant`)
@@ -1391,6 +1616,10 @@ function createDatabaseStructure($pdo) {
             `mail` varchar(200) DEFAULT NULL,
             `actif` tinyint(1) DEFAULT 1,
             `date_creation` timestamp DEFAULT CURRENT_TIMESTAMP,
+            `last_login` timestamp NULL DEFAULT NULL,
+            `failed_login_attempts` int(3) DEFAULT 0,
+            `locked_until` timestamp NULL DEFAULT NULL,
+            `password_changed_at` timestamp NULL DEFAULT NULL,
             PRIMARY KEY (`id`),
             UNIQUE KEY `identifiant` (`identifiant`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
@@ -1404,6 +1633,10 @@ function createDatabaseStructure($pdo) {
             `mail` varchar(200) NOT NULL,
             `actif` tinyint(1) DEFAULT 1,
             `date_creation` timestamp DEFAULT CURRENT_TIMESTAMP,
+            `last_login` timestamp NULL DEFAULT NULL,
+            `failed_login_attempts` int(3) DEFAULT 0,
+            `locked_until` timestamp NULL DEFAULT NULL,
+            `password_changed_at` timestamp NULL DEFAULT NULL,
             PRIMARY KEY (`id`),
             UNIQUE KEY `identifiant` (`identifiant`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
@@ -1417,6 +1650,10 @@ function createDatabaseStructure($pdo) {
             `mail` varchar(200) NOT NULL,
             `actif` tinyint(1) DEFAULT 1,
             `date_creation` timestamp DEFAULT CURRENT_TIMESTAMP,
+            `last_login` timestamp NULL DEFAULT NULL,
+            `failed_login_attempts` int(3) DEFAULT 0,
+            `locked_until` timestamp NULL DEFAULT NULL,
+            `password_changed_at` timestamp NULL DEFAULT NULL,
             PRIMARY KEY (`id`),
             UNIQUE KEY `identifiant` (`identifiant`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
@@ -1430,6 +1667,10 @@ function createDatabaseStructure($pdo) {
             `mail` varchar(200) NOT NULL,
             `actif` tinyint(1) DEFAULT 1,
             `date_creation` timestamp DEFAULT CURRENT_TIMESTAMP,
+            `last_login` timestamp NULL DEFAULT NULL,
+            `failed_login_attempts` int(3) DEFAULT 0,
+            `locked_until` timestamp NULL DEFAULT NULL,
+            `password_changed_at` timestamp NULL DEFAULT NULL,
             PRIMARY KEY (`id`),
             UNIQUE KEY `identifiant` (`identifiant`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
@@ -1451,21 +1692,74 @@ function createDatabaseStructure($pdo) {
             `annee_scolaire` varchar(10) NOT NULL,
             `actif` tinyint(1) DEFAULT 1,
             PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        
+        "CREATE TABLE IF NOT EXISTS `audit_log` (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `action` varchar(100) NOT NULL,
+            `model` varchar(100) DEFAULT NULL,
+            `model_id` int(11) DEFAULT NULL,
+            `user_id` int(11) DEFAULT NULL,
+            `user_type` varchar(20) DEFAULT NULL,
+            `old_values` json DEFAULT NULL,
+            `new_values` json DEFAULT NULL,
+            `ip_address` varchar(45) DEFAULT NULL,
+            `user_agent` text DEFAULT NULL,
+            `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            KEY `idx_action` (`action`),
+            KEY `idx_model` (`model`, `model_id`),
+            KEY `idx_user` (`user_id`, `user_type`),
+            KEY `idx_created_at` (`created_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        
+        "CREATE TABLE IF NOT EXISTS `session_security` (
+            `id` varchar(128) NOT NULL,
+            `user_id` int(11) NOT NULL,
+            `user_type` varchar(20) NOT NULL,
+            `ip_address` varchar(45) NOT NULL,
+            `user_agent` text DEFAULT NULL,
+            `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `last_activity` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            `expires_at` timestamp NOT NULL,
+            `is_active` tinyint(1) NOT NULL DEFAULT 1,
+            PRIMARY KEY (`id`),
+            KEY `idx_user` (`user_id`, `user_type`),
+            KEY `idx_expires` (`expires_at`),
+            KEY `idx_active` (`is_active`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        
+        "CREATE TABLE IF NOT EXISTS `rate_limits` (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `rate_key` varchar(255) NOT NULL,
+            `attempts` int(11) NOT NULL DEFAULT 1,
+            `reset_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            KEY `rate_key` (`rate_key`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
+    
+    echo "<p>→ Création des tables...</p>";
     
     foreach ($tables as $sql) {
         $pdo->exec($sql);
     }
+    
+    echo "<p style='color: #28a745;'>→ Tables de base créées</p>";
+    echo "<p style='color: #28a745;'>→ Table audit_log créée avec index</p>";
+    echo "<p style='color: #28a745;'>→ Table session_security créée</p>";
+    echo "<p style='color: #28a745;'>→ Table rate_limits créée</p>";
     
     // Données par défaut
     $pdo->exec("INSERT IGNORE INTO matieres (nom, code) VALUES 
         ('Mathématiques', 'MATH'),
         ('Français', 'FR'),
         ('Anglais', 'ANG')");
+    
+    echo "<p style='color: #28a745;'>→ Données par défaut insérées</p>";
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -1580,6 +1874,74 @@ function createDatabaseStructure($pdo) {
         summary:hover {
             background: #f8f9fa;
         }
+        .password-strength {
+            margin-top: 5px;
+            height: 5px;
+            background: #ddd;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .password-strength-bar {
+            height: 100%;
+            transition: all 0.3s;
+        }
+        .password-requirements {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 0.85em;
+        }
+        .requirement {
+            padding: 3px 0;
+        }
+        .requirement.valid {
+            color: #28a745;
+        }
+        .requirement.invalid {
+            color: #dc3545;
+        }
+        .password-toggle {
+            position: relative;
+        }
+        .password-toggle button {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+        }
+        .section-header {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0 15px 0;
+            border-left: 4px solid #3498db;
+        }
+        .help-text {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 5px;
+        }
+        .advanced-options {
+            margin-top: 10px;
+        }
+        .generate-password-btn {
+            background: #95a5a6;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .generate-password-btn:hover {
+            background: #7f8c8d;
+        }
         @media (max-width: 768px) {
             .grid {
                 grid-template-columns: 1fr;
@@ -1591,7 +1953,7 @@ function createDatabaseStructure($pdo) {
     <div class="container">
         <div class="header">
             <h1>🎓 Installation Pronote</h1>
-            <p>Configuration automatique avec diagnostic intelligent</p>
+            <p>Configuration complète et sécurisée de votre plateforme</p>
         </div>
         
         <div class="content">
@@ -1628,16 +1990,40 @@ function createDatabaseStructure($pdo) {
                     <h2>🎉 Installation réussie !</h2>
                     <p>Pronote est prêt à être utilisé.</p>
                     
-                    <div style="background: #fff; color: #333; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: left;">
-                        <h3>📋 Récapitulatif de l'installation</h3>
+                    <div style="background: #fff; color: #333; padding: 20px; border-radius: 5px; margin: 20px 0; text-align: left;">
+                        <h3>📋 Informations de connexion</h3>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; font-family: monospace;">
+                            <strong>Identifiant:</strong> admin<br>
+                            <strong>Mot de passe:</strong> (celui que vous avez défini)
+                        </div>
+                        
+                        <h3 style="margin-top: 20px;">✅ Installation complétée</h3>
                         <ul style="list-style: none; padding: 0;">
-                            <li>✅ Base de données créée et configurée</li>
-                            <li>✅ Compte administrateur créé</li>
-                            <li>✅ Fichiers de configuration générés</li>
+                            <li>✅ Fichier .env créé avec toutes les configurations</li>
+                            <li>✅ Base de données créée et structurée</li>
+                            <li>✅ Compte administrateur créé (mot de passe hashé)</li>
                             <li>✅ Permissions des répertoires corrigées</li>
                             <li>✅ Protection .htaccess en place</li>
                             <li>✅ Système de logs initialisé</li>
+                            <li>✅ Configuration CSRF et sessions</li>
+                            <li>✅ Rate limiting configuré</li>
+                            <li>✅ <strong>Système d'audit (Event Sourcing) activé</strong></li>
+                            <li>✅ <strong>Traçabilité complète des actions</strong></li>
+                            <li>✅ <strong>Sécurité des sessions renforcée</strong></li>
                         </ul>
+                        
+                        <h3 style="margin-top: 20px;">🔍 Système d'audit</h3>
+                        <div style="background: #e7f3ff; padding: 10px; border-radius: 5px; border-left: 3px solid #2196f3;">
+                            <p><strong>Le système d'audit enregistre automatiquement :</strong></p>
+                            <ul>
+                                <li>Toutes les connexions et déconnexions</li>
+                                <li>Créations, modifications et suppressions de données</li>
+                                <li>Tentatives d'accès non autorisées</li>
+                                <li>Violations de sécurité (CSRF, rate limit, etc.)</li>
+                                <li>Adresse IP et user agent de chaque action</li>
+                            </ul>
+                            <p style="margin: 5px 0 0 0;"><em>→ Logs consultables depuis l'interface administrateur</em></p>
+                        </div>
                     </div>
                     
                     <div style="margin-top: 20px;">
@@ -1650,50 +2036,137 @@ function createDatabaseStructure($pdo) {
                 <?php if (!empty($dbError)): ?>
                     <div class="error">
                         <h3>❌ Erreur</h3>
-                        <p><?= htmlspecialchars($dbError) ?></p>
+                        <p><?= nl2br(htmlspecialchars($dbError)) ?></p>
                     </div>
                 <?php endif; ?>
 
                 <?php if (empty($criticalErrors)): ?>
-                <form method="post">
+                <form method="post" id="installForm">
                     <input type="hidden" name="install_token" value="<?= htmlspecialchars($install_token) ?>">
                     
-                    <h3>🗄️ Base de données</h3>
+                    <div class="section-header">
+                        <h3>🗄️ Configuration Base de Données</h3>
+                        <p style="margin: 5px 0 0 0; font-size: 0.9em;">Informations de connexion MySQL/MariaDB</p>
+                    </div>
+                    
                     <div class="grid">
                         <div class="form-group">
                             <label>Hôte :</label>
                             <input type="text" name="db_host" value="localhost" required>
+                            <div class="help-text">Généralement "localhost" ou "127.0.0.1"</div>
                         </div>
                         <div class="form-group">
-                            <label>Nom :</label>
-                            <input type="text" name="db_name" required>
+                            <label>Port :</label>
+                            <input type="number" name="db_port" value="3306" required>
+                            <div class="help-text">Port MySQL standard: 3306</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Nom de la base :</label>
+                            <input type="text" name="db_name" placeholder="pronote_db" required>
+                            <div class="help-text">Une nouvelle base sera créée</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Charset :</label>
+                            <select name="db_charset">
+                                <option value="utf8mb4" selected>utf8mb4 (recommandé)</option>
+                                <option value="utf8">utf8</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label>Utilisateur :</label>
                             <input type="text" name="db_user" required>
+                            <div class="help-text">Utilisateur avec droits CREATE DATABASE</div>
                         </div>
                         <div class="form-group">
                             <label>Mot de passe :</label>
                             <input type="password" name="db_pass">
+                            <div class="help-text">Laisser vide si pas de mot de passe</div>
                         </div>
                     </div>
                     
-                    <h3>⚙️ Application</h3>
+                    <div class="section-header">
+                        <h3>⚙️ Configuration Application</h3>
+                        <p style="margin: 5px 0 0 0; font-size: 0.9em;">Paramètres généraux de Pronote</p>
+                    </div>
+                    
                     <div class="grid">
+                        <div class="form-group">
+                            <label>Nom de l'application :</label>
+                            <input type="text" name="app_name" value="Pronote" required>
+                        </div>
                         <div class="form-group">
                             <label>Environnement :</label>
                             <select name="app_env" required>
-                                <option value="production">Production</option>
+                                <option value="production" selected>Production</option>
                                 <option value="development">Développement</option>
+                                <option value="test">Test</option>
                             </select>
+                            <div class="help-text">Production pour un serveur en ligne</div>
                         </div>
                         <div class="form-group">
-                            <label>URL de base :</label>
-                            <input type="text" name="base_url" value="<?= htmlspecialchars($baseUrl) ?>">
+                            <label>Mode debug :</label>
+                            <select name="app_debug">
+                                <option value="0" selected>Désactivé (production)</option>
+                                <option value="1">Activé (développement)</option>
+                            </select>
+                            <div class="help-text">Désactiver en production</div>
+                        </div>
+                        <div class="form-group">
+                            <label>URL complète :</label>
+                            <input type="url" name="app_url" value="<?= htmlspecialchars($fullUrl) ?>" required>
+                            <div class="help-text">URL complète d'accès à Pronote</div>
                         </div>
                     </div>
                     
-                    <h3>👤 Administrateur</h3>
+                    <div class="form-group">
+                        <label>Chemin de base (relatif) :</label>
+                        <input type="text" name="base_url" value="<?= htmlspecialchars($baseUrl) ?>">
+                        <div class="help-text">Laisser vide si Pronote est à la racine du domaine</div>
+                    </div>
+                    
+                    <div class="section-header">
+                        <h3>🔒 Configuration Sécurité</h3>
+                        <p style="margin: 5px 0 0 0; font-size: 0.9em;">Paramètres de sécurité et sessions</p>
+                    </div>
+                    
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>Nom de session :</label>
+                            <input type="text" name="session_name" value="pronote_session" required>
+                            <div class="help-text">Identifiant unique du cookie de session</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Durée de session (secondes) :</label>
+                            <input type="number" name="session_lifetime" value="7200" min="600" required>
+                            <div class="help-text">7200 = 2 heures</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Durée token CSRF (secondes) :</label>
+                            <input type="number" name="csrf_lifetime" value="3600" min="300" required>
+                            <div class="help-text">3600 = 1 heure</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Tentatives de connexion max :</label>
+                            <input type="number" name="max_login_attempts" value="5" min="3" max="10" required>
+                            <div class="help-text">Avant blocage temporaire</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Rate limit (requêtes) :</label>
+                            <input type="number" name="rate_limit_attempts" value="5" min="3" required>
+                            <div class="help-text">Nombre de requêtes autorisées</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Rate limit (période, minutes) :</label>
+                            <input type="number" name="rate_limit_decay" value="1" min="1" required>
+                            <div class="help-text">Fenêtre de temps pour le rate limit</div>
+                        </div>
+                    </div>
+                    
+                    <div class="section-header">
+                        <h3>👤 Compte Administrateur</h3>
+                        <p style="margin: 5px 0 0 0; font-size: 0.9em;">Créez votre compte administrateur principal</p>
+                    </div>
+                    
                     <div class="grid">
                         <div class="form-group">
                             <label>Nom :</label>
@@ -1703,18 +2176,123 @@ function createDatabaseStructure($pdo) {
                             <label>Prénom :</label>
                             <input type="text" name="admin_prenom" required>
                         </div>
-                        <div class="form-group">
-                            <label>Email :</label>
-                            <input type="email" name="admin_mail" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Email :</label>
+                        <input type="email" name="admin_mail" required>
+                        <div class="help-text">Utilisé pour les notifications et la récupération de compte</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Mot de passe administrateur :</label>
+                        <div class="password-toggle">
+                            <input type="password" name="admin_password" id="admin_password" required minlength="12">
+                            <button type="button" onclick="togglePassword('admin_password')" style="position: absolute; right: 10px; top: 12px; background: none; border: none; cursor: pointer;">
+                                👁️
+                            </button>
                         </div>
-                        <div class="form-group">
-                            <label>Mot de passe :</label>
-                            <input type="password" name="admin_password" required minlength="8">
+                        <div class="password-strength">
+                            <div class="password-strength-bar" id="strengthBar"></div>
+                        </div>
+                        <button type="button" class="generate-password-btn" onclick="generatePassword()">
+                            🎲 Générer un mot de passe sécurisé
+                        </button>
+                        <div class="password-requirements" id="passwordRequirements">
+                            <strong>Exigences du mot de passe :</strong>
+                            <div class="requirement invalid" id="req-length">✗ Au moins 12 caractères</div>
+                            <div class="requirement invalid" id="req-upper">✗ Au moins une majuscule</div>
+                            <div class="requirement invalid" id="req-lower">✗ Au moins une minuscule</div>
+                            <div class="requirement invalid" id="req-number">✗ Au moins un chiffre</div>
+                            <div class="requirement invalid" id="req-special">✗ Au moins un caractère spécial</div>
                         </div>
                     </div>
                     
-                    <button type="submit" class="btn">🚀 Installer</button>
+                    <button type="submit" class="btn" id="submitBtn">🚀 Installer Pronote</button>
                 </form>
+                
+                <script>
+                function togglePassword(fieldId) {
+                    const field = document.getElementById(fieldId);
+                    field.type = field.type === 'password' ? 'text' : 'password';
+                }
+                
+                function generatePassword() {
+                    const length = 16;
+                    const charset = {
+                        upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+                        lower: 'abcdefghijklmnopqrstuvwxyz',
+                        numbers: '0123456789',
+                        special: '!@#$%^&*()-_=+[]{}|;:,.<>?'
+                    };
+                    
+                    let password = '';
+                    password += charset.upper[Math.floor(Math.random() * charset.upper.length)];
+                    password += charset.lower[Math.floor(Math.random() * charset.lower.length)];
+                    password += charset.numbers[Math.floor(Math.random() * charset.numbers.length)];
+                    password += charset.special[Math.floor(Math.random() * charset.special.length)];
+                    
+                    const allChars = charset.upper + charset.lower + charset.numbers + charset.special;
+                    for (let i = 4; i < length; i++) {
+                        password += allChars[Math.floor(Math.random() * allChars.length)];
+                    }
+                    
+                    // Mélanger
+                    password = password.split('').sort(() => Math.random() - 0.5).join('');
+                    
+                    const field = document.getElementById('admin_password');
+                    field.type = 'text';
+                    field.value = password;
+                    checkPasswordStrength(password);
+                    
+                    alert('Mot de passe généré ! Copiez-le et conservez-le en lieu sûr.');
+                }
+                
+                function checkPasswordStrength(password) {
+                    let strength = 0;
+                    const requirements = {
+                        length: password.length >= 12,
+                        upper: /[A-Z]/.test(password),
+                        lower: /[a-z]/.test(password),
+                        number: /[0-9]/.test(password),
+                        special: /[^A-Za-z0-9]/.test(password)
+                    };
+                    
+                    // Mettre à jour les indicateurs
+                    for (const [key, valid] of Object.entries(requirements)) {
+                        const element = document.getElementById('req-' + key);
+                        if (valid) {
+                            element.className = 'requirement valid';
+                            element.textContent = element.textContent.replace('✗', '✓');
+                            strength++;
+                        } else {
+                            element.className = 'requirement invalid';
+                            element.textContent = element.textContent.replace('✓', '✗');
+                        }
+                    }
+                    
+                    // Barre de force
+                    const bar = document.getElementById('strengthBar');
+                    const colors = ['#dc3545', '#fd7e14', '#ffc107', '#28a745', '#20c997'];
+                    const widths = ['20%', '40%', '60%', '80%', '100%'];
+                    
+                    bar.style.width = widths[strength - 1] || '0%';
+                    bar.style.backgroundColor = colors[strength - 1] || '#ddd';
+                    
+                    // Désactiver le bouton si pas assez fort
+                    document.getElementById('submitBtn').disabled = strength < 5;
+                }
+                
+                // Écouter les changements
+                document.getElementById('admin_password').addEventListener('input', function() {
+                    checkPasswordStrength(this.value);
+                });
+                
+                // Vérification initiale
+                document.addEventListener('DOMContentLoaded', function() {
+                    document.getElementById('submitBtn').disabled = true;
+                });
+                </script>
                 <?php endif; ?>
             <?php endif; ?>
         </div>

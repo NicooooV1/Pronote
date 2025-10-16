@@ -4,10 +4,12 @@
  * Implémente le pattern Token Bucket avec rotation
  */
 
-namespace Pronote\Security;
+namespace API\Security;
 
 class CSRF {
-    private const SESSION_KEY = '_csrf_tokens';
+    const SESSION_KEY = 'csrf_tokens';
+    
+    protected $tokenName = 'csrf_token';
     private $lifetime;
     private $maxTokens;
     
@@ -19,6 +21,15 @@ class CSRF {
             session_start();
         }
         
+        if (!isset($_SESSION[self::SESSION_KEY])) {
+            $_SESSION[self::SESSION_KEY] = [];
+        }
+    }
+    
+    /**
+     * Initialise le système CSRF
+     */
+    public function init() {
         if (!isset($_SESSION[self::SESSION_KEY])) {
             $_SESSION[self::SESSION_KEY] = [];
         }
@@ -39,6 +50,13 @@ class CSRF {
         }
         
         return $token;
+    }
+    
+    /**
+     * Alias pour generate()
+     */
+    public function getToken() {
+        return $this->generate();
     }
     
     /**

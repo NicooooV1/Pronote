@@ -1,11 +1,15 @@
 <?php
+namespace API\Core\Facades;
 
-namespace Pronote\Core\Facades;
+use API\Core\Facade;
 
-use Pronote\Core\Facade;
-
-class DB extends Facade {
-    protected static function getFacadeAccessor() {
+/**
+ * Facade DB
+ */
+class DB extends Facade
+{
+    protected static function getFacadeAccessor()
+    {
         return 'db';
     }
 }
