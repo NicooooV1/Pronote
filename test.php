@@ -1,7 +1,7 @@
 <?php
-require_once 'API/Core/Container.php';
-require_once 'API/Core/Application.php';
-require_once 'API/Core/helpers.php';
+require_once __DIR__ . '/API/Core/Container.php';
+require_once __DIR__ . '/API/Core/Application.php';
+require_once __DIR__ . '/API/Core/helpers.php';
 
 try {
     $app = app();

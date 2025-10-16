@@ -1,25 +1,15 @@
 <?php
-session_start();
-require_once 'API/Core/Application.php';
-require_once 'API/Core/Container.php';
-require_once 'API/Core/helpers.php';
-require_once 'API/database.php';
-require_once 'API/Auth/UserProvider.php';
-require_once 'API/Auth/SessionGuard.php';
-require_once 'API/Auth/AuthManager.php';
+// Bootstrap the application
+$app = require_once __DIR__ . '/API/bootstrap.php';
 
-use Pronote\Core\Application;
 use Pronote\Auth\AuthManager;
 
 try {
-    // Setup
-    $app = Application::getInstance();
-    $app->singleton('db', fn() => \Database::getInstance());
-    $app->singleton('auth', fn($app) => new AuthManager($app));
+    // Get auth from container
+    $auth = $app->make('auth');
 
     // Test 1 : Vérifier non connecté
     echo "=== Test 1 : Check non authentifié ===\n";
-    $auth = $app->make('auth');
     echo "Connecté: " . ($auth->check() ? "OUI" : "NON") . "\n";
     echo "User: " . var_export($auth->user(), true) . "\n\n";
 
@@ -60,4 +50,5 @@ try {
     
 } catch (Exception $e) {
     echo "❌ Auth test failed: " . $e->getMessage() . "\n";
+    echo "Stack trace:\n" . $e->getTraceAsString() . "\n";
 }

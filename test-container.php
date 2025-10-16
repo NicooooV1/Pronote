@@ -1,5 +1,5 @@
 <?php
-require_once 'API/Core/Container.php';
+require_once __DIR__ . '/API/Core/Container.php';
 
 class TestService {
     public function greet() { return "Hello"; }

@@ -2,10 +2,10 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Inclusion des fichiers nécessaires
-include 'includes/db.php';
-include 'includes/auth.php';
-include 'includes/functions.php';
+// Inclusion des fichiers nécessaires avec chemins absolus
+require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/functions.php';
 
 // Vérifier que l'utilisateur est connecté
 if (!isLoggedIn()) {
@@ -38,10 +38,14 @@ if (isAdmin() || isVieScolaire()) {
     $access_granted = true;
 } elseif (isTeacher()) {
     // Vérifier si l'élève est dans une des classes du professeur
-    $stmt = $pdo->prepare("SELECT classe FROM professeurs WHERE id = ?");
+    $stmt = $pdo->prepare("
+        SELECT nom_classe 
+        FROM professeur_classes 
+        WHERE id_professeur = ?
+    ");
     $stmt->execute([$user['id']]);
     $prof_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    
+
     if (in_array($absence['classe'], $prof_classes)) {
         $access_granted = true;
     }
@@ -55,7 +59,7 @@ if (isAdmin() || isVieScolaire()) {
     $stmt = $pdo->prepare("SELECT id_eleve FROM parents_eleves WHERE id_parent = ?");
     $stmt->execute([$user['id']]);
     $enfants = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    
+
     if (in_array($absence['id_eleve'], $enfants)) {
         $access_granted = true;
     }

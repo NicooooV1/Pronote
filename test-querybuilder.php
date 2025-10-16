@@ -1,14 +1,11 @@
 <?php
-require_once 'API/Core/Application.php';
-require_once 'API/Core/Container.php';
-require_once 'API/Core/helpers.php';
-require_once 'API/database.php';
-require_once 'API/Database/QueryBuilder.php';
+// Bootstrap the application
+$app = require_once __DIR__ . '/API/bootstrap.php';
 
 use Pronote\Database\QueryBuilder;
 
-// Setup
-$db = \Database::getInstance();
+// Get database from container
+$db = $app->make('db');
 $pdo = $db->getPDO();
 
 echo "=== Test 1 : SELECT simple ===\n";

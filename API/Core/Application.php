@@ -27,7 +27,45 @@ class Application {
     }
     
     private function loadConfiguration() {
-        $configPath = __DIR__ . '/../config';
+        // Charger .env si présent
+        $envPath = dirname(__DIR__, 2) . '/.env';
+        if (file_exists($envPath)) {
+            $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach ($lines as $line) {
+                if (strpos(trim($line), '#') === 0) continue;
+                if (!strpos($line, '=')) continue;
+                list($key, $value) = explode('=', $line, 2);
+                $key = trim($key);
+                $value = trim($value);
+                // Remove quotes if present
+                if ((str_starts_with($value, '"') && str_ends_with($value, '"')) ||
+                    (str_starts_with($value, "'") && str_ends_with($value, "'"))) {
+                    $value = substr($value, 1, -1);
+                }
+                putenv("$key=$value");
+                $_ENV[$key] = $value;
+            }
+        }
+
+        // Try multiple config paths to handle different directory structures
+        $possibleConfigPaths = [
+            __DIR__ . '/../config',
+            __DIR__ . '/../../config',
+            dirname(dirname(__DIR__)) . '/config'
+        ];
+        
+        $configPath = null;
+        foreach ($possibleConfigPaths as $path) {
+            if (is_dir($path)) {
+                $configPath = $path;
+                break;
+            }
+        }
+        
+        if (!$configPath) {
+            $configPath = __DIR__ . '/../config'; // fallback
+        }
+        
         $files = ['env.php', 'config.php', 'constants.php', 'database_security.php'];
         
         foreach ($files as $file) {
@@ -37,29 +75,30 @@ class Application {
             }
         }
         
-        // Charger config dans array
+        // Charger config dans array depuis env() si dispo
         $this->config = [
             'app' => [
-                'env' => defined('APP_ENV') ? APP_ENV : 'production',
-                'debug' => defined('APP_DEBUG') ? APP_DEBUG : false,
-                'name' => defined('APP_NAME') ? APP_NAME : 'Pronote'
+                'env' => env('APP_ENV', defined('APP_ENV') ? APP_ENV : 'production'),
+                'debug' => env('APP_DEBUG', defined('APP_DEBUG') ? APP_DEBUG : false),
+                'name' => env('APP_NAME', defined('APP_NAME') ? APP_NAME : 'Pronote')
             ],
             'database' => [
-                'host' => defined('DB_HOST') ? DB_HOST : 'localhost',
-                'name' => defined('DB_NAME') ? DB_NAME : 'pronote',
-                'user' => defined('DB_USER') ? DB_USER : 'root',
-                'pass' => defined('DB_PASS') ? DB_PASS : '',
-                'charset' => defined('DB_CHARSET') ? DB_CHARSET : 'utf8mb4'
+                'host' => env('DB_HOST', defined('DB_HOST') ? DB_HOST : 'localhost'),
+                'name' => env('DB_NAME', defined('DB_NAME') ? DB_NAME : 'pronote'),
+                'user' => env('DB_USER', defined('DB_USER') ? DB_USER : 'root'),
+                'pass' => env('DB_PASS', defined('DB_PASS') ? DB_PASS : ''),
+                'charset' => env('DB_CHARSET', defined('DB_CHARSET') ? DB_CHARSET : 'utf8mb4'),
+                'unix_socket' => env('DB_SOCKET', defined('DB_SOCKET') ? DB_SOCKET : null)
             ],
             'security' => [
-                'csrf_lifetime' => defined('CSRF_TOKEN_LIFETIME') ? CSRF_TOKEN_LIFETIME : 3600,
-                'session_lifetime' => defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 7200,
-                'max_login_attempts' => defined('MAX_LOGIN_ATTEMPTS') ? MAX_LOGIN_ATTEMPTS : 5
+                'csrf_lifetime' => env('CSRF_TOKEN_LIFETIME', defined('CSRF_TOKEN_LIFETIME') ? CSRF_TOKEN_LIFETIME : 3600),
+                'session_lifetime' => env('SESSION_LIFETIME', defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 7200),
+                'max_login_attempts' => env('MAX_LOGIN_ATTEMPTS', defined('MAX_LOGIN_ATTEMPTS') ? MAX_LOGIN_ATTEMPTS : 5)
             ],
             'paths' => [
-                'base' => defined('BASE_URL') ? BASE_URL : '',
-                'api' => defined('API_DIR') ? API_DIR : __DIR__ . '/..',
-                'logs' => defined('LOGS_PATH') ? LOGS_PATH : __DIR__ . '/../logs'
+                'base' => env('BASE_URL', defined('BASE_URL') ? BASE_URL : ''),
+                'api' => env('API_DIR', defined('API_DIR') ? API_DIR : __DIR__ . '/..'),
+                'logs' => env('LOGS_PATH', defined('LOGS_PATH') ? LOGS_PATH : __DIR__ . '/../logs')
             ]
         ];
     }

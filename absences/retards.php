@@ -2,10 +2,10 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Inclusion des fichiers nécessaires - Utiliser le système centralisé
+// Inclusion des fichiers nécessaires avec chemins absolus
 require_once __DIR__ . '/../API/auth_central.php';
-require_once 'includes/db.php';
-require_once 'includes/functions.php';
+require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/functions.php';
 
 // Vérifier que l'utilisateur est connecté de façon centralisée
 if (!isLoggedIn()) {
@@ -49,7 +49,7 @@ if (isAdmin() || isVieScolaire()) {
     } else {
         // Requête pour tous les retards
         $sql = "SELECT r.*, e.nom, e.prenom, e.classe 
-                FROM retards r 
+               
                 JOIN eleves e ON r.id_eleve = e.id 
                 WHERE ((r.date_retard BETWEEN ? AND ?) OR 
                        (DATE(r.date_retard) BETWEEN ? AND ?))";

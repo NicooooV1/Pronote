@@ -597,7 +597,7 @@ $duree_minutes = $duree_totale_minutes % 60;
   // Graphique des élèves les plus absents
   const elevesCtx = document.getElementById('elevesChart').getContext('2d');
   new Chart(elevesCtx, {
-    type: 'horizontalBar',
+    type: 'bar',
     data: {
       labels: <?= json_encode(array_map(function($eleve) { return $eleve['prenom'] . ' ' . $eleve['nom']; }, $top_eleves)) ?>,
       datasets: [{
@@ -614,9 +614,7 @@ $duree_minutes = $duree_totale_minutes % 60;
       scales: {
         x: {
           beginAtZero: true,
-          ticks: {
-            precision: 0
-          }
+          ticks: { precision: 0 }
         }
       }
     }

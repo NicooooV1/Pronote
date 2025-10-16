@@ -2,10 +2,10 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Inclusion des fichiers nécessaires
-include 'includes/db.php';
-include 'includes/auth.php';
-include 'includes/functions.php';
+// Inclusion des fichiers nécessaires avec chemins absolus
+require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/functions.php';
 
 // Vérifier que l'utilisateur est connecté
 if (!isLoggedIn()) {
@@ -735,4 +735,95 @@ $annees_scolaires = [
   <script>
     // Graphique des types d'absences (justifiées/non justifiées)
     const absencesTypeCtx = document.getElementById('absencesTypeChart').getContext('2d');
-    const absencesTypeChart = new Chart(absencesTypeCtx
+    const absencesTypeChart = new Chart(absencesTypeCtx, {
+      type: 'pie',
+      data: {
+        labels: ['Justifiées', 'Non justifiées'],
+        datasets: [{
+          label: 'Répartition des absences',
+          data: [
+            <?= isset($stats['nb_absences_justifiees']) ? $stats['nb_absences_justifiees'] : 0 ?>,
+            <?= isset($stats['nb_absences']) ? $stats['nb_absences'] - $stats['nb_absences_justifiees'] : 0 ?>
+          ],
+          backgroundColor: ['#4caf50', '#f44336'],
+          borderColor: ['#fff', '#fff'],
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            position: 'top',
+          },
+          tooltip: {
+            callbacks: {
+              label: function(tooltipItem) {
+                let label = tooltipItem.label || '';
+                if (label) {
+                  label += ': ';
+                }
+                label += tooltipItem.raw;
+                return label;
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    // Graphique des absences par classe
+    <?php if (isset($classes_stats) && !empty($classes_stats)): ?>
+    const absencesClasseCtx = document.getElementById('absencesClasseChart').getContext('2d');
+    const absencesClasseChart = new Chart(absencesClasseCtx, {
+      type: 'bar',
+      data: {
+        labels: <?= json_encode(array_column($classes_stats, 'classe')) ?>,
+        datasets: [{
+          label: 'Nombre d\'absences',
+          data: <?= json_encode(array_column($classes_stats, 'nb_absences')) ?>,
+          backgroundColor: '#2196f3',
+          borderColor: '#1976d2',
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Classes'
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Nombre d\'absences'
+            },
+            beginAtZero: true
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            callbacks: {
+              label: function(tooltipItem) {
+                let label = tooltipItem.dataset.label || '';
+                if (label) {
+                  label += ': ';
+                }
+                label += tooltipItem.raw;
+                return label;
+              }
+            }
+          }
+        }
+      }
+    });
+    <?php endif; ?>
+  </script>
+</body>
+</html>

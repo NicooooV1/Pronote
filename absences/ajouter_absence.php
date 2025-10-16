@@ -2,13 +2,16 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Utiliser le système de gestion d'erreurs centralisé au lieu d'activer manuellement l'affichage des erreurs
-require_once __DIR__ . '/../API/errors.php';
+// Utiliser le système de gestion d'erreurs centralisé avec chemin absolu
+$errorsPath = __DIR__ . '/../API/errors.php';
+if (file_exists($errorsPath)) {
+    require_once $errorsPath;
+}
 
-// Inclusion des fichiers nécessaires - Utiliser le système centralisé
+// Inclusion des fichiers nécessaires avec chemins absolus
 require_once __DIR__ . '/../API/auth_central.php';
-require_once 'includes/db.php';
-require_once 'includes/functions.php';
+require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/functions.php';
 
 // Vérifier que l'utilisateur est connecté et autorisé
 if (!isLoggedIn() || !canManageAbsences()) {

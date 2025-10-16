@@ -196,4 +196,16 @@ class Container {
         $this->aliases = [];
         $this->resolved = [];
     }
+    
+    /**
+     * Proxy to application config (for service providers)
+     */
+    public function config($key, $default = null) {
+        // Try to get the Application instance from the container
+        if ($this->has('app')) {
+            $app = $this->make('app');
+            return $app->config($key, $default);
+        }
+        return $default;
+    }
 }

@@ -2,8 +2,22 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Inclure UNIQUEMENT l'API centralisée
-require_once __DIR__ . '/../API/core.php';
+// Inclure UNIQUEMENT l'API centralisée avec chemin absolu
+$apiCorePath = __DIR__ . '/../API/core.php';
+if (file_exists($apiCorePath)) {
+    require_once $apiCorePath;
+} else {
+    // Fallback : inclure bootstrap
+    $bootstrapPath = __DIR__ . '/../API/bootstrap.php';
+    if (file_exists($bootstrapPath)) {
+        require_once $bootstrapPath;
+    } else {
+        die("Erreur : Impossible de charger l'API");
+    }
+}
+
+// Ajouter le bridge d'auth local (fallback sécurisé)
+require_once __DIR__ . '/includes/auth.php';
 
 // Vérifier l'authentification
 requireAuth();

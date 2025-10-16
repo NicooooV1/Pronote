@@ -15,6 +15,11 @@ if (file_exists($authCentralPath)) {
     require_once $authCentralPath;
 } else {
     // Fallback si le fichier central n'est pas disponible
+    // Définir une URL de login de repli si nécessaire
+    if (!defined('LOGIN_URL')) {
+        define('LOGIN_URL', '../login/public/index.php');
+    }
+
     // Vérifions si les fonctions existent déjà pour éviter les redéclarations
     if (!function_exists('isLoggedIn')) {
         /**
@@ -43,7 +48,35 @@ if (file_exists($authCentralPath)) {
          */
         function getUserRole() {
             $user = getCurrentUser();
-            return $user ? $user['profil'] : null;
+            return $user ? ($user['profil'] ?? null) : null;
+        }
+    }
+    
+    if (!function_exists('getUserFullName')) {
+        /**
+         * Récupère le nom complet de l'utilisateur
+         * @return string Nom complet de l'utilisateur ou chaîne vide
+         */
+        function getUserFullName() {
+            $user = getCurrentUser();
+            if ($user) {
+                return ($user['prenom'] ?? '') . ' ' . ($user['nom'] ?? '');
+            }
+            return '';
+        }
+    }
+    
+    if (!function_exists('getUserInitials')) {
+        /**
+         * Récupère les initiales de l'utilisateur
+         * @return string Initiales de l'utilisateur
+         */
+        function getUserInitials() {
+            $user = getCurrentUser();
+            if (!$user) return '';
+            $p = isset($user['prenom'][0]) ? strtoupper($user['prenom'][0]) : '';
+            $n = isset($user['nom'][0]) ? strtoupper($user['nom'][0]) : '';
+            return $p . $n;
         }
     }
     
@@ -97,20 +130,6 @@ if (file_exists($authCentralPath)) {
         }
     }
     
-    if (!function_exists('getUserFullName')) {
-        /**
-         * Récupère le nom complet de l'utilisateur
-         * @return string Nom complet de l'utilisateur ou chaîne vide
-         */
-        function getUserFullName() {
-            $user = getCurrentUser();
-            if ($user) {
-                return $user['prenom'] . ' ' . $user['nom'];
-            }
-            return '';
-        }
-    }
-    
     if (!function_exists('canManageAbsences')) {
         /**
          * Vérifie si l'utilisateur peut gérer les absences
@@ -122,25 +141,40 @@ if (file_exists($authCentralPath)) {
         }
     }
     
-    if (!function_exists('canManageNotes')) {
+    if (!function_exists('redirect')) {
         /**
-         * Vérifie si l'utilisateur peut gérer les notes
-         * @return bool True si l'utilisateur peut gérer les notes
+         * Redirige vers un chemin donné
+         * @param string $path Chemin vers lequel rediriger
          */
-        function canManageNotes() {
-            $role = getUserRole();
-            return in_array($role, ['administrateur', 'professeur', 'vie_scolaire']);
+        function redirect($path) {
+            header('Location: ' . $path);
+            exit;
         }
     }
     
+    if (!function_exists('requireAuth')) {
+        /**
+         * Exige une authentification pour accéder à la page
+         * Redirige vers la page de login si l'utilisateur n'est pas connecté
+         * @return array|null Données utilisateur ou null
+         */
+        function requireAuth() {
+            if (!isLoggedIn()) {
+                header('Location: ' . LOGIN_URL);
+                exit;
+            }
+            return getCurrentUser();
+        }
+    }
+
     if (!function_exists('requireLogin')) {
         /**
-         * Rediriger si l'utilisateur n'est pas connecté
+         * Redirige si l'utilisateur n'est pas connecté
          * @return array|null Données utilisateur ou null
          */
         function requireLogin() {
             if (!isLoggedIn()) {
-                header('Location: /~u22405372/SAE/Pronote/login/public/index.php');
+                header('Location: ' . LOGIN_URL);
                 exit;
             }
             return getCurrentUser();

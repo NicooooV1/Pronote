@@ -1,5 +1,5 @@
 <?php
-require_once 'API/Security/Validator.php';
+require_once __DIR__ . '/API/Security/Validator.php';
 
 use Pronote\Security\Validator;
 

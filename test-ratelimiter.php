@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once 'API/Security/RateLimiter.php';
+require_once __DIR__ . '/API/Security/RateLimiter.php';
 
 try {
     $limiter = new \Pronote\Security\RateLimiter();

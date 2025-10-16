@@ -45,8 +45,11 @@ $nombre_pages = ceil($nombre_absences / $absences_par_page);
 $page_courante = isset($_GET['page']) ? max(1, min($nombre_pages, intval($_GET['page']))) : 1;
 $debut_absences = ($page_courante - 1) * $absences_par_page;
 $absences_page = array_slice($absences, $debut_absences, $absences_par_page);
-?>
 
+// Aligner avec les variables utilisées plus bas
+$totalPages = $nombre_pages;
+$currentPage = $page_courante;
+?>
 <div class="content-section">
     <div class="absences-list">
         <div class="list-header">
@@ -64,7 +67,7 @@ $absences_page = array_slice($absences, $debut_absences, $absences_par_page);
         </div>
         
         <div class="list-body">
-            <?php foreach ($absences as $absence): ?>
+            <?php foreach ($absences_page as $absence): ?>
                 <?php
                 // Formatage des dates pour l'affichage
                 $dateDebut = new DateTime($absence['date_debut']);

@@ -4,18 +4,24 @@
  * (bridge vers API/bootstrap.php)
  */
 
-// Essayer d'inclure le bootstrap central
+// Essayer d'inclure le bootstrap central avec chemin absolu
 $bootstrapPath = __DIR__ . '/../../API/bootstrap.php';
 
 // Si le fichier bootstrap existe, l'inclure
 if (file_exists($bootstrapPath)) {
     require_once $bootstrapPath;
+} else {
+    // Fallback : essayer le fichier core.php
+    $corePath = __DIR__ . '/../../API/core.php';
+    if (file_exists($corePath)) {
+        require_once $corePath;
+    }
 }
 
 // Si la variable $pdo n'est pas disponible, essayer de créer une connexion directement
 if (!isset($pdo)) {
     try {
-        // Essayer de charger le fichier de configuration
+        // Essayer de charger le fichier de configuration avec chemin absolu
         $configPath = __DIR__ . '/../../API/config/config.php';
         if (file_exists($configPath)) {
             require_once $configPath;
