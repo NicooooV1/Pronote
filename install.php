@@ -204,7 +204,7 @@ function getRequiredStructure() {
             'uploads' => ['permissions' => 0777, 'critical' => true],
             'temp' => ['permissions' => 0777, 'critical' => false],
             'login/logs' => ['permissions' => 0777, 'critical' => false],
-            'login/public' => ['permissions' => 0755, 'critical' => false],
+            'login/public' => ['permissions' => 0755, 'critical' => false]
         ],
         'files' => [
             '.htaccess' => [
@@ -239,9 +239,9 @@ function getRequiredStructure() {
             ],
             'uploads/.gitkeep' => ['content' => '', 'permissions' => 0644, 'critical' => false],
             'temp/.gitkeep' => ['content' => '', 'permissions' => 0644, 'critical' => false],
-            'API/logs/.gitkeep' => ['content' => '', 'permissions' => 0644, 'critical' => false],
+            'API/logs/.gitkeep' => ['content' => '', 'permissions' => 0644, 'critical' => false]
         ]
-    };
+    ];
 }
 
 /**
@@ -1090,7 +1090,7 @@ if (!empty($missingExtensions)) {
     die('Extensions PHP requises manquantes : ' . implode(', ', $missingExtensions));
 }
 
-// Gestion sécurisée de l'accès par IP - AMÉLIORÉE
+// Gestion sécurisée de l'accès par IP
 $allowedIPs = ['127.0.0.1', '::1'];
 $clientIP = filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP);
 
@@ -1154,105 +1154,6 @@ if (!empty($criticalErrors)) {
     $detailedAnalysis = analyzePermissionIssues($installDir);
 }
 
-// Vérifier si l'installation est déjà terminée
-$installLockFile = __DIR__ . '/install.lock';
-if (file_exists($installLockFile)) {
-    die('<div style="background: #f8d7da; color: #721c24; padding: 20px; border-radius: 5px; margin: 20px; font-family: Arial;">
-        <h2>🔒 Installation déjà effectuée</h2>
-        <p>Pronote a déjà été installé sur ce système.</p>
-    </div>');
-}
-
-// Vérification de la version PHP
-if (version_compare(PHP_VERSION, '7.4.0', '<')) {
-    die('Pronote nécessite PHP 7.4 ou supérieur. Version actuelle: ' . PHP_VERSION);
-}
-
-// Vérifier les extensions requises
-$requiredExtensions = ['pdo', 'pdo_mysql', 'json', 'mbstring', 'session'];
-$missingExtensions = [];
-
-foreach ($requiredExtensions as $ext) {
-    if (!extension_loaded($ext)) {
-        $missingExtensions[] = $ext;
-    }
-}
-
-if (!empty($missingExtensions)) {
-    die('Extensions PHP requises manquantes : ' . implode(', ', $missingExtensions));
-}
-
-// Gestion sécurisée de l'accès par IP - AMÉLIORÉE
-$allowedIPs = ['127.0.0.1', '::1'];
-$clientIP = filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP);
-
-$envFile = __DIR__ . '/.env';
-$additionalIpAllowed = false;
-
-if (file_exists($envFile) && is_readable($envFile)) {
-    $envContent = file_get_contents($envFile);
-    if (preg_match('/ALLOWED_INSTALL_IP\s*=\s*(.+)/', $envContent, $matches)) {
-        $ipList = array_map('trim', explode(',', trim($matches[1])));
-        foreach ($ipList as $ip) {
-            if (filter_var($ip, FILTER_VALIDATE_IP) && $ip === $clientIP) {
-                $additionalIpAllowed = true;
-                break;
-            }
-        }
-    }
-}
-
-// Autoriser les IP du réseau local
-$isLocalNetwork = isLocalIP($clientIP);
-$accessAllowed = in_array($clientIP, $allowedIPs) || $additionalIpAllowed || $isLocalNetwork;
-
-if (!$accessAllowed) {
-    error_log("Tentative d'accès non autorisée au script d'installation depuis: " . $clientIP);
-    die('Accès non autorisé depuis votre adresse IP: ' . $clientIP);
-}
-
-// Démarrer la session
-session_start([
-    'cookie_httponly' => true,
-    'cookie_secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on'
-]);
-
-// Détecter automatiquement les chemins
-$installDir = __DIR__;
-$baseUrl = '';
-
-if (isset($_SERVER['REQUEST_URI'])) {
-    $scriptPath = dirname($_SERVER['REQUEST_URI']);
-    $baseUrl = str_replace('/install.php', '', $scriptPath);
-    if ($baseUrl === '/.') {
-        $baseUrl = '';
-    }
-}
-
-$baseUrl = filter_var($baseUrl, FILTER_SANITIZE_URL);
-
-// ÉTAPE 0: Gestion automatique des permissions
-$directories = [
-    'API/logs',
-    'API/config', 
-    'uploads',
-    'temp',
-    'login/logs'
-];
-
-$permissionResults = [];
-$criticalErrors = [];
-
-foreach ($directories as $dir) {
-    $path = $installDir . '/' . $dir;
-    $result = fixDirectoryPermissions($path, true);
-    $permissionResults[$dir] = $result;
-    
-    if (!$result['success'] && $dir === 'API/config') {
-        $criticalErrors[] = "CRITIQUE: {$dir} - " . $result['message'];
-    }
-}
-
 // Générer un token CSRF
 if (!isset($_SESSION['install_token']) || !isset($_SESSION['token_time']) || 
     (time() - $_SESSION['token_time']) > 1800) {
@@ -1269,7 +1170,7 @@ $install_token = $_SESSION['install_token'];
 $installed = false;
 $dbError = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) {
     // Validation CSRF
     if (!isset($_POST['install_token']) || $_POST['install_token'] !== $_SESSION['install_token']) {
         $dbError = "Erreur de sécurité: Jeton invalide";
@@ -1430,7 +1331,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'installed_at' => date('Y-m-d H:i:s'),
                 'version' => '1.0.0',
                 'php_version' => PHP_VERSION,
-                'permissions' => $permissionResults
+                'structure_report' => $structureReport
             ]);
             file_put_contents($installLockFile, $lockContent, LOCK_EX);
             echo "<p>✅ Fichier de verrouillage créé</p>";

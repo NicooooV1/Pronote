@@ -51,6 +51,22 @@
                 });
             }
             
+            // Ajouter automatiquement le token CSRF aux formulaires
+            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+            if (csrfToken) {
+                const forms = document.querySelectorAll('form[method="post"], form[method="POST"]');
+                forms.forEach(form => {
+                    // Vérifier si le formulaire n'a pas déjà un champ CSRF
+                    if (!form.querySelector('input[name="csrf_token"]')) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'csrf_token';
+                        input.value = csrfToken.content;
+                        form.appendChild(input);
+                    }
+                });
+            }
+            
             <?php if (isset($customScripts)): echo $customScripts; endif; ?>
         });
     </script>

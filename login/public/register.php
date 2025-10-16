@@ -26,21 +26,20 @@ $identifiant = '';
 // Traitement du formulaire d'inscription
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     $profil = $_POST['profil'] ?? '';
-    
+
     // Empêcher la création d'administrateurs supplémentaires
     if ($profil === 'administrateur') {
         $error = "La création de comptes administrateurs n'est pas autorisée.";
     } else {
         try {
-            // Utiliser l'API centralisée pour créer l'utilisateur
+            // Utilisation exclusive de l'API centralisée
             $userData = [
                 'nom' => $_POST['nom'] ?? '',
                 'prenom' => $_POST['prenom'] ?? '',
                 'mail' => $_POST['mail'] ?? '',
                 'adresse' => $_POST['adresse'] ?? ''
             ];
-            
-            // Ajouter les champs spécifiques selon le profil
+
             switch ($profil) {
                 case 'eleve':
                     $userData['date_naissance'] = $_POST['date_naissance'] ?? '';
@@ -56,31 +55,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                     $userData['est_infirmerie'] = $_POST['est_infirmerie'] ?? 'non';
                     break;
             }
-            
-            // Appel cohérent avec la signature de l'API
+
             $result = createUser($profil, $userData);
-            
+
             if ($result && isset($result['success']) && $result['success']) {
                 $success = 'Inscription réussie !';
                 $generatedPassword = $result['password'];
                 $identifiant = $result['identifiant'];
-                
-                // Log de sécurité
-                if (function_exists('logUserAction')) {
-                    logUserAction('user_created', 'Nouvel utilisateur créé', [
-                        'created_user_type' => $profil,
-                        'created_user_id' => $identifiant,
-                        'created_by' => $user['identifiant']
-                    ]);
-                }
             } else {
                 $error = $result['message'] ?? 'Erreur inconnue lors de la création';
             }
         } catch (Exception $e) {
             $error = "Erreur lors de la création de l'utilisateur.";
-            if (function_exists('logError')) {
-                logError('User creation error: ' . $e->getMessage());
-            }
         }
     }
 }

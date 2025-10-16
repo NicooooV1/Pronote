@@ -5,15 +5,15 @@
 include('config.php');
 session_start();
 
+$error = '';
+
 // Check if the form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Get the submitted code
-    $code = $_POST['code'];
-
-    // Validate the code (this is just a placeholder, implement your own validation)
-    if ($code == $_SESSION['reset_code']) {
+    $code = $_POST['code'] ?? '';
+    if ($code == ($_SESSION['reset_code'] ?? '')) {
         // Code is valid, redirect to password reset page
-        header("Location: reset_password.php");
+        header("Location: change_password.php");
         exit();
     } else {
         // Invalid code, set an error message
@@ -35,7 +35,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <h2>Vérifiez votre code</h2>
         
         <!-- Display error message if exists -->
-        <?php if (isset($error)): ?>
+        <?php if (!empty($error)): ?>
             <div class="alert alert-danger">
                 <?php echo $error; ?>
             </div>

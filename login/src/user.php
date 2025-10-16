@@ -767,3 +767,6 @@ class User {
         }
     }
 }
+
+// Ce fichier n'est plus utilisé pour la gestion des utilisateurs. Utilisez l'API centralisée.
+exit;

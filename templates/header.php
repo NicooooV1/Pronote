@@ -8,6 +8,8 @@
  * @param string $moduleIcon - Icône Font Awesome du module
  */
 
+use Pronote\Core\Facades\Auth;
+
 // Valeurs par défaut
 $pageTitle = $pageTitle ?? 'PRONOTE';
 $moduleClass = $moduleClass ?? '';
@@ -15,29 +17,28 @@ $moduleName = $moduleName ?? 'PRONOTE';
 $moduleIcon = $moduleIcon ?? 'fa-home';
 $welcomeMessage = $welcomeMessage ?? 'Bienvenue dans votre espace PRONOTE';
 
-// Obtenir l'utilisateur et générer les initiales
-if (isset($_SESSION['user'])) {
-    $user = $_SESSION['user'];
+// Obtenir l'utilisateur via Auth facade
+$user = Auth::user();
+if ($user) {
     $userFullName = $user['prenom'] . ' ' . $user['nom'];
     $userInitials = strtoupper(substr($user['prenom'] ?? 'U', 0, 1) . substr($user['nom'] ?? 'T', 0, 1));
     $userRole = $user['profil'] ?? '';
 } else {
-    $userFullName = 'Utilisateur';
-    $userInitials = 'UT';
-    $userRole = '';
+    // Rediriger si non authentifié
+    header('Location: /login/public/index.php');
+    exit;
 }
 
 // Déterminer le trimestre actuel
 $currentMonth = (int)date('n');
 if ($currentMonth >= 9 && $currentMonth <= 12) {
-    $currentTrimester = 1; // Septembre-Décembre
+    $currentTrimester = 1;
 } else if ($currentMonth >= 1 && $currentMonth <= 3) {
-    $currentTrimester = 2; // Janvier-Mars
+    $currentTrimester = 2;
 } else {
-    $currentTrimester = 3; // Avril-Août
+    $currentTrimester = 3;
 }
 
-// Trimestre sélectionné (pour les pages avec filtrage par trimestre)
 $selectedTrimester = $_GET['trimestre'] ?? $currentTrimester;
 ?>
 <!DOCTYPE html>
@@ -46,6 +47,7 @@ $selectedTrimester = $_GET['trimestre'] ?? $currentTrimester;
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageTitle) ?> - PRONOTE</title>
+    <?= \Pronote\Core\Facades\CSRF::meta() ?>
     <link rel="stylesheet" href="/assets/css/pronote-main.css">
     <?php if (!empty($moduleClass)): ?>
     <link rel="stylesheet" href="/assets/css/modules/<?= $moduleClass ?>.css">
@@ -92,7 +94,7 @@ $selectedTrimester = $_GET['trimestre'] ?? $currentTrimester;
                         <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
                         <span>Messagerie</span>
                     </a>
-                    <?php if ($userRole === 'vie_scolaire' || $userRole === 'administrateur'): ?>
+                    <?php if (Auth::hasRole('vie_scolaire') || Auth::hasRole('administrateur')): ?>
                     <a href="/absences/absences.php" class="sidebar-nav-item <?= $moduleClass === 'absences' ? 'active' : '' ?>">
                         <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
                         <span>Absences</span>
@@ -128,7 +130,7 @@ $selectedTrimester = $_GET['trimestre'] ?? $currentTrimester;
             <?php if (isset($sidebarCustomContent)): echo $sidebarCustomContent; endif; ?>
             
             <!-- Actions pour les enseignants / admin -->
-            <?php if ($moduleClass === 'notes' && ($userRole === 'professeur' || $userRole === 'administrateur' || $userRole === 'vie_scolaire')): ?>
+            <?php if ($moduleClass === 'notes' && (Auth::hasRole('professeur') || Auth::hasRole('administrateur') || Auth::hasRole('vie_scolaire'))): ?>
             <div class="sidebar-section">
                 <div class="sidebar-section-header">Actions</div>
                 <div class="sidebar-nav">

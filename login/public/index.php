@@ -38,15 +38,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     $password = $_POST['password'] ?? '';
     $userType = $_POST['user_type'] ?? '';
     $rememberMe = isset($_POST['remember_me']);
-    
+
     // Validation de base
     if (empty($username) || empty($password) || empty($userType)) {
         $error = "Veuillez remplir tous les champs.";
     } else {
         try {
-            // Utiliser l'API centralisée pour l'authentification
+            // Utilisation exclusive de l'API centralisée
             $loginResult = authenticateUser($username, $password, $userType, $rememberMe);
-            
+
             if ($loginResult['success']) {
                 // Connexion réussie
                 $_SESSION['user'] = $loginResult['user'];
@@ -56,27 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     setcookie('remember_me', $loginResult['remember_token'], time() + (86400 * 30), "/");
                 }
                 
-                // Log de sécurité
-                logUserAction('login_success', 'Connexion réussie', [
-                    'user_type' => $userType,
-                    'username' => $username
-                ]);
-                
                 redirect('/accueil/accueil.php');
             } else {
                 $error = $loginResult['message'] ?? "Identifiant ou mot de passe incorrect.";
                 $last_username = $username;
-                
-                // Log de sécurité
-                logUserAction('login_failed', 'Tentative de connexion échouée', [
-                    'user_type' => $userType,
-                    'username' => $username,
-                    'error' => $error
-                ]);
             }
         } catch (Exception $e) {
             $error = "Une erreur système s'est produite. Veuillez réessayer.";
-            logError('Login system error: ' . $e->getMessage());
         }
     }
 }

@@ -1,38 +1,18 @@
 <?php
-require __DIR__ . '/../config/database.php';
-require __DIR__ . '/../src/auth.php';
+require_once __DIR__ . '/../../API/core.php';
 
-// Vérifier si la session n'est pas déjà démarrée
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Si l'utilisateur est déjà connecté, le rediriger vers la page d'accueil
 if (isset($_SESSION['user'])) {
     header("Location: ../../accueil/accueil.php");
     exit;
 }
 
-$auth = new Auth($pdo);
 $error = '';
 $success = '';
 $userType = isset($_POST['user_type']) ? $_POST['user_type'] : '';
-
-// Vérifier si les tables nécessaires existent, et les créer si ce n'est pas le cas
-try {
-    $query = "CREATE TABLE IF NOT EXISTS demandes_reinitialisation (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        user_type VARCHAR(30) NOT NULL,
-        date_demande DATETIME NOT NULL,
-        status VARCHAR(20) NOT NULL DEFAULT 'pending',
-        date_traitement DATETIME NULL,
-        admin_id INT NULL
-    )";
-    $pdo->exec($query);
-} catch (PDOException $e) {
-    error_log("Erreur lors de la création de la table de réinitialisation: " . $e->getMessage());
-}
 
 // Traitement du formulaire de demande de réinitialisation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_reset'])) {
@@ -40,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_reset'])) {
     $email = isset($_POST['email']) ? trim($_POST['email']) : '';
     $phone = isset($_POST['phone']) ? trim($_POST['phone']) : '';
     $userType = isset($_POST['user_type']) ? $_POST['user_type'] : '';
-    
+
     // Validation de base
     if (empty($username) || empty($email) || empty($phone)) {
         $error = "Veuillez remplir tous les champs.";
@@ -51,20 +31,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_reset'])) {
     } else {
         // Formater le numéro de téléphone
         $phone = formatPhoneNumber($phone);
-        
-        // Vérifier si les informations correspondent à un utilisateur
-        $user = $auth->findUserByCredentials($username, $email, $phone, $userType);
-        
+
+        // Utilisation exclusive de l'API centralisée
+        $user = findUserByCredentials($username, $email, $phone, $userType);
+
         if ($user) {
             // Créer une demande de réinitialisation
-            if ($auth->createResetRequest($user['id'], $userType)) {
+            if (createResetRequest($user['id'], $userType)) {
                 // Rediriger vers la page de confirmation
                 $_SESSION['reset_requested'] = true;
                 $_SESSION['reset_username'] = $username;
                 header("Location: reset_confirmation.php");
                 exit;
             } else {
-                $error = $auth->getErrorMessage();
+                $error = getErrorMessage();
             }
         } else {
             $error = "Les informations fournies ne correspondent à aucun utilisateur.";
@@ -78,13 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_reset'])) {
 function formatPhoneNumber($phone) {
     // Supprimer tous les caractères non numériques
     $phone = preg_replace('/[^0-9]/', '', $phone);
-    
+
     // Vérifier si le numéro a 10 chiffres
     if (strlen($phone) === 10) {
         // Formater au format XX XX XX XX XX
         return implode(' ', str_split($phone, 2));
     }
-    
+
     return $phone;
 }
 ?>

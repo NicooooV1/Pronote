@@ -1,6 +1,5 @@
 <?php
-require __DIR__ . '/../config/database.php';
-require __DIR__ . '/../src/auth.php';
+require_once __DIR__ . '/../../API/core.php';
 
 // Vérifier si la session n'est pas déjà démarrée
 if (session_status() === PHP_SESSION_NONE) {
@@ -13,15 +12,14 @@ if (!isset($_SESSION['reset_user_id']) || !isset($_SESSION['reset_code'])) {
     exit;
 }
 
-$auth = new Auth($pdo);
 $error = '';
 $success = '';
 
 // Traitement du formulaire de changement de mot de passe
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
-    $password = isset($_POST['password']) ? $_POST['password'] : '';
-    $confirmPassword = isset($_POST['confirm_password']) ? $_POST['confirm_password'] : '';
-    
+    $password = $_POST['password'] ?? '';
+    $confirmPassword = $_POST['confirm_password'] ?? '';
+
     // Validation de base
     if (empty($password) || empty($confirmPassword)) {
         $error = "Veuillez remplir tous les champs.";
@@ -30,20 +28,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     } elseif (strlen($password) < 8) {
         $error = "Le mot de passe doit contenir au moins 8 caractères.";
     } else {
-        // Changer le mot de passe
-        $changeResult = $auth->changePassword($_SESSION['reset_user_id'], $password);
-        
+        // Utilisation exclusive de l'API centralisée
+        $changeResult = changePassword($_SESSION['reset_user_id'], $password);
+
         if ($changeResult['success']) {
             $success = "Votre mot de passe a été modifié avec succès !";
-            
+
             // Supprimer les variables de session liées à la réinitialisation
-            unset($_SESSION['reset_user_id']);
-            unset($_SESSION['reset_code']);
-            unset($_SESSION['reset_username']);
-            
+            unset($_SESSION['reset_user_id'], $_SESSION['reset_code'], $_SESSION['reset_username']);
+
             // Définir un message de succès pour la page de connexion
             $_SESSION['success_message'] = "Votre mot de passe a été réinitialisé avec succès. Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.";
-            
+
             // Rediriger vers la page de connexion après 3 secondes
             header("refresh:3;url=index.php");
         } else {

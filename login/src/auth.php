@@ -364,3 +364,6 @@ class Auth {
         }
     }
 }
+
+// Ce fichier n'est plus utilisé pour l'authentification. Utilisez l'API centralisée.
+exit;
