@@ -936,26 +936,26 @@ function generateSolutions($analysis) {
  * Génère les commandes de correction
  */
 function generateFixCommands($analysis, $installDir) {
-    $commands = array(
-        'method1' => array(
+    $commands = [
+        'method1' => [
             'title' => 'Méthode 1: Changer le propriétaire (RECOMMANDÉ)',
             'description' => 'Change le propriétaire de tous les fichiers pour correspondre à l\'utilisateur du serveur web',
             'requires_root' => true,
-            'commands' => array()
-        ),
-        'method2' => array(
+            'commands' => []
+        ],
+        'method2' => [
             'title' => 'Méthode 2: Permissions 777 (MOINS SÉCURISÉ)',
             'description' => 'Donne tous les droits à tous les utilisateurs',
             'requires_root' => false,
-            'commands' => array()
-        ),
-        'method3' => array(
+            'commands' => []
+        ],
+        'method3' => [
             'title' => 'Méthode 3: Ajouter l\'utilisateur au groupe (ALTERNATIVE)',
             'description' => 'Ajoute l\'utilisateur du serveur web au groupe propriétaire',
             'requires_root' => true,
-            'commands' => array()
-        ),
-    );
+            'commands' => []
+        ]
+    ]; // CORRECTION: Utiliser ] au lieu de )
 
     $webUser = $analysis['system_info']['web_server_user'] ?? 'www-data';
     $structure = getRequiredStructure();
@@ -997,11 +997,11 @@ function generateFixCommands($analysis, $installDir) {
 
     // SELinux (optionnel)
     if (file_exists('/etc/selinux/config')) {
-        $commands['selinux'] = array(
+        $commands['selinux'] = [
             'title' => 'Configuration SELinux (si applicable)',
             'description' => 'Configure le contexte SELinux pour permettre l\'écriture',
             'requires_root' => true,
-            'commands' => array(
+            'commands' => [
                 "cd {$installDir}",
                 "# Autoriser Apache/Nginx à écrire dans ces répertoires",
                 "sudo semanage fcontext -a -t httpd_sys_rw_content_t \"{$installDir}(/.*)?\"",
@@ -1010,8 +1010,8 @@ function generateFixCommands($analysis, $installDir) {
                 "# OU temporairement désactiver SELinux pour tester",
                 "sudo setenforce 0  # Temporaire",
                 "# Pour désactiver définitivement: éditer /etc/selinux/config"
-            )
-        );
+            ]
+        ];
     }
 
     return $commands;
@@ -1316,7 +1316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             $configContent .= "# ==================================================\n";
             $configContent .= "# APPLICATION\n";
             $configContent .= "# ==================================================\n";
-            $configContent .= "APP_NAME=\"{$appName}\"\n";
+            $configContent .= "APP_NAME={$appName}\n";
             $configContent .= "APP_ENV={$appEnv}\n";
             $configContent .= "APP_DEBUG=" . ($appDebug ? 'true' : 'false') . "\n";
             $configContent .= "APP_URL={$appUrl}\n";
@@ -1362,7 +1362,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             $configContent .= "MAIL_PASSWORD=\n";
             $configContent .= "MAIL_ENCRYPTION=tls\n";
             $configContent .= "MAIL_FROM_ADDRESS={$adminMail}\n";
-            $configContent .= "MAIL_FROM_NAME=\"{$appName}\"\n\n";
+            $configContent .= "MAIL_FROM_NAME={$appName}\n\n";
             
             $configContent .= "# ==================================================\n";
             $configContent .= "# TIMEZONE\n";
@@ -1517,7 +1517,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
                     "INSERT INTO audit_log (action, model, user_id, user_type, new_values, ip_address, user_agent, created_at)
                      VALUES (?, ?, ?, ?, ?, ?, ?, NOW())"
                 );
-                                                                                                                                                                                         $stmt->execute([
+                $stmt->execute([
                     'system.installed',
                     'system',
                     null,

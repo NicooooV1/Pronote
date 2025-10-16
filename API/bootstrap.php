@@ -1,93 +1,78 @@
 <?php
-/**
- * Bootstrap de l'API - Point d'entrée principal
- */
+declare(strict_types=1);
 
 // Définir les constantes de base
-define('API_ROOT', __DIR__);
-define('API_VERSION', '1.0.0');
+define('API_PATH', __DIR__);
+define('BASE_PATH', dirname(__DIR__));
 
-// Charger l'autoloader si disponible
-if (file_exists(API_ROOT . '/vendor/autoload.php')) {
-    require_once API_ROOT . '/vendor/autoload.php';
-}
+// Autoloader PSR-4 simple pour API\ et Pronote\
+spl_autoload_register(function ($class) {
+	$prefixes = [
+		'API\\' => API_PATH . '/',
+		'Pronote\\' => API_PATH . '/',
+	];
+	foreach ($prefixes as $prefix => $baseDir) {
+		$len = strlen($prefix);
+		if (strncmp($prefix, $class, $len) !== 0) {
+			continue;
+		}
+		$relative = substr($class, $len);
+		$file = $baseDir . str_replace('\\', '/', $relative) . '.php';
+		if (file_exists($file)) {
+			require $file;
+			return;
+		}
+	}
+});
 
-// Charger les dépendances principales
-require_once API_ROOT . '/Core/Container.php';
-require_once API_ROOT . '/Core/ServiceProvider.php';
-require_once API_ROOT . '/Core/Application.php';
-require_once API_ROOT . '/Core/Facade.php';
-require_once API_ROOT . '/Core/EnvLoader.php';
-require_once API_ROOT . '/Core/helpers.php';
+// Helpers (app(), env(), ...)
+require_once API_PATH . '/Core/helpers.php';
 
-// Ajouter les classes nécessaires (pas d'autoloader Composer)
-require_once API_ROOT . '/Database/Database.php';
-require_once API_ROOT . '/Database/QueryBuilder.php';
-require_once API_ROOT . '/Auth/UserProvider.php';
-require_once API_ROOT . '/Auth/SessionGuard.php';
-require_once API_ROOT . '/Auth/AuthManager.php';
-require_once API_ROOT . '/Security/CSRF.php';
-require_once API_ROOT . '/Security/RateLimiter.php';
-require_once API_ROOT . '/Security/Validator.php';
-
-// Providers
-require_once API_ROOT . '/Providers/ConfigServiceProvider.php';
-require_once API_ROOT . '/Providers/DatabaseServiceProvider.php';
-require_once API_ROOT . '/Providers/AuthServiceProvider.php';
-require_once API_ROOT . '/Providers/SecurityServiceProvider.php';
-require_once API_ROOT . '/Providers/EtablissementServiceProvider.php';
-
-// Facades (pour class_exists et usage direct)
-require_once API_ROOT . '/Core/Facades/DB.php';
-require_once API_ROOT . '/Core/Facades/Auth.php';
-require_once API_ROOT . '/Core/Facades/CSRF.php';
-require_once API_ROOT . '/Core/Facades/Log.php';
-
-// Créer l'instance de l'application
-$app = new \API\Core\Application(API_ROOT);
-
-// Charger le fichier .env
+// Charger l'environnement via EnvLoader (met dans getenv/$_ENV/$_SERVER)
 try {
-    $envLoader = new \API\Core\EnvLoader(dirname(API_ROOT));
-    $envLoader->load();
-    
-    // Enregistrer le loader dans le conteneur
-    $app->instance('env.loader', $envLoader);
-} catch (\RuntimeException $e) {
-    die($e->getMessage());
+	$envLoader = new \API\Core\EnvLoader(BASE_PATH);
+	$envLoader->load();
+} catch (\Throwable $e) {
+	// Fallback minimal si .env manquant: continuer (certains écrans d'install le créent)
 }
 
-// Enregistrer les service providers dans l'ordre
-// Ajoute des gardes explicites au cas où un require échouerait silencieusement
-if (!class_exists('\API\Providers\ConfigServiceProvider', false)) {
-    require_once API_ROOT . '/Providers/ConfigServiceProvider.php';
-}
-if (!class_exists('\API\Providers\DatabaseServiceProvider', false)) {
-    require_once API_ROOT . '/Providers/DatabaseServiceProvider.php';
-}
-if (!class_exists('\API\Providers\AuthServiceProvider', false)) {
-    require_once API_ROOT . '/Providers/AuthServiceProvider.php';
-}
-if (!class_exists('\API\Providers\SecurityServiceProvider', false)) {
-    require_once API_ROOT . '/Providers/SecurityServiceProvider.php';
-}
-if (!class_exists('\API\Providers\EtablissementServiceProvider', false)) {
-    require_once API_ROOT . '/Providers/EtablissementServiceProvider.php';
+// Définir BASE_URL si pas défini
+if (!defined('BASE_URL')) {
+	$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+	$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+	$path = dirname($_SERVER['SCRIPT_NAME'] ?? '');
+	$baseUrl = $protocol . '://' . $host . rtrim($path, '/');
+	define('BASE_URL', $baseUrl);
 }
 
+// Démarrer la session si pas déjà démarrée
+if (session_status() !== PHP_SESSION_ACTIVE) {
+	session_start([
+		'cookie_httponly' => true,
+		'cookie_secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
+		'cookie_samesite' => 'Lax',
+		'name' => getenv('SESSION_NAME') ?: 'pronote_session'
+	]);
+}
+
+// Créer l'application et enregistrer les providers
+global $app;
+$app = new \API\Core\Application(BASE_PATH);
+
+// Exposer l'env loader dans le container
+$app->instance('env.loader', $envLoader ?? null);
+
+// Enregistrer les providers
 $app->register(new \API\Providers\ConfigServiceProvider($app));
 $app->register(new \API\Providers\DatabaseServiceProvider($app));
 $app->register(new \API\Providers\AuthServiceProvider($app));
 $app->register(new \API\Providers\SecurityServiceProvider($app));
 $app->register(new \API\Providers\EtablissementServiceProvider($app));
 
-// Configurer les facades
+// Lier l'application aux Facades
 \API\Core\Facade::setApplication($app);
 
-// Démarrer la session si nécessaire
-if (session_status() === PHP_SESSION_NONE) {
-    session_name(config('session.name', 'pronote_session'));
-    session_start();
-}
+// Démarrer les services
+$app->boot();
 
 return $app;

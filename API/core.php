@@ -65,12 +65,19 @@ if (!function_exists('requireRole')) {
  */
 if (!function_exists('redirect')) {
     function redirect($path) {
-        // Utiliser APP_URL pour la redirection web
-        $baseUrl = rtrim(env('APP_URL', '/Pronote'), '/');
+        // Correction : forcer l'utilisation de APP_URL si elle commence par http
+        $baseUrl = env('APP_URL', '/Pronote');
+        if (strpos($baseUrl, 'http') !== 0) {
+            // Si ce n'est pas une URL web, utiliser BASE_URL ou valeur par défaut
+            $baseUrl = env('BASE_URL', '/Pronote');
+        }
+        $baseUrl = rtrim($baseUrl, '/');
         // S'assurer que $path commence par un /
         if ($path[0] !== '/') {
             $path = '/' . $path;
         }
+        // Debug temporaire
+        // error_log("REDIRECT: baseUrl=$baseUrl, path=$path");
         header('Location: ' . $baseUrl . $path);
         exit;
     }

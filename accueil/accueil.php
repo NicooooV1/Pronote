@@ -2,10 +2,14 @@
 ob_start();
 
 // Utilisation des Facades API
-require_once __DIR__ . '/../API/bootstrap.php';
+$bootstrap_path = dirname(__DIR__) . '/API/bootstrap.php';
+if (!file_exists($bootstrap_path)) {
+    die("Erreur: Le fichier bootstrap.php n'existe pas à l'emplacement: " . $bootstrap_path);
+}
+require_once $bootstrap_path;
 
-use Pronote\Core\Facades\Auth;
-use Pronote\Core\Facades\DB;
+use API\Core\Facades\Auth;
+use API\Core\Facades\DB;
 
 // Authentification via API
 Auth::requireAuth();
