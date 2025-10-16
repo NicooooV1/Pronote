@@ -1,9 +1,10 @@
 <?php
 session_start();
+require_once __DIR__ . '/API/bootstrap.php';
 require_once __DIR__ . '/API/Security/CSRF.php';
 
 try {
-    $csrf = new \Pronote\Security\CSRF(3600, 10);
+    $csrf = new \API\Security\CSRF(3600, 10);
 
     // Test génération
     $token1 = $csrf->generate();

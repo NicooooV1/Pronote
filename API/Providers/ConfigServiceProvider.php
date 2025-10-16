@@ -40,6 +40,7 @@ class ConfigServiceProvider extends ServiceProvider
                 ],
                 'security' => [
                     'csrf_lifetime' => env('CSRF_LIFETIME', 3600),
+                    'csrf_max_tokens' => env('CSRF_MAX_TOKENS', 10),
                     'rate_limit_attempts' => env('RATE_LIMIT_ATTEMPTS', 5),
                     'rate_limit_decay' => env('RATE_LIMIT_DECAY', 1)
                 ]

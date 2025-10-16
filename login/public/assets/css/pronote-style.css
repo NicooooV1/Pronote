@@ -302,9 +302,13 @@ input[type="radio"]:checked + .profile-option .profile-label {
   font-weight: bold;
 }
 
-/* Cacher le radio button */
+/* Cacher le radio button (accessible) */
 .profile-selector input[type="radio"] {
-  display: none;
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
 }
 
 .help-links {

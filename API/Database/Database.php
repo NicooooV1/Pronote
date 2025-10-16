@@ -29,8 +29,9 @@ class Database
 
         try {
             $dsn = sprintf(
-                'mysql:host=%s;dbname=%s;charset=utf8mb4',
+                'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
                 $this->config['host'],
+                $this->config['port'] ?? 3306,
                 $this->config['database']
             );
 

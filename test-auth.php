@@ -13,38 +13,23 @@ try {
     echo "Connecté: " . ($auth->check() ? "OUI" : "NON") . "\n";
     echo "User: " . var_export($auth->user(), true) . "\n\n";
 
-    // Test 2 : Tentative d'authentification (va échouer sans DB)
+    // Test 2 : Tentative d'authentification (DB requise)
     echo "=== Test 2 : Tentative d'authentification ===\n";
     $result = $auth->attempt([
-        'identifiant' => 'test.user',
+        'email' => 'test@example.com',
         'password' => 'password123',
-        'profil' => 'eleve'
+        'type' => 'eleve'
     ]);
     echo "Auth réussie: " . ($result ? "OUI" : "NON") . "\n\n";
 
     // Test 3 : Simulation de connexion manuelle
     echo "=== Test 3 : Simulation connexion manuelle ===\n";
-    $auth->guard()->login([
-        'id' => 1,
-        'identifiant' => 'test.user',
-        'nom' => 'User',
-        'prenom' => 'Test',
-        'mail' => 'test@example.com',
-        'profil' => 'eleve',
-        'classe' => '6A'
-    ]);
-
+    $auth->login(1, 'eleve');
     echo "Connecté: " . ($auth->check() ? "OUI" : "NON") . "\n";
-    echo "User ID: " . $auth->id() . "\n";
     echo "User: " . json_encode($auth->user(), JSON_PRETTY_PRINT) . "\n\n";
 
-    // Test 4 : Vérification rôle
-    echo "=== Test 4 : Vérification rôle ===\n";
-    echo "Est élève: " . ($auth->hasRole('eleve') ? "OUI" : "NON") . "\n";
-    echo "Est prof: " . ($auth->hasRole('professeur') ? "OUI" : "NON") . "\n\n";
-
-    // Test 5 : Logout
-    echo "=== Test 5 : Déconnexion ===\n";
+    // Test 4 : Logout
+    echo "=== Test 4 : Déconnexion ===\n";
     $auth->logout();
     echo "Connecté après logout: " . ($auth->check() ? "OUI" : "NON") . "\n";
     

@@ -4,7 +4,11 @@
  */
 
 // Inclure l'API centralisée - chemin uniformisé
-require_once __DIR__ . '/../../API/core.php';
+$apiCorePath = __DIR__ . '/../../API/core.php';
+if (!file_exists($apiCorePath)) {
+    die("Erreur: Le fichier API core.php est introuvable. Chemin: " . $apiCorePath);
+}
+require_once $apiCorePath;
 
 // Démarrer la session si pas encore fait
 if (session_status() === PHP_SESSION_NONE) {
@@ -12,8 +16,13 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // Si l'utilisateur est déjà connecté, le rediriger
-if (isLoggedIn()) {
-    redirect('/accueil/accueil.php');
+if (function_exists('isLoggedIn') && isLoggedIn()) {
+    if (function_exists('redirect')) {
+        redirect('/accueil/accueil.php');
+    } else {
+        header('Location: ../../accueil/accueil.php');
+        exit;
+    }
 }
 
 $error = '';
@@ -45,24 +54,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     } else {
         try {
             // Utilisation exclusive de l'API centralisée
-            $loginResult = authenticateUser($username, $password, $userType, $rememberMe);
-
-            if ($loginResult['success']) {
-                // Connexion réussie
-                $_SESSION['user'] = $loginResult['user'];
-                
-                // Gestion du "Se souvenir de moi"
-                if ($rememberMe && isset($loginResult['remember_token'])) {
-                    setcookie('remember_me', $loginResult['remember_token'], time() + (86400 * 30), "/");
-                }
-                
-                redirect('/accueil/accueil.php');
+            if (!function_exists('authenticateUser')) {
+                $error = "Erreur: La fonction d'authentification n'est pas disponible.";
             } else {
-                $error = $loginResult['message'] ?? "Identifiant ou mot de passe incorrect.";
-                $last_username = $username;
+                // Remplace l'appel direct par une tentative multi-profils pour "Personnel"
+                $profilesToTry = ($userType === 'vie_scolaire')
+                    ? ['administrateur', 'vie_scolaire']
+                    : [$userType];
+
+                $loginResult = ['success' => false];
+                foreach ($profilesToTry as $typeToTry) {
+                    $attempt = authenticateUser($username, $password, $typeToTry, $rememberMe);
+                    if (!empty($attempt['success'])) {
+                        // S'assurer que le profil est renseigné
+                        if (!isset($attempt['user']['profil'])) {
+                            $attempt['user']['profil'] = $typeToTry;
+                        }
+                        $loginResult = $attempt;
+                        break;
+                    }
+                }
+
+                if (!empty($loginResult['success'])) {
+                    // Connexion réussie
+                    $_SESSION['user'] = $loginResult['user'];
+                    
+                    // Gestion du "Se souvenir de moi"
+                    if ($rememberMe && isset($loginResult['remember_token'])) {
+                        setcookie('remember_me', $loginResult['remember_token'], time() + (86400 * 30), "/");
+                    }
+                    
+                    if (function_exists('redirect')) {
+                        redirect('/accueil/accueil.php');
+                    } else {
+                        header('Location: ../../accueil/accueil.php');
+                        exit;
+                    }
+                } else {
+                    $error = $loginResult['message'] ?? "Identifiant ou mot de passe incorrect.";
+                    $last_username = $username;
+                }
             }
         } catch (Exception $e) {
             $error = "Une erreur système s'est produite. Veuillez réessayer.";
+            error_log("Login error: " . $e->getMessage());
         }
     }
 }
@@ -162,7 +197,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         }
         
         .profile-selector input[type="radio"] {
-            display: none;
+            position: absolute;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
         }
         
         .profile-option {
@@ -349,7 +388,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     <div class="profile-label">Élève</div>
                 </label>
 
-                <input type="radio" id="parent" name="user_type" value="parent" required>
+                <input type="radio" id="parent" name="user_type" value="parent">
                 <label for="parent" class="profile-option">
                     <div class="profile-icon">
                         <i class="fas fa-users"></i>
@@ -357,7 +396,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     <div class="profile-label">Parent</div>
                 </label>
 
-                <input type="radio" id="professeur" name="user_type" value="professeur" required>
+                <input type="radio" id="professeur" name="user_type" value="professeur">
                 <label for="professeur" class="profile-option">
                     <div class="profile-icon">
                         <i class="fas fa-chalkboard-teacher"></i>
@@ -365,7 +404,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     <div class="profile-label">Professeur</div>
                 </label>
 
-                <input type="radio" id="personnel" name="user_type" value="vie_scolaire" required>
+                <input type="radio" id="personnel" name="user_type" value="vie_scolaire">
                 <label for="personnel" class="profile-option">
                     <div class="profile-icon">
                         <i class="fas fa-user-tie"></i>
@@ -435,6 +474,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             const usernameInput = document.getElementById('username');
             if (usernameInput && usernameInput.value.trim() !== '') {
                 passwordInput.focus();
+            }
+
+            // Assurer une valeur par défaut pour éviter l'erreur "invalid form control not focusable"
+            const radios = document.querySelectorAll('input[name="user_type"]');
+            if (radios.length && !Array.from(radios).some(r => r.checked)) {
+                const defaultRadio = document.getElementById('eleve');
+                if (defaultRadio) defaultRadio.checked = true;
             }
         });
     </script>

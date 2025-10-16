@@ -299,7 +299,7 @@ function getRequiredStructure() {
             'temp/.gitkeep' => ['content' => '', 'permissions' => 0644, 'critical' => false],
             'API/logs/.gitkeep' => ['content' => '', 'permissions' => 0644, 'critical' => false]
         ]
-    };
+        ];
 }
 
 /**
@@ -936,31 +936,31 @@ function generateSolutions($analysis) {
  * Génère les commandes de correction
  */
 function generateFixCommands($analysis, $installDir) {
-    $commands = [
-        'method1' => [
+    $commands = array(
+        'method1' => array(
             'title' => 'Méthode 1: Changer le propriétaire (RECOMMANDÉ)',
             'description' => 'Change le propriétaire de tous les fichiers pour correspondre à l\'utilisateur du serveur web',
             'requires_root' => true,
-            'commands' => []
-        ],
-        'method2' => [
+            'commands' => array()
+        ),
+        'method2' => array(
             'title' => 'Méthode 2: Permissions 777 (MOINS SÉCURISÉ)',
             'description' => 'Donne tous les droits à tous les utilisateurs',
             'requires_root' => false,
-            'commands' => []
-        ],
-        'method3' => [
+            'commands' => array()
+        ),
+        'method3' => array(
             'title' => 'Méthode 3: Ajouter l\'utilisateur au groupe (ALTERNATIVE)',
             'description' => 'Ajoute l\'utilisateur du serveur web au groupe propriétaire',
             'requires_root' => true,
-            'commands' => []
-        ]
-    ];
-    
-    $webUser = $analysis['system_info']['web_server_user'];
+            'commands' => array()
+        ),
+    );
+
+    $webUser = $analysis['system_info']['web_server_user'] ?? 'www-data';
     $structure = getRequiredStructure();
-    
-    // Méthode 1: Chown
+
+    // Méthode 1
     $commands['method1']['commands'][] = "cd {$installDir}";
     $commands['method1']['commands'][] = "# Changer le propriétaire de tous les fichiers";
     $commands['method1']['commands'][] = "sudo chown -R {$webUser}:{$webUser} .";
@@ -970,38 +970,38 @@ function generateFixCommands($analysis, $installDir) {
         $perm = decoct($config['permissions']);
         $commands['method1']['commands'][] = "sudo chmod {$perm} {$dir}";
     }
-    
-    // Méthode 2: Chmod 777
+
+    // Méthode 2
     $commands['method2']['commands'][] = "cd {$installDir}";
     $commands['method2']['commands'][] = "# Donner tous les droits (ATTENTION: moins sécurisé)";
-    foreach ($structure['directories'] as $dir => $config) {
-        if ($config['critical']) {
+    foreach ($structure['directories'] as $dir => $cfg) {
+        if (!empty($cfg['critical'])) {
             $commands['method2']['commands'][] = "chmod -R 777 {$dir}";
         }
     }
-    
-    // Méthode 3: Groupes
-    $currentUser = $analysis['system_info']['current_user'];
+
+    // Méthode 3
+    $currentUser = $analysis['system_info']['current_user'] ?? 'current';
     $commands['method3']['commands'][] = "# Ajouter {$webUser} au groupe de l'utilisateur actuel";
     $commands['method3']['commands'][] = "sudo usermod -a -G {$currentUser} {$webUser}";
     $commands['method3']['commands'][] = "";
     $commands['method3']['commands'][] = "# Définir les permissions de groupe";
     $commands['method3']['commands'][] = "cd {$installDir}";
-    foreach ($structure['directories'] as $dir => $config) {
+    foreach ($structure['directories'] as $dir => $cfg2) {
         $commands['method3']['commands'][] = "sudo chmod -R 775 {$dir}";
         $commands['method3']['commands'][] = "sudo chgrp -R {$currentUser} {$dir}";
     }
     $commands['method3']['commands'][] = "";
     $commands['method3']['commands'][] = "# Redémarrer le serveur web pour appliquer les changements de groupe";
     $commands['method3']['commands'][] = "sudo systemctl restart apache2  # ou nginx";
-    
-    // SELinux si détecté
+
+    // SELinux (optionnel)
     if (file_exists('/etc/selinux/config')) {
-        $commands['selinux'] = [
+        $commands['selinux'] = array(
             'title' => 'Configuration SELinux (si applicable)',
             'description' => 'Configure le contexte SELinux pour permettre l\'écriture',
             'requires_root' => true,
-            'commands' => [
+            'commands' => array(
                 "cd {$installDir}",
                 "# Autoriser Apache/Nginx à écrire dans ces répertoires",
                 "sudo semanage fcontext -a -t httpd_sys_rw_content_t \"{$installDir}(/.*)?\"",
@@ -1010,10 +1010,10 @@ function generateFixCommands($analysis, $installDir) {
                 "# OU temporairement désactiver SELinux pour tester",
                 "sudo setenforce 0  # Temporaire",
                 "# Pour désactiver définitivement: éditer /etc/selinux/config"
-            ]
-        ];
+            )
+        );
     }
-    
+
     return $commands;
 }
 
@@ -1027,15 +1027,15 @@ function generateAnalysisReport($analysis) {
     // Informations système
     $html .= "<h4>📋 Informations système</h4>";
     $html .= "<table style='width: 100%; border-collapse: collapse; margin: 10px 0;'>";
-    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: bold;'>Système d'exploitation</td>";
+    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: 600;'>Système d'exploitation</td>";
     $html .= "<td style='padding: 5px; border: 1px solid #ddd;'>{$analysis['system_info']['os']}</td></tr>";
-    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: bold;'>Serveur web</td>";
+    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: 600;'>Serveur web</td>";
     $html .= "<td style='padding: 5px; border: 1px solid #ddd;'>{$analysis['system_info']['web_server']}</td></tr>";
-    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: bold;'>Utilisateur serveur web</td>";
+    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: 600;'>Utilisateur serveur web</td>";
     $html .= "<td style='padding: 5px; border: 1px solid #ddd;'><code>{$analysis['system_info']['web_server_user']}</code></td></tr>";
-    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: bold;'>Propriétaire des fichiers</td>";
+    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: 600;'>Propriétaire des fichiers</td>";
     $html .= "<td style='padding: 5px; border: 1px solid #ddd;'><code>{$analysis['system_info']['script_owner']}</code></td></tr>";
-    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: bold;'>Répertoire d'installation</td>";
+    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: 600;'>Répertoire d'installation</td>";
     $html .= "<td style='padding: 5px; border: 1px solid #ddd;'><code>{$analysis['system_info']['install_dir']}</code></td></tr>";
     $html .= "</table>";
     
@@ -1431,7 +1431,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             echo "<p>✅ API bootstrap chargée</p>";
             
             // Vérifier que les facades sont disponibles
-            if (!class_exists('\Pronote\Core\Facades\DB')) {
+            if (!class_exists('\API\Core\Facades\DB')) {
                 throw new Exception("Les facades n'ont pas pu être chargées");
             }
             
@@ -1443,7 +1443,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             echo "<h3>🔧 Étape 3: Gestion de la base de données</h3>";
             
             // Connexion sans base de données pour la créer
-            $dsn = "mysql:host={$dbHost};charset=utf8mb4";
+            $dsn = "mysql:host={$dbHost};port={$dbPort};charset=utf8mb4";
             $pdo = new PDO($dsn, $dbUser, $dbPass, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
@@ -1513,11 +1513,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             
             // Log l'installation dans le système d'audit si disponible
             try {
-                $pdo->exec("INSERT INTO audit_log (action, model, user_id, user_type, new_values, ip_address, user_agent, created_at) 
-                            VALUES ('system.installed', 'system', NULL, NULL, ?, ?, ?, NOW())");
-                $stmt = $pdo->prepare("INSERT INTO audit_log (action, model, user_id, user_type, new_values, ip_address, user_agent) 
-                                       VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([
+                $stmt = $pdo->prepare(
+                    "INSERT INTO audit_log (action, model, user_id, user_type, new_values, ip_address, user_agent, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, NOW())"
+                );
+                                                                                                                                                                                         $stmt->execute([
                     'system.installed',
                     'system',
                     null,
@@ -1533,7 +1533,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
                 ]);
                 echo "<p style='color: #28a745;'>✅ Installation enregistrée dans l'audit</p>";
             } catch (Exception $e) {
-                echo "<p style='color: #856404;'>⚠️ Audit log: " . $e->getMessage() . "</p>";
+                echo "<p style='color: #856404;'>⚠️ Audit log: " . htmlspecialchars($e->getMessage()) . "</p>";
             }
             
             // Créer le fichier lock
@@ -1586,178 +1586,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
 
 // Fonction de création de structure
 function createDatabaseStructure($pdo) {
-    $tables = [
-        "CREATE TABLE IF NOT EXISTS `administrateurs` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `nom` varchar(100) NOT NULL,
-            `prenom` varchar(100) NOT NULL,
-            `mail` varchar(200) NOT NULL,
-            `identifiant` varchar(50) NOT NULL,
-            `mot_de_passe` varchar(255) NOT NULL,
-            `role` varchar(50) DEFAULT 'administrateur',
-            `actif` tinyint(1) DEFAULT 1,
-            `date_creation` timestamp DEFAULT CURRENT_TIMESTAMP,
-            `last_login` timestamp NULL DEFAULT NULL,
-            `failed_login_attempts` int(3) DEFAULT 0,
-            `locked_until` timestamp NULL DEFAULT NULL,
-            `password_changed_at` timestamp NULL DEFAULT NULL,
-            PRIMARY KEY (`id`),
-            UNIQUE KEY `mail` (`mail`),
-            UNIQUE KEY `identifiant` (`identifiant`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        
-        "CREATE TABLE IF NOT EXISTS `eleves` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `nom` varchar(100) NOT NULL,
-            `prenom` varchar(100) NOT NULL,
-            `identifiant` varchar(50) NOT NULL,
-            `mot_de_passe` varchar(255) NOT NULL,
-            `classe` varchar(50) DEFAULT NULL,
-            `mail` varchar(200) DEFAULT NULL,
-            `actif` tinyint(1) DEFAULT 1,
-            `date_creation` timestamp DEFAULT CURRENT_TIMESTAMP,
-            `last_login` timestamp NULL DEFAULT NULL,
-            `failed_login_attempts` int(3) DEFAULT 0,
-            `locked_until` timestamp NULL DEFAULT NULL,
-            `password_changed_at` timestamp NULL DEFAULT NULL,
-            PRIMARY KEY (`id`),
-            UNIQUE KEY `identifiant` (`identifiant`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        
-        "CREATE TABLE IF NOT EXISTS `professeurs` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `nom` varchar(100) NOT NULL,
-            `prenom` varchar(100) NOT NULL,
-            `identifiant` varchar(50) NOT NULL,
-            `mot_de_passe` varchar(255) NOT NULL,
-            `mail` varchar(200) NOT NULL,
-            `actif` tinyint(1) DEFAULT 1,
-            `date_creation` timestamp DEFAULT CURRENT_TIMESTAMP,
-            `last_login` timestamp NULL DEFAULT NULL,
-            `failed_login_attempts` int(3) DEFAULT 0,
-            `locked_until` timestamp NULL DEFAULT NULL,
-            `password_changed_at` timestamp NULL DEFAULT NULL,
-            PRIMARY KEY (`id`),
-            UNIQUE KEY `identifiant` (`identifiant`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        
-        "CREATE TABLE IF NOT EXISTS `parents` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `nom` varchar(100) NOT NULL,
-            `prenom` varchar(100) NOT NULL,
-            `identifiant` varchar(50) NOT NULL,
-            `mot_de_passe` varchar(255) NOT NULL,
-            `mail` varchar(200) NOT NULL,
-            `actif` tinyint(1) DEFAULT 1,
-            `date_creation` timestamp DEFAULT CURRENT_TIMESTAMP,
-            `last_login` timestamp NULL DEFAULT NULL,
-            `failed_login_attempts` int(3) DEFAULT 0,
-            `locked_until` timestamp NULL DEFAULT NULL,
-            `password_changed_at` timestamp NULL DEFAULT NULL,
-            PRIMARY KEY (`id`),
-            UNIQUE KEY `identifiant` (`identifiant`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        
-        "CREATE TABLE IF NOT EXISTS `vie_scolaire` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `nom` varchar(100) NOT NULL,
-            `prenom` varchar(100) NOT NULL,
-            `identifiant` varchar(50) NOT NULL,
-            `mot_de_passe` varchar(255) NOT NULL,
-            `mail` varchar(200) NOT NULL,
-            `actif` tinyint(1) DEFAULT 1,
-            `date_creation` timestamp DEFAULT CURRENT_TIMESTAMP,
-            `last_login` timestamp NULL DEFAULT NULL,
-            `failed_login_attempts` int(3) DEFAULT 0,
-            `locked_until` timestamp NULL DEFAULT NULL,
-            `password_changed_at` timestamp NULL DEFAULT NULL,
-            PRIMARY KEY (`id`),
-            UNIQUE KEY `identifiant` (`identifiant`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        
-        "CREATE TABLE IF NOT EXISTS `matieres` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `nom` varchar(100) NOT NULL,
-            `code` varchar(10) NOT NULL,
-            `coefficient` decimal(3,2) DEFAULT 1.00,
-            `actif` tinyint(1) DEFAULT 1,
-            PRIMARY KEY (`id`),
-            UNIQUE KEY `code` (`code`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        
-        "CREATE TABLE IF NOT EXISTS `classes` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `nom` varchar(50) NOT NULL,
-            `niveau` varchar(20) NOT NULL,
-            `annee_scolaire` varchar(10) NOT NULL,
-            `actif` tinyint(1) DEFAULT 1,
-            PRIMARY KEY (`id`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        
-        "CREATE TABLE IF NOT EXISTS `audit_log` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `action` varchar(100) NOT NULL,
-            `model` varchar(100) DEFAULT NULL,
-            `model_id` int(11) DEFAULT NULL,
-            `user_id` int(11) DEFAULT NULL,
-            `user_type` varchar(20) DEFAULT NULL,
-            `old_values` json DEFAULT NULL,
-            `new_values` json DEFAULT NULL,
-            `ip_address` varchar(45) DEFAULT NULL,
-            `user_agent` text DEFAULT NULL,
-            `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (`id`),
-            KEY `idx_action` (`action`),
-            KEY `idx_model` (`model`, `model_id`),
-            KEY `idx_user` (`user_id`, `user_type`),
-            KEY `idx_created_at` (`created_at`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        
-        "CREATE TABLE IF NOT EXISTS `session_security` (
-            `id` varchar(128) NOT NULL,
-            `user_id` int(11) NOT NULL,
-            `user_type` varchar(20) NOT NULL,
-            `ip_address` varchar(45) NOT NULL,
-            `user_agent` text DEFAULT NULL,
-            `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            `last_activity` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            `expires_at` timestamp NOT NULL,
-            `is_active` tinyint(1) NOT NULL DEFAULT 1,
-            PRIMARY KEY (`id`),
-            KEY `idx_user` (`user_id`, `user_type`),
-            KEY `idx_expires` (`expires_at`),
-            KEY `idx_active` (`is_active`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        
-        "CREATE TABLE IF NOT EXISTS `rate_limits` (
-            `id` int(11) NOT NULL AUTO_INCREMENT,
-            `rate_key` varchar(255) NOT NULL,
-            `attempts` int(11) NOT NULL DEFAULT 1,
-            `reset_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (`id`),
-            KEY `rate_key` (`rate_key`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
-    ];
-    
-    echo "<p>→ Création des tables...</p>";
-    
-    foreach ($tables as $sql) {
-        $pdo->exec($sql);
+    // Charger le fichier SQL complet
+    $sqlFile = __DIR__ . '/pronote.sql';
+    if (!file_exists($sqlFile)) {
+        echo "<p style='color: #e74c3c;'>Fichier pronote.sql introuvable !</p>";
+        return;
     }
-    
-    echo "<p style='color: #28a745;'>→ Tables de base créées</p>";
-    echo "<p style='color: #28a745;'>→ Table audit_log créée avec index</p>";
-    echo "<p style='color: #28a745;'>→ Table session_security créée</p>";
-    echo "<p style='color: #28a745;'>→ Table rate_limits créée</p>";
-    
-    // Données par défaut
-    $pdo->exec("INSERT IGNORE INTO matieres (nom, code) VALUES 
-        ('Mathématiques', 'MATH'),
-        ('Français', 'FR'),
-        ('Anglais', 'ANG')");
-    
-    echo "<p style='color: #28a745;'>→ Données par défaut insérées</p>";
+    $sql = file_get_contents($sqlFile);
+    if ($sql === false) {
+        echo "<p style='color: #e74c3c;'>Impossible de lire le fichier pronote.sql !</p>";
+        return;
+    }
+
+    // Exécuter chaque requête sans transaction (DDL non supporté dans transaction)
+    try {
+        foreach (explode(";", $sql) as $query) {
+            $query = trim($query);
+            if ($query !== '' && (
+                stripos($query, 'CREATE') !== false ||
+                stripos($query, 'ALTER') !== false ||
+                stripos($query, 'INSERT') !== false ||
+                stripos($query, 'DROP') !== false ||
+                stripos($query, 'USE') !== false
+            )) {
+                $pdo->exec($query);
+            }
+        }
+        echo "<p style='color: #28a745;'>→ Structure complète importée depuis pronote.sql</p>";
+    } catch (Exception $e) {
+        echo "<p style='color: #e74c3c;'>Erreur lors de l'import SQL : " . htmlspecialchars($e->getMessage()) . "</p>";
+    }
 }
 ?>
 <!DOCTYPE html>

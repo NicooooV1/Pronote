@@ -22,6 +22,26 @@ class AuditService {
             $this->db = $db;
         }
     }
+
+    // Utilitaire pour obtenir un PDO valide depuis le container ou la propriété $db
+    protected function pdo(): \PDO {
+        // Si déjà un PDO
+        if ($this->db instanceof \PDO) {
+            return $this->db;
+        }
+        // Si on a un gestionnaire Database avec getConnection()
+        if (is_object($this->db) && method_exists($this->db, 'getConnection')) {
+            return $this->db->getConnection();
+        }
+        // Tenter via le container global (bootstrap.php chargé)
+        if (function_exists('app')) {
+            $db = app('db') ?? null;
+            if ($db && method_exists($db, 'getConnection')) {
+                return $db->getConnection();
+            }
+        }
+        throw new \RuntimeException('PDO non disponible pour AuditService');
+    }
     
     /**
      * Log une action
@@ -144,7 +164,7 @@ class AuditService {
                     ORDER BY created_at DESC
                     LIMIT ?";
             
-            $pdo = $this->db->getPDO();
+            $pdo = $this->pdo();
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$modelClass, $modelId, $limit]);
             
@@ -172,7 +192,7 @@ class AuditService {
             $sql .= " ORDER BY created_at DESC LIMIT ?";
             $params[] = $limit;
             
-            $pdo = $this->db->getPDO();
+            $pdo = $this->pdo();
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
             
@@ -194,7 +214,7 @@ class AuditService {
                     ORDER BY created_at DESC
                     LIMIT ?";
             
-            $pdo = $this->db->getPDO();
+            $pdo = $this->pdo();
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$action, $limit]);
             
@@ -216,7 +236,7 @@ class AuditService {
                     ORDER BY created_at DESC
                     LIMIT ?";
             
-            $pdo = $this->db->getPDO();
+            $pdo = $this->pdo();
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$startDate, $endDate, $limit]);
             
@@ -236,7 +256,7 @@ class AuditService {
             $sql = "DELETE FROM {$this->table} 
                     WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)";
             
-            $pdo = $this->db->getPDO();
+            $pdo = $this->pdo();
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$daysToKeep]);
             
@@ -267,7 +287,7 @@ class AuditService {
                     GROUP BY action, DATE(created_at)
                     ORDER BY date DESC, count DESC";
             
-            $pdo = $this->db->getPDO();
+            $pdo = $this->pdo();
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$days]);
             
@@ -326,7 +346,7 @@ class AuditService {
             $sql .= " ORDER BY created_at DESC LIMIT ?";
             $params[] = $limit;
             
-            $pdo = $this->db->getPDO();
+            $pdo = $this->pdo();
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
             
@@ -353,7 +373,7 @@ class AuditService {
                 implode(', ', $placeholders)
             );
             
-            $pdo = $this->db->getPDO();
+            $pdo = $this->pdo();
             $stmt = $pdo->prepare($sql);
             
             return $stmt->execute(array_values($event));

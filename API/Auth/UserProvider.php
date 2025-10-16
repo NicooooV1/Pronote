@@ -27,7 +27,7 @@ class UserProvider
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT id, nom, prenom, email, '{$userType}' as type 
+            SELECT id, nom, prenom, mail AS email, '{$userType}' as type 
             FROM {$table} WHERE id = ?
         ");
         $stmt->execute([$userId]);
@@ -40,25 +40,28 @@ class UserProvider
      */
     public function retrieveByCredentials($credentials)
     {
-        $email = $credentials['email'] ?? null;
+        // Accept either 'login' or 'email' as input field
+        $login = $credentials['login'] ?? $credentials['email'] ?? null;
         $userType = $credentials['type'] ?? null;
 
-        if (!$email || !$userType) {
+        if (!$login || !$userType) {
             return null;
         }
 
         $table = $this->getTableForUserType($userType);
-        
         if (!$table) {
             return null;
         }
 
+        // Lookup by email OR identifiant
         $stmt = $this->pdo->prepare("
-            SELECT id, nom, prenom, email, mot_de_passe, '{$userType}' as type 
-            FROM {$table} WHERE email = ?
+            SELECT id, nom, prenom, mail AS email, mot_de_passe, '{$userType}' as type 
+            FROM {$table} 
+            WHERE mail = ? OR identifiant = ?
+            LIMIT 1
         ");
-        $stmt->execute([$email]);
-        
+        $stmt->execute([$login, $login]);
+
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 

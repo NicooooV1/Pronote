@@ -39,7 +39,7 @@ abstract class Facade {
         }
         
         if (!static::$app) {
-            static::$app = \Pronote\Core\Application::getInstance();
+            throw new \RuntimeException('Application instance not set on Facade.');
         }
         
         return static::$resolvedInstances[$name] = static::$app->make($name);
@@ -49,7 +49,7 @@ abstract class Facade {
      * Appels statiques magiques
      */
     public static function __callStatic($method, $args) {
-        $instance = static::$app->make(static::getFacadeAccessor());
+        $instance = static::$app ? static::$app->make(static::getFacadeAccessor()) : null;
         
         if (!$instance) {
             throw new \RuntimeException('A facade root has not been set.');

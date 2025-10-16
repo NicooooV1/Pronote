@@ -298,9 +298,13 @@ input[type="radio"]:checked + .profile-option .profile-label {
   font-weight: 600;
 }
 
-/* Cacher le bouton radio */
+/* Cacher le bouton radio (accessible) */
 .profile-selector input[type="radio"] {
-  display: none;
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
 }
 
 /* ======= 7. BOUTONS ======= */

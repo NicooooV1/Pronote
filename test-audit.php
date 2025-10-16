@@ -1,7 +1,7 @@
 <?php
 session_start();
-require_once 'API/database.php';
-require_once 'API/Services/AuditService.php';
+require_once __DIR__ . '/API/bootstrap.php';
+require_once __DIR__ . '/API/Services/AuditService.php';
 
 use Pronote\Services\AuditService;
 use Pronote\Services\Audit;

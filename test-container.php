@@ -16,7 +16,7 @@ class UserService {
 }
 
 try {
-    $container = new \Pronote\Core\Container();
+    $container = new \API\Core\Container();
     $container->singleton(TestService::class);
     $container->bind(UserService::class);
 

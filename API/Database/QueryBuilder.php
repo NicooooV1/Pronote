@@ -106,7 +106,7 @@ class QueryBuilder
     /**
      * Construit la requête SQL
      */
-    protected function toSql()
+    public function toSql()
     {
         $sql = 'SELECT ' . implode(', ', $this->selects);
         $sql .= ' FROM ' . $this->table;
