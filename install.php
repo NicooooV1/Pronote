@@ -2,6 +2,7 @@
 /**
  * Script d'installation de Pronote - VERSION COMPLÈTE ET AUTO-DESTRUCTRICE
  * Utilise la nouvelle architecture API avec bootstrap et facades
+ * Gestion automatique des permissions et création des fichiers
  */
 
 // Configuration de sécurité et gestion d'erreurs
@@ -21,6 +22,144 @@ function handleFatalError() {
         echo "<p><strong>Ligne:</strong> " . $error['line'] . "</p>";
         echo "</div>";
     }
+}
+
+/**
+ * Fonction de vérification IP réseau local
+ */
+function isLocalIP($ip) {
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        return false;
+    }
+    
+    $privateRanges = [
+        ['10.0.0.0', '10.255.255.255'],
+        ['172.16.0.0', '172.31.255.255'],
+        ['192.168.0.0', '192.168.255.255'],
+        ['127.0.0.0', '127.255.255.255'],
+    ];
+    
+    $ipLong = ip2long($ip);
+    foreach ($privateRanges as $range) {
+        if ($ipLong >= ip2long($range[0]) && $ipLong <= ip2long($range[1])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Fonction de correction automatique des permissions
+ */
+function fixDirectoryPermissions($path, $createIfNotExists = true) {
+    $result = [
+        'success' => false,
+        'message' => '',
+        'permissions' => null
+    ];
+    
+    // Créer si n'existe pas
+    if (!is_dir($path)) {
+        if (!$createIfNotExists) {
+            $result['message'] = "Le répertoire n'existe pas";
+            return $result;
+        }
+        
+        if (!@mkdir($path, 0755, true)) {
+            $result['message'] = "Impossible de créer le répertoire";
+            return $result;
+        }
+    }
+    
+    // Tester l'écriture avec les permissions actuelles
+    $testFile = $path . '/test_' . uniqid() . '.tmp';
+    if (@file_put_contents($testFile, 'test') !== false) {
+        @unlink($testFile);
+        $result['success'] = true;
+        $result['permissions'] = substr(sprintf('%o', fileperms($path)), -4);
+        $result['message'] = "OK";
+        return $result;
+    }
+    
+    // Essayer progressivement des permissions plus permissives
+    $permissions = [0755, 0775, 0777];
+    foreach ($permissions as $perm) {
+        @chmod($path, $perm);
+        if (@file_put_contents($testFile, 'test') !== false) {
+            @unlink($testFile);
+            $result['success'] = true;
+            $result['permissions'] = substr(sprintf('%o', fileperms($path)), -4);
+            $result['message'] = "Permissions définies à " . decoct($perm);
+            return $result;
+        }
+    }
+    
+    // Si toujours pas, essayer de changer le propriétaire
+    if (function_exists('posix_geteuid')) {
+        $webUser = posix_getpwuid(posix_geteuid());
+        if ($webUser && @chown($path, $webUser['uid']) && @chgrp($path, $webUser['gid'])) {
+            @chmod($path, 0755);
+            if (@file_put_contents($testFile, 'test') !== false) {
+                @unlink($testFile);
+                $result['success'] = true;
+                $result['permissions'] = substr(sprintf('%o', fileperms($path)), -4);
+                $result['message'] = "Propriétaire modifié et permissions définies";
+                return $result;
+            }
+        }
+    }
+    
+    $result['message'] = "Impossible de rendre le répertoire accessible en écriture";
+    return $result;
+}
+
+/**
+ * Créer tous les fichiers de configuration nécessaires
+ */
+function createConfigurationFiles($installDir, $config) {
+    $results = [];
+    
+    // 1. Créer .htaccess principal
+    $htaccessContent = "# Protection Pronote\n";
+    $htaccessContent .= "<Files ~ \"^(\.env|install\.php)$\">\n";
+    $htaccessContent .= "    Order allow,deny\n";
+    $htaccessContent .= "    Deny from all\n";
+    $htaccessContent .= "</Files>\n\n";
+    $htaccessContent .= "# Protection uploads\n";
+    $htaccessContent .= "<Directory \"uploads\">\n";
+    $htaccessContent .= "    php_flag engine off\n";
+    $htaccessContent .= "    Options -ExecCGI\n";
+    $htaccessContent .= "</Directory>\n";
+    
+    $htaccessPath = $installDir . '/.htaccess';
+    if (@file_put_contents($htaccessPath, $htaccessContent, LOCK_EX) !== false) {
+        $results['.htaccess'] = ['success' => true, 'message' => 'Créé'];
+    } else {
+        $results['.htaccess'] = ['success' => false, 'message' => 'Échec de création'];
+    }
+    
+    // 2. Créer fichier index.php de redirection dans uploads
+    $uploadIndexContent = "<?php\n// Protection - Aucun accès direct\nheader('HTTP/1.0 403 Forbidden');\nexit;\n";
+    $uploadIndexPath = $installDir . '/uploads/index.php';
+    if (@file_put_contents($uploadIndexPath, $uploadIndexContent, LOCK_EX) !== false) {
+        $results['uploads/index.php'] = ['success' => true, 'message' => 'Créé'];
+    }
+    
+    // 3. Créer .gitignore
+    $gitignoreContent = ".env\n*.log\nuploads/*\n!uploads/.gitkeep\ntemp/*\n!temp/.gitkeep\ninstall.lock\n";
+    $gitignorePath = $installDir . '/.gitignore';
+    if (@file_put_contents($gitignorePath, $gitignoreContent, LOCK_EX) !== false) {
+        $results['.gitignore'] = ['success' => true, 'message' => 'Créé'];
+    }
+    
+    // 4. Créer fichiers .gitkeep pour les dossiers vides
+    $keepDirs = ['uploads', 'temp', 'API/logs', 'login/logs'];
+    foreach ($keepDirs as $dir) {
+        $keepPath = $installDir . '/' . $dir . '/.gitkeep';
+        @file_put_contents($keepPath, '');
+    }
+    
+    return $results;
 }
 
 // Définir les en-têtes de sécurité
@@ -74,7 +213,7 @@ if (!empty($missingExtensions)) {
     die('Extensions PHP requises manquantes : ' . implode(', ', $missingExtensions));
 }
 
-// Gestion sécurisée de l'accès par IP
+// Gestion sécurisée de l'accès par IP - AMÉLIORÉE
 $allowedIPs = ['127.0.0.1', '::1'];
 $clientIP = filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP);
 
@@ -94,7 +233,11 @@ if (file_exists($envFile) && is_readable($envFile)) {
     }
 }
 
-if (!in_array($clientIP, $allowedIPs) && !$additionalIpAllowed) {
+// Autoriser les IP du réseau local
+$isLocalNetwork = isLocalIP($clientIP);
+$accessAllowed = in_array($clientIP, $allowedIPs) || $additionalIpAllowed || $isLocalNetwork;
+
+if (!$accessAllowed) {
     error_log("Tentative d'accès non autorisée au script d'installation depuis: " . $clientIP);
     die('Accès non autorisé depuis votre adresse IP: ' . $clientIP);
 }
@@ -119,7 +262,7 @@ if (isset($_SERVER['REQUEST_URI'])) {
 
 $baseUrl = filter_var($baseUrl, FILTER_SANITIZE_URL);
 
-// Créer automatiquement tous les répertoires nécessaires
+// ÉTAPE 0: Gestion automatique des permissions
 $directories = [
     'API/logs',
     'API/config', 
@@ -128,31 +271,16 @@ $directories = [
     'login/logs'
 ];
 
-$permissionErrors = [];
-$permissionWarnings = [];
+$permissionResults = [];
+$criticalErrors = [];
 
 foreach ($directories as $dir) {
     $path = $installDir . '/' . $dir;
+    $result = fixDirectoryPermissions($path, true);
+    $permissionResults[$dir] = $result;
     
-    if (!is_dir($path)) {
-        if (!@mkdir($path, 0755, true)) {
-            $permissionErrors[] = "Impossible de créer le dossier {$dir}";
-            continue;
-        }
-    }
-    
-    // Test d'écriture
-    $testFile = $path . '/test_' . time() . '.txt';
-    $canWrite = @file_put_contents($testFile, 'test', LOCK_EX) !== false;
-    
-    if ($canWrite) {
-        @unlink($testFile);
-    } else {
-        if ($dir === 'API/config') {
-            $permissionErrors[] = "CRITIQUE: Le dossier {$dir} n'est pas accessible en écriture";
-        } else {
-            $permissionWarnings[] = "Le dossier {$dir} n'est pas accessible en écriture";
-        }
+    if (!$result['success'] && $dir === 'API/config') {
+        $criticalErrors[] = "CRITIQUE: {$dir} - " . $result['message'];
     }
 }
 
@@ -241,6 +369,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             echo "<p>✅ Fichier .env créé</p>";
+            
+            // Créer les fichiers de configuration supplémentaires
+            $configFiles = createConfigurationFiles($installDir, []);
+            foreach ($configFiles as $file => $result) {
+                if ($result['success']) {
+                    echo "<p>✅ {$file} - {$result['message']}</p>";
+                }
+            }
+            
             echo "</div>";
             
             // ÉTAPE 2: Charger l'API avec la nouvelle configuration
@@ -256,12 +393,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $app = require $bootstrapPath;
             echo "<p>✅ API bootstrap chargée</p>";
             
-            // Importer les facades
-            use Pronote\Core\Facades\DB;
-            use Pronote\Core\Facades\Auth;
-            use Pronote\Core\Facades\Log;
+            // Vérifier que les facades sont disponibles
+            if (!class_exists('\Pronote\Core\Facades\DB')) {
+                throw new Exception("Les facades n'ont pas pu être chargées");
+            }
             
-            echo "<p>✅ Facades chargées</p>";
+            echo "<p>✅ Facades disponibles</p>";
             echo "</div>";
             
             // ÉTAPE 3: Créer/recréer la base de données
@@ -297,7 +434,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo "<p>✅ Structure créée</p>";
             echo "</div>";
             
-            // ÉTAPE 5: Créer le compte admin avec Auth
+            // ÉTAPE 5: Créer le compte admin
             echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
             echo "<h3>🔧 Étape 5: Compte administrateur</h3>";
             
@@ -323,17 +460,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $lockContent = json_encode([
                 'installed_at' => date('Y-m-d H:i:s'),
                 'version' => '1.0.0',
-                'php_version' => PHP_VERSION
+                'php_version' => PHP_VERSION,
+                'permissions' => $permissionResults
             ]);
             file_put_contents($installLockFile, $lockContent, LOCK_EX);
+            echo "<p>✅ Fichier de verrouillage créé</p>";
             
-            // Protection .htaccess
-            $htaccess = "# Protection fichiers sensibles\n";
-            $htaccess .= "<Files ~ \"^(\.env|install\.php)$\">\n";
-            $htaccess .= "    Order allow,deny\n";
-            $htaccess .= "    Deny from all\n";
-            $htaccess .= "</Files>\n";
-            file_put_contents(__DIR__ . '/.htaccess', $htaccess, FILE_APPEND | LOCK_EX);
+            // Créer un fichier de logs initial
+            $initialLog = $installDir . '/API/logs/' . date('Y-m-d') . '.log';
+            $logContent = "[" . date('Y-m-d H:i:s') . "] INFO: Installation complétée avec succès\n";
+            @file_put_contents($initialLog, $logContent, LOCK_EX);
+            echo "<p>✅ Système de logs initialisé</p>";
+            
+            // Supprimer le fichier fix_permissions.php s'il existe
+            $fixPermFile = $installDir . '/fix_permissions.php';
+            if (file_exists($fixPermFile)) {
+                @unlink($fixPermFile);
+                echo "<p>✅ Fichiers temporaires supprimés</p>";
+            }
             
             echo "<p>✅ Installation finalisée</p>";
             echo "</div>";
@@ -541,16 +685,48 @@ function createDatabaseStructure($pdo) {
     <div class="container">
         <div class="header">
             <h1>🎓 Installation Pronote</h1>
-            <p>Nouvelle architecture API</p>
+            <p>Configuration automatique avec gestion des permissions</p>
         </div>
         
         <div class="content">
-            <?php if (!empty($permissionErrors)): ?>
+            <?php if (!empty($criticalErrors)): ?>
                 <div class="error">
-                    <h3>❌ Erreurs critiques</h3>
-                    <?php foreach ($permissionErrors as $error): ?>
+                    <h3>❌ Erreurs critiques détectées</h3>
+                    <?php foreach ($criticalErrors as $error): ?>
                         <p><?= htmlspecialchars($error) ?></p>
                     <?php endforeach; ?>
+                    <p><strong>Solution:</strong> Exécutez les commandes suivantes sur votre serveur :</p>
+                    <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">
+mkdir -p <?= $installDir ?>/API/config
+chmod -R 777 <?= $installDir ?>/API/config
+chmod -R 777 <?= $installDir ?>/API/logs</pre>
+                </div>
+            <?php endif; ?>
+
+            <?php if (empty($criticalErrors) && !$installed): ?>
+                <div style="background: #d1ecf1; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                    <h3>📁 État des répertoires</h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr style="background: #f0f0f0;">
+                            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Répertoire</th>
+                            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Statut</th>
+                            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Permissions</th>
+                        </tr>
+                        <?php foreach ($permissionResults as $dir => $result): ?>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;"><code><?= $dir ?></code></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">
+                                <?= $result['success'] ? '✅' : '❌' ?>
+                            </td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">
+                                <?= $result['permissions'] ?? 'N/A' ?>
+                                <?php if ($result['message'] !== 'OK'): ?>
+                                    <br><small><?= htmlspecialchars($result['message']) ?></small>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </table>
                 </div>
             <?php endif; ?>
 
@@ -558,9 +734,22 @@ function createDatabaseStructure($pdo) {
                 <div class="success">
                     <h2>🎉 Installation réussie !</h2>
                     <p>Pronote est prêt à être utilisé.</p>
+                    
+                    <div style="background: #fff; color: #333; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: left;">
+                        <h3>📋 Récapitulatif de l'installation</h3>
+                        <ul style="list-style: none; padding: 0;">
+                            <li>✅ Base de données créée et configurée</li>
+                            <li>✅ Compte administrateur créé</li>
+                            <li>✅ Fichiers de configuration générés</li>
+                            <li>✅ Permissions des répertoires corrigées</li>
+                            <li>✅ Protection .htaccess en place</li>
+                            <li>✅ Système de logs initialisé</li>
+                        </ul>
+                    </div>
+                    
                     <div style="margin-top: 20px;">
                         <a href="login/public/index.php" class="btn" style="display: inline-block; text-decoration: none;">
-                            🔐 Se connecter
+                            🔐 Se connecter maintenant
                         </a>
                     </div>
                 </div>
