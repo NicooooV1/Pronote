@@ -40,8 +40,28 @@ $json_file = __DIR__ . '/../login/data/etablissement.json';
 $etablissement_data = file_exists($json_file) ? json_decode(file_get_contents($json_file), true) : [];
 $nom_etablissement = $etablissement_data['nom'] ?? 'Établissement Scolaire';
 
-// Connexion DB via API
-$pdo = DB::getPDO();
+// Connexion DB via API avec gestion d'erreur
+try {
+    if (!class_exists('API\Core\Facades\DB')) {
+        throw new Exception("La classe DB facade n'est pas disponible");
+    }
+    $pdo = DB::getPDO();
+} catch (Exception $e) {
+    error_log("Erreur DB Facade: " . $e->getMessage());
+    // Fallback vers connexion directe si nécessaire
+    $config_path = dirname(__DIR__) . '/API/config/database.php';
+    if (file_exists($config_path)) {
+        $db_config = require $config_path;
+        $pdo = new PDO(
+            "mysql:host={$db_config['host']};dbname={$db_config['database']};charset=utf8mb4",
+            $db_config['username'],
+            $db_config['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
+    } else {
+        die("Erreur: Impossible de se connecter à la base de données");
+    }
+}
 
 // Prochains événements
 $prochains_evenements = [];

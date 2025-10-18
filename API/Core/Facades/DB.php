@@ -1,66 +1,67 @@
 <?php
 declare(strict_types=1);
 
-namespace Pronote\Core\Facades;
+namespace API\Core\Facades;
 
-use API\Core\Facade;
 use PDO;
+use PDOException;
 
-/**
- * Facade DB - Proxy statique vers la connexion PDO
- */
-final class DB extends Facade
+class DB
 {
-    protected static function getFacadeAccessor()
+    private static $pdo = null;
+
+    /**
+     * Get PDO instance
+     * @return PDO
+     */
+    public static function getPDO()
     {
-        return 'db';
+        if (self::$pdo === null) {
+            self::connect();
+        }
+        return self::$pdo;
     }
 
-    public static function getConnection(): PDO
+    /**
+     * Initialize database connection
+     */
+    private static function connect()
     {
-        $db = app('db');
-        return $db->getConnection();
-    }
-
-    // Compat: certains appels utilisent getPDO()
-    public static function getPDO(): PDO
-    {
-        return self::getConnection();
-    }
-
-    private static function createConnection(): PDO
-    {
-        $envFile = dirname(__DIR__, 2) . '/.env';
+        $config_path = dirname(dirname(__DIR__)) . '/config/database.php';
         
-        if (!file_exists($envFile)) {
-            throw new \RuntimeException('Fichier .env introuvable');
+        if (!file_exists($config_path)) {
+            throw new \Exception("Le fichier de configuration database.php est introuvable");
         }
 
-        $config = parse_ini_file($envFile);
-        
-        $dsn = sprintf(
-            'mysql:host=%s;port=%s;dbname=%s;charset=%s',
-            $config['DB_HOST'] ?? 'localhost',
-            $config['DB_PORT'] ?? 3306,
-            $config['DB_NAME'] ?? '',
-            $config['DB_CHARSET'] ?? 'utf8mb4'
-        );
+        $config = require $config_path;
 
-        return new PDO(
-            $dsn,
-            $config['DB_USER'] ?? '',
-            $config['DB_PASS'] ?? '',
-            [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-            ]
-        );
+        try {
+            self::$pdo = new PDO(
+                "mysql:host={$config['host']};dbname={$config['database']};charset=utf8mb4",
+                $config['username'],
+                $config['password'],
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false
+                ]
+            );
+        } catch (PDOException $e) {
+            error_log("Erreur de connexion DB: " . $e->getMessage());
+            throw new \Exception("Erreur de connexion à la base de données");
+        }
     }
 
-    public static function query(string $sql, array $params = []): \PDOStatement
+    /**
+     * Execute a query
+     * @param string $query
+     * @param array $params
+     * @return \PDOStatement
+     */
+    public static function query($query, $params = [])
     {
-        $stmt = self::getPDO()->prepare($sql);
+        $pdo = self::getPDO();
+        $stmt = $pdo->prepare($query);
         $stmt->execute($params);
         return $stmt;
     }

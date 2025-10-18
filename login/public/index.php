@@ -3,29 +3,12 @@
  * Page de connexion Pronote - Version intégrée à l'API centralisée
  */
 
-// Inclure l'API centralisée - chemin uniformisé
-$apiCorePath = __DIR__ . '/../../API/core.php';
-if (!file_exists($apiCorePath)) {
-    die("Erreur: Le fichier API core.php est introuvable. Chemin: " . $apiCorePath);
-}
-require_once $apiCorePath;
-
-// Démarrer la session si pas encore fait
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+// Charger l'API centralisée
+require_once __DIR__ . '/../../API/core.php';
 
 // Si l'utilisateur est déjà connecté, le rediriger
-if (function_exists('isLoggedIn') && isLoggedIn()) {
-    if (function_exists('redirect')) {
-        // Correction : utiliser BASE_URL si défini
-        $baseUrl = defined('BASE_URL') ? BASE_URL : '/Pronote';
-        redirect($baseUrl . '/accueil/accueil.php');
-    } else {
-        $baseUrl = defined('BASE_URL') ? BASE_URL : '/Pronote';
-        header('Location: ' . $baseUrl . '/accueil/accueil.php');
-        exit;
-    }
+if (isLoggedIn()) {
+    redirect('accueil/accueil.php');
 }
 
 $error = '';
@@ -55,58 +38,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     if (empty($username) || empty($password) || empty($userType)) {
         $error = "Veuillez remplir tous les champs.";
     } else {
-        try {
-            // Utilisation exclusive de l'API centralisée
-            if (!function_exists('authenticateUser')) {
-                $error = "Erreur: La fonction d'authentification n'est pas disponible.";
-            } else {
-                // Remplace l'appel direct par une tentative multi-profils pour "Personnel"
-                $profilesToTry = ($userType === 'vie_scolaire')
-                    ? ['administrateur', 'vie_scolaire']
-                    : [$userType];
+        // Authentification multi-profils pour "Personnel"
+        $profilesToTry = ($userType === 'vie_scolaire')
+            ? ['administrateur', 'vie_scolaire']
+            : [$userType];
 
-                $loginResult = ['success' => false];
-                foreach ($profilesToTry as $typeToTry) {
-                    $attempt = authenticateUser($username, $password, $typeToTry, $rememberMe);
-                    if (!empty($attempt['success'])) {
-                        // S'assurer que le profil est renseigné
-                        if (!isset($attempt['user']['profil'])) {
-                            $attempt['user']['profil'] = $typeToTry;
-                        }
-                        $loginResult = $attempt;
-                        break;
-                    }
-                }
-
-                if (!empty($loginResult['success'])) {
-                    // Connexion réussie
-                    $_SESSION['user'] = $loginResult['user'];
-                    
-                    // Gestion du "Se souvenir de moi"
-                    if ($rememberMe && isset($loginResult['remember_token'])) {
-                        setcookie('remember_me', $loginResult['remember_token'], time() + (86400 * 30), "/");
-                    }
-                    
-                    if (function_exists('redirect')) {
-                        // Correction : utiliser BASE_URL si défini
-                        $baseUrl = defined('BASE_URL') ? BASE_URL : '/Pronote';
-                        redirect($baseUrl . '/accueil/accueil.php');
-                    } else {
-                        $baseUrl = defined('BASE_URL') ? BASE_URL : '/Pronote';
-                        header('Location: ' . $baseUrl . '/accueil/accueil.php');
-                        exit;
-                    }
-                } else {
-                    $error = $loginResult['message'] ?? "Identifiant ou mot de passe incorrect.";
-                    $last_username = $username;
-                }
+        $loginResult = null;
+        foreach ($profilesToTry as $typeToTry) {
+            $attempt = login($typeToTry, $username, $password);
+            if ($attempt) {
+                $loginResult = $attempt;
+                break;
             }
-        } catch (Exception $e) {
-            $error = "Une erreur système s'est produite. Veuillez réessayer.";
-            error_log("Login error: " . $e->getMessage());
+        }
+
+        if ($loginResult) {
+            // Connexion réussie - redirection
+            redirect('accueil/accueil.php');
+        } else {
+            $error = "Identifiant ou mot de passe incorrect.";
+            $_SESSION['last_username'] = $username;
         }
     }
 }
+
+// Générer un token CSRF
+$csrfToken = generateCSRFToken();
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -114,249 +71,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Connexion - PRONOTE</title>
+    <meta name="csrf-token" content="<?= htmlspecialchars($csrfToken) ?>">
     <link rel="stylesheet" href="assets/css/pronote-login.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        /* Styles modernisés pour la page de login */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .auth-container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            padding: 40px;
-            width: 100%;
-            max-width: 480px;
-            margin: 20px;
-        }
-        
-        .auth-header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-        
-        .app-logo {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #0f4c81 0%, #2980b9 100%);
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 36px;
-            font-weight: bold;
-            margin: 0 auto 20px;
-        }
-        
-        .app-title {
-            font-size: 32px;
-            font-weight: 600;
-            color: #2c3e50;
-            margin: 0 0 10px;
-        }
-        
-        .app-subtitle {
-            color: #7f8c8d;
-            font-size: 16px;
-        }
-        
-        .alert {
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-        }
-        
-        .alert i {
-            margin-right: 10px;
-            font-size: 18px;
-        }
-        
-        .alert-error {
-            background: #fee;
-            color: #c33;
-            border: 1px solid #fcc;
-        }
-        
-        .alert-success {
-            background: #efe;
-            color: #363;
-            border: 1px solid #cfc;
-        }
-        
-        .profile-selector {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 30px;
-        }
-        
-        .profile-selector input[type="radio"] {
-            position: absolute;
-            opacity: 0;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-        }
-        
-        .profile-option {
-            padding: 20px;
-            border: 2px solid #e1e8ed;
-            border-radius: 15px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            background: #f8f9fa;
-        }
-        
-        .profile-option:hover {
-            border-color: #3498db;
-            background: #f0f8ff;
-        }
-        
-        .profile-selector input[type="radio"]:checked + .profile-option {
-            border-color: #3498db;
-            background: #e3f2fd;
-            color: #1976d2;
-        }
-        
-        .profile-icon {
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-        
-        .profile-label {
-            font-weight: 600;
-            font-size: 14px;
-        }
-        
-        .form-group {
-            margin-bottom: 25px;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #2c3e50;
-        }
-        
-        .required-field::after {
-            content: " *";
-            color: #e74c3c;
-        }
-        
-        .input-group {
-            position: relative;
-        }
-        
-        .input-group-icon {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #7f8c8d;
-            font-size: 18px;
-        }
-        
-        .form-control {
-            width: 100%;
-            padding: 15px 15px 15px 50px;
-            border: 2px solid #e1e8ed;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: border-color 0.3s ease;
-            box-sizing: border-box;
-        }
-        
-        .form-control:focus {
-            outline: none;
-            border-color: #3498db;
-        }
-        
-        .visibility-toggle {
-            position: absolute;
-            right: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: #7f8c8d;
-            cursor: pointer;
-            font-size: 18px;
-        }
-        
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            cursor: pointer;
-        }
-        
-        .checkbox-group input[type="checkbox"] {
-            margin-right: 10px;
-        }
-        
-        .btn {
-            width: 100%;
-            padding: 15px;
-            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-        }
-        
-        .btn i {
-            margin-right: 10px;
-        }
-        
-        .help-links {
-            text-align: center;
-            margin-top: 20px;
-        }
-        
-        .help-links a {
-            color: #3498db;
-            text-decoration: none;
-            font-weight: 500;
-        }
-        
-        .help-links a:hover {
-            text-decoration: underline;
-        }
-        
-        @media (max-width: 600px) {
-            .profile-selector {
-                grid-template-columns: 1fr;
-            }
-            
-            .auth-container {
-                margin: 10px;
-                padding: 30px 20px;
-            }
-        }
-    </style>
 </head>
 <body>
     <div class="auth-container">
@@ -383,7 +100,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         <?php endif; ?>
 
         <!-- Formulaire de connexion -->
-        <form method="post" action="">
+        <form method="post" action="" id="loginForm">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+
             <!-- Sélecteur de profil -->
             <div class="profile-selector">
                 <input type="radio" id="eleve" name="user_type" value="eleve" required>
@@ -424,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 <label for="username" class="required-field">Identifiant</label>
                 <div class="input-group">
                     <i class="input-group-icon fas fa-user"></i>
-                    <input type="text" id="username" name="username" class="form-control" value="<?= htmlspecialchars($last_username) ?>" required autofocus>
+                    <input type="text" id="username" name="username" class="form-control input-with-icon" value="<?= htmlspecialchars($last_username) ?>" required autofocus autocomplete="username">
                 </div>
             </div>
 
@@ -432,8 +151,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 <label for="password" class="required-field">Mot de passe</label>
                 <div class="input-group">
                     <i class="input-group-icon fas fa-lock"></i>
-                    <input type="password" id="password" name="password" class="form-control" required>
-                    <button type="button" class="visibility-toggle" title="Afficher/Masquer le mot de passe">
+                    <input type="password" id="password" name="password" class="form-control input-with-icon" required autocomplete="current-password">
+                    <button type="button" class="visibility-toggle" id="togglePassword" title="Afficher/Masquer le mot de passe">
                         <i class="fas fa-eye"></i>
                     </button>
                 </div>
@@ -448,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
             <!-- Actions -->
             <div class="form-actions">
-                <button type="submit" name="login" class="btn">
+                <button type="submit" name="login" class="btn btn-primary">
                     <i class="fas fa-sign-in-alt"></i> Se connecter
                 </button>
             </div>
@@ -463,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Gestion de l'affichage/masquage du mot de passe
-            const toggleButton = document.querySelector('.visibility-toggle');
+            const toggleButton = document.getElementById('togglePassword');
             const passwordInput = document.getElementById('password');
             
             if (toggleButton && passwordInput) {
@@ -476,18 +195,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 });
             }
             
-            // Auto-focus sur le champ mot de passe si l'identifiant est déjà rempli
+            // Auto-focus sur le champ approprié
             const usernameInput = document.getElementById('username');
             if (usernameInput && usernameInput.value.trim() !== '') {
                 passwordInput.focus();
             }
 
-            // Assurer une valeur par défaut pour éviter l'erreur "invalid form control not focusable"
+            // Sélection automatique du premier profil si aucun n'est sélectionné
             const radios = document.querySelectorAll('input[name="user_type"]');
             if (radios.length && !Array.from(radios).some(r => r.checked)) {
                 const defaultRadio = document.getElementById('eleve');
                 if (defaultRadio) defaultRadio.checked = true;
             }
+
+            // Validation du formulaire
+            const form = document.getElementById('loginForm');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    const username = document.getElementById('username').value.trim();
+                    const password = document.getElementById('password').value;
+                    const userType = document.querySelector('input[name="user_type"]:checked');
+
+                    if (!username || !password || !userType) {
+                        e.preventDefault();
+                        alert('Veuillez remplir tous les champs requis.');
+                        return false;
+                    }
+                });
+            }
+
+            // Animation des profils
+            const profileOptions = document.querySelectorAll('.profile-option');
+            profileOptions.forEach(option => {
+                option.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-2px)';
+                });
+                option.addEventListener('mouseleave', function() {
+                    const radio = this.previousElementSibling;
+                    if (!radio.checked) {
+                        this.style.transform = 'translateY(0)';
+                    }
+                });
+            });
         });
     </script>
 </body>
