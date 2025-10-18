@@ -18,9 +18,12 @@ if (session_status() === PHP_SESSION_NONE) {
 // Si l'utilisateur est déjà connecté, le rediriger
 if (function_exists('isLoggedIn') && isLoggedIn()) {
     if (function_exists('redirect')) {
-        redirect('/accueil/accueil.php');
+        // Correction : utiliser BASE_URL si défini
+        $baseUrl = defined('BASE_URL') ? BASE_URL : '/Pronote';
+        redirect($baseUrl . '/accueil/accueil.php');
     } else {
-        header('Location: ../../accueil/accueil.php');
+        $baseUrl = defined('BASE_URL') ? BASE_URL : '/Pronote';
+        header('Location: ' . $baseUrl . '/accueil/accueil.php');
         exit;
     }
 }
@@ -85,9 +88,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     }
                     
                     if (function_exists('redirect')) {
-                        redirect('/accueil/accueil.php');
+                        // Correction : utiliser BASE_URL si défini
+                        $baseUrl = defined('BASE_URL') ? BASE_URL : '/Pronote';
+                        redirect($baseUrl . '/accueil/accueil.php');
                     } else {
-                        header('Location: ../../accueil/accueil.php');
+                        $baseUrl = defined('BASE_URL') ? BASE_URL : '/Pronote';
+                        header('Location: ' . $baseUrl . '/accueil/accueil.php');
                         exit;
                     }
                 } else {

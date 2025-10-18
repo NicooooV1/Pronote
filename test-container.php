@@ -1,6 +1,14 @@
 <?php
 require_once __DIR__ . '/API/Core/Container.php';
 
+// helpers
+function section($t){ echo "=== {$t} ===\n"; }
+function kv($k,$v){
+    if (is_bool($v)) $v = $v ? 'OUI' : 'NON';
+    if ($v === null) $v = 'NULL';
+    echo "{$k}: {$v}\n";
+}
+
 class TestService {
     public function greet() { return "Hello"; }
 }
@@ -21,12 +29,13 @@ try {
     $container->bind(UserService::class);
 
     $user = $container->make(UserService::class);
-    echo "✅ Container test: " . $user->getMessage() . "\n"; // Should output "Hello User"
+    section('Container');
+    echo "Message: " . $user->getMessage() . "\n";
     
     // Test singleton behavior
     $test1 = $container->make(TestService::class);
     $test2 = $container->make(TestService::class);
-    echo "✅ Singleton test: " . ($test1 === $test2 ? "PASS" : "FAIL") . "\n";
+    kv('Singleton test', $test1 === $test2);
     
 } catch (Exception $e) {
     echo "❌ Container test failed: " . $e->getMessage() . "\n";

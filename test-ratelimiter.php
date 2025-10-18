@@ -3,7 +3,11 @@ session_start();
 require_once __DIR__ . '/API/bootstrap.php';
 require_once __DIR__ . '/API/Security/RateLimiter.php';
 
+// helpers
+function section($t){ echo "=== {$t} ===\n"; }
+
 try {
+    section('Rate Limiter');
     $limiter = new \API\Security\RateLimiter();
 
     $key = 'test_action_' . time();

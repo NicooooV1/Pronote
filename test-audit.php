@@ -6,6 +6,15 @@ require_once __DIR__ . '/API/Services/AuditService.php';
 use Pronote\Services\AuditService;
 use Pronote\Services\Audit;
 
+// helpers
+function section($t){ echo "=== {$t} ===\n"; }
+function kv($k,$v){
+    if (is_bool($v)) $v = $v ? 'OUI' : 'NON';
+    if ($v === null) $v = 'NULL';
+    echo "{$k}: {$v}\n";
+}
+function jprint($k,$v){ echo "{$k}: " . json_encode($v, JSON_PRETTY_PRINT) . "\n"; }
+
 // Simuler un utilisateur connecté
 $_SESSION['user'] = [
     'id' => 123,
@@ -16,18 +25,18 @@ $_SESSION['user'] = [
 
 $audit = new AuditService();
 
-echo "=== Test 1 : Log d'une action simple ===\n";
+section("Test 1 : Log d'une action simple");
 $result = $audit->log('test.action', null, [
     'new' => ['data' => 'test']
 ]);
 echo "Log créé : " . ($result ? "OUI" : "NON") . "\n\n";
 
-echo "=== Test 2 : Log d'authentification ===\n";
+section("Test 2 : Log d'authentification");
 $audit->logAuth('login', 'jean.dupont', true, ['method' => 'password']);
 $audit->logAuth('login', 'hacker', false, ['method' => 'password', 'reason' => 'invalid_credentials']);
 echo "Logs d'auth créés\n\n";
 
-echo "=== Test 3 : Log de sécurité ===\n";
+section("Test 3 : Log de sécurité");
 $audit->logSecurity('csrf_invalid', [
     'token' => 'abc123',
     'expected' => 'def456'
@@ -38,7 +47,7 @@ $audit->logSecurity('rate_limit_exceeded', [
 ]);
 echo "Logs de sécurité créés\n\n";
 
-echo "=== Test 4 : Log avec modèle (simulation) ===\n";
+section("Test 4 : Log avec modèle (simulation)");
 $fakeNote = [
     'id' => 456,
     'note' => 15,
@@ -48,7 +57,7 @@ $fakeNote = [
 $audit->logCreated($fakeNote);
 echo "Log de création de modèle créé\n\n";
 
-echo "=== Test 5 : Log de mise à jour avec dirty ===\n";
+section("Test 5 : Log de mise à jour avec dirty");
 $fakeNoteDirty = [
     'note' => 17,
     'commentaire' => 'Excellent travail'
@@ -56,11 +65,11 @@ $fakeNoteDirty = [
 $audit->logUpdated($fakeNote, $fakeNoteDirty);
 echo "Log de mise à jour créé\n\n";
 
-echo "=== Test 6 : Log de suppression ===\n";
+section("Test 6 : Log de suppression");
 $audit->logDeleted($fakeNote);
 echo "Log de suppression créé\n\n";
 
-echo "=== Test 7 : Sanitization des données sensibles ===\n";
+section("Test 7 : Sanitization des données sensibles");
 $sensitiveData = [
     'nom' => 'Dupont',
     'password' => 'secret123',
@@ -71,21 +80,20 @@ $sensitiveData = [
 $audit->log('test.sensitive', null, ['new' => $sensitiveData]);
 echo "Log avec données sensibles créé (mots de passe masqués)\n\n";
 
-echo "=== Test 8 : Récupération de l'historique ===\n";
+section("Test 8 : Récupération de l'historique");
 try {
     $history = $audit->getHistoryByUser(123, 'professeur', 10);
     echo "Historique récupéré : " . count($history) . " entrées\n";
-    
     if (!empty($history)) {
-        echo "Dernière action : {$history[0]['action']}\n";
-        echo "Date : {$history[0]['created_at']}\n";
+        kv('Dernière action', $history[0]['action']);
+        kv('Date', $history[0]['created_at']);
     }
 } catch (\Exception $e) {
     echo "Erreur (normal si table n'existe pas) : " . $e->getMessage() . "\n";
 }
 echo "\n";
 
-echo "=== Test 9 : Recherche dans l'audit ===\n";
+section("Test 9 : Recherche dans l'audit");
 try {
     $results = $audit->search([
         'action' => 'auth.login',
@@ -97,11 +105,10 @@ try {
 }
 echo "\n";
 
-echo "=== Test 10 : Statistiques ===\n";
+section("Test 10 : Statistiques");
 try {
     $stats = $audit->getStats(7);
     echo "Statistiques sur 7 jours : " . count($stats) . " entrées\n";
-    
     if (!empty($stats)) {
         echo "Actions les plus fréquentes :\n";
         $grouped = [];
@@ -111,7 +118,6 @@ try {
             }
             $grouped[$stat['action']] += $stat['count'];
         }
-        
         arsort($grouped);
         $top3 = array_slice($grouped, 0, 3, true);
         foreach ($top3 as $action => $count) {
@@ -123,12 +129,12 @@ try {
 }
 echo "\n";
 
-echo "=== Test 11 : Facade Audit ===\n";
+section("Test 11 : Facade Audit");
 Audit::setInstance($audit);
 Audit::log('test.facade', null, ['new' => ['method' => 'facade']]);
 echo "Log via facade créé\n\n";
 
-echo "=== Test 12 : Cleanup (simulation) ===\n";
+section("Test 12 : Cleanup (simulation)");
 try {
     $deleted = $audit->cleanup(365);
     echo "Logs supprimés (> 365 jours) : {$deleted}\n";
@@ -137,7 +143,7 @@ try {
 }
 echo "\n";
 
-echo "=== Test 13 : Champs sensibles personnalisés ===\n";
+section("Test 13 : Champs sensibles personnalisés");
 $audit->addSensitiveField('ssn');
 $audit->addSensitiveField('credit_card');
 $dataWithSSN = [
@@ -148,7 +154,7 @@ $dataWithSSN = [
 $audit->log('test.custom_sensitive', null, ['new' => $dataWithSSN]);
 echo "Log avec champs sensibles personnalisés créé\n\n";
 
-echo "=== Résumé ===\n";
+section("Résumé");
 echo "Tous les tests d'audit terminés.\n";
 echo "Si la table audit_log existe, vérifiez son contenu avec :\n";
 echo "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 10;\n";

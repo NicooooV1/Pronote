@@ -1,6 +1,12 @@
 <?php
 declare(strict_types=1);
 
+// Idempotent guard to avoid double-loading
+if (defined('PRONOTE_BOOTSTRAP_LOADED')) {
+	return $app ?? null;
+}
+define('PRONOTE_BOOTSTRAP_LOADED', true);
+
 // Définir les constantes de base
 define('API_PATH', __DIR__);
 define('BASE_PATH', dirname(__DIR__));
@@ -69,10 +75,32 @@ $app->register(new \API\Providers\AuthServiceProvider($app));
 $app->register(new \API\Providers\SecurityServiceProvider($app));
 $app->register(new \API\Providers\EtablissementServiceProvider($app));
 
+// Bind a minimal PSR-like logger (fallback to error_log)
+$app->singleton('log', function($app) {
+	return new class {
+		private function format($level, $message, array $context = []) {
+			$ctx = $context ? ' ' . json_encode($context) : '';
+			return sprintf('[%s] %s%s', strtoupper($level), $message, $ctx);
+		}
+		public function debug($message, array $context = []) { error_log($this->format('debug', $message, $context)); }
+		public function info($message, array $context = [])  { error_log($this->format('info',  $message, $context)); }
+		public function warning($message, array $context = []) { error_log($this->format('warning', $message, $context)); }
+		public function error($message, array $context = [])  { error_log($this->format('error', $message, $context)); }
+	};
+});
+
+// Bind audit service (uses existing Pronote\Services\AuditService)
+$app->singleton('audit', function($app) {
+	return new \Pronote\Services\AuditService($app->make('db')->getConnection());
+});
+
 // Lier l'application aux Facades
 \API\Core\Facade::setApplication($app);
 
 // Démarrer les services
 $app->boot();
+
+// Legacy bridge (compat helpers)
+require_once API_PATH . '/Legacy/Bridge.php';
 
 return $app;

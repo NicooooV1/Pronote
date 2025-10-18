@@ -2,9 +2,17 @@
 require_once __DIR__ . '/API/bootstrap.php';
 require_once __DIR__ . '/API/Security/Validator.php';
 
+// helpers
+function section($t){ echo "=== {$t} ===\n"; }
+function kv($k,$v){
+    if (is_bool($v)) $v = $v ? 'OUI' : 'NON';
+    if ($v === null) $v = 'NULL';
+    echo "{$k}: {$v}\n";
+}
+
 try {
     // Test 1 : Validation basique
-    echo "=== Test 1 : Validation basique ===\n";
+    section("Test 1 : Validation basique");
     $data1 = [
         'email' => 'test@example.com',
         'password' => '12345678'
@@ -20,7 +28,7 @@ try {
     print_r($validator->errors());
 
     // Test 2 : Validation avec erreurs
-    echo "\n=== Test 2 : Validation avec erreurs ===\n";
+    section("Test 2 : Validation avec erreurs");
     $data2 = [
         'email' => 'invalid-email',
         'password' => '123'

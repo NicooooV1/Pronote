@@ -1199,7 +1199,7 @@ if (isset($_SERVER['REQUEST_URI'])) {
     }
 }
 
-$baseUrl = filter_var($baseUrl, FILTER_SANITIZE_URL);
+$baseUrl = rtrim(filter_var($baseUrl, FILTER_SANITIZE_URL), '/');
 $fullUrl = $protocol . '://' . $host . $baseUrl;
 
 // ÉTAPE 0: Gestion automatique de la structure complète
@@ -1289,10 +1289,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
                 throw new Exception("Mot de passe non conforme:\n• " . implode("\n• ", $passwordErrors));
             }
             
-            // ÉTAPE 1: Créer la configuration .env
-            echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
-            echo "<h3>🔧 Étape 1: Création de la configuration</h3>";
-            
+            // --- NOUVEAU : Initialiser le rendu des étapes ---
+            $installStepsHtml = '<div class="install-steps" style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); padding: 30px 30px 10px 30px; margin-bottom: 30px; margin-top: 30px;">';
+
+            // ÉTAPE 1: Création de la configuration .env
+            $installStepsHtml .= '<div style="margin-bottom: 25px;">';
+            $installStepsHtml .= '<h3 style="color: #3498db; margin-bottom: 10px;">🔧 Étape 1 : Création de la configuration</h3>';
+            $installStepsHtml .= '<ul style="margin:0 0 10px 0; padding-left: 22px;">';
+
+            // Écrire le fichier .env
             $configFile = $installDir . '/.env';
             $configContent = "# Configuration Pronote - Généré le " . date('Y-m-d H:i:s') . "\n";
             $configContent .= "# ⚠️ NE PAS COMMITTER CE FICHIER DANS GIT\n";
@@ -1372,76 +1377,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             if (@file_put_contents($configFile, $configContent, LOCK_EX) === false) {
                 throw new Exception("Impossible d'écrire le fichier .env");
             }
-            
-            // Protection du .env selon l'environnement
-            $chmodSuccess = false;
-            $chmodMsg = '';
-            if ($appEnv === 'production') {
-                // En production, rendre le .env illisible sauf pour le propriétaire
-                if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                    // Windows : lecture seule pour l'utilisateur
-                    $chmodSuccess = @chmod($configFile, 0600);
-                    $chmodMsg = $chmodSuccess
-                        ? "Le fichier .env est protégé (lecture seule pour l'utilisateur)."
-                        : "Impossible de restreindre les droits du fichier .env (Windows).";
-                } else {
-                    // Unix/Linux : aucune permission pour les autres
-                    $chmodSuccess = @chmod($configFile, 0600) && @chmod($configFile, 0000);
-                    $chmodMsg = $chmodSuccess
-                        ? "Le fichier .env est protégé (aucune lecture possible par le serveur web)."
-                        : "Impossible de restreindre les droits du fichier .env (Linux/Unix).";
-                }
-            } else {
-                // En développement, lecture/écriture pour l'utilisateur uniquement
-                $chmodSuccess = @chmod($configFile, 0600);
-                $chmodMsg = $chmodSuccess
-                    ? "Le fichier .env est protégé (lecture/écriture pour l'utilisateur uniquement)."
-                    : "Impossible de restreindre les droits du fichier .env.";
-            }
+            @chmod($configFile, $initialPerms);
 
-            echo "<p style='color: #2980b9; font-size: 0.95em;'>$chmodMsg</p>";
-            
-            echo "<p>✅ Fichier .env créé avec toutes les configurations</p>";
-            echo "<p style='font-size: 0.9em; color: #666;'>→ Configuration base de données</p>";
-            echo "<p style='font-size: 0.9em; color: #666;'>→ Configuration application</p>";
-            echo "<p style='font-size: 0.9em; color: #666;'>→ Configuration sécurité</p>";
-            echo "<p style='font-size: 0.9em; color: #666;'>→ Configuration chemins</p>";
-            
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Fichier <code>.env</code> créé avec toutes les configurations</li>';
+            $installStepsHtml .= '<li style="color:#666;">→ Configuration base de données</li>';
+            $installStepsHtml .= '<li style="color:#666;">→ Configuration application</li>';
+            $installStepsHtml .= '<li style="color:#666;">→ Configuration sécurité</li>';
+            $installStepsHtml .= '<li style="color:#666;">→ Configuration chemins</li>';
+            $installStepsHtml .= '<li style="color:#e67e22;">⚠️ Les permissions seront restreintes après l\'installation</li>';
+
             // Créer les fichiers de configuration supplémentaires
             $configFiles = createConfigurationFiles($installDir, []);
             foreach ($configFiles as $file => $result) {
                 if ($result['success']) {
-                    echo "<p>✅ {$file} - {$result['message']}</p>";
+                    $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> ' . htmlspecialchars($file) . ' - ' . htmlspecialchars($result['message']) . '</li>';
                 }
             }
-            
-            echo "</div>";
-            
-            // ÉTAPE 2: Charger l'API avec la nouvelle configuration
-            echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
-            echo "<h3>🔧 Étape 2: Initialisation de l'API</h3>";
-            
+            $installStepsHtml .= '</ul></div>';
+
+            // ÉTAPE 2: Initialisation de l'API
+            $installStepsHtml .= '<div style="margin-bottom: 25px;">';
+            $installStepsHtml .= '<h3 style="color: #3498db; margin-bottom: 10px;">🔧 Étape 2 : Initialisation de l\'API</h3>';
+            $installStepsHtml .= '<ul style="margin:0 0 10px 0; padding-left: 22px;">';
+
             // Charger le bootstrap de l'API
             $bootstrapPath = __DIR__ . '/API/bootstrap.php';
             if (!file_exists($bootstrapPath)) {
                 throw new Exception("Fichier bootstrap.php non trouvé");
             }
-            
-            $app = require $bootstrapPath;
-            echo "<p>✅ API bootstrap chargée</p>";
-            
-            // Vérifier que les facades sont disponibles
-            if (!class_exists('\API\Core\Facades\DB')) {
-                throw new Exception("Les facades n'ont pas pu être chargées");
+            if (!is_readable($configFile)) {
+                throw new Exception("Le fichier .env n'est pas lisible par le serveur web");
             }
-            
-            echo "<p>✅ Facades disponibles</p>";
-            echo "</div>";
-            
-            // ÉTAPE 3: Créer/recréer la base de données
-            echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
-            echo "<h3>🔧 Étape 3: Gestion de la base de données</h3>";
-            
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Fichier <code>.env</code> accessible en lecture</li>';
+
+            try {
+                $app = require $bootstrapPath;
+                $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> API bootstrap chargée</li>';
+            } catch (Exception $e) {
+                throw new Exception("Erreur lors du chargement du bootstrap: " . $e->getMessage());
+            }
+
+            if (!isset($app) || !is_object($app)) {
+                throw new Exception("Le container de l'application n'a pas été initialisé");
+            }
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Container de l\'application initialisé</li>';
+
+            try {
+                $testDsn = "mysql:host={$dbHost};port={$dbPort};dbname={$dbName};charset={$dbCharset}";
+                $testPdo = new PDO($testDsn, $dbUser, $dbPass, [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+                ]);
+                $testPdo->query("SELECT 1");
+                $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Connexion à la base de données vérifiée</li>';
+            } catch (Exception $e) {
+                throw new Exception("Impossible de se connecter à la base de données: " . $e->getMessage());
+            }
+
+            $facadesAvailable = class_exists('\API\Core\Facades\DB', false);
+            if ($facadesAvailable) {
+                $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Facades disponibles</li>';
+            } else {
+                $installStepsHtml .= '<li style="color:#e67e22;">⚠️ Facades non chargées (ce n\'est pas bloquant pour l\'installation)</li>';
+            }
+            $installStepsHtml .= '</ul></div>';
+
+            // ÉTAPE 3: Gestion de la base de données
+            $installStepsHtml .= '<div style="margin-bottom: 25px;">';
+            $installStepsHtml .= '<h3 style="color: #3498db; margin-bottom: 10px;">🔧 Étape 3 : Gestion de la base de données</h3>';
+            $installStepsHtml .= '<ul style="margin:0 0 10px 0; padding-left: 22px;">';
+
+            // Utiliser PDO directement au lieu des facades
             // Connexion sans base de données pour la créer
             $dsn = "mysql:host={$dbHost};port={$dbPort};charset=utf8mb4";
             $pdo = new PDO($dsn, $dbUser, $dbPass, [
@@ -1454,63 +1460,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             $stmt->execute([$dbName]);
             if ($stmt->fetch()) {
                 $pdo->exec("DROP DATABASE `{$dbName}`");
-                echo "<p>✅ Ancienne base supprimée</p>";
+                $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Ancienne base supprimée</li>';
             }
-            
-            // Créer nouvelle base
             $pdo->exec("CREATE DATABASE `{$dbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             $pdo->exec("USE `{$dbName}`");
-            echo "<p>✅ Base de données créée</p>";
-            echo "</div>";
-            
-            // ÉTAPE 4: Créer la structure avec le QueryBuilder
-            echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
-            echo "<h3>🔧 Étape 4: Création de la structure</h3>";
-            
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Base de données créée</li>';
+            $installStepsHtml .= '</ul></div>';
+
+            // ÉTAPE 4: Création de la structure
+            $installStepsHtml .= '<div style="margin-bottom: 25px;">';
+            $installStepsHtml .= '<h3 style="color: #3498db; margin-bottom: 10px;">🔧 Étape 4 : Création de la structure</h3>';
+            $installStepsHtml .= '<ul style="margin:0 0 10px 0; padding-left: 22px;">';
+
+            // Appel de la fonction, mais on capture le HTML généré
+            ob_start();
             createDatabaseStructure($pdo);
-            echo "<p>✅ Structure créée</p>";
-            
+            $structureHtml = ob_get_clean();
+            $installStepsHtml .= '<li>' . $structureHtml . '</li>';
+
             // Vérifier que la table audit_log existe bien
             $stmt = $pdo->query("SHOW TABLES LIKE 'audit_log'");
             if ($stmt->rowCount() > 0) {
-                echo "<p style='color: #28a745;'>✅ Système d'audit opérationnel</p>";
-                
+                $installStepsHtml .= '<li style="color:#27ae60;">✅ Système d\'audit opérationnel</li>';
                 // Compter les colonnes de la table audit_log
                 $stmt = $pdo->query("DESCRIBE audit_log");
                 $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                echo "<p style='font-size: 0.9em; color: #666;'>→ Table audit_log: " . count($columns) . " colonnes</p>";
-                echo "<p style='font-size: 0.9em; color: #666;'>→ Index créés: idx_action, idx_model, idx_user, idx_created_at</p>";
+                $installStepsHtml .= '<li style="color:#666;">→ Table <code>audit_log</code>: ' . count($columns) . ' colonnes</li>';
+                $installStepsHtml .= '<li style="color:#666;">→ Index créés: <code>idx_action</code>, <code>idx_model</code>, <code>idx_user</code>, <code>idx_created_at</code></li>';
             } else {
-                echo "<p style='color: #e74c3c;'>⚠️ Table audit_log non créée</p>";
+                $installStepsHtml .= '<li style="color:#e74c3c;">⚠️ Table audit_log non créée</li>';
             }
-            
-            echo "</div>";
-            
-            // ÉTAPE 5: Créer le compte admin
-            echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
-            echo "<h3>🔧 Étape 5: Compte administrateur</h3>";
-            
+            $installStepsHtml .= '</ul></div>';
+
+            // ÉTAPE 5: Compte administrateur
+            $installStepsHtml .= '<div style="margin-bottom: 25px;">';
+            $installStepsHtml .= '<h3 style="color: #3498db; margin-bottom: 10px;">🔧 Étape 5 : Compte administrateur</h3>';
+            $installStepsHtml .= '<ul style="margin:0 0 10px 0; padding-left: 22px;">';
+
             $identifiant = 'admin';
             $hashedPassword = password_hash($adminPassword, PASSWORD_BCRYPT, ['cost' => 12]);
-            
             $stmt = $pdo->prepare("
                 INSERT INTO administrateurs (nom, prenom, mail, identifiant, mot_de_passe, role, actif) 
                 VALUES (?, ?, ?, ?, ?, 'administrateur', 1)
             ");
-            
             $stmt->execute([$adminNom, $adminPrenom, $adminMail, $identifiant, $hashedPassword]);
-            
-            echo "<p>✅ Administrateur créé</p>";
-            echo "<p style='font-size: 0.9em; color: #666;'>→ Identifiant: <strong>{$identifiant}</strong></p>";
-            echo "<p style='font-size: 0.9em; color: #666;'>→ Nom: {$adminNom} {$adminPrenom}</p>";
-            echo "<p style='font-size: 0.9em; color: #666;'>→ Email: {$adminMail}</p>";
-            echo "<p style='font-size: 0.9em; color: #28a745;'>→ Mot de passe hashé avec BCRYPT (cost: 12)</p>";
-            echo "</div>";
-            
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Administrateur créé</li>';
+            $installStepsHtml .= '<li style="color:#666;">→ Identifiant: <strong>' . htmlspecialchars($identifiant) . '</strong></li>';
+            $installStepsHtml .= '<li style="color:#666;">→ Nom: ' . htmlspecialchars($adminNom) . ' ' . htmlspecialchars($adminPrenom) . '</li>';
+            $installStepsHtml .= '<li style="color:#666;">→ Email: ' . htmlspecialchars($adminMail) . '</li>';
+            $installStepsHtml .= '<li style="color:#27ae60;">→ Mot de passe hashé avec BCRYPT (cost: 12)</li>';
+            $installStepsHtml .= '</ul></div>';
+
             // ÉTAPE 6: Finalisation
-            echo "<div style='background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
-            echo "<h3>🔧 Étape 6: Finalisation</h3>";
-            
+            $installStepsHtml .= '<div style="margin-bottom: 10px;">';
+            $installStepsHtml .= '<h3 style="color: #3498db; margin-bottom: 10px;">🔧 Étape 6 : Finalisation</h3>';
+            $installStepsHtml .= '<ul style="margin:0 0 10px 0; padding-left: 22px;">';
+
             // Log l'installation dans le système d'audit si disponible
             try {
                 $stmt = $pdo->prepare(
@@ -1531,12 +1536,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
                     $clientIP,
                     $_SERVER['HTTP_USER_AGENT'] ?? null
                 ]);
-                echo "<p style='color: #28a745;'>✅ Installation enregistrée dans l'audit</p>";
+                $installStepsHtml .= '<li style="color:#27ae60;">✅ Installation enregistrée dans l\'audit</li>';
             } catch (Exception $e) {
-                echo "<p style='color: #856404;'>⚠️ Audit log: " . htmlspecialchars($e->getMessage()) . "</p>";
+                $installStepsHtml .= '<li style="color:#e67e22;">⚠️ Audit log: ' . htmlspecialchars($e->getMessage()) . '</li>';
             }
-            
-            // Créer le fichier lock
+
             $lockContent = json_encode([
                 'installed_at' => date('Y-m-d H:i:s'),
                 'version' => '1.0.0',
@@ -1550,8 +1554,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
                 ]
             ]);
             file_put_contents($installLockFile, $lockContent, LOCK_EX);
-            echo "<p>✅ Fichier de verrouillage créé</p>";
-            
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Fichier de verrouillage créé</li>';
+
             // Créer un fichier de logs initial
             $initialLog = $installDir . '/API/logs/' . date('Y-m-d') . '.log';
             $logContent = "[" . date('Y-m-d H:i:s') . "] INFO: Installation complétée avec succès\n";
@@ -1559,24 +1563,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             $logContent .= "[" . date('Y-m-d H:i:s') . "] INFO: Protection CSRF activée\n";
             $logContent .= "[" . date('Y-m-d H:i:s') . "] INFO: Rate limiting configuré\n";
             @file_put_contents($initialLog, $logContent, LOCK_EX);
-            echo "<p>✅ Système de logs initialisé</p>";
-            
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Système de logs initialisé</li>';
+
             // Supprimer le fichier fix_permissions.php s'il existe
             $fixPermFile = $installDir . '/fix_permissions.php';
             if (file_exists($fixPermFile)) {
                 @unlink($fixPermFile);
-                echo "<p>✅ Fichiers temporaires supprimés</p>";
+                $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Fichiers temporaires supprimés</li>';
             }
-            
-            echo "<p>✅ Installation finalisée</p>";
-            echo "</div>";
-            
+
+            // MAINTENANT: Protéger le fichier .env après installation réussie
+            $chmodSuccess = false;
+            $chmodMsg = '';
+            if ($appEnv === 'production') {
+                // En production, rendre le .env illisible sauf pour le propriétaire
+                if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                    // Windows : lecture seule pour l'utilisateur
+                    $chmodSuccess = @chmod($configFile, 0600);
+                    $chmodMsg = $chmodSuccess
+                        ? "✅ Le fichier .env est maintenant protégé (lecture seule pour l'utilisateur)."
+                        : "⚠️ Impossible de restreindre les droits du fichier .env (Windows).";
+                } else {
+                    // Unix/Linux : lecture seule pour le propriétaire
+                    $chmodSuccess = @chmod($configFile, 0600);
+                    $chmodMsg = $chmodSuccess
+                        ? "✅ Le fichier .env est maintenant protégé (lecture seule pour le propriétaire)."
+                        : "⚠️ Impossible de restreindre les droits du fichier .env (Linux/Unix).";
+                }
+            } else {
+                // En développement, lecture/écriture pour l'utilisateur uniquement
+                $chmodSuccess = @chmod($configFile, 0600);
+                $chmodMsg = $chmodSuccess
+                    ? "✅ Le fichier .env est maintenant protégé (lecture/écriture pour l'utilisateur uniquement)."
+                    : "⚠️ Impossible de restreindre les droits du fichier .env.";
+            }
+            $installStepsHtml .= '<li style="color:#2980b9;">' . $chmodMsg . '</li>';
+
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Installation finalisée</li>';
+            $installStepsHtml .= '</ul></div>';
+            $installStepsHtml .= '</div>'; // fin .install-steps
+
             $installed = true;
-            
+
         } catch (Exception $e) {
             $dbError = $e->getMessage();
-           
-
             echo "<div style='background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 10px 0;'>";
             echo "<h3>❌ Erreur: " . nl2br(htmlspecialchars($dbError)) . "</h3>";
             echo "</div>";
@@ -1845,6 +1875,8 @@ function createDatabaseStructure($pdo) {
 
             <?php if ($installed): ?>
                 <div class="success">
+                    <!-- Affichage du bloc étapes juste avant le message de succès -->
+                    <?= $installStepsHtml ?? '' ?>
                     <h2>🎉 Installation réussie !</h2>
                     <p>Pronote est prêt à être utilisé.</p>
                     
@@ -1885,7 +1917,7 @@ function createDatabaseStructure($pdo) {
                     </div>
                     
                     <div style="margin-top: 20px;">
-                        <a href="login/public/index.php" class="btn" style="display: inline-block; text-decoration: none;">
+                        <a href="<?= htmlspecialchars($baseUrl) ?>/login/public/index.php" class="btn" style="display: inline-block; text-decoration: none;">
                             🔐 Se connecter maintenant
                         </a>
                     </div>
