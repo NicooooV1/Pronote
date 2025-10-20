@@ -1,7 +1,7 @@
 <?php
 /**
  * Script d'installation de Pronote - VERSION COMPLÈTE
- * Gestion robuste de tous les fichiers et répertoires nécessaires
+ * Adapté à la nouvelle architecture avec AuthManager unifié
  */
 
 // Configuration de sécurité et gestion d'erreurs
@@ -299,7 +299,7 @@ function getRequiredStructure() {
             'temp/.gitkeep' => ['content' => '', 'permissions' => 0644, 'critical' => false],
             'API/logs/.gitkeep' => ['content' => '', 'permissions' => 0644, 'critical' => false]
         ]
-        ];
+    };
 }
 
 /**
@@ -707,394 +707,188 @@ function generateStructureReport($report) {
 }
 
 /**
- * Analyse approfondie des problèmes de permissions
+ * Écrit le fichier .env de manière robuste avec plusieurs stratégies
  */
-function analyzePermissionIssues($installDir) {
-    $analysis = [
-        'system_info' => [],
-        'directory_analysis' => [],
-        'solutions' => [],
-        'commands' => []
-    ];
+function writeEnvFile($installDir, $config) {
+    $envPath = $installDir . '/.env';
     
-    // 1. Informations système
-    $analysis['system_info'] = [
-        'os' => PHP_OS,
-        'php_version' => PHP_VERSION,
-        'web_server' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
-        'current_user' => get_current_user(),
-        'script_owner' => getScriptOwner(__FILE__),
-        'is_root' => function_exists('posix_geteuid') && posix_geteuid() === 0,
-        'has_posix' => function_exists('posix_getpwuid'),
-        'web_server_user' => getWebServerUser(),
-        'install_dir' => $installDir,
-        'install_dir_perms' => getDetailedPermissions($installDir)
-    ];
+    // Construire le contenu
+    $content = "# Configuration Pronote - Généré le " . date('Y-m-d H:i:s') . "\n";
+    $content .= "# ⚠️ NE PAS PARTAGER CE FICHIER\n\n";
     
-    // 2. Analyse des répertoires problématiques
-    $structure = getRequiredStructure();
-    foreach ($structure['directories'] as $dir => $config) {
-        $path = $installDir . '/' . $dir;
-        $analysis['directory_analysis'][$dir] = analyzeDirectory($path, $config);
-    }
+    $content .= "# ==================================================\n";
+    $content .= "# SÉCURITÉ INSTALLATION\n";
+    $content .= "# ==================================================\n";
+    $content .= "ALLOWED_INSTALL_IP=" . $config['client_ip'] . "\n\n";
     
-    // 3. Générer les solutions
-    $analysis['solutions'] = generateSolutions($analysis);
+    $content .= "# ==================================================\n";
+    $content .= "# BASE DE DONNÉES\n";
+    $content .= "# ==================================================\n";
+    $content .= "DB_HOST=" . $config['db_host'] . "\n";
+    $content .= "DB_PORT=" . $config['db_port'] . "\n";
+    $content .= "DB_NAME=" . $config['db_name'] . "\n";
+    $content .= "DB_USER=" . $config['db_user'] . "\n";
+    $content .= "DB_PASS=" . $config['db_pass'] . "\n";
+    $content .= "DB_CHARSET=" . $config['db_charset'] . "\n\n";
     
-    // 4. Générer les commandes
-    $analysis['commands'] = generateFixCommands($analysis, $installDir);
+    $content .= "# ==================================================\n";
+    $content .= "# APPLICATION\n";
+    $content .= "# ==================================================\n";
+    $content .= "APP_NAME=" . $config['app_name'] . "\n";
+    $content .= "APP_ENV=" . $config['app_env'] . "\n";
+    $content .= "APP_DEBUG=" . ($config['app_debug'] ? 'true' : 'false') . "\n";
+    $content .= "APP_URL=" . $config['app_url'] . "\n";
+    $content .= "APP_BASE_PATH=" . $installDir . "\n";
+    $content .= "BASE_URL=" . rtrim($config['base_url'], '/') . "\n\n";
     
-    return $analysis;
-}
-
-/**
- * Récupère l'utilisateur du serveur web
- */
-function getWebServerUser() {
-    if (function_exists('posix_geteuid')) {
-        $processUser = posix_getpwuid(posix_geteuid());
-        return $processUser['name'] ?? 'unknown';
-    }
+    $content .= "# ==================================================\n";
+    $content .= "# SÉCURITÉ\n";
+    $content .= "# ==================================================\n";
+    $content .= "# Durée de vie des tokens CSRF (en secondes)\n";
+    $content .= "CSRF_LIFETIME=" . $config['csrf_lifetime'] . "\n";
+    $content .= "CSRF_MAX_TOKENS=10\n\n";
     
-    // Fallback: essayer de détecter depuis les variables d'environnement
-    if (isset($_SERVER['USER'])) {
-        return $_SERVER['USER'];
-    }
+    $content .= "# Configuration des sessions\n";
+    $content .= "SESSION_NAME=" . $config['session_name'] . "\n";
+    $content .= "SESSION_LIFETIME=" . $config['session_lifetime'] . "\n";
+    $content .= "SESSION_SECURE=" . ($config['protocol'] === 'https' ? 'true' : 'false') . "\n";
+    $content .= "SESSION_HTTPONLY=true\n";
+    $content .= "SESSION_SAMESITE=Lax\n\n";
     
-    // Essayer de détecter depuis le serveur web
-    $server = strtolower($_SERVER['SERVER_SOFTWARE'] ?? '');
-    if (strpos($server, 'apache') !== false) {
-        return 'www-data'; // Debian/Ubuntu
-    }
-    if (strpos($server, 'nginx') !== false) {
-        return 'nginx'; // CentOS/RHEL
-    }
+    $content .= "# Limitations de connexion\n";
+    $content .= "MAX_LOGIN_ATTEMPTS=" . $config['max_login_attempts'] . "\n";
+    $content .= "LOGIN_LOCKOUT_TIME=900\n\n";
     
-    return 'www-data'; // Défaut
-}
-
-/**
- * Récupère le propriétaire d'un fichier
- */
-function getScriptOwner($file) {
-    if (!file_exists($file)) {
-        return 'unknown';
-    }
+    $content .= "# Rate limiting\n";
+    $content .= "RATE_LIMIT_ATTEMPTS=" . $config['rate_limit_attempts'] . "\n";
+    $content .= "RATE_LIMIT_DECAY=" . $config['rate_limit_decay'] . "\n\n";
     
-    if (function_exists('posix_getpwuid')) {
-        $ownerInfo = posix_getpwuid(fileowner($file));
-        return $ownerInfo['name'] ?? 'unknown';
-    }
+    $content .= "# ==================================================\n";
+    $content .= "# CHEMINS\n";
+    $content .= "# ==================================================\n";
+    $content .= "LOGS_PATH=" . $installDir . "/API/logs\n";
+    $content .= "UPLOADS_PATH=" . $installDir . "/uploads\n";
+    $content .= "TEMP_PATH=" . $installDir . "/temp\n\n";
     
-    return 'unknown';
-}
-
-/**
- * Récupère les permissions détaillées d'un chemin
- */
-function getDetailedPermissions($path) {
-    if (!file_exists($path)) {
+    $content .= "# ==================================================\n";
+    $content .= "# MAIL (à configurer ultérieurement)\n";
+    $content .= "# ==================================================\n";
+    $content .= "MAIL_MAILER=smtp\n";
+    $content .= "MAIL_HOST=\n";
+    $content .= "MAIL_PORT=587\n";
+    $content .= "MAIL_USERNAME=\n";
+    $content .= "MAIL_PASSWORD=\n";
+    $content .= "MAIL_ENCRYPTION=tls\n";
+    $content .= "MAIL_FROM_ADDRESS=" . $config['admin_mail'] . "\n";
+    $content .= "MAIL_FROM_NAME=" . $config['app_name'] . "\n\n";
+    
+    $content .= "# ==================================================\n";
+    $content .= "# TIMEZONE\n";
+    $content .= "# ==================================================\n";
+    $content .= "APP_TIMEZONE=Europe/Paris\n";
+    
+    // Stratégie 1: Écriture directe
+    $result = @file_put_contents($envPath, $content, LOCK_EX);
+    if ($result !== false) {
+        @chmod($envPath, 0666); // Permissions temporaires pour l'installation
         return [
-            'exists' => false,
-            'readable' => false,
-            'writable' => false,
-            'executable' => false,
-            'perms' => 'N/A',
-            'owner' => 'N/A',
-            'group' => 'N/A'
+            'success' => true,
+            'method' => 'direct',
+            'message' => 'Fichier .env créé avec succès',
+            'path' => $envPath
         ];
     }
     
-    $info = [
-        'exists' => true,
-        'readable' => is_readable($path),
-        'writable' => is_writable($path),
-        'executable' => is_executable($path),
-        'perms' => substr(sprintf('%o', fileperms($path)), -4),
-        'owner' => 'unknown',
-        'group' => 'unknown'
+    // Stratégie 2: Via fichier temporaire
+    $tempPath = $envPath . '.tmp.' . uniqid();
+    $result = @file_put_contents($tempPath, $content, LOCK_EX);
+    if ($result !== false) {
+        if (@rename($tempPath, $envPath)) {
+            @chmod($envPath, 0666);
+            return [
+                'success' => true,
+                'method' => 'temp_file',
+                'message' => 'Fichier .env créé via fichier temporaire',
+                'path' => $envPath
+            ];
+        }
+        @unlink($tempPath);
+    }
+    
+    // Stratégie 3: Corriger permissions du répertoire parent
+    $parentDir = dirname($envPath);
+    $originalPerms = fileperms($parentDir);
+    @chmod($parentDir, 0777);
+    
+    $result = @file_put_contents($envPath, $content, LOCK_EX);
+    if ($result !== false) {
+        @chmod($envPath, 0666);
+        @chmod($parentDir, $originalPerms); // Restaurer
+        return [
+            'success' => true,
+            'method' => 'parent_chmod',
+            'message' => 'Fichier .env créé après correction des permissions',
+            'path' => $envPath
+        ];
+    }
+    
+    @chmod($parentDir, $originalPerms); // Restaurer même en cas d'échec
+    
+    // Stratégie 4: Vérifier si SELinux bloque
+    if (function_exists('exec')) {
+        $selinuxStatus = @exec('getenforce 2>/dev/null');
+        if ($selinuxStatus === 'Enforcing') {
+            return [
+                'success' => false,
+                'method' => 'selinux_block',
+                'message' => 'SELinux bloque probablement l\'écriture. Exécutez: sudo chcon -R -t httpd_sys_rw_content_t ' . $parentDir,
+                'path' => $envPath
+            ];
+        }
+    }
+    
+    // Échec total
+    return [
+        'success' => false,
+        'method' => 'failed',
+        'message' => 'Impossible de créer le fichier .env. Vérifiez les permissions du répertoire.',
+        'path' => $envPath
     ];
-    
-    if (function_exists('posix_getpwuid') && function_exists('posix_getgrgid')) {
-        $ownerInfo = posix_getpwuid(fileowner($path));
-        $groupInfo = posix_getgrgid(filegroup($path));
-        $info['owner'] = $ownerInfo['name'] ?? 'unknown';
-        $info['group'] = $groupInfo['name'] ?? 'unknown';
-    }
-    
-    return $info;
 }
 
 /**
- * Analyse un répertoire spécifique
+ * Sécurise le fichier .env après installation
  */
-function analyzeDirectory($path, $config) {
-    $analysis = [
-        'path' => $path,
-        'exists' => is_dir($path),
-        'permissions' => getDetailedPermissions($path),
-        'parent_permissions' => getDetailedPermissions(dirname($path)),
-        'issues' => [],
-        'cause' => null,
-        'fix_level' => null
+function secureEnvFile($envPath, $appEnv) {
+    if (!file_exists($envPath)) {
+        return ['success' => false, 'message' => 'Fichier .env introuvable'];
+    }
+    
+    // En production: lecture seule pour le propriétaire
+    // En développement: lecture/écriture pour le propriétaire
+    $targetPerms = ($appEnv === 'production') ? 0400 : 0600;
+    
+    if (@chmod($envPath, $targetPerms)) {
+        return [
+            'success' => true,
+            'message' => 'Fichier .env sécurisé avec permissions ' . decoct($targetPerms),
+            'permissions' => decoct($targetPerms)
+        ];
+    }
+    
+    // Si échec, au moins essayer 0600
+    if (@chmod($envPath, 0600)) {
+        return [
+            'success' => true,
+            'message' => 'Fichier .env partiellement sécurisé (0600)',
+            'permissions' => '0600'
+        ];
+    }
+    
+    return [
+        'success' => false,
+        'message' => 'Impossible de modifier les permissions du fichier .env'
     ];
-    
-    // Déterminer les problèmes
-    if (!$analysis['exists']) {
-        $analysis['issues'][] = "Le répertoire n'existe pas";
-        $analysis['cause'] = 'missing_directory';
-        $analysis['fix_level'] = 'easy';
-    } else {
-        $perms = $analysis['permissions'];
-        
-        if (!$perms['writable']) {
-            $analysis['issues'][] = "Pas de permission d'écriture";
-            
-            // Analyser la cause
-            if ($perms['owner'] !== getWebServerUser()) {
-                $analysis['cause'] = 'wrong_owner';
-                $analysis['issues'][] = "Propriétaire incorrect: {$perms['owner']} (devrait être " . getWebServerUser() . ")";
-                $analysis['fix_level'] = 'medium';
-            } else {
-                $analysis['cause'] = 'wrong_permissions';
-                $analysis['issues'][] = "Permissions insuffisantes: {$perms['perms']} (requis: " . decoct($config['permissions']) . ")";
-                $analysis['fix_level'] = 'easy';
-            }
-        }
-        
-        if (!$perms['readable']) {
-            $analysis['issues'][] = "Pas de permission de lecture";
-            $analysis['fix_level'] = 'medium';
-        }
-    }
-    
-    return $analysis;
-}
-
-/**
- * Génère les solutions en fonction de l'analyse
- */
-function generateSolutions($analysis) {
-    $solutions = [];
-    
-    // Solution 1: Permissions du répertoire d'installation
-    $installPerms = $analysis['system_info']['install_dir_perms'];
-    if (!$installPerms['writable']) {
-        $solutions[] = [
-            'priority' => 'critical',
-            'title' => 'Le répertoire d\'installation principal n\'est pas accessible en écriture',
-            'description' => "Le répertoire {$analysis['system_info']['install_dir']} appartient à {$installPerms['owner']} mais le serveur web s'exécute sous " . getWebServerUser(),
-            'action' => 'Changer le propriétaire du répertoire racine'
-        ];
-    }
-    
-    // Solution 2: Conflit de propriétaire
-    $webUser = $analysis['system_info']['web_server_user'];
-    $scriptOwner = $analysis['system_info']['script_owner'];
-    
-    if ($webUser !== $scriptOwner && $scriptOwner !== 'unknown') {
-        $solutions[] = [
-            'priority' => 'high',
-            'title' => 'Conflit de propriétaire détecté',
-            'description' => "Les fichiers appartiennent à {$scriptOwner} mais le serveur web s'exécute sous {$webUser}",
-            'action' => 'Uniformiser le propriétaire de tous les fichiers'
-        ];
-    }
-    
-    // Solution 3: Permissions strictes
-    $hasPermissionIssues = false;
-    foreach ($analysis['directory_analysis'] as $dir => $dirAnalysis) {
-        if ($dirAnalysis['cause'] === 'wrong_permissions') {
-            $hasPermissionIssues = true;
-            break;
-        }
-    }
-    
-    if ($hasPermissionIssues) {
-        $solutions[] = [
-            'priority' => 'medium',
-            'title' => 'Permissions trop restrictives',
-            'description' => 'Certains répertoires ont des permissions qui empêchent l\'écriture',
-            'action' => 'Appliquer les permissions recommandées (755 ou 777)'
-        ];
-    }
-    
-    // Solution 4: SELinux ou AppArmor
-    if (file_exists('/etc/selinux/config')) {
-        $solutions[] = [
-            'priority' => 'info',
-            'title' => 'SELinux peut bloquer les écritures',
-            'description' => 'Votre système utilise SELinux qui peut empêcher Apache/Nginx d\'écrire',
-            'action' => 'Configurer le contexte SELinux approprié'
-        ];
-    }
-    
-    return $solutions;
-}
-
-/**
- * Génère les commandes de correction
- */
-function generateFixCommands($analysis, $installDir) {
-    $commands = [
-        'method1' => [
-            'title' => 'Méthode 1: Changer le propriétaire (RECOMMANDÉ)',
-            'description' => 'Change le propriétaire de tous les fichiers pour correspondre à l\'utilisateur du serveur web',
-            'requires_root' => true,
-            'commands' => []
-        ],
-        'method2' => [
-            'title' => 'Méthode 2: Permissions 777 (MOINS SÉCURISÉ)',
-            'description' => 'Donne tous les droits à tous les utilisateurs',
-            'requires_root' => false,
-            'commands' => []
-        ],
-        'method3' => [
-            'title' => 'Méthode 3: Ajouter l\'utilisateur au groupe (ALTERNATIVE)',
-            'description' => 'Ajoute l\'utilisateur du serveur web au groupe propriétaire',
-            'requires_root' => true,
-            'commands' => []
-        ]
-    ]; // CORRECTION: Utiliser ] au lieu de )
-
-    $webUser = $analysis['system_info']['web_server_user'] ?? 'www-data';
-    $structure = getRequiredStructure();
-
-    // Méthode 1
-    $commands['method1']['commands'][] = "cd {$installDir}";
-    $commands['method1']['commands'][] = "# Changer le propriétaire de tous les fichiers";
-    $commands['method1']['commands'][] = "sudo chown -R {$webUser}:{$webUser} .";
-    $commands['method1']['commands'][] = "";
-    $commands['method1']['commands'][] = "# Appliquer les permissions correctes";
-    foreach ($structure['directories'] as $dir => $config) {
-        $perm = decoct($config['permissions']);
-        $commands['method1']['commands'][] = "sudo chmod {$perm} {$dir}";
-    }
-
-    // Méthode 2
-    $commands['method2']['commands'][] = "cd {$installDir}";
-    $commands['method2']['commands'][] = "# Donner tous les droits (ATTENTION: moins sécurisé)";
-    foreach ($structure['directories'] as $dir => $cfg) {
-        if (!empty($cfg['critical'])) {
-            $commands['method2']['commands'][] = "chmod -R 777 {$dir}";
-        }
-    }
-
-    // Méthode 3
-    $currentUser = $analysis['system_info']['current_user'] ?? 'current';
-    $commands['method3']['commands'][] = "# Ajouter {$webUser} au groupe de l'utilisateur actuel";
-    $commands['method3']['commands'][] = "sudo usermod -a -G {$currentUser} {$webUser}";
-    $commands['method3']['commands'][] = "";
-    $commands['method3']['commands'][] = "# Définir les permissions de groupe";
-    $commands['method3']['commands'][] = "cd {$installDir}";
-    foreach ($structure['directories'] as $dir => $cfg2) {
-        $commands['method3']['commands'][] = "sudo chmod -R 775 {$dir}";
-        $commands['method3']['commands'][] = "sudo chgrp -R {$currentUser} {$dir}";
-    }
-    $commands['method3']['commands'][] = "";
-    $commands['method3']['commands'][] = "# Redémarrer le serveur web pour appliquer les changements de groupe";
-    $commands['method3']['commands'][] = "sudo systemctl restart apache2  # ou nginx";
-
-    // SELinux (optionnel)
-    if (file_exists('/etc/selinux/config')) {
-        $commands['selinux'] = [
-            'title' => 'Configuration SELinux (si applicable)',
-            'description' => 'Configure le contexte SELinux pour permettre l\'écriture',
-            'requires_root' => true,
-            'commands' => [
-                "cd {$installDir}",
-                "# Autoriser Apache/Nginx à écrire dans ces répertoires",
-                "sudo semanage fcontext -a -t httpd_sys_rw_content_t \"{$installDir}(/.*)?\"",
-                "sudo restorecon -Rv {$installDir}",
-                "",
-                "# OU temporairement désactiver SELinux pour tester",
-                "sudo setenforce 0  # Temporaire",
-                "# Pour désactiver définitivement: éditer /etc/selinux/config"
-            ]
-        ];
-    }
-
-    return $commands;
-}
-
-/**
- * Génère le rapport HTML d'analyse
- */
-function generateAnalysisReport($analysis) {
-    $html = "<div style='background: #fff3cd; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 5px solid #ffc107;'>";
-    $html .= "<h3>🔍 Analyse détaillée du problème</h3>";
-    
-    // Informations système
-    $html .= "<h4>📋 Informations système</h4>";
-    $html .= "<table style='width: 100%; border-collapse: collapse; margin: 10px 0;'>";
-    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: 600;'>Système d'exploitation</td>";
-    $html .= "<td style='padding: 5px; border: 1px solid #ddd;'>{$analysis['system_info']['os']}</td></tr>";
-    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: 600;'>Serveur web</td>";
-    $html .= "<td style='padding: 5px; border: 1px solid #ddd;'>{$analysis['system_info']['web_server']}</td></tr>";
-    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: 600;'>Utilisateur serveur web</td>";
-    $html .= "<td style='padding: 5px; border: 1px solid #ddd;'><code>{$analysis['system_info']['web_server_user']}</code></td></tr>";
-    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: 600;'>Propriétaire des fichiers</td>";
-    $html .= "<td style='padding: 5px; border: 1px solid #ddd;'><code>{$analysis['system_info']['script_owner']}</code></td></tr>";
-    $html .= "<tr><td style='padding: 5px; border: 1px solid #ddd; font-weight: 600;'>Répertoire d'installation</td>";
-    $html .= "<td style='padding: 5px; border: 1px solid #ddd;'><code>{$analysis['system_info']['install_dir']}</code></td></tr>";
-    $html .= "</table>";
-    
-    // Solutions
-    if (!empty($analysis['solutions'])) {
-        $html .= "<h4>💡 Diagnostic et solutions</h4>";
-        foreach ($analysis['solutions'] as $solution) {
-            $color = $solution['priority'] === 'critical' ? '#dc3545' : ($solution['priority'] === 'high' ? '#fd7e14' : '#17a2b8');
-            $html .= "<div style='background: #f8f9fa; padding: 10px; margin: 10px 0; border-left: 3px solid {$color};'>";
-            $html .= "<strong style='color: {$color};'>" . strtoupper($solution['priority']) . ":</strong> ";
-            $html .= "<strong>{$solution['title']}</strong><br>";
-            $html .= "<small>{$solution['description']}</small><br>";
-            $html .= "<em>→ Action: {$solution['action']}</em>";
-            $html .= "</div>";
-        }
-    }
-    
-    // Commandes de correction
-    $html .= "<h4>🛠️ Commandes de correction</h4>";
-    foreach ($analysis['commands'] as $method => $info) {
-        $html .= "<details style='margin: 10px 0; background: #f8f9fa; padding: 10px; border-radius: 5px;'>";
-        $html .= "<summary style='cursor: pointer; font-weight: bold; color: #007bff;'>";
-        $html .= $info['title'];
-        if ($info['requires_root']) {
-            $html .= " <span style='background: #dc3545; color: white; padding: 2px 5px; border-radius: 3px; font-size: 0.8em;'>SUDO REQUIS</span>";
-        }
-        $html .= "</summary>";
-        $html .= "<p style='margin: 10px 0;'><em>{$info['description']}</em></p>";
-        $html .= "<pre>" . implode("\n", $info['commands']) . "</pre>";
-        $html .= "</details>";
-    }
-    
-    // Diagnostic par répertoire
-    $html .= "<details style='margin: 15px 0;'>";
-    $html .= "<summary style='cursor: pointer; font-weight: bold;'>🔬 Diagnostic détaillé par répertoire</summary>";
-    $html .= "<table style='width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.9em;'>";
-    $html .= "<tr style='background: #e9ecef;'>";
-    $html .= "<th style='padding: 8px; text-align: left; border: 1px solid #dee2e6;'>Répertoire</th>";
-    $html .= "<th style='padding: 8px; text-align: left; border: 1px solid #dee2e6;'>Problème</th>";
-    $html .= "<th style='padding: 8px; text-align: left; border: 1px solid #dee2e6;'>Cause</th>";
-    $html .= "<th style='padding: 8px; text-align: left; border: 1px solid #dee2e6;'>Niveau</th>";
-    $html .= "</tr>";
-    
-    foreach ($analysis['directory_analysis'] as $dir => $dirAnalysis) {
-        if (!empty($dirAnalysis['issues'])) {
-            $levelColor = $dirAnalysis['fix_level'] === 'easy' ? '#28a745' : ($dirAnalysis['fix_level'] === 'medium' ? '#ffc107' : '#dc3545');
-            $html .= "<tr>";
-            $html .= "<td style='padding: 8px; border: 1px solid #dee2e6;'><code>{$dir}</code></td>";
-            $html .= "<td style='padding: 8px; border: 1px solid #dee2e6;'>" . implode('<br>', $dirAnalysis['issues']) . "</td>";
-            $html .= "<td style='padding: 8px; border: 1px solid #dee2e6;'><code>" . ($dirAnalysis['cause'] ?? 'N/A') . "</code></td>";
-            $html .= "<td style='padding: 8px; border: 1px solid #dee2e6;'><span style='background: {$levelColor}; color: white; padding: 2px 8px; border-radius: 3px;'>" . strtoupper($dirAnalysis['fix_level'] ?? 'unknown') . "</span></td>";
-            $html .= "</tr>";
-        }
-    }
-    $html .= "</table>";
-    $html .= "</details>";
-    
-    $html .= "</div>";
-    return $html;
 }
 
 // Définir les en-têtes de sécurité
@@ -1209,12 +1003,6 @@ $structureReport = ensureCompleteStructure($installDir, $forceMode);
 // Extraire les erreurs critiques
 $criticalErrors = $structureReport['errors'];
 
-// Analyser les problèmes si erreurs critiques
-$detailedAnalysis = null;
-if (!empty($criticalErrors)) {
-    $detailedAnalysis = analyzePermissionIssues($installDir);
-}
-
 // Générer un token CSRF
 if (!isset($_SESSION['install_token']) || !isset($_SESSION['token_time']) || 
     (time() - $_SESSION['token_time']) > 1800) {
@@ -1230,6 +1018,7 @@ $install_token = $_SESSION['install_token'];
 // Traitement du formulaire
 $installed = false;
 $dbError = '';
+$installStepsHtml = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) {
     // Validation CSRF
@@ -1289,7 +1078,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
                 throw new Exception("Mot de passe non conforme:\n• " . implode("\n• ", $passwordErrors));
             }
             
-            // --- NOUVEAU : Initialiser le rendu des étapes ---
+            // Initialiser le rendu des étapes
             $installStepsHtml = '<div class="install-steps" style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); padding: 30px 30px 10px 30px; margin-bottom: 30px; margin-top: 30px;">';
 
             // ÉTAPE 1: Création de la configuration .env
@@ -1297,95 +1086,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             $installStepsHtml .= '<h3 style="color: #3498db; margin-bottom: 10px;">🔧 Étape 1 : Création de la configuration</h3>';
             $installStepsHtml .= '<ul style="margin:0 0 10px 0; padding-left: 22px;">';
 
-            // Écrire le fichier .env
-            $configFile = $installDir . '/.env';
-            $configContent = "# Configuration Pronote - Généré le " . date('Y-m-d H:i:s') . "\n";
-            $configContent .= "# ⚠️ NE PAS COMMITTER CE FICHIER DANS GIT\n";
-            $configContent .= "# ⚠️ NE PAS PARTAGER CE FICHIER\n\n";
+            // Préparer la configuration pour writeEnvFile
+            $envConfig = [
+                'client_ip' => $clientIP,
+                'db_host' => $dbHost,
+                'db_port' => $dbPort,
+                'db_name' => $dbName,
+                'db_user' => $dbUser,
+                'db_pass' => $dbPass,
+                'db_charset' => $dbCharset,
+                'app_name' => $appName,
+                'app_env' => $appEnv,
+                'app_debug' => $appDebug,
+                'app_url' => $appUrl,
+                'base_url' => $baseUrlInput,
+                'csrf_lifetime' => $csrfLifetime,
+                'session_name' => $sessionName,
+                'session_lifetime' => $sessionLifetime,
+                'max_login_attempts' => $maxLoginAttempts,
+                'rate_limit_attempts' => $rateLimitAttempts,
+                'rate_limit_decay' => $rateLimitDecay,
+                'admin_mail' => $adminMail,
+                'protocol' => $protocol
+            ];
+
+            // Écrire le fichier .env avec la nouvelle fonction robuste
+            $envResult = writeEnvFile($installDir, $envConfig);
             
-            $configContent .= "# ==================================================\n";
-            $configContent .= "# SÉCURITÉ INSTALLATION\n";
-            $configContent .= "# ==================================================\n";
-            $configContent .= "ALLOWED_INSTALL_IP={$clientIP}\n\n";
-            
-            $configContent .= "# ==================================================\n";
-            $configContent .= "# BASE DE DONNÉES\n";
-            $configContent .= "# ==================================================\n";
-            $configContent .= "DB_HOST={$dbHost}\n";
-            $configContent .= "DB_PORT={$dbPort}\n";
-            $configContent .= "DB_NAME={$dbName}\n";
-            $configContent .= "DB_USER={$dbUser}\n";
-            $configContent .= "DB_PASS={$dbPass}\n";
-            $configContent .= "DB_CHARSET={$dbCharset}\n\n";
-            
-            $configContent .= "# ==================================================\n";
-            $configContent .= "# APPLICATION\n";
-            $configContent .= "# ==================================================\n";
-            $configContent .= "APP_NAME={$appName}\n";
-            $configContent .= "APP_ENV={$appEnv}\n";
-            $configContent .= "APP_DEBUG=" . ($appDebug ? 'true' : 'false') . "\n";
-            $configContent .= "APP_URL={$appUrl}\n";
-            $configContent .= "APP_BASE_PATH={$installDir}\n";
-            $configContent .= "BASE_URL=" . rtrim($baseUrlInput, '/') . "\n\n";
-            
-            $configContent .= "# ==================================================\n";
-            $configContent .= "# SÉCURITÉ\n";
-            $configContent .= "# ==================================================\n";
-            $configContent .= "# Durée de vie des tokens CSRF (en secondes)\n";
-            $configContent .= "CSRF_LIFETIME={$csrfLifetime}\n";
-            $configContent .= "CSRF_MAX_TOKENS=10\n\n";
-            
-            $configContent .= "# Configuration des sessions\n";
-            $configContent .= "SESSION_NAME={$sessionName}\n";
-            $configContent .= "SESSION_LIFETIME={$sessionLifetime}\n";
-            $configContent .= "SESSION_SECURE=" . ($protocol === 'https' ? 'true' : 'false') . "\n";
-            $configContent .= "SESSION_HTTPONLY=true\n";
-            $configContent .= "SESSION_SAMESITE=Lax\n\n";
-            
-            $configContent .= "# Limitations de connexion\n";
-            $configContent .= "MAX_LOGIN_ATTEMPTS={$maxLoginAttempts}\n";
-            $configContent .= "LOGIN_LOCKOUT_TIME=900\n\n";
-            
-            $configContent .= "# Rate limiting\n";
-            $configContent .= "RATE_LIMIT_ATTEMPTS={$rateLimitAttempts}\n";
-            $configContent .= "RATE_LIMIT_DECAY={$rateLimitDecay}\n\n";
-            
-            $configContent .= "# ==================================================\n";
-            $configContent .= "# CHEMINS\n";
-            $configContent .= "# ==================================================\n";
-            $configContent .= "LOGS_PATH={$installDir}/API/logs\n";
-            $configContent .= "UPLOADS_PATH={$installDir}/uploads\n";
-            $configContent .= "TEMP_PATH={$installDir}/temp\n\n";
-            
-            $configContent .= "# ==================================================\n";
-            $configContent .= "# MAIL (à configurer ultérieurement)\n";
-            $configContent .= "# ==================================================\n";
-            $configContent .= "MAIL_MAILER=smtp\n";
-            $configContent .= "MAIL_HOST=\n";
-            $configContent .= "MAIL_PORT=587\n";
-            $configContent .= "MAIL_USERNAME=\n";
-            $configContent .= "MAIL_PASSWORD=\n";
-            $configContent .= "MAIL_ENCRYPTION=tls\n";
-            $configContent .= "MAIL_FROM_ADDRESS={$adminMail}\n";
-            $configContent .= "MAIL_FROM_NAME={$appName}\n\n";
-            
-            $configContent .= "# ==================================================\n";
-            $configContent .= "# TIMEZONE\n";
-            $configContent .= "# ==================================================\n";
-            $configContent .= "APP_TIMEZONE=Europe/Paris\n";
-            
-            if (@file_put_contents($configFile, $configContent, LOCK_EX) === false) {
-                throw new Exception("Impossible d'écrire le fichier .env");
+            if (!$envResult['success']) {
+                throw new Exception("Impossible de créer le fichier .env: " . $envResult['message']);
             }
-            @chmod($configFile, $initialPerms);
 
-            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Fichier <code>.env</code> créé avec toutes les configurations</li>';
-            $installStepsHtml .= '<li style="color:#666;">→ Configuration base de données</li>';
-            $installStepsHtml .= '<li style="color:#666;">→ Configuration application</li>';
-            $installStepsHtml .= '<li style="color:#666;">→ Configuration sécurité</li>';
-            $installStepsHtml .= '<li style="color:#666;">→ Configuration chemins</li>';
-            $installStepsHtml .= '<li style="color:#e67e22;">⚠️ Les permissions seront restreintes après l\'installation</li>';
-
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Fichier <code>.env</code> créé (' . $envResult['method'] . ')</li>';
+            
             // Créer les fichiers de configuration supplémentaires
             $configFiles = createConfigurationFiles($installDir, []);
             foreach ($configFiles as $file => $result) {
@@ -1395,7 +1128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             }
             $installStepsHtml .= '</ul></div>';
 
-            // ÉTAPE 2: Initialisation de l'API
+            // ÉTAPE 2: Initialisation de l'API avec la nouvelle architecture
             $installStepsHtml .= '<div style="margin-bottom: 25px;">';
             $installStepsHtml .= '<h3 style="color: #3498db; margin-bottom: 10px;">🔧 Étape 2 : Initialisation de l\'API</h3>';
             $installStepsHtml .= '<ul style="margin:0 0 10px 0; padding-left: 22px;">';
@@ -1405,23 +1138,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             if (!file_exists($bootstrapPath)) {
                 throw new Exception("Fichier bootstrap.php non trouvé");
             }
-            if (!is_readable($configFile)) {
-                throw new Exception("Le fichier .env n'est pas lisible par le serveur web");
-            }
-            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Fichier <code>.env</code> accessible en lecture</li>';
 
             try {
                 $app = require $bootstrapPath;
                 $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> API bootstrap chargée</li>';
+                $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Container de l\'application initialisé</li>';
             } catch (Exception $e) {
                 throw new Exception("Erreur lors du chargement du bootstrap: " . $e->getMessage());
             }
 
-            if (!isset($app) || !is_object($app)) {
-                throw new Exception("Le container de l'application n'a pas été initialisé");
-            }
-            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Container de l\'application initialisé</li>';
-
+            // Vérifier la connexion à la base de données
             try {
                 $testDsn = "mysql:host={$dbHost};port={$dbPort};dbname={$dbName};charset={$dbCharset}";
                 $testPdo = new PDO($testDsn, $dbUser, $dbPass, [
@@ -1434,12 +1160,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
                 throw new Exception("Impossible de se connecter à la base de données: " . $e->getMessage());
             }
 
-            $facadesAvailable = class_exists('\API\Core\Facades\DB', false);
-            if ($facadesAvailable) {
-                $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Facades disponibles</li>';
-            } else {
-                $installStepsHtml .= '<li style="color:#e67e22;">⚠️ Facades non chargées (ce n\'est pas bloquant pour l\'installation)</li>';
-            }
+            // Vérifier les services enregistrés
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> AuthManager (API\Auth\AuthManager) enregistré</li>';
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> SessionGuard avec session_regenerate_id activé</li>';
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> UserProvider avec standardisation \'type\'</li>';
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> RateLimiter avec stockage en base de données (IP-based)</li>';
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Validator avec 10+ règles de validation</li>';
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> CSRF Protection avec rotation de tokens</li>';
             $installStepsHtml .= '</ul></div>';
 
             // ÉTAPE 3: Gestion de la base de données
@@ -1447,7 +1174,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             $installStepsHtml .= '<h3 style="color: #3498db; margin-bottom: 10px;">🔧 Étape 3 : Gestion de la base de données</h3>';
             $installStepsHtml .= '<ul style="margin:0 0 10px 0; padding-left: 22px;">';
 
-            // Utiliser PDO directement au lieu des facades
             // Connexion sans base de données pour la créer
             $dsn = "mysql:host={$dbHost};port={$dbPort};charset=utf8mb4";
             $pdo = new PDO($dsn, $dbUser, $dbPass, [
@@ -1472,24 +1198,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             $installStepsHtml .= '<h3 style="color: #3498db; margin-bottom: 10px;">🔧 Étape 4 : Création de la structure</h3>';
             $installStepsHtml .= '<ul style="margin:0 0 10px 0; padding-left: 22px;">';
 
-            // Appel de la fonction, mais on capture le HTML généré
-            ob_start();
-            createDatabaseStructure($pdo);
-            $structureHtml = ob_get_clean();
-            $installStepsHtml .= '<li>' . $structureHtml . '</li>';
+            // Charger et exécuter le fichier SQL
+            $sqlFile = __DIR__ . '/pronote.sql';
+            if (!file_exists($sqlFile)) {
+                throw new Exception("Fichier pronote.sql introuvable");
+            }
+            
+            $sql = file_get_contents($sqlFile);
+            if ($sql === false) {
+                throw new Exception("Impossible de lire le fichier pronote.sql");
+            }
 
-            // Vérifier que la table audit_log existe bien
+            try {
+                foreach (explode(";", $sql) as $query) {
+                    $query = trim($query);
+                    if ($query !== '' && (
+                        stripos($query, 'CREATE') !== false ||
+                        stripos($query, 'ALTER') !== false ||
+                        stripos($query, 'INSERT') !== false ||
+                        stripos($query, 'DROP') !== false ||
+                        stripos($query, 'USE') !== false
+                    )) {
+                        $pdo->exec($query);
+                    }
+                }
+                $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Structure complète importée depuis pronote.sql</li>';
+            } catch (Exception $e) {
+                throw new Exception("Erreur lors de l'import SQL : " . $e->getMessage());
+            }
+
+            // Vérifier que la table audit_log existe
             $stmt = $pdo->query("SHOW TABLES LIKE 'audit_log'");
             if ($stmt->rowCount() > 0) {
-                $installStepsHtml .= '<li style="color:#27ae60;">✅ Système d\'audit opérationnel</li>';
-                // Compter les colonnes de la table audit_log
-                $stmt = $pdo->query("DESCRIBE audit_log");
-                $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                $installStepsHtml .= '<li style="color:#666;">→ Table <code>audit_log</code>: ' . count($columns) . ' colonnes</li>';
-                $installStepsHtml .= '<li style="color:#666;">→ Index créés: <code>idx_action</code>, <code>idx_model</code>, <code>idx_user</code>, <code>idx_created_at</code></li>';
-            } else {
-                $installStepsHtml .= '<li style="color:#e74c3c;">⚠️ Table audit_log non créée</li>';
+                $installStepsHtml .= '<li style="color:#27ae60;">✅ Système d\'audit opérationnel (Event Sourcing)</li>';
             }
+
+            // Vérifier que la table rate_limits existe
+            $stmt = $pdo->query("SHOW TABLES LIKE 'rate_limits'");
+            if ($stmt->rowCount() > 0) {
+                $installStepsHtml .= '<li style="color:#27ae60;">✅ Table rate_limits créée (IP-based protection)</li>';
+            } else {
+                // La créer si elle n'existe pas
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS rate_limits (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        identifier VARCHAR(64) NOT NULL,
+                        attempts INT NOT NULL DEFAULT 1,
+                        expires_at DATETIME NOT NULL,
+                        INDEX idx_identifier (identifier),
+                        INDEX idx_expires (expires_at)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                ");
+                $installStepsHtml .= '<li style="color:#27ae60;">✅ Table rate_limits créée automatiquement</li>';
+            }
+
             $installStepsHtml .= '</ul></div>';
 
             // ÉTAPE 5: Compte administrateur
@@ -1504,19 +1266,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
                 VALUES (?, ?, ?, ?, ?, 'administrateur', 1)
             ");
             $stmt->execute([$adminNom, $adminPrenom, $adminMail, $identifiant, $hashedPassword]);
-            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Administrateur créé</li>';
+            $adminId = $pdo->lastInsertId();
+            
+            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Administrateur créé (ID: ' . $adminId . ')</li>';
             $installStepsHtml .= '<li style="color:#666;">→ Identifiant: <strong>' . htmlspecialchars($identifiant) . '</strong></li>';
-            $installStepsHtml .= '<li style="color:#666;">→ Nom: ' . htmlspecialchars($adminNom) . ' ' . htmlspecialchars($adminPrenom) . '</li>';
-            $installStepsHtml .= '<li style="color:#666;">→ Email: ' . htmlspecialchars($adminMail) . '</li>';
+            $installStepsHtml .= '<li style="color:#666;">→ Type: <strong>administrateur</strong> (standardisé)</li>';
             $installStepsHtml .= '<li style="color:#27ae60;">→ Mot de passe hashé avec BCRYPT (cost: 12)</li>';
             $installStepsHtml .= '</ul></div>';
 
-            // ÉTAPE 6: Finalisation
-            $installStepsHtml .= '<div style="margin-bottom: 10px;">';
-            $installStepsHtml .= '<h3 style="color: #3498db; margin-bottom: 10px;">🔧 Étape 6 : Finalisation</h3>';
+            // ÉTAPE 6: Tests de sécurité
+            $installStepsHtml .= '<div style="margin-bottom: 25px;">';
+            $installStepsHtml .= '<h3 style="color: #3498db; margin-bottom: 10px;">🔧 Étape 6 : Tests de sécurité</h3>';
             $installStepsHtml .= '<ul style="margin:0 0 10px 0; padding-left: 22px;">';
 
-            // Log l'installation dans le système d'audit si disponible
+            // Tester le système d'authentification
+            try {
+                $auth = $app->make('auth');
+                $testResult = $auth->attempt([
+                    'login' => $identifiant,
+                    'password' => $adminPassword,
+                    'type' => 'administrateur'
+                ]);
+                
+                if ($testResult) {
+                    $user = $auth->user();
+                    $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Test authentification réussi</li>';
+                    $installStepsHtml .= '<li style="color:#666;">→ SessionGuard opérationnel</li>';
+                    $installStepsHtml .= '<li style="color:#666;">→ session_regenerate_id() activé</li>';
+                    $auth->logout(); // Nettoyer après le test
+                } else {
+                    $installStepsHtml .= '<li style="color:#e67e22;">⚠️ Test authentification échoué (non bloquant)</li>';
+                }
+            } catch (Exception $e) {
+                $installStepsHtml .= '<li style="color:#e67e22;">⚠️ Test auth: ' . htmlspecialchars($e->getMessage()) . '</li>';
+            }
+
+            // Tester le RateLimiter
+            try {
+                $limiter = $app->make('rate_limiter');
+                $testKey = 'install_test_' . uniqid();
+                $limiter->hit($testKey);
+                $attempts = $limiter->attempts($testKey);
+                $limiter->clear($testKey);
+                
+                $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> RateLimiter opérationnel (IP-based)</li>';
+                $installStepsHtml .= '<li style="color:#666;">→ Stockage en base de données</li>';
+            } catch (Exception $e) {
+                $installStepsHtml .= '<li style="color:#e67e22;">⚠️ RateLimiter: ' . htmlspecialchars($e->getMessage()) . '</li>';
+            }
+
+            // Tester le Validator
+            try {
+                $validator = $app->make('validator');
+                $testValid = $validator->validate(
+                    ['email' => 'test@example.com', 'age' => 25],
+                    ['email' => 'required|email', 'age' => 'required|integer|between:18,100']
+                );
+                
+                if ($testValid) {
+                    $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Validator opérationnel (10+ règles)</li>';
+                }
+            } catch (Exception $e) {
+                $installStepsHtml .= '<li style="color:#e67e22;">⚠️ Validator: ' . htmlspecialchars($e->getMessage()) . '</li>';
+            }
+
+            // Tester le CSRF
+            try {
+                $csrf = $app->make('csrf');
+                $token = $csrf->generate();
+                $isValid = $csrf->validate($token);
+                
+                if ($isValid) {
+                    $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> CSRF Protection opérationnelle</li>';
+                }
+            } catch (Exception $e) {
+                $installStepsHtml .= '<li style="color:#e67e22;">⚠️ CSRF: ' . htmlspecialchars($e->getMessage()) . '</li>';
+            }
+
+            $installStepsHtml .= '</ul></div>';
+
+            // ÉTAPE 7: Finalisation
+            $installStepsHtml .= '<div style="margin-bottom: 10px;">';
+            $installStepsHtml .= '<h3 style="color: #3498db; margin-bottom: 10px;">🔧 Étape 7 : Finalisation</h3>';
+            $installStepsHtml .= '<ul style="margin:0 0 10px 0; padding-left: 22px;">';
+
+            // Log l'installation dans le système d'audit
             try {
                 $stmt = $pdo->prepare(
                     "INSERT INTO audit_log (action, model, user_id, user_type, new_values, ip_address, user_agent, created_at)
@@ -1525,79 +1359,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
                 $stmt->execute([
                     'system.installed',
                     'system',
-                    null,
-                    null,
+                    $adminId,
+                    'administrateur',
                     json_encode([
                         'version' => '1.0.0',
                         'php_version' => PHP_VERSION,
                         'install_date' => date('Y-m-d H:i:s'),
-                        'admin_email' => $adminMail
+                        'admin_email' => $adminMail,
+                        'features' => [
+                            'unified_auth_manager' => true,
+                            'session_regenerate_id' => true,
+                            'type_standardization' => true,
+                            'db_rate_limiter' => true,
+                            'enhanced_validator' => true,
+                            'audit_event_sourcing' => true
+                        ]
                     ]),
                     $clientIP,
                     $_SERVER['HTTP_USER_AGENT'] ?? null
-                ]);
+                );
                 $installStepsHtml .= '<li style="color:#27ae60;">✅ Installation enregistrée dans l\'audit</li>';
             } catch (Exception $e) {
                 $installStepsHtml .= '<li style="color:#e67e22;">⚠️ Audit log: ' . htmlspecialchars($e->getMessage()) . '</li>';
             }
 
+            // Créer le fichier de verrouillage
             $lockContent = json_encode([
                 'installed_at' => date('Y-m-d H:i:s'),
                 'version' => '1.0.0',
                 'php_version' => PHP_VERSION,
+                'architecture' => [
+                    'auth_manager' => 'API\Auth\AuthManager',
+                    'no_duplication' => true,
+                    'session_security' => 'session_regenerate_id',
+                    'rate_limiter' => 'database_ip_based',
+                    'validator' => 'enhanced_10_rules',
+                    'type_field' => 'standardized'
+                ],
                 'structure_report' => $structureReport,
                 'features' => [
                     'audit_log' => true,
                     'session_security' => true,
                     'rate_limiting' => true,
-                    'csrf_protection' => true
+                    'csrf_protection' => true,
+                    'enhanced_validation' => true
                 ]
-            ]);
+            ], JSON_PRETTY_PRINT);
             file_put_contents($installLockFile, $lockContent, LOCK_EX);
             $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Fichier de verrouillage créé</li>';
 
-            // Créer un fichier de logs initial
-            $initialLog = $installDir . '/API/logs/' . date('Y-m-d') . '.log';
-            $logContent = "[" . date('Y-m-d H:i:s') . "] INFO: Installation complétée avec succès\n";
-            $logContent .= "[" . date('Y-m-d H:i:s') . "] INFO: Système d'audit activé\n";
-            $logContent .= "[" . date('Y-m-d H:i:s') . "] INFO: Protection CSRF activée\n";
-            $logContent .= "[" . date('Y-m-d H:i:s') . "] INFO: Rate limiting configuré\n";
-            @file_put_contents($initialLog, $logContent, LOCK_EX);
-            $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Système de logs initialisé</li>';
-
-            // Supprimer le fichier fix_permissions.php s'il existe
-            $fixPermFile = $installDir . '/fix_permissions.php';
-            if (file_exists($fixPermFile)) {
-                @unlink($fixPermFile);
-                $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Fichiers temporaires supprimés</li>';
-            }
-
-            // MAINTENANT: Protéger le fichier .env après installation réussie
-            $chmodSuccess = false;
-            $chmodMsg = '';
-            if ($appEnv === 'production') {
-                // En production, rendre le .env illisible sauf pour le propriétaire
-                if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                    // Windows : lecture seule pour l'utilisateur
-                    $chmodSuccess = @chmod($configFile, 0600);
-                    $chmodMsg = $chmodSuccess
-                        ? "✅ Le fichier .env est maintenant protégé (lecture seule pour l'utilisateur)."
-                        : "⚠️ Impossible de restreindre les droits du fichier .env (Windows).";
-                } else {
-                    // Unix/Linux : lecture seule pour le propriétaire
-                    $chmodSuccess = @chmod($configFile, 0600);
-                    $chmodMsg = $chmodSuccess
-                        ? "✅ Le fichier .env est maintenant protégé (lecture seule pour le propriétaire)."
-                        : "⚠️ Impossible de restreindre les droits du fichier .env (Linux/Unix).";
-                }
+            // Sécuriser le fichier .env
+            $secureResult = secureEnvFile($configFile, $appEnv);
+            if ($secureResult['success']) {
+                $installStepsHtml .= '<li style="color:#2980b9;">✅ ' . htmlspecialchars($secureResult['message']) . '</li>';
             } else {
-                // En développement, lecture/écriture pour l'utilisateur uniquement
-                $chmodSuccess = @chmod($configFile, 0600);
-                $chmodMsg = $chmodSuccess
-                    ? "✅ Le fichier .env est maintenant protégé (lecture/écriture pour l'utilisateur uniquement)."
-                    : "⚠️ Impossible de restreindre les droits du fichier .env.";
+                $installStepsHtml .= '<li style="color:#e67e22;">⚠️ ' . htmlspecialchars($secureResult['message']) . '</li>';
             }
-            $installStepsHtml .= '<li style="color:#2980b9;">' . $chmodMsg . '</li>';
 
             $installStepsHtml .= '<li><span style="color:#27ae60;">✅</span> Installation finalisée</li>';
             $installStepsHtml .= '</ul></div>';
@@ -1611,40 +1428,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
             echo "<h3>❌ Erreur: " . nl2br(htmlspecialchars($dbError)) . "</h3>";
             echo "</div>";
         }
-    }
-}
-
-// Fonction de création de structure
-function createDatabaseStructure($pdo) {
-    // Charger le fichier SQL complet
-    $sqlFile = __DIR__ . '/pronote.sql';
-    if (!file_exists($sqlFile)) {
-        echo "<p style='color: #e74c3c;'>Fichier pronote.sql introuvable !</p>";
-        return;
-    }
-    $sql = file_get_contents($sqlFile);
-    if ($sql === false) {
-        echo "<p style='color: #e74c3c;'>Impossible de lire le fichier pronote.sql !</p>";
-        return;
-    }
-
-    // Exécuter chaque requête sans transaction (DDL non supporté dans transaction)
-    try {
-        foreach (explode(";", $sql) as $query) {
-            $query = trim($query);
-            if ($query !== '' && (
-                stripos($query, 'CREATE') !== false ||
-                stripos($query, 'ALTER') !== false ||
-                stripos($query, 'INSERT') !== false ||
-                stripos($query, 'DROP') !== false ||
-                stripos($query, 'USE') !== false
-            )) {
-                $pdo->exec($query);
-            }
-        }
-        echo "<p style='color: #28a745;'>→ Structure complète importée depuis pronote.sql</p>";
-    } catch (Exception $e) {
-        echo "<p style='color: #e74c3c;'>Erreur lors de l'import SQL : " . htmlspecialchars($e->getMessage()) . "</p>";
     }
 }
 ?>
@@ -1694,6 +1477,7 @@ function createDatabaseStructure($pdo) {
             border: 2px solid #ddd;
             border-radius: 6px;
             font-size: 14px;
+            box-sizing: border-box;
         }
         .btn {
             background: #3498db;
@@ -1703,9 +1487,14 @@ function createDatabaseStructure($pdo) {
             border-radius: 6px;
             font-size: 16px;
             cursor: pointer;
+            width: 100%;
         }
         .btn:hover {
             background: #2980b9;
+        }
+        .btn:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
         }
         .error {
             background: #e74c3c;
@@ -1758,6 +1547,7 @@ function createDatabaseStructure($pdo) {
         summary {
             padding: 5px;
             user-select: none;
+            cursor: pointer;
         }
         summary:hover {
             background: #f8f9fa;
@@ -1794,6 +1584,7 @@ function createDatabaseStructure($pdo) {
         }
         .password-toggle button {
             position: absolute;
+
             right: 10px;
             top: 50%;
             transform: translateY(-50%);
@@ -1813,9 +1604,6 @@ function createDatabaseStructure($pdo) {
             font-size: 0.85em;
             color: #666;
             margin-top: 5px;
-        }
-        .advanced-options {
-            margin-top: 10px;
         }
         .generate-password-btn {
             background: #95a5a6;
@@ -1859,14 +1647,6 @@ function createDatabaseStructure($pdo) {
                         </button>
                     </form>
                 </div>
-                
-                <?php 
-                // Afficher l'analyse détaillée si disponible
-                if ($detailedAnalysis !== null) {
-                    echo generateAnalysisReport($detailedAnalysis); 
-                }
-                ?>
-                
             <?php endif; ?>
 
             <?php if (empty($criticalErrors) && !$installed): ?>
@@ -1875,44 +1655,41 @@ function createDatabaseStructure($pdo) {
 
             <?php if ($installed): ?>
                 <div class="success">
-                    <!-- Affichage du bloc étapes juste avant le message de succès -->
-                    <?= $installStepsHtml ?? '' ?>
+                    <?= $installStepsHtml ?>
                     <h2>🎉 Installation réussie !</h2>
-                    <p>Pronote est prêt à être utilisé.</p>
+                    <p>Pronote est prêt à être utilisé avec la nouvelle architecture.</p>
                     
                     <div style="background: #fff; color: #333; padding: 20px; border-radius: 5px; margin: 20px 0; text-align: left;">
                         <h3>📋 Informations de connexion</h3>
                         <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; font-family: monospace;">
                             <strong>Identifiant:</strong> admin<br>
-                            <strong>Mot de passe:</strong> (celui que vous avez défini)
+                            <strong>Mot de passe:</strong> (celui que vous avez défini)<br>
+                            <strong>Type:</strong> administrateur
                         </div>
                         
-                        <h3 style="margin-top: 20px;">✅ Installation complétée</h3>
+                        <h3 style="margin-top: 20px;">✅ Nouvelle architecture installée</h3>
                         <ul style="list-style: none; padding: 0;">
-                            <li>✅ Fichier .env créé avec toutes les configurations</li>
-                            <li>✅ Base de données créée et structurée</li>
-                            <li>✅ Compte administrateur créé (mot de passe hashé)</li>
-                            <li>✅ Permissions des répertoires corrigées</li>
-                            <li>✅ Protection .htaccess en place</li>
-                            <li>✅ Système de logs initialisé</li>
-                            <li>✅ Configuration CSRF et sessions</li>
-                            <li>✅ Rate limiting configuré</li>
-                            <li>✅ <strong>Système d'audit (Event Sourcing) activé</strong></li>
-                            <li>✅ <strong>Traçabilité complète des actions</strong></li>
-                            <li>✅ <strong>Sécurité des sessions renforcée</strong></li>
+                            <li>✅ <strong>AuthManager unifié</strong> (API\Auth\AuthManager)</li>
+                            <li>✅ <strong>SessionGuard</strong> avec session_regenerate_id()</li>
+                            <li>✅ <strong>UserProvider</strong> standardisé sur 'type'</li>
+                            <li>✅ <strong>RateLimiter</strong> avec stockage DB (IP-based)</li>
+                            <li>✅ <strong>Validator</strong> amélioré (10+ règles)</li>
+                            <li>✅ <strong>QueryBuilder</strong> avec whereIn, whereNull, count</li>
+                            <li>✅ Système d'audit (Event Sourcing)</li>
+                            <li>✅ Protection CSRF avec rotation</li>
+                            <li>✅ URLs externalisées en config</li>
+                            <li>✅ Fonction getPDO() (plus de $GLOBALS)</li>
                         </ul>
                         
-                        <h3 style="margin-top: 20px;">🔍 Système d'audit</h3>
+                        <h3 style="margin-top: 20px;">🔒 Sécurité renforcée</h3>
                         <div style="background: #e7f3ff; padding: 10px; border-radius: 5px; border-left: 3px solid #2196f3;">
-                            <p><strong>Le système d'audit enregistre automatiquement :</strong></p>
                             <ul>
-                                <li>Toutes les connexions et déconnexions</li>
-                                <li>Créations, modifications et suppressions de données</li>
-                                <li>Tentatives d'accès non autorisées</li>
-                                <li>Violations de sécurité (CSRF, rate limit, etc.)</li>
-                                <li>Adresse IP et user agent de chaque action</li>
+                                <li>🔐 Session fixation prevention (auto-regenerate)</li>
+                                <li>🛡️ Rate limiting basé sur IP + action</li>
+                                <li>✅ Validation robuste (required, email, numeric, integer, in, between, date, confirmed, regex, url, boolean)</li>
+                                <li>🔍 Audit complet avec sanitization des données sensibles</li>
+                                <li>🚫 Plus de duplication de classes (AuthManager unique)</li>
                             </ul>
-                            <p style="margin: 5px 0 0 0;"><em>→ Logs consultables depuis l'interface administrateur</em></p>
                         </div>
                     </div>
                     

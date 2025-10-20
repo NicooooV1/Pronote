@@ -34,6 +34,9 @@ class ConfigServiceProvider extends ServiceProvider
                     'env' => env('APP_ENV', 'production'),
                     'url' => env('APP_URL', 'http://localhost')
                 ],
+                'auth' => [
+                    'login_url' => env('AUTH_LOGIN_URL', '/login/public/index.php')
+                ],
                 'session' => [
                     'name' => env('SESSION_NAME', 'pronote_session'),
                     'lifetime' => env('SESSION_LIFETIME', 120)
@@ -42,7 +45,8 @@ class ConfigServiceProvider extends ServiceProvider
                     'csrf_lifetime' => env('CSRF_LIFETIME', 3600),
                     'csrf_max_tokens' => env('CSRF_MAX_TOKENS', 10),
                     'rate_limit_attempts' => env('RATE_LIMIT_ATTEMPTS', 5),
-                    'rate_limit_decay' => env('RATE_LIMIT_DECAY', 1)
+                    'rate_limit_decay' => env('RATE_LIMIT_DECAY', 1),
+                    'session_lifetime' => env('SESSION_LIFETIME', 7200)
                 ]
             ];
         });

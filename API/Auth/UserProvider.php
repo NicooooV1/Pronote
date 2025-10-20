@@ -17,6 +17,7 @@ class UserProvider
 
     /**
      * Récupère un utilisateur par son ID
+     * @note Utilise 'type' comme clé standard (plus 'profil')
      */
     public function retrieveById($userId, $userType)
     {

@@ -34,8 +34,10 @@ final class Auth extends Facade
     public static function requireAuth(): void
     {
         if (!self::check()) {
-            $base = defined('BASE_URL') ? BASE_URL : (getenv('APP_URL') ?: '/Pronote');
-            header('Location: ' . rtrim($base, '/') . '/login/public/index.php');
+            $loginUrl = config('auth.login_url', '/login/public/index.php');
+            $baseUrl = config('app.url', defined('BASE_URL') ? BASE_URL : '');
+            $fullUrl = rtrim($baseUrl, '/') . '/' . ltrim($loginUrl, '/');
+            header('Location: ' . $fullUrl);
             exit;
         }
     }

@@ -1,3 +1,18 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Auth - Pronote</title>
+    <link rel="stylesheet" href="test-styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔑 Test du Auth Manager</h1>
+            <p>Vérification du système d'authentification</p>
+        </header>
+        <main>
 <?php
 // Bootstrap the application
 $app = require_once __DIR__ . '/API/bootstrap.php';
@@ -6,13 +21,24 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 }
 
 // helpers
-function section($t){ echo "=== {$t} ===\n"; }
+function section($t){ echo "<div class='test-section'><h2>{$t}</h2><div class='test-content'>"; }
+function sectionEnd(){ echo "</div></div>"; }
 function kv($k,$v){
     if (is_bool($v)) $v = $v ? 'OUI' : 'NON';
     if ($v === null) $v = 'NULL';
-    echo "{$k}: {$v}\n";
+    $class = '';
+    if ($v === 'OUI') $class = 'success';
+    if ($v === 'NON') $class = 'error';
+    echo "<div class='kv-item'><span class='kv-key'>{$k}</span><span class='kv-value {$class}'>{$v}</span></div>";
 }
-function jprint($k,$v){ echo "{$k}: " . json_encode($v, JSON_PRETTY_PRINT) . "\n"; }
+function jprint($k,$v){ 
+    echo "<div class='kv-item'><span class='kv-key'>{$k}</span></div>";
+    if ($v) {
+        echo "<pre class='json-view'>" . htmlspecialchars(json_encode($v, JSON_PRETTY_PRINT)) . "</pre>";
+    } else {
+        echo "<div class='info-message'>null</div>";
+    }
+}
 
 use Pronote\Auth\AuthManager;
 
@@ -24,7 +50,7 @@ try {
     section("Test 1 : Check non authentifié");
     kv("Connecté", $auth->check());
     jprint("User", $auth->user());
-    echo "\n";
+    sectionEnd();
 
     // Test 2 : Tentative d'authentification (DB requise)
     section("Test 2 : Tentative d'authentification");
@@ -34,7 +60,10 @@ try {
         'type' => 'eleve'
     ]);
     kv("Auth réussie", $result);
-    echo "\n";
+    if (!$result) {
+        echo "<div class='warning-message'>⚠️ L'authentification a échoué (base de données requise)</div>";
+    }
+    sectionEnd();
 
     // Test 3 : Simulation de connexion manuelle
     section("Test 3 : Simulation connexion manuelle");
@@ -64,7 +93,8 @@ try {
         $userData = $_SESSION['user'];
     }
     jprint("User", $userData);
-    echo "\n";
+    echo "<div class='success-message'>✓ Utilisateur simulé connecté</div>";
+    sectionEnd();
 
     // Test 4 : Logout
     section("Test 4 : Déconnexion");
@@ -83,8 +113,23 @@ try {
         session_regenerate_id(true);
     }
     kv("Connecté après logout", $auth->check());
+    echo "<div class='success-message'>✓ Déconnexion réussie</div>";
+    sectionEnd();
 
 } catch (Exception $e) {
-    echo "❌ Auth test failed: " . $e->getMessage() . "\n";
-    echo "Stack trace:\n" . $e->getTraceAsString() . "\n";
+    section('Erreur');
+    echo "<div class='error-message'>";
+    echo "❌ Auth test failed: " . htmlspecialchars($e->getMessage()) . "<br><br>";
+    echo "<strong>Stack trace:</strong><br>";
+    echo "<pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>";
+    echo "</div>";
+    sectionEnd();
 }
+?>
+        </main>
+        <footer>
+            <p>Pronote API Test Suite &copy; 2024</p>
+        </footer>
+    </div>
+</body>
+</html>

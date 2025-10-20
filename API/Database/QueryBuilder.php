@@ -56,6 +56,55 @@ class QueryBuilder
     }
 
     /**
+     * Ajoute une clause WHERE IN
+     */
+    public function whereIn($column, array $values)
+    {
+        if (empty($values)) {
+            return $this;
+        }
+
+        $this->wheres[] = [
+            'type' => 'in',
+            'column' => $column,
+            'values' => $values,
+            'boolean' => 'and'
+        ];
+
+        $this->bindings = array_merge($this->bindings, $values);
+
+        return $this;
+    }
+
+    /**
+     * Ajoute une clause WHERE NULL
+     */
+    public function whereNull($column)
+    {
+        $this->wheres[] = [
+            'type' => 'null',
+            'column' => $column,
+            'boolean' => 'and'
+        ];
+
+        return $this;
+    }
+
+    /**
+     * Ajoute une clause WHERE NOT NULL
+     */
+    public function whereNotNull($column)
+    {
+        $this->wheres[] = [
+            'type' => 'not_null',
+            'column' => $column,
+            'boolean' => 'and'
+        ];
+
+        return $this;
+    }
+
+    /**
      * Ajoute un ORDER BY
      */
     public function orderBy($column, $direction = 'asc')
@@ -104,7 +153,53 @@ class QueryBuilder
     }
 
     /**
-     * Construit la requête SQL
+     * Compte les résultats
+     */
+    public function count()
+    {
+        $sql = 'SELECT COUNT(*) as count FROM ' . $this->table;
+
+        if (!empty($this->wheres)) {
+            $sql .= ' WHERE ' . $this->buildWhereClause();
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($this->bindings);
+        $result = $stmt->fetch();
+
+        return (int)($result['count'] ?? 0);
+    }
+
+    /**
+     * Construit la clause WHERE
+     */
+    protected function buildWhereClause()
+    {
+        $conditions = [];
+
+        foreach ($this->wheres as $where) {
+            switch ($where['type']) {
+                case 'basic':
+                    $conditions[] = $where['column'] . ' ' . $where['operator'] . ' ?';
+                    break;
+                case 'in':
+                    $placeholders = implode(', ', array_fill(0, count($where['values']), '?'));
+                    $conditions[] = $where['column'] . ' IN (' . $placeholders . ')';
+                    break;
+                case 'null':
+                    $conditions[] = $where['column'] . ' IS NULL';
+                    break;
+                case 'not_null':
+                    $conditions[] = $where['column'] . ' IS NOT NULL';
+                    break;
+            }
+        }
+
+        return implode(' AND ', $conditions);
+    }
+
+    /**
+     * Construit la requête SQL (amélioration)
      */
     public function toSql()
     {
@@ -112,14 +207,7 @@ class QueryBuilder
         $sql .= ' FROM ' . $this->table;
 
         if (!empty($this->wheres)) {
-            $sql .= ' WHERE ';
-            $conditions = [];
-            
-            foreach ($this->wheres as $where) {
-                $conditions[] = $where['column'] . ' ' . $where['operator'] . ' ?';
-            }
-            
-            $sql .= implode(' AND ', $conditions);
+            $sql .= ' WHERE ' . $this->buildWhereClause();
         }
 
         if (!empty($this->orders)) {
