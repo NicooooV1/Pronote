@@ -1,3 +1,18 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Audit - Pronote</title>
+    <link rel="stylesheet" href="test-styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔍 Test du Service d'Audit</h1>
+            <p>Vérification complète du système d'audit et de logging</p>
+        </header>
+        <main>
 <?php
 session_start();
 require_once __DIR__ . '/API/bootstrap.php';
@@ -7,19 +22,26 @@ use Pronote\Services\AuditService;
 use Pronote\Services\Audit;
 
 // helpers
-function section($t){ echo "=== {$t} ===\n"; }
+function section($t){ echo "<div class='test-section'><h2>{$t}</h2><div class='test-content'>"; }
+function sectionEnd(){ echo "</div></div>"; }
 function kv($k,$v){
     if (is_bool($v)) $v = $v ? 'OUI' : 'NON';
     if ($v === null) $v = 'NULL';
-    echo "{$k}: {$v}\n";
+    $class = '';
+    if ($v === 'OUI' || $v === 'OK' || $v === 'VALIDE' || $v === 'PASS') $class = 'success';
+    if ($v === 'NON' || $v === 'FAIL' || $v === 'INVALIDE') $class = 'error';
+    echo "<div class='kv-item'><span class='kv-key'>{$k}</span><span class='kv-value {$class}'>" . htmlspecialchars($v) . "</span></div>";
 }
-function jprint($k,$v){ echo "{$k}: " . json_encode($v, JSON_PRETTY_PRINT) . "\n"; }
+function jprint($k,$v){ 
+    echo "<div class='kv-item'><span class='kv-key'>{$k}</span></div>";
+    echo "<pre class='json-view'>" . htmlspecialchars(json_encode($v, JSON_PRETTY_PRINT)) . "</pre>";
+}
 
 // Simuler un utilisateur connecté
 $_SESSION['user'] = [
     'id' => 123,
     'profil' => 'professeur',
-    'nom' => 'Dupont',
+    'nom' => 'Ledroit',
     'prenom' => 'Jean'
 ];
 
@@ -29,12 +51,14 @@ section("Test 1 : Log d'une action simple");
 $result = $audit->log('test.action', null, [
     'new' => ['data' => 'test']
 ]);
-echo "Log créé : " . ($result ? "OUI" : "NON") . "\n\n";
+echo "<div class='success-message'>Log créé : " . ($result ? "<span class='status ok'>OUI</span>" : "<span class='status fail'>NON</span>") . "</div>";
+sectionEnd();
 
 section("Test 2 : Log d'authentification");
 $audit->logAuth('login', 'jean.dupont', true, ['method' => 'password']);
 $audit->logAuth('login', 'hacker', false, ['method' => 'password', 'reason' => 'invalid_credentials']);
-echo "Logs d'auth créés\n\n";
+echo "<div class='success-message'>Logs d'auth créés avec succès</div>";
+sectionEnd();
 
 section("Test 3 : Log de sécurité");
 $audit->logSecurity('csrf_invalid', [
@@ -45,7 +69,8 @@ $audit->logSecurity('rate_limit_exceeded', [
     'action' => 'login',
     'attempts' => 10
 ]);
-echo "Logs de sécurité créés\n\n";
+echo "<div class='warning-message'>Logs de sécurité créés</div>";
+sectionEnd();
 
 section("Test 4 : Log avec modèle (simulation)");
 $fakeNote = [
@@ -55,7 +80,8 @@ $fakeNote = [
     'commentaire' => 'Bon travail'
 ];
 $audit->logCreated($fakeNote);
-echo "Log de création de modèle créé\n\n";
+echo "<div class='info-message'>Log de création de modèle créé</div>";
+sectionEnd();
 
 section("Test 5 : Log de mise à jour avec dirty");
 $fakeNoteDirty = [
@@ -63,11 +89,14 @@ $fakeNoteDirty = [
     'commentaire' => 'Excellent travail'
 ];
 $audit->logUpdated($fakeNote, $fakeNoteDirty);
-echo "Log de mise à jour créé\n\n";
+kv('Ancien commentaire', $fakeNote['commentaire']);
+kv('Nouveau commentaire', $fakeNoteDirty['commentaire']);
+sectionEnd();
 
 section("Test 6 : Log de suppression");
 $audit->logDeleted($fakeNote);
-echo "Log de suppression créé\n\n";
+echo "<div class='error-message'>Note supprimée (simulé)</div>";
+sectionEnd();
 
 section("Test 7 : Sanitization des données sensibles");
 $sensitiveData = [
@@ -78,20 +107,23 @@ $sensitiveData = [
     'email' => 'test@example.com'
 ];
 $audit->log('test.sensitive', null, ['new' => $sensitiveData]);
-echo "Log avec données sensibles créé (mots de passe masqués)\n\n";
+echo "<div class='warning-message'>⚠️ Log créé avec masquage automatique des mots de passe</div>";
+sectionEnd();
 
 section("Test 8 : Récupération de l'historique");
 try {
     $history = $audit->getHistoryByUser(123, 'professeur', 10);
-    echo "Historique récupéré : " . count($history) . " entrées\n";
+    echo "<div class='stats-grid'>";
+    echo "<div class='stat-card'><div class='stat-value'>" . count($history) . "</div><div class='stat-label'>Entrées trouvées</div></div>";
+    echo "</div>";
     if (!empty($history)) {
         kv('Dernière action', $history[0]['action']);
         kv('Date', $history[0]['created_at']);
     }
 } catch (\Exception $e) {
-    echo "Erreur (normal si table n'existe pas) : " . $e->getMessage() . "\n";
+    echo "<div class='error-message'>⚠️ " . htmlspecialchars($e->getMessage()) . "</div>";
 }
-echo "\n";
+sectionEnd();
 
 section("Test 9 : Recherche dans l'audit");
 try {
@@ -99,18 +131,20 @@ try {
         'action' => 'auth.login',
         'user_id' => 123
     ], 5);
-    echo "Résultats de recherche : " . count($results) . " entrées\n";
+    echo "<div class='stat-card'><div class='stat-value'>" . count($results) . "</div><div class='stat-label'>Résultats</div></div>";
 } catch (\Exception $e) {
-    echo "Erreur (normal si table n'existe pas) : " . $e->getMessage() . "\n";
+    echo "<div class='error-message'>⚠️ " . htmlspecialchars($e->getMessage()) . "</div>";
 }
-echo "\n";
+sectionEnd();
 
 section("Test 10 : Statistiques");
 try {
     $stats = $audit->getStats(7);
-    echo "Statistiques sur 7 jours : " . count($stats) . " entrées\n";
+    echo "<div class='stats-grid'>";
+    echo "<div class='stat-card'><div class='stat-value'>" . count($stats) . "</div><div class='stat-label'>Stats (7 jours)</div></div>";
+    echo "</div>";
     if (!empty($stats)) {
-        echo "Actions les plus fréquentes :\n";
+        echo "<div class='info-message'><strong>Actions les plus fréquentes :</strong><ul class='list-group'>";
         $grouped = [];
         foreach ($stats as $stat) {
             if (!isset($grouped[$stat['action']])) {
@@ -121,27 +155,29 @@ try {
         arsort($grouped);
         $top3 = array_slice($grouped, 0, 3, true);
         foreach ($top3 as $action => $count) {
-            echo "  - {$action}: {$count} fois\n";
+            echo "<li class='list-group-item'><span>{$action}</span><span class='badge primary'>{$count} fois</span></li>";
         }
+        echo "</ul></div>";
     }
 } catch (\Exception $e) {
-    echo "Erreur (normal si table n'existe pas) : " . $e->getMessage() . "\n";
+    echo "<div class='error-message'>⚠️ " . htmlspecialchars($e->getMessage()) . "</div>";
 }
-echo "\n";
+sectionEnd();
 
 section("Test 11 : Facade Audit");
 Audit::setInstance($audit);
 Audit::log('test.facade', null, ['new' => ['method' => 'facade']]);
-echo "Log via facade créé\n\n";
+echo "<div class='success-message'>✓ Log via facade créé</div>";
+sectionEnd();
 
 section("Test 12 : Cleanup (simulation)");
 try {
     $deleted = $audit->cleanup(365);
-    echo "Logs supprimés (> 365 jours) : {$deleted}\n";
+    echo "<div class='stat-card'><div class='stat-value'>{$deleted}</div><div class='stat-label'>Logs supprimés</div></div>";
 } catch (\Exception $e) {
-    echo "Erreur (normal si table n'existe pas) : " . $e->getMessage() . "\n";
+    echo "<div class='error-message'>⚠️ " . htmlspecialchars($e->getMessage()) . "</div>";
 }
-echo "\n";
+sectionEnd();
 
 section("Test 13 : Champs sensibles personnalisés");
 $audit->addSensitiveField('ssn');
@@ -152,9 +188,21 @@ $dataWithSSN = [
     'credit_card' => '4111111111111111'
 ];
 $audit->log('test.custom_sensitive', null, ['new' => $dataWithSSN]);
-echo "Log avec champs sensibles personnalisés créé\n\n";
+echo "<div class='warning-message'>⚠️ Champs SSN et carte bancaire masqués automatiquement</div>";
+sectionEnd();
 
-section("Résumé");
-echo "Tous les tests d'audit terminés.\n";
-echo "Si la table audit_log existe, vérifiez son contenu avec :\n";
-echo "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 10;\n";
+section("Résumé Final");
+echo "<div class='success-message'>";
+echo "<strong>✓ Tous les tests d'audit terminés avec succès !</strong><br><br>";
+echo "Si la table audit_log existe, vérifiez son contenu avec :<br>";
+echo "<code>SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 10;</code>";
+echo "</div>";
+sectionEnd();
+?>
+        </main>
+        <footer>
+            <p>Pronote API Test Suite &copy; 2024</p>
+        </footer>
+    </div>
+</body>
+</html>

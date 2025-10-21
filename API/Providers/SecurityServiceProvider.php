@@ -22,10 +22,15 @@ class SecurityServiceProvider extends ServiceProvider
             );
         });
 
-        // Enregistrer RateLimiter
+        // Enregistrer RateLimiter avec PDO
         $this->app->singleton('rate_limiter', function($app) {
-            $limiter = new RateLimiter();
-            // Configurer depuis .env si nécessaire
+            $pdo = $app->make('db')->getConnection();
+            $limiter = new RateLimiter($pdo);
+            
+            // Configurer depuis config
+            $limiter->setMaxAttempts(config('security.rate_limit_attempts', 5));
+            $limiter->setDecayMinutes(config('security.rate_limit_decay', 1));
+            
             return $limiter;
         });
 

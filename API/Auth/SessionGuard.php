@@ -42,9 +42,9 @@ class SessionGuard {
      * Connecte un utilisateur
      */
     public function login($user) {
-        // Add 'profil' alias for backward compatibility
-        if (!isset($user['profil']) && isset($user['type'])) {
-            $user['profil'] = $user['type'];
+        // Régénérer l'ID de session pour prévenir la fixation de session
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
         }
 
         $_SESSION['user_id'] = $user['id'];

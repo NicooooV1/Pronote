@@ -1,124 +1,175 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Bootstrap - Pronote</title>
+    <link rel="stylesheet" href="test-styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Test Bootstrap Pronote</h1>
+            <p>Vérification complète du système de bootstrap</p>
+        </header>
+        <main>
 <?php
-// helpers
-function section($t){ echo "=== {$t} ===\n"; }
+function section($t){ echo "<div class='test-section'><h2>{$t}</h2><div class='test-content'>"; }
+function sectionEnd(){ echo "</div></div>"; }
 function kv($k,$v){
     if (is_bool($v)) $v = $v ? 'OUI' : 'NON';
     if ($v === null) $v = 'NULL';
-    echo "{$k}: {$v}\n";
+    $class = '';
+    if ($v === 'OUI' || $v === 'OK' || $v === 'VALIDE') $class = 'success';
+    if ($v === 'NON' || $v === 'NULL' || $v === 'FAIL') $class = 'error';
+    echo "<div class='kv-item'><span class='kv-key'>{$k}</span><span class='kv-value {$class}'>" . htmlspecialchars($v) . "</span></div>";
 }
-
-echo "=== Test Bootstrap Pronote ===\n\n";
 
 require_once __DIR__ . '/API/bootstrap.php';
 
 section("Test 1 : Application chargée");
 $app = app();
-echo "Application instance: " . (is_object($app) ? "OK" : "FAIL") . "\n";
-echo "Environment: " . (env('APP_ENV', 'production')) . "\n\n";
+echo "<div class='kv-item'><span class='kv-key'>Application instance</span><span class='kv-value " . (is_object($app) ? 'success' : 'error') . "'>" . (is_object($app) ? "OK ✓" : "FAIL ✗") . "</span></div>";
+kv('Environment', env('APP_ENV', 'production'));
+sectionEnd();
 
 section("Test 2 : Services disponibles");
 $services = ['db','auth','csrf','log','audit','rate_limiter'];
+echo "<ul class='list-group'>";
 foreach ($services as $service) {
-	try {
-		app($service);
-		echo "  {$service}: ✓\n";
-	} catch (Throwable $e) {
-		echo "  {$service}: ✗ (" . $e->getMessage() . ")\n";
-	}
+    try {
+        app($service);
+        echo "<li class='list-group-item'><span>{$service}</span><span class='badge success'>✓</span></li>";
+    } catch (Throwable $e) {
+        echo "<li class='list-group-item'><span>{$service}</span><span class='badge danger'>✗</span></li>";
+    }
 }
-echo "\n";
+echo "</ul>";
+sectionEnd();
 
 section("Test 3 : Configuration");
-echo "APP_URL: " . (config('app.url') ?? 'N/A') . "\n";
-echo "DB_HOST: " . (config('database.host') ?? 'N/A') . "\n";
-echo "BASE_URL: " . (defined('BASE_URL') ? BASE_URL : 'N/A') . "\n\n";
+kv('APP_URL', config('app.url') ?? 'N/A');
+kv('DB_HOST', config('database.host') ?? 'N/A');
+kv('BASE_URL', defined('BASE_URL') ? BASE_URL : 'N/A');
+sectionEnd();
 
 section("Test 4 : Database");
 try {
-	$pdo = app('db')->getConnection();
-	echo "Database connected: OK\n";
-	echo "PDO instance: " . ($pdo instanceof PDO ? "OK" : "FAIL") . "\n";
+    $pdo = app('db')->getConnection();
+    echo "<div class='success-message'>✓ Database connected</div>";
+    echo "<div class='kv-item'><span class='kv-key'>PDO instance</span><span class='kv-value success'>" . ($pdo instanceof PDO ? "OK ✓" : "FAIL ✗") . "</span></div>";
 } catch (Throwable $e) {
-	echo "Database error: " . $e->getMessage() . "\n";
+    echo "<div class='error-message'>❌ " . htmlspecialchars($e->getMessage()) . "</div>";
 }
-echo "\n";
+sectionEnd();
 
 section("Test 5 : Auth (non connecté)");
-echo "Connecté: " . (app('auth')->check() ? "OUI" : "NON") . "\n";
-var_export(app('auth')->user());
-echo "\n\n";
+kv('Connecté', app('auth')->check() ? "OUI" : "NON");
+$user = app('auth')->user();
+if ($user) {
+    echo "<pre class='json-view'>" . htmlspecialchars(json_encode($user, JSON_PRETTY_PRINT)) . "</pre>";
+} else {
+    echo "<div class='info-message'>Aucun utilisateur connecté</div>";
+}
+sectionEnd();
 
 section("Test 6 : CSRF");
 $token = app('csrf')->generate();
-echo "Token généré: " . substr($token, 0, 16) . "...\n";
-echo "Token check(): " . (app('csrf')->check($token) ? "OUI" : "NON") . "\n";
-echo "Token validate(): " . (app('csrf')->validate($token) ? "VALIDE" : "INVALIDE") . "\n\n";
+echo "<div class='token'>" . htmlspecialchars(substr($token, 0, 32)) . "...</div>";
+kv('Token check()', app('csrf')->check($token) ? "OUI" : "NON");
+kv('Token validate()', app('csrf')->validate($token) ? "VALIDE" : "INVALIDE");
+sectionEnd();
 
 section("Test 7 : Logger");
 logInfo('Test du logger depuis bootstrap', ['area' => 'test']);
 logError('Ceci est une erreur', ['area' => 'test']);
-echo "Voir logs via error_log (stdout/serveur)\n\n";
+echo "<div class='info-message'>✓ Logs enregistrés (voir error_log)</div>";
+sectionEnd();
 
 section("Test 8 : Rate Limiter");
 $key = 'test_' . time();
+echo "<div style='margin-top: 0.5rem;'>";
 for ($i = 1; $i <= 7; $i++) {
-	$allowed = checkRateLimit($key, 5, 60);
-	echo "Tentative {$i}: " . ($allowed ? "AUTORISÉ" : "BLOQUÉ") . "\n";
+    $allowed = checkRateLimit($key, 5, 60);
+    $class = $allowed ? 'attempt-allowed' : 'attempt-blocked';
+    $status = $allowed ? 'AUTORISÉ ✓' : 'BLOQUÉ ❌';
+    echo "<div class='attempt-line {$class}'>Tentative {$i} : <strong>{$status}</strong></div>";
 }
-echo "\n";
+echo "</div>";
+sectionEnd();
 
 section("Test 9 : Audit");
 try {
-	$ok = app('audit')->log('test.bootstrap', null, ['new' => ['test' => 'data']]);
-	echo "Log d'audit créé: " . ($ok ? "OK" : "SKIP (table absente?)") . "\n";
+    $ok = app('audit')->log('test.bootstrap', null, ['new' => ['test' => 'data']]);
+    echo "<div class='" . ($ok ? 'success' : 'warning') . "-message'>" . ($ok ? "✓ Log d'audit créé" : "⚠️ Table absente ou erreur") . "</div>";
 } catch (Throwable $e) {
-	echo "Audit error: " . $e->getMessage() . "\n";
+    echo "<div class='error-message'>❌ " . htmlspecialchars($e->getMessage()) . "</div>";
 }
-echo "\n";
+sectionEnd();
 
 section("Test 10 : Fonctions Legacy");
-echo "isLoggedIn(): " . (isLoggedIn() ? "OUI" : "NON") . "\n";
-echo "getUserRole(): " . var_export(getUserRole(), true) . "\n";
-echo "getUserFullName(): " . getUserFullName() . "\n";
+kv('isLoggedIn()', isLoggedIn() ? "OUI" : "NON");
+kv('getUserRole()', var_export(getUserRole(), true));
+kv('getUserFullName()', getUserFullName());
 $csrfToken = generateCSRFToken();
-echo "generateCSRFToken(): " . substr($csrfToken, 0, 16) . "...\n";
-echo "validateCSRFToken(): " . (validateCSRFToken($csrfToken) ? "VALIDE" : "INVALIDE") . "\n\n";
+echo "<div class='token'>" . htmlspecialchars(substr($csrfToken, 0, 32)) . "...</div>";
+kv('validateCSRFToken()', validateCSRFToken($csrfToken) ? "VALIDE" : "INVALIDE");
+sectionEnd();
 
 section("Test 11 : Variable globale PDO");
-echo "Global \$pdo existe: " . (isset($GLOBALS['pdo']) ? "OUI" : "NON") . "\n";
-echo "Global \$pdo est PDO: " . (($GLOBALS['pdo'] instanceof PDO) ? "OUI" : "NON") . "\n\n";
+kv('Global $pdo existe', isset($GLOBALS['pdo']) ? "OUI" : "NON");
+kv('Global $pdo est PDO', ($GLOBALS['pdo'] instanceof PDO) ? "OUI" : "NON");
+sectionEnd();
 
 section("Test 12 : executeQuery()");
 try {
-	$results = executeQuery("SELECT 1 AS test");
-	echo "executeQuery(): " . (is_array($results) ? "OK" : "FAIL") . "\n";
-	if (!empty($results)) {
-		echo "Résultat: " . json_encode($results[0]) . "\n";
-	}
+    $results = executeQuery("SELECT 1 AS test");
+    echo "<div class='kv-item'><span class='kv-key'>executeQuery()</span><span class='kv-value success'>" . (is_array($results) ? "OK ✓" : "FAIL ✗") . "</span></div>";
+    if (!empty($results)) {
+        echo "<pre class='json-view'>" . htmlspecialchars(json_encode($results[0], JSON_PRETTY_PRINT)) . "</pre>";
+    }
 } catch (Throwable $e) {
-	echo "Query error: " . $e->getMessage() . "\n";
+    echo "<div class='error-message'>❌ " . htmlspecialchars($e->getMessage()) . "</div>";
 }
-echo "\n";
+sectionEnd();
 
 section("Test 13 : Session");
-echo "Session active: " . (session_status() === PHP_SESSION_ACTIVE ? "OUI" : "NON") . "\n";
-echo "Session ID: " . session_id() . "\n";
-echo "Session name: " . session_name() . "\n\n";
+kv('Session active', session_status() === PHP_SESSION_ACTIVE ? "OUI" : "NON");
+kv('Session ID', session_id());
+kv('Session name', session_name());
+sectionEnd();
 
 section("Test 14 : Helpers disponibles");
 $helpers = ['app', 'config', 'isLoggedIn', 'getCurrentUser', 'generateCSRFToken', 'logError', 'sanitizeInput'];
+echo "<ul class='list-group'>";
 foreach ($helpers as $func) {
-	echo "  {$func}(): " . (function_exists($func) ? "✓" : "✗") . "\n";
+    $exists = function_exists($func);
+    echo "<li class='list-group-item'><span>{$func}()</span><span class='badge " . ($exists ? 'success' : 'danger') . "'>" . ($exists ? '✓' : '✗') . "</span></li>";
 }
-echo "\n";
+echo "</ul>";
+sectionEnd();
 
 section("Test 15 : Constantes");
 $constants = ['PRONOTE_BOOTSTRAP_LOADED', 'BASE_URL'];
+echo "<ul class='list-group'>";
 foreach ($constants as $const) {
-	echo "  {$const}: " . (defined($const) ? "✓ (" . constant($const) . ")" : "✗") . "\n";
+    $exists = defined($const);
+    echo "<li class='list-group-item'><span>{$const}</span><span class='badge " . ($exists ? 'success' : 'danger') . "'>" . ($exists ? '✓' : '✗') . "</span></li>";
 }
-echo "\n";
+echo "</ul>";
+sectionEnd();
 
-echo "=== RÉSUMÉ ===\n";
-echo "Bootstrap chargé avec succès !\n";
-echo "Services et bridge fonctionnels.\n";
+section("RÉSUMÉ");
+echo "<div class='success-message'>";
+echo "<strong>✓ Bootstrap chargé avec succès !</strong><br>";
+echo "Services et bridge fonctionnels.";
+echo "</div>";
+sectionEnd();
+?>
+        </main>
+        <footer>
+            <p>Pronote API Test Suite &copy; 2024</p>
+        </footer>
+    </div>
+</body>
+</html>

@@ -209,13 +209,27 @@ if (!function_exists('logInfo')) {
 }
 if (!function_exists('logSecurityEvent')) {
 	function logSecurityEvent($event, $data = []) {
-		logInfo("Security event: {$event}", (array)$data);
+		// Toujours logger dans les logs système
+		error_log("SECURITY EVENT: {$event} " . json_encode($data));
+		
 		try {
-			// Optional if 'audit' service bound
+			logInfo("Security event: {$event}", (array)$data);
+			
+			// Tenter l'audit en base (critique)
 			$audit = app('audit');
-			if ($audit) { $audit->logSecurity($event, (array)$data); }
+			if ($audit) { 
+				$result = $audit->logSecurity($event, (array)$data);
+				if (!$result) {
+					// Échec critique : notifier
+					error_log("CRITICAL: Audit security logging failed for event '{$event}'");
+				}
+			} else {
+				error_log("WARNING: Audit service not available for security event '{$event}'");
+			}
 		} catch (\Throwable $e) {
-			// Silent fail
+			// Erreur critique : TOUJOURS logger
+			error_log("CRITICAL: Audit security exception for event '{$event}': " . $e->getMessage());
+			error_log("Stack trace: " . $e->getTraceAsString());
 		}
 	}
 }
@@ -289,8 +303,16 @@ if (!function_exists('validateEmail')) {
 	}
 }
 
-// ==================== GLOBAL PDO FOR LEGACY ====================
+// ==================== GLOBAL PDO HELPER (remplacement de $GLOBALS) ====================
 
-$GLOBALS['pdo'] = app('db')->getConnection();
+if (!function_exists('getPDO')) {
+	/**
+	 * Récupère la connexion PDO (remplace $GLOBALS['pdo'])
+	 * @return PDO
+	 */
+	function getPDO(): PDO {
+		return app('db')->getConnection();
+	}
+}
 
 // ==================== FIN DU BRIDGE ====================

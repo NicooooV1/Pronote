@@ -385,9 +385,18 @@ class AuditService {
     }
     
     /**
-     * Sanitize les données sensibles
+     * Sanitize les données sensibles (amélioration)
      */
     protected function sanitize($data) {
+        // Gérer les objets
+        if (is_object($data)) {
+            if (method_exists($data, 'toArray')) {
+                $data = $data->toArray();
+            } else {
+                $data = (array) $data;
+            }
+        }
+        
         if (!is_array($data)) {
             return $data;
         }
@@ -395,9 +404,13 @@ class AuditService {
         $sanitized = [];
         
         foreach ($data as $key => $value) {
-            if (in_array(strtolower($key), $this->sensitiveFields)) {
+            $keyLower = strtolower((string)$key);
+            
+            // Vérifier si le champ est sensible
+            if (in_array($keyLower, $this->sensitiveFields, true)) {
                 $sanitized[$key] = '***REDACTED***';
-            } elseif (is_array($value)) {
+            } elseif (is_array($value) || is_object($value)) {
+                // Récursif pour tableaux et objets imbriqués
                 $sanitized[$key] = $this->sanitize($value);
             } else {
                 $sanitized[$key] = $value;
