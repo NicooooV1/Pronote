@@ -53,8 +53,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         }
 
         if ($loginResult) {
-            // Connexion réussie - redirection
+            // Connexion réussie
+            // Log pour débogage
+            error_log("LOGIN SUCCESS: User=" . $username . ", Type=" . $userType);
+            error_log("SESSION USER: " . print_r($_SESSION['user'] ?? null, true));
+            
+            // Redirection vers l'accueil
             redirect('accueil/accueil.php');
+            exit; // Sécurité supplémentaire
         } else {
             $error = "Identifiant ou mot de passe incorrect.";
             $_SESSION['last_username'] = $username;

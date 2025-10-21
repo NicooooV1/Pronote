@@ -1199,7 +1199,7 @@ if (isset($_SERVER['REQUEST_URI'])) {
     }
 }
 
-$baseUrl = rtrim(filter_var($baseUrl, FILTER_SANITIZE_URL), '/');
+$baseUrl = filter_var($baseUrl, FILTER_SANITIZE_URL);
 $fullUrl = $protocol . '://' . $host . $baseUrl;
 
 // ÉTAPE 0: Gestion automatique de la structure complète
@@ -1917,7 +1917,7 @@ function createDatabaseStructure($pdo) {
                     </div>
                     
                     <div style="margin-top: 20px;">
-                        <a href="<?= htmlspecialchars($baseUrl) ?>/login/public/index.php" class="btn" style="display: inline-block; text-decoration: none;">
+                        <a href="login/public/index.php" class="btn" style="display: inline-block; text-decoration: none;">
                             🔐 Se connecter maintenant
                         </a>
                     </div>

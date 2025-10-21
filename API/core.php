@@ -35,9 +35,7 @@ if (!function_exists('requireAuth')) {
         $user = getCurrentUser();
         
         if (!$user) {
-            $loginUrl = '/Pronote/login/public/index.php';
-            header('Location: ' . $loginUrl);
-            exit;
+            redirect('login/public/index.php');
         }
         
         return $user;
@@ -61,24 +59,38 @@ if (!function_exists('requireRole')) {
 }
 
 /**
- * Fonction helper pour rediriger
+ * Fonction helper pour rediriger - VERSION CORRIGÉE
  */
 if (!function_exists('redirect')) {
     function redirect($path) {
-        // Correction : forcer l'utilisation de APP_URL si elle commence par http
-        $baseUrl = env('APP_URL', '/Pronote');
-        if (strpos($baseUrl, 'http') !== 0) {
-            // Si ce n'est pas une URL web, utiliser BASE_URL ou valeur par défaut
-            $baseUrl = env('BASE_URL', '/Pronote');
+        // Normaliser le chemin (enlever les slashes en début)
+        $path = ltrim($path, '/');
+        
+        // Récupérer APP_URL depuis l'environnement
+        $appUrl = env('APP_URL', '');
+        
+        // Si APP_URL est vide ou invalide, construire l'URL depuis le serveur
+        if (empty($appUrl) || strpos($appUrl, 'http') !== 0) {
+            $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            
+            // Essayer de détecter le chemin de base depuis SCRIPT_NAME
+            $scriptPath = dirname($_SERVER['SCRIPT_NAME'] ?? '');
+            $basePath = str_replace('/login/public', '', $scriptPath);
+            $basePath = str_replace('/API', '', $basePath);
+            $basePath = rtrim($basePath, '/');
+            
+            $appUrl = $protocol . '://' . $host . $basePath;
         }
-        $baseUrl = rtrim($baseUrl, '/');
-        // S'assurer que $path commence par un /
-        if ($path[0] !== '/') {
-            $path = '/' . $path;
-        }
-        // Debug temporaire
-        // error_log("REDIRECT: baseUrl=$baseUrl, path=$path");
-        header('Location: ' . $baseUrl . $path);
+        
+        // Construire l'URL complète
+        $fullUrl = rtrim($appUrl, '/') . '/' . $path;
+        
+        // Log de débogage (à retirer en production)
+        error_log("REDIRECT: from=" . ($_SERVER['REQUEST_URI'] ?? 'unknown') . " to=" . $fullUrl);
+        
+        // Effectuer la redirection
+        header('Location: ' . $fullUrl);
         exit;
     }
 }
@@ -126,7 +138,7 @@ if (!function_exists('authenticateUser')) {
 if (!function_exists('logoutUser')) {
     function logoutUser() {
         app('auth')->logout();
-        redirect('/login/public/index.php');
+        redirect('login/public/index.php');
     }
 }
 
