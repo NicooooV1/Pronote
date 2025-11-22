@@ -299,7 +299,7 @@ function getRequiredStructure() {
             'temp/.gitkeep' => ['content' => '', 'permissions' => 0644, 'critical' => false],
             'API/logs/.gitkeep' => ['content' => '', 'permissions' => 0644, 'critical' => false]
         ]
-    };
+    ]
 }
 
 /**
@@ -1585,7 +1585,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['force_structure'])) 
         .password-toggle button {
             position: absolute;
 
-            right: 10px;
+            right:  10px;
             top: 50%;
             transform: translateY(-50%);
             background: none;
