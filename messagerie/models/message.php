@@ -379,6 +379,34 @@ function addMessage($convId, $senderId, $senderType, $content, $importance = 'no
         }
         
         $pdo->commit();
+        
+        // ✅ NOTIFICATION WEBSOCKET - Nouveau message
+        require_once __DIR__ . '/../../API/Core/WebSocket.php';
+        
+        // Récupérer les données complètes du message pour diffusion
+        $messageData = getMessageById($messageId);
+        if ($messageData) {
+            \API\Core\WebSocket::notifyNewMessage($convId, $messageData);
+        }
+        
+        // ✅ NOTIFICATIONS WEBSOCKET - Pour chaque participant
+        foreach ($participants as $p) {
+            if ($p['user_id'] == $senderId && $p['user_type'] == $senderType) {
+                continue; // Skip expéditeur
+            }
+            
+            // Notifier via WebSocket
+            \API\Core\WebSocket::notifyUser($p['user_id'], [
+                'type' => 'message',
+                'convId' => $convId,
+                'messageId' => $messageId,
+                'senderName' => $messageData['expediteur_nom'] ?? 'Inconnu',
+                'preview' => mb_substr($content, 0, 100)
+            ]);
+            
+            // ...existing code (création notification DB)...
+        }
+        
         return $messageId;
         
     } catch (Exception $e) {

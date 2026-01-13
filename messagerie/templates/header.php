@@ -55,6 +55,13 @@ if (isset($user)) {
     $unreadNotifications = 0;
     $user_initials = '';
 }
+
+// Générer le token WebSocket pour l'utilisateur
+if (isset($user)) {
+    require_once __DIR__ . '/../../API/Core/WebSocket.php';
+    $wsToken = \API\Core\WebSocket::generateToken($user['id'], $user['type']);
+    $wsUrl = getenv('WEBSOCKET_CLIENT_URL') ?: 'http://localhost:3000';
+}
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -75,8 +82,25 @@ if (isset($user)) {
     <?php if (in_array($currentPage, ['new_message', 'new_announcement', 'class_message'])): ?>
     <link rel="stylesheet" href="<?= $baseUrl ?>assets/css/forms.css">
     <?php endif; ?>
+    
+    <!-- Socket.IO client -->
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <script src="<?= $baseUrl ?>assets/js/websocket-client.js"></script>
+    
+    <?php if (isset($wsToken)): ?>
+    <script>
+        // Variables globales pour WebSocket
+        window.currentUserId = <?= json_encode($user['id']) ?>;
+        window.currentUserType = <?= json_encode($user['type']) ?>;
+        
+        // Initialiser WebSocket au chargement
+        document.addEventListener('DOMContentLoaded', () => {
+            window.wsClient.init(<?= json_encode($wsUrl) ?>, <?= json_encode($wsToken) ?>);
+        });
+    </script>
+    <?php endif; ?>
 </head>
-<body>
+<body data-user-id="<?= $user['id'] ?? '' ?>" data-user-type="<?= $user['type'] ?? '' ?>">
     <div class="app-container">
         <?php include 'sidebar.php'; ?>
         

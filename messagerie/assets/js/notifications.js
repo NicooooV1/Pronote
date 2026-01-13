@@ -3,18 +3,10 @@
  */
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialiser les notifications
-    initNotifications();
-});
-
-/**
- * Initialise les notifications
- */
-function initNotifications() {
-    // Vérifier les nouvelles notifications toutes les 30 secondes
-    setInterval(checkNotifications, 30000);
+    // ✅ REMPLACER le polling par WebSocket
+    setupWebSocketNotifications();
     
-    // Vérifier immédiatement au chargement de la page
+    // Check initial
     checkNotifications();
     
     // Gérer les clics sur les notifications
@@ -22,6 +14,51 @@ function initNotifications() {
     
     // Demander la permission pour les notifications du navigateur si l'utilisateur n'a pas encore décidé
     requestNotificationPermission();
+});
+
+/**
+ * Configure WebSocket pour les notifications
+ */
+function setupWebSocketNotifications() {
+    if (!window.wsClient) {
+        console.warn('WebSocket client non disponible');
+        return;
+    }
+    
+    // Écouter les notifications
+    window.wsClient.on('notification', (data) => {
+        console.log('Notification WebSocket reçue:', data);
+        
+        // Mettre à jour le badge
+        if (data.count !== undefined) {
+            updateNotificationBadge(data.count);
+        }
+        
+        // Afficher notification navigateur
+        if (data.type === 'message') {
+            showBrowserNotification(data.count || 1, {
+                expediteur_nom: data.senderName,
+                conversation_id: data.convId
+            });
+        }
+        
+        // Jouer un son si activé
+        const shouldPlaySound = localStorage.getItem('notification_sound') !== 'false';
+        if (shouldPlaySound) {
+            playNotificationSound();
+        }
+    });
+    
+    // ⚠️ SUPPRIMER l'ancien polling setInterval
+    // Plus besoin de checkNotifications() toutes les 30s
+}
+
+/**
+ * Initialise les notifications
+ */
+function initNotifications() {
+    // Vérifier immédiatement au chargement de la page
+    checkNotifications();
 }
 
 /**

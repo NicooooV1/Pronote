@@ -26,6 +26,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Nettoyage des ressources lors de la navigation
     setupBeforeUnloadHandler();
+    
+    // ✅ REMPLACER le polling par WebSocket
+    setupWebSocketForConversation();
 });
 
 /**
@@ -1361,4 +1364,66 @@ function markMessageAsRead(messageId) {
             console.error('Erreur lors du marquage comme lu:', error);
         }
     });
+}
+
+/**
+ * Configure WebSocket pour la conversation en temps réel
+ */
+function setupWebSocketForConversation() {
+    const convId = new URLSearchParams(window.location.search).get('id');
+    if (!convId || !window.wsClient) return;
+    
+    // Rejoindre le canal de la conversation
+    window.wsClient.joinConversation(convId);
+    
+    // Écouter les nouveaux messages
+    window.wsClient.on('newMessage', (message) => {
+        console.log('Nouveau message reçu via WebSocket:', message);
+        
+        // Vérifier si ce n'est pas notre propre message (éviter doublon)
+        const isOwnMessage = message.sender_id == window.currentUserId && 
+                            message.sender_type == window.currentUserType;
+        
+        if (!isOwnMessage) {
+            const container = document.querySelector('.messages-container');
+            if (container) {
+                appendMessageToDOM(message, container);
+                
+                // Auto-scroll si l'utilisateur est en bas
+                if (isScrolledToBottom(container)) {
+                    scrollToBottom(container);
+                } else {
+                    showNewMessagesIndicator(1);
+                }
+            }
+        }
+    });
+    
+    // ⚠️ SUPPRIMER l'ancien polling setInterval
+    // if (window.messagePollingId) {
+    //     clearInterval(window.messagePollingId);
+    // }
+    
+    // Fallback: si WebSocket non connecté après 5s, activer polling
+    setTimeout(() => {
+        if (!window.wsClient.connected) {
+            console.warn('WebSocket non connecté, activation du fallback polling');
+            enablePollingFallback();
+        }
+    }, 5000);
+}
+
+/**
+ * Fallback polling si WebSocket échoue
+ */
+function enablePollingFallback() {
+    const convId = new URLSearchParams(window.location.search).get('id');
+    if (!convId) return;
+    
+    console.log('Activation du fallback polling (30s)');
+    
+    // Polling moins fréquent qu'avant (30s au lieu de 5s)
+    window.messagePollingId = setInterval(() => {
+        checkForUpdates();
+    }, 30000);
 }
