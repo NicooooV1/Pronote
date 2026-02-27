@@ -59,37 +59,42 @@ if (!function_exists('requireRole')) {
 }
 
 /**
- * Fonction helper pour rediriger - VERSION CORRIGÉE
+ * Fonction helper pour rediriger
+ * Calcule la base de l'URL à partir du chemin physique du projet (fiable).
  */
 if (!function_exists('redirect')) {
     function redirect($path) {
-        // Normaliser le chemin (enlever les slashes en début)
         $path = ltrim($path, '/');
-        
-        // Récupérer APP_URL depuis l'environnement
+
+        // 1) Si APP_URL est configurée, l'utiliser directement
         $appUrl = env('APP_URL', '');
-        
-        // Si APP_URL est vide ou invalide, construire l'URL depuis le serveur
-        if (empty($appUrl) || strpos($appUrl, 'http') !== 0) {
-            $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-            
-            // Essayer de détecter le chemin de base depuis SCRIPT_NAME
-            $scriptPath = dirname($_SERVER['SCRIPT_NAME'] ?? '');
-            $basePath = str_replace('/login/public', '', $scriptPath);
-            $basePath = str_replace('/API', '', $basePath);
-            $basePath = rtrim($basePath, '/');
-            
-            $appUrl = $protocol . '://' . $host . $basePath;
+        if (!empty($appUrl) && strpos($appUrl, 'http') === 0) {
+            $fullUrl = rtrim($appUrl, '/') . '/' . $path;
+            header('Location: ' . $fullUrl);
+            exit;
         }
-        
-        // Construire l'URL complète
-        $fullUrl = rtrim($appUrl, '/') . '/' . $path;
-        
-        // Log de débogage (à retirer en production)
-        error_log("REDIRECT: from=" . ($_SERVER['REQUEST_URI'] ?? 'unknown') . " to=" . $fullUrl);
-        
-        // Effectuer la redirection
+
+        // 2) Détection automatique fiable :
+        //    On compare le DOCUMENT_ROOT au répertoire racine du projet (parent de API/)
+        //    pour extraire le chemin relatif qui sert de base URL.
+        $protocol   = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host       = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $docRoot    = realpath($_SERVER['DOCUMENT_ROOT'] ?? '/');
+        $projectDir = realpath(__DIR__ . '/..');            // API/core.php → parent = racine projet
+
+        // Normaliser les séparateurs (Windows vs Linux)
+        $docRoot    = str_replace('\\', '/', $docRoot);
+        $projectDir = str_replace('\\', '/', $projectDir);
+
+        // Extraire le chemin relatif du projet par rapport au docroot
+        $basePath = '';
+        if ($docRoot && $projectDir && strpos($projectDir, $docRoot) === 0) {
+            $basePath = substr($projectDir, strlen($docRoot));
+        }
+        $basePath = rtrim($basePath, '/');
+
+        $fullUrl = $protocol . '://' . $host . $basePath . '/' . $path;
+
         header('Location: ' . $fullUrl);
         exit;
     }

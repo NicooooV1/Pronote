@@ -515,195 +515,6 @@ function calculerStatistiquesAbsences($pdo, $id_eleve, $periode = 'annee') {
 }
 
 /**
- * Crée une table absences dans la base de données si elle n'existe pas
- * 
- * @param PDO|null $pdo Connexion à la base de données
- * @return bool Succès de la création
- */
-function createAbsencesTableIfNotExists($pdo = null) {
-    try {
-        // Vérifier si $pdo est défini, sinon essayer de l'obtenir depuis la variable globale
-        if ($pdo === null) {
-            global $pdo;
-            // Si toujours null, essayer de créer une connexion d'urgence
-            if ($pdo === null) {
-                error_log("Warning: PDO non disponible dans createAbsencesTableIfNotExists");
-                return false;
-            }
-        }
-        
-        $sql = "CREATE TABLE IF NOT EXISTS absences (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            id_eleve INT NOT NULL,
-            date_debut DATETIME NOT NULL,
-            date_fin DATETIME NOT NULL,
-            type_absence VARCHAR(20) NOT NULL,
-            motif VARCHAR(100) NULL,
-            justifie BOOLEAN DEFAULT FALSE,
-            commentaire TEXT NULL,
-            signale_par VARCHAR(100) NOT NULL,
-            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )";
-        
-        return $pdo->exec($sql) !== false;
-    } catch (PDOException $e) {
-        error_log("Error creating absences table: " . $e->getMessage());
-        return false;
-    } catch (Error $e) {
-        error_log("PHP Error in createAbsencesTableIfNotExists: " . $e->getMessage());
-        return false;
-    }
-}
-
-/**
- * Crée une table retards dans la base de données si elle n'existe pas
- * 
- * @param PDO|null $pdo Connexion à la base de données
- * @return bool Succès de la création
- */
-function createRetardsTableIfNotExists($pdo = null) {
-    try {
-        // Vérifier si $pdo est défini, sinon essayer de l'obtenir depuis la variable globale
-        if ($pdo === null) {
-            global $pdo;
-            // Si toujours null, essayer de créer une connexion d'urgence
-            if ($pdo === null) {
-                error_log("Warning: PDO non disponible dans createRetardsTableIfNotExists");
-                return false;
-            }
-        }
-        
-        $sql = "CREATE TABLE IF NOT EXISTS retards (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            id_eleve INT NOT NULL,
-            date_retard DATETIME NOT NULL,
-            duree INT NOT NULL,
-            motif VARCHAR(100) NULL,
-            justifie BOOLEAN DEFAULT FALSE,
-            commentaire TEXT NULL,
-            signale_par VARCHAR(100) NOT NULL,
-            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )";
-        
-        return $pdo->exec($sql) !== false;
-    } catch (PDOException $e) {
-        error_log("Error creating retards table: " . $e->getMessage());
-        return false;
-    } catch (Error $e) {
-        error_log("PHP Error in createRetardsTableIfNotExists: " . $e->getMessage());
-        return false;
-    }
-}
-
-/**
- * Crée une table professeur_classes dans la base de données si elle n'existe pas
- * 
- * @param PDO|null $pdo Connexion à la base de données
- * @return bool Succès de la création
- */
-function createProfesseurClassesTableIfNotExists($pdo = null) {
-    try {
-        // Vérifier si $pdo est défini, sinon essayer de l'obtenir depuis la variable globale
-        if ($pdo === null) {
-            global $pdo;
-            // Si toujours null, essayer de créer une connexion d'urgence
-            if ($pdo === null) {
-                error_log("Warning: PDO non disponible dans createProfesseurClassesTableIfNotExists");
-                return false;
-            }
-        }
-        
-        $sql = "CREATE TABLE IF NOT EXISTS professeur_classes (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            id_professeur INT NOT NULL,
-            nom_classe VARCHAR(50) NOT NULL,
-            UNIQUE KEY unique_prof_class (id_professeur, nom_classe)
-        )";
-        
-        return $pdo->exec($sql) !== false;
-    } catch (PDOException $e) {
-        error_log("Error creating professeur_classes table: " . $e->getMessage());
-        return false;
-    } catch (Error $e) {
-        error_log("PHP Error in createProfesseurClassesTableIfNotExists: " . $e->getMessage());
-        return false;
-    }
-}
-
-/**
- * Crée la table justificatifs avec les colonnes nécessaires
- * @param PDO|null $pdo Instance PDO
- * @return bool Succès ou échec
- */
-function createJustificatifsTableIfNotExists($pdo = null) {
-    try {
-        // Vérifier si $pdo est défini, sinon essayer de l'obtenir depuis la variable globale
-        if ($pdo === null) {
-            global $pdo;
-            // Si toujours null, essayer de créer une connexion d'urgence
-            if ($pdo === null) {
-                error_log("Warning: PDO non disponible dans createJustificatifsTableIfNotExists");
-                return false;
-            }
-        }
-        
-        $sql = "CREATE TABLE IF NOT EXISTS justificatifs (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            id_eleve INT NOT NULL,
-            date_soumission DATE NOT NULL,
-            date_debut_absence DATE NOT NULL,
-            date_fin_absence DATE NOT NULL,
-            type VARCHAR(50) NOT NULL,
-            fichier VARCHAR(255) NULL,
-            motif TEXT NULL,
-            commentaire TEXT NULL,
-            traite BOOLEAN DEFAULT FALSE,
-            approuve BOOLEAN DEFAULT FALSE,
-            commentaire_admin TEXT NULL,
-            date_traitement DATETIME NULL,
-            traite_par VARCHAR(100) NULL
-        )";
-        
-        $pdo->exec($sql);
-        return true;
-    } catch (PDOException $e) {
-        error_log("Erreur lors de la création de la table justificatifs: " . $e->getMessage());
-        return false;
-    } catch (Error $e) {
-        error_log("PHP Error in createJustificatifsTableIfNotExists: " . $e->getMessage());
-        return false;
-    }
-}
-
-/**
- * Met à jour la structure de la table justificatifs si nécessaire
- * @param PDO $pdo Instance PDO
- * @return bool Succès ou échec
- */
-function updateJustificatifsTable($pdo) {
-    try {
-        // Vérifier si la colonne date_soumission existe
-        $columnCheck = $pdo->query("SHOW COLUMNS FROM justificatifs LIKE 'date_soumission'");
-        if ($columnCheck->rowCount() == 0) {
-            // Ajouter la colonne date_soumission
-            $pdo->exec("ALTER TABLE justificatifs ADD COLUMN date_soumission DATE DEFAULT CURRENT_DATE");
-        }
-        
-        // Vérifier si la colonne date_depot existe (ancienne version)
-        $columnCheck = $pdo->query("SHOW COLUMNS FROM justificatifs LIKE 'date_depot'");
-        if ($columnCheck->rowCount() > 0) {
-            // Migration des données de date_depot vers date_soumission
-            $pdo->exec("UPDATE justificatifs SET date_soumission = date_depot WHERE date_soumission IS NULL");
-        }
-        
-        return true;
-    } catch (PDOException $e) {
-        error_log("Erreur lors de la mise à jour de la table justificatifs: " . $e->getMessage());
-        return false;
-    }
-}
-
-/**
  * Récupère les justificatifs pour un élève
  * @param PDO $pdo Instance PDO
  * @param int $id_eleve ID de l'élève
@@ -713,10 +524,6 @@ function updateJustificatifsTable($pdo) {
  */
 function getJustificatifsEleve($pdo, $id_eleve, $date_debut = null, $date_fin = null) {
     try {
-        // Vérifier quelle colonne de date utiliser
-        $columnCheck = $pdo->query("SHOW COLUMNS FROM justificatifs LIKE 'date_soumission'");
-        $dateColumn = $columnCheck->rowCount() > 0 ? 'date_soumission' : 'date_depot';
-        
         $params = [$id_eleve];
         $sql = "SELECT j.*, e.nom, e.prenom, e.classe 
                 FROM justificatifs j 
@@ -724,16 +531,16 @@ function getJustificatifsEleve($pdo, $id_eleve, $date_debut = null, $date_fin = 
                 WHERE j.id_eleve = ?";
         
         if ($date_debut) {
-            $sql .= " AND j.$dateColumn >= ?";
+            $sql .= " AND j.date_soumission >= ?";
             $params[] = $date_debut;
         }
         
         if ($date_fin) {
-            $sql .= " AND j.$dateColumn <= ?";
+            $sql .= " AND j.date_soumission <= ?";
             $params[] = $date_fin;
         }
         
-        $sql .= " ORDER BY j.$dateColumn DESC";
+        $sql .= " ORDER BY j.date_soumission DESC";
         
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
@@ -825,67 +632,5 @@ function initializeProfesseurClasses($pdo) {
     }
 }
 
-// Try to create tables on include
-try {
-    // Vérifier si la connexion PDO est disponible
-    global $pdo;
-    if (isset($pdo) && $pdo instanceof PDO) {
-        createAbsencesTableIfNotExists($pdo);
-        createRetardsTableIfNotExists($pdo);
-        createProfesseurClassesTableIfNotExists($pdo);
-        createJustificatifsTableIfNotExists($pdo);
-        initializeProfesseurClasses($pdo);
-    } else {
-        error_log("Avertissement: La variable PDO n'est pas disponible dans functions.php - Les tables ne seront pas créées automatiquement");
-    }
-} catch (Exception $e) {
-    error_log("Error initializing tables: " . $e->getMessage());
-} catch (Error $e) {
-    error_log("PHP Error while initializing tables: " . $e->getMessage());
-}
-
-/**
- * Formate une date au format français
- * @param string $date La date au format SQL
- * @return string La date formatée
- */
-function formatDate($date) {
-    if (empty($date)) {
-        return '';
-    }
-    
-    $timestamp = strtotime($date);
-    return date('d/m/Y', $timestamp);
-}
-
-/**
- * Formate une date et heure au format français
- * @param string $datetime La date et heure au format SQL
- * @return string La date et heure formatée
- */
-function formatDateTime($datetime) {
-    if (empty($datetime)) {
-        return '';
-    }
-    
-    $timestamp = strtotime($datetime);
-    return date('d/m/Y à H:i', $timestamp);
-}
-
-/**
- * Détermine le trimestre actuel
- * @return string Trimestre actuel
- */
-function getTrimestre() {
-    $mois = date('n');
-    if ($mois >= 9 && $mois <= 12) {
-        return "1er trimestre";
-    } elseif ($mois >= 1 && $mois <= 3) {
-        return "2ème trimestre";
-    } elseif ($mois >= 4 && $mois <= 6) {
-        return "3ème trimestre";
-    } else {
-        return "Période estivale";
-    }
-}
+// formatDate, formatDateTime et getTrimestre sont fournis par l'API (Bridge)
 ?>

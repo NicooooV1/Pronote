@@ -2,9 +2,9 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Inclusion des fichiers nécessaires avec chemins absolus
-require_once __DIR__ . '/../API/auth_central.php';
-require_once __DIR__ . '/includes/db.php';
+// Inclusion de l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
 require_once __DIR__ . '/includes/functions.php';
 
 // Vérifier que l'utilisateur est connecté et autorisé avec le système centralisé
@@ -33,45 +33,7 @@ $traite = filter_input(INPUT_GET, 'traite', FILTER_SANITIZE_STRING) ?: '';
 $date_debut_formattee = date('d/m/Y', strtotime($date_debut));
 $date_fin_formattee = date('d/m/Y', strtotime($date_fin));
 
-// Vérifier si la table justificatifs existe
-try {
-    $tableCheck = $pdo->query("SHOW TABLES LIKE 'justificatifs'");
-    if ($tableCheck->rowCount() == 0) {
-        // Créer la table si elle n'existe pas
-        createJustificatifsTableIfNotExists($pdo);
-    } else {
-        // Vérifier si la colonne date_soumission existe
-        $columnCheck = $pdo->query("SHOW COLUMNS FROM justificatifs LIKE 'date_soumission'");
-        if ($columnCheck->rowCount() == 0) {
-            // Essayer de trouver une colonne similaire (date_depot ou autre)
-            $columns = $pdo->query("DESCRIBE justificatifs");
-            $dateColumns = [];
-            while ($col = $columns->fetch(PDO::FETCH_ASSOC)) {
-                if (strpos($col['Field'], 'date') !== false) {
-                    $dateColumns[] = $col['Field'];
-                }
-            }
-            
-            // Si une colonne de date est trouvée, l'utiliser; sinon, créer la colonne
-            if (!empty($dateColumns)) {
-                $dateColumn = $dateColumns[0]; // Utiliser la première colonne de date trouvée
-            } else {
-                // Ajouter la colonne date_soumission
-                $pdo->exec("ALTER TABLE justificatifs ADD COLUMN date_soumission DATE DEFAULT CURRENT_DATE");
-                $dateColumn = 'date_soumission';
-            }
-            
-            // Journaliser le changement
-            error_log("Colonne date_soumission manquante dans la table justificatifs, utilisation de la colonne $dateColumn à la place");
-        } else {
-            $dateColumn = 'date_soumission';
-        }
-    }
-} catch (PDOException $e) {
-    error_log("Erreur lors de la vérification de la table justificatifs: " . $e->getMessage());
-    // Par défaut, utiliser une colonne qui existe probablement
-    $dateColumn = 'date_depot';
-}
+$dateColumn = 'date_soumission';
 
 // Récupérer la liste des justificatifs
 $justificatifs = [];

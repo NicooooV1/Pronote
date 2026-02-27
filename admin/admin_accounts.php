@@ -5,21 +5,6 @@
  * (changement de mot de passe, désactivation, etc.)
  */
 
-// Démarrer la session pour vérifier l'authentification
-session_start();
-
-// Vérifier si l'utilisateur est un administrateur
-if (!isset($_SESSION['user']) || $_SESSION['user']['profil'] !== 'administrateur') {
-    header('Location: ../login/public/index.php');
-    exit;
-}
-
-// Inclure les fichiers nécessaires
-require_once __DIR__ . '/../login/config/database.php';
-require_once __DIR__ . '/../login/src/auth.php';
-require_once __DIR__ . '/../login/src/user.php';
-require_once __DIR__ . '/../API/config/admin_config.php';
-
 // Inclure l'API centralisée
 require_once __DIR__ . '/../API/core.php';
 
@@ -27,16 +12,13 @@ require_once __DIR__ . '/../API/core.php';
 requireAuth();
 requireRole('administrateur');
 
-// Récupérer l'utilisateur actuel
-$user = getCurrentUser();
+// Récupérer l'utilisateur actuel et la connexion DB
+$currentUser = getCurrentUser();
+$pdo = getPDO();
 
-// Récupérer la connexion à la base de données
-try {
-    $pdo = getDatabaseConnection();
-} catch (Exception $e) {
-    logError("Erreur de connexion DB dans admin accounts: " . $e->getMessage());
-    die("Erreur de connexion à la base de données");
-}
+// Charger les classes Auth et User pour la gestion des comptes
+require_once __DIR__ . '/../login/src/auth.php';
+require_once __DIR__ . '/../login/src/user.php';
 
 // Initialiser les objets Auth et User
 $auth = new Auth($pdo);
@@ -45,19 +27,6 @@ $user = new User($pdo);
 // Définir des variables pour les messages
 $message = '';
 $error = '';
-
-// Vérifier et créer la colonne 'actif' si elle n'existe pas
-try {
-    $stmt = $pdo->prepare("SHOW COLUMNS FROM administrateurs LIKE 'actif'");
-    $stmt->execute();
-    if ($stmt->rowCount() == 0) {
-        // La colonne n'existe pas, la créer
-        $pdo->exec("ALTER TABLE administrateurs ADD COLUMN actif TINYINT(1) NOT NULL DEFAULT 1");
-        $message = "La colonne 'actif' a été ajoutée à la table des administrateurs.";
-    }
-} catch (PDOException $e) {
-    $error = "Erreur lors de la vérification de la structure de la table: " . $e->getMessage();
-}
 
 // Générer un nouveau jeton CSRF si inexistant
 if (!isset($_SESSION['csrf_token'])) {
@@ -161,30 +130,15 @@ try {
 }
 
 // Récupérer les informations de l'utilisateur administrateur connecté
-$admin = $_SESSION['user'];
-$admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admin['nom'], 0, 1));
+$admin = getCurrentUser();
+$admin_initials = getUserInitials();
 
+<?php
+$pageTitle = 'Gestion des comptes administrateur';
+$currentPage = 'admin_accounts';
+ob_start();
 ?>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des comptes administrateur - Pronote</title>
-    <link rel="stylesheet" href="../assets/css/pronote-theme.css">
-    <link rel="stylesheet" href="../login/public/assets/css/pronote-login.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        body {
-            display: block;
-            padding: 0;
-            margin: 0;
-            min-height: 100vh;
-            background-color: #f5f6fa;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #333;
-        }
-        
+<style>
         .admin-container {
             max-width: 900px;
             margin: 0 auto;
@@ -193,157 +147,6 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             border-radius: 10px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
-        
-        /* Structure principale de l'application */
-        .app-container {
-            display: flex;
-            min-height: 100vh;
-        }
-        
-        /* Barre latérale */
-        .sidebar {
-            width: 260px;
-            background-color: #0f4c81;
-            color: white;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            position: fixed;
-            height: 100vh;
-            overflow-y: auto;
-            z-index: 10;
-        }
-        
-        .logo-container {
-            display: flex;
-            align-items: center;
-            padding: 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            margin-bottom: 20px;
-            text-decoration: none;
-            color: white;
-        }
-        
-        .app-logo {
-            width: 40px;
-            height: 40px;
-            background-color: #fff;
-            color: #0f4c81;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 24px;
-            margin-right: 15px;
-        }
-        
-        .app-title {
-            font-size: 22px;
-            font-weight: bold;
-            letter-spacing: 1px;
-        }
-        
-        .sidebar-section {
-            margin-bottom: 25px;
-            padding: 0 20px;
-        }
-        
-        .sidebar-section-header {
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
-            color: rgba(255, 255, 255, 0.6);
-            font-weight: 600;
-            padding: 0 15px;
-        }
-        
-        .sidebar-nav {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .sidebar-nav-item {
-            padding: 12px 15px;
-            display: flex;
-            align-items: center;
-            text-decoration: none;
-            color: rgba(255, 255, 255, 0.8);
-            border-radius: 6px;
-            margin-bottom: 2px;
-            transition: background-color 0.2s, color 0.2s;
-        }
-        
-        .sidebar-nav-item:hover, .sidebar-nav-item.active {
-            background-color: rgba(255, 255, 255, 0.1);
-            color: white;
-        }
-        
-        .sidebar-nav-icon {
-            margin-right: 12px;
-            width: 20px;
-            text-align: center;
-            font-size: 16px;
-        }
-        
-        /* Contenu principal */
-        .main-content {
-            flex: 1;
-            margin-left: 260px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-            background-color: #f5f6fa;
-        }
-        
-        /* En-tête */
-        .top-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-        
-        .page-title h1 {
-            font-size: 28px;
-            font-weight: 500;
-            color: #0f4c81;
-            margin: 0;
-        }
-        
-        .header-actions {
-            display: flex;
-            align-items: center;
-        }
-        
-        .logout-button {
-            text-decoration: none;
-            color: #777;
-            font-size: 20px;
-            margin-right: 20px;
-            transition: color 0.2s;
-        }
-        
-        .logout-button:hover {
-            color: #ff3b30;
-        }
-        
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            background-color: #0f4c81;
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 500;
-            font-size: 16px;
-        }
-        
-        /* Table styles */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -353,73 +156,20 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             overflow: hidden;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
-        
         th, td {
             padding: 12px 15px;
             text-align: left;
             border-bottom: 1px solid #eee;
         }
-        
         th {
             background-color: #f5f7fa;
             font-weight: 600;
             color: #4a5568;
             font-size: 14px;
         }
-        
-        tr:last-child td {
-            border-bottom: none;
-        }
-        
-        tr:hover {
-            background-color: #f9fafb;
-        }
-        
-        /* Action buttons */
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .btn-primary, .btn-secondary, .btn-danger, .btn-success {
-            padding: 8px 12px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: opacity 0.2s;
-            font-size: 14px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .btn-primary {
-            background-color: #007bff;
-            color: white;
-        }
-        
-        .btn-secondary {
-            background-color: #6c757d;
-            color: white;
-        }
-        
-        .btn-danger {
-            background-color: #dc3545;
-            color: white;
-        }
-        
-        .btn-success {
-            background-color: #28a745;
-            color: white;
-        }
-        
-        .btn-primary:hover, .btn-secondary:hover, 
-        .btn-danger:hover, .btn-success:hover {
-            opacity: 0.9;
-        }
-        
-        /* Modals */
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background-color: #f9fafb; }
+        .action-buttons { display: flex; gap: 10px; }
         .modal {
             display: none;
             position: fixed;
@@ -430,7 +180,6 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             background-color: rgba(0,0,0,0.5);
             z-index: 100;
         }
-        
         .modal-content {
             background-color: white;
             margin: 10% auto;
@@ -440,7 +189,6 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             max-width: 500px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
         }
-        
         .close {
             color: #aaa;
             float: right;
@@ -449,55 +197,9 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             cursor: pointer;
             line-height: 0.6;
         }
-        
-        .close:hover {
-            color: black;
-        }
-        
-        /* Status indicators */
-        .active-status {
-            color: #28a745;
-            font-weight: bold;
-        }
-        
-        .inactive-status {
-            color: #dc3545;
-        }
-        
-        /* Form elements */
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-        
-        .form-control {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 14px;
-            transition: border-color 0.2s;
-        }
-        
-        .form-control:focus {
-            outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-        }
-        
-        .form-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-top: 25px;
-        }
-        
-        /* Password info */
+        .close:hover { color: black; }
+        .active-status { color: #28a745; font-weight: bold; }
+        .inactive-status { color: #dc3545; }
         .password-requirements {
             margin-top: 15px;
             padding: 15px;
@@ -506,156 +208,14 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
             font-size: 14px;
             color: #6c757d;
         }
-        
-        .password-requirements ul {
-            margin-top: 8px;
-            padding-left: 25px;
-        }
-        
-        .password-requirements li {
-            margin-bottom: 5px;
-        }
-        
-        /* Alerts */
-        .alert {
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 6px;
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-        }
-        
-        .alert i {
-            font-size: 20px;
-            flex-shrink: 0;
-        }
-        
-        .alert-success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .alert-danger {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        .current-user {
-            font-weight: 600;
-            background-color: #e8f4f8;
-        }
-        
-        /* Responsive adjustments */
-        @media (max-width: 1024px) {
-            .admin-container {
-                max-width: 100%;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 100%;
-                height: auto;
-                position: relative;
-            }
-            
-            .main-content {
-                margin-left: 0;
-            }
-            
-            .app-container {
-                flex-direction: column;
-            }
-        }
-    </style>
-</head>
-<body>
-
-<div class="app-container">
-    <!-- Sidebar -->
-    <div class="sidebar">
-        <a href="../accueil/accueil.php" class="logo-container">
-            <div class="app-logo">P</div>
-            <div class="app-title">PRONOTE</div>
-        </a>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Navigation</div>
-            <div class="sidebar-nav">
-                <a href="../accueil/accueil.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
-                    <span>Accueil</span>
-                </a>
-                <a href="../notes/notes.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
-                    <span>Notes</span>
-                </a>
-                <a href="../agenda/agenda.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar"></i></span>
-                    <span>Agenda</span>
-                </a>
-                <a href="../cahierdetextes/cahierdetextes.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-book"></i></span>
-                    <span>Cahier de textes</span>
-                </a>
-                <a href="../messagerie/index.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
-                    <span>Messagerie</span>
-                </a>
-                <a href="../absences/absences.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
-                    <span>Absences</span>
-                </a>
-            </div>
-        </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Administration</div>
-            <div class="sidebar-nav">
-                <a href="../login/public/register.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-user-plus"></i></span>
-                    <span>Ajouter un utilisateur</span>
-                </a>
-                <a href="../admin/reset_user_password.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-key"></i></span>
-                    <span>Réinitialiser mot de passe</span>
-                </a>
-                <a href="../admin/reset_requests.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-clipboard-list"></i></span>
-                    <span>Demandes de réinitialisation</span>
-                </a>
-                <a href="../admin/admin_accounts.php" class="sidebar-nav-item active">
-                    <span class="sidebar-nav-icon"><i class="fas fa-user-shield"></i></span>
-                    <span>Gestion des administrateurs</span>
-                </a>
-                <a href="../admin/user_accounts.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-users-cog"></i></span>
-                    <span>Gestion des utilisateurs</span>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content -->
-    <div class="main-content">
-        <!-- Header -->
-        <div class="top-header">
-            <div class="page-title">
-                <h1>Gestion des comptes administrateur</h1>
-            </div>
-            
-            <div class="header-actions">
-                <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">
-                    <i class="fas fa-sign-out-alt"></i>
-                </a>
-                <div class="user-avatar" title="<?= htmlspecialchars($admin['prenom'] . ' ' . $admin['nom']) ?>">
-                    <?= $admin_initials ?>
-                </div>
-            </div>
-        </div>
+        .password-requirements ul { margin-top: 8px; padding-left: 25px; }
+        .password-requirements li { margin-bottom: 5px; }
+        .current-user { font-weight: 600; background-color: #e8f4f8; }
+</style>
+<?php
+$extraHeadHtml = ob_get_clean();
+include 'includes/header.php';
+?>
 
         <div class="admin-container">
             <!-- Messages -->
@@ -685,7 +245,8 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
                     </thead>
                     <tbody>
                         <?php foreach ($admins as $admin_user): 
-                            $isCurrent = $_SESSION['user']['identifiant'] === $admin_user['identifiant'];
+                            $currentAdmin = getCurrentUser();
+                            $isCurrent = ($currentAdmin['identifiant'] ?? '') === $admin_user['identifiant'];
                             $isActive = isset($admin_user['actif']) ? (bool)$admin_user['actif'] : true;
                         ?>
                             <tr class="<?= $isCurrent ? 'current-user' : '' ?>">
@@ -859,5 +420,4 @@ $admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admi
         }
     }
 </script>
-</body>
-</html>
+<?php include 'includes/footer.php'; ?>

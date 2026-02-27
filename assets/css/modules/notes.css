@@ -33,22 +33,8 @@
   --color-default: #7f8c8d;
 }
 
-/* Modifier l'apparence pour ce module */
-.welcome-banner {
-  background: linear-gradient(to right, #e67e00, #ff9500);
-}
-
-.btn-primary {
-  background-color: var(--module-color);
-}
-
-.btn-primary:hover {
-  background-color: #e67e00;
-}
-
-.sidebar-nav-item.active {
-  border-left: 3px solid var(--module-color);
-}
+/* Les styles de layout (sidebar, header, footer, boutons)
+   sont fournis par pronote-unified.css */
 
 /* Affichage des notes */
 .note-value {

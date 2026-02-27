@@ -8,6 +8,8 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/constants.php';
 require_once __DIR__ . '/core/utils.php';
 require_once __DIR__ . '/core/auth.php';
+require_once __DIR__ . '/core/csrf.php';
+require_once __DIR__ . '/core/validator.php';
 require_once __DIR__ . '/controllers/message.php';
 
 // Inclure le modèle message avant class.php pour éviter des problèmes de dépendance
@@ -54,6 +56,7 @@ require_once __DIR__ . '/models/class.php';
 
 // Traitement du formulaire d'envoi
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_verify();
     try {
         $classe = isset($_POST['classe']) ? trim($_POST['classe']) : '';
         $titre = isset($_POST['titre']) ? trim($_POST['titre']) : '';
@@ -141,6 +144,7 @@ include 'templates/header.php';
         </div>
         
         <form method="post" enctype="multipart/form-data" id="messageForm">
+            <?= csrf_field() ?>
             <div class="form-group">
                 <label for="classe">Classe</label>
                 <select name="classe" id="classe" required>

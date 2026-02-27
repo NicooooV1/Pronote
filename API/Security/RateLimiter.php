@@ -11,12 +11,11 @@ class RateLimiter
     protected $pdo;
     protected $maxAttempts = 5;
     protected $decayMinutes = 1;
-    protected $tableName = 'rate_limits';
+    protected $tableName = 'api_rate_limits';
 
     public function __construct(PDO $pdo = null)
     {
         $this->pdo = $pdo;
-        $this->ensureTableExists();
     }
 
     /**
@@ -171,25 +170,4 @@ class RateLimiter
         throw new \RuntimeException('PDO connection not available for RateLimiter');
     }
 
-    /**
-     * S'assure que la table existe
-     */
-    protected function ensureTableExists()
-    {
-        try {
-            $pdo = $this->getPDO();
-            $pdo->exec("
-                CREATE TABLE IF NOT EXISTS {$this->tableName} (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    identifier VARCHAR(64) NOT NULL,
-                    attempts INT NOT NULL DEFAULT 1,
-                    expires_at DATETIME NOT NULL,
-                    INDEX idx_identifier (identifier),
-                    INDEX idx_expires (expires_at)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            ");
-        } catch (\PDOException $e) {
-            error_log("RateLimiter table creation error: " . $e->getMessage());
-        }
-    }
 }

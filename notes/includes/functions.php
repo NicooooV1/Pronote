@@ -2,28 +2,8 @@
 /**
  * Fonctions utilitaires pour le module Notes
  * Fonctions sécurisées et optimisées
+ * formatDate, sanitizeInput, generateCSRFToken, validateCSRFToken sont fournis par l'API (Bridge)
  */
-
-if (!function_exists('formatDate')) {
-    /**
-     * Formate une date de manière sécurisée
-     * @param string $date Date à formater
-     * @param string $format Format de sortie
-     * @return string Date formatée
-     */
-    function formatDate($date, $format = 'd/m/Y') {
-        if (empty($date)) {
-            return '';
-        }
-        
-        try {
-            $dateObj = new DateTime($date);
-            return $dateObj->format($format);
-        } catch (Exception $e) {
-            return '';
-        }
-    }
-}
 
 if (!function_exists('validateDate')) {
     /**
@@ -88,84 +68,7 @@ if (!function_exists('getGradeClass')) {
     }
 }
 
-if (!function_exists('sanitizeInput')) {
-    /**
-     * Nettoie et sécurise une entrée utilisateur
-     * @param mixed $input Entrée à nettoyer
-     * @param string $type Type de nettoyage
-     * @return mixed Entrée nettoyée
-     */
-    function sanitizeInput($input, $type = 'string') {
-        if ($input === null) {
-            return null;
-        }
-        
-        switch ($type) {
-            case 'string':
-                return htmlspecialchars(trim($input), ENT_QUOTES, 'UTF-8');
-            case 'email':
-                return filter_var(trim($input), FILTER_SANITIZE_EMAIL);
-            case 'int':
-                return filter_var($input, FILTER_SANITIZE_NUMBER_INT);
-            case 'float':
-                return filter_var($input, FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
-            case 'url':
-                return filter_var(trim($input), FILTER_SANITIZE_URL);
-            default:
-                return htmlspecialchars(trim($input), ENT_QUOTES, 'UTF-8');
-        }
-    }
-}
-
-if (!function_exists('generateCSRFToken')) {
-    /**
-     * Génère un token CSRF sécurisé (fallback si pas dans auth_central)
-     * @return string Token CSRF
-     */
-    function generateCSRFToken() {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-        
-        if (!isset($_SESSION['csrf_token'])) {
-            try {
-                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-            } catch (Exception $e) {
-                $_SESSION['csrf_token'] = hash('sha256', uniqid(mt_rand(), true));
-            }
-            $_SESSION['csrf_token_time'] = time();
-        }
-        
-        return $_SESSION['csrf_token'];
-    }
-}
-
-if (!function_exists('validateCSRFToken')) {
-    /**
-     * Valide un token CSRF (fallback si pas dans auth_central)
-     * @param string $token Token à valider
-     * @return bool True si valide
-     */
-    function validateCSRFToken($token) {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-        
-        if (empty($token) || empty($_SESSION['csrf_token'])) {
-            return false;
-        }
-        
-        // Vérifier l'expiration (30 minutes)
-        if (isset($_SESSION['csrf_token_time']) && 
-            time() - $_SESSION['csrf_token_time'] > 1800) {
-            unset($_SESSION['csrf_token']);
-            unset($_SESSION['csrf_token_time']);
-            return false;
-        }
-        
-        return hash_equals($_SESSION['csrf_token'], $token);
-    }
-}
+// sanitizeInput, generateCSRFToken, validateCSRFToken sont fournis par l'API (Bridge)
 
 if (!function_exists('getSubjectColor')) {
     /**

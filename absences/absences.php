@@ -2,22 +2,9 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Inclure UNIQUEMENT l'API centralisée avec chemin absolu
-$apiCorePath = __DIR__ . '/../API/core.php';
-if (file_exists($apiCorePath)) {
-    require_once $apiCorePath;
-} else {
-    // Fallback : inclure bootstrap
-    $bootstrapPath = __DIR__ . '/../API/bootstrap.php';
-    if (file_exists($bootstrapPath)) {
-        require_once $bootstrapPath;
-    } else {
-        die("Erreur : Impossible de charger l'API");
-    }
-}
-
-// Ajouter le bridge d'auth local (fallback sécurisé)
-require_once __DIR__ . '/includes/auth.php';
+// Inclure l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
 
 // Vérifier l'authentification
 requireAuth();
@@ -26,35 +13,14 @@ requireAuth();
 $user = getCurrentUser();
 
 // Vérifier les droits d'accès (vie scolaire ou administrateur)
-if (!in_array($user['profil'], ['vie_scolaire', 'administrateur'])) {
+if (!canManageAbsences()) {
     redirect('/accueil/accueil.php');
 }
 
-// Récupérer la connexion UNIQUEMENT via l'API
-try {
-    $pdo = getDatabaseConnection();
-} catch (Exception $e) {
-    logError("Erreur de connexion DB dans absences: " . $e->getMessage());
-    die("Erreur de connexion à la base de données");
-}
-
-// Vérifier que l'utilisateur est connecté
-if (!isLoggedIn()) {
-    header('Location: ../login/public/index.php');
-    exit;
-}
-
-// Récupérer les informations de l'utilisateur connecté
-$user = $_SESSION['user'] ?? null;
-if (!$user) {
-    header('Location: ../login/public/index.php');
-    exit;
-}
-
-// Initialiser les variables nécessaires
-$user_fullname = $user['prenom'] . ' ' . $user['nom'];
-$user_role = $user['profil'];
-$user_initials = strtoupper(substr($user['prenom'], 0, 1) . substr($user['nom'], 0, 1));
+// Récupérer les informations utilisateur via l'API
+$user_fullname = getUserFullName();
+$user_role = getUserRole();
+$user_initials = getUserInitials();
 
 // Configuration de la page
 $pageTitle = 'Absences';

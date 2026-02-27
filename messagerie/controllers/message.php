@@ -1,24 +1,36 @@
 <?php
 /**
  * Contrôleur pour la gestion des messages
+ * Intègre CSRF, validation, rate limiting
  */
+
+require_once __DIR__ . '/../core/csrf.php';
+require_once __DIR__ . '/../core/validator.php';
+require_once __DIR__ . '/../core/rate_limiter.php';
 
 /**
  * Gère l'envoi d'un message
- * 
- * @param int $convId ID de la conversation
- * @param array $user Données de l'utilisateur
- * @param string $contenu Contenu du message
- * @param string $importance Niveau d'importance du message
- * @param int|null $parentMessageId ID du message parent (si réponse)
- * @param array $filesData Données des fichiers uploadés
- * @return array Résultat de l'opération
  */
 function handleSendMessage($convId, $user, $contenu, $importance = 'normal', $parentMessageId = null, $filesData = []) {
     global $pdo;
     if (!isset($pdo) || !$pdo) {
         require_once __DIR__ . '/../config/database.php';
     }
+    
+    // Validation centralisée
+    $contenu = Validator::messageBody($contenu);
+    if (!$contenu) {
+        return ['success' => false, 'message' => 'Contenu du message invalide (10 000 caractères max)'];
+    }
+    $importance = Validator::importance($importance);
+    $parentMessageId = $parentMessageId ? Validator::id($parentMessageId) : null;
+    
+    // Rate limiting
+    if (!RateLimiter::check($user['id'], $user['type'], 'send_message')) {
+        $info = RateLimiter::getInfo($user['id'], $user['type'], 'send_message');
+        return ['success' => false, 'message' => 'Trop de messages envoyés. Réessayez dans ' . $info['retry_after'] . 's'];
+    }
+    RateLimiter::hit($user['id'], $user['type'], 'send_message');
     
     $uploadedFiles = []; // Initialiser avant utilisation
     
@@ -108,6 +120,23 @@ function handleSendAnnouncement($user, $titre, $contenu, $participants, $notific
                 'message' => "Vous n'êtes pas autorisé à créer des annonces"
             ];
         }
+        
+        // Validation centralisée
+        $titre = Validator::subject($titre);
+        if (!$titre) {
+            return ['success' => false, 'message' => 'Titre invalide (100 caractères max)'];
+        }
+        $contenu = Validator::messageBody($contenu);
+        if (!$contenu) {
+            return ['success' => false, 'message' => 'Contenu invalide (10 000 caractères max)'];
+        }
+        
+        // Rate limiting
+        if (!RateLimiter::check($user['id'], $user['type'], 'send_announcement')) {
+            $info = RateLimiter::getInfo($user['id'], $user['type'], 'send_announcement');
+            return ['success' => false, 'message' => 'Trop d\'annonces envoyées. Réessayez dans ' . $info['retry_after'] . 's'];
+        }
+        RateLimiter::hit($user['id'], $user['type'], 'send_announcement');
         
         // Vérifier les pièces jointes avant de commencer la transaction
         $uploadedFiles = [];
@@ -220,6 +249,24 @@ function handleSendClassMessage($user, $classe, $titre, $contenu, $importance = 
                 'message' => "Vous n'êtes pas autorisé à envoyer des messages à des classes"
             ];
         }
+        
+        // Validation centralisée
+        $titre = Validator::subject($titre);
+        if (!$titre) {
+            return ['success' => false, 'message' => 'Titre invalide (100 caractères max)'];
+        }
+        $contenu = Validator::messageBody($contenu);
+        if (!$contenu) {
+            return ['success' => false, 'message' => 'Contenu invalide (10 000 caractères max)'];
+        }
+        $importance = Validator::importance($importance);
+        
+        // Rate limiting
+        if (!RateLimiter::check($user['id'], $user['type'], 'send_message')) {
+            $info = RateLimiter::getInfo($user['id'], $user['type'], 'send_message');
+            return ['success' => false, 'message' => 'Trop de messages envoyés. Réessayez dans ' . $info['retry_after'] . 's'];
+        }
+        RateLimiter::hit($user['id'], $user['type'], 'send_message');
         
         // Vérifier les pièces jointes avant de commencer la transaction
         $uploadedFiles = [];

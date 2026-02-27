@@ -2,19 +2,10 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Configuration sécurisée des sessions
-if (session_status() === PHP_SESSION_NONE) {
-    session_start([
-        'cookie_httponly' => true,
-        'cookie_secure' => isset($_SERVER['HTTPS']),
-        'use_strict_mode' => true
-    ]);
-}
-
 // Inclure les fichiers nécessaires avec gestion d'erreurs
 try {
-    require_once __DIR__ . '/../API/auth_central.php';
-    require_once 'includes/db.php';
+    require_once __DIR__ . '/../API/core.php';
+    $pdo = getPDO();
     require_once 'includes/functions.php';
 } catch (Exception $e) {
     logError("Erreur inclusion fichiers: " . $e->getMessage());

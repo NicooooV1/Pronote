@@ -17,9 +17,11 @@ function generateRandomId($length = 10) {
  * Redirige vers une URL
  * @param string $url URL de destination
  */
-function redirect($url) {
-    header("Location: $url");
-    exit;
+if (!function_exists('redirect')) {
+    function redirect($url) {
+        header("Location: $url");
+        exit;
+    }
 }
 
 /**
@@ -35,41 +37,6 @@ function truncate($text, $length = 100, $suffix = '...') {
     }
     
     return substr($text, 0, $length) . $suffix;
-}
-
-/**
- * Formatte une date de façon conviviale
- * @param string $date
- * @return string
- */
-function formatDate($date) {
-    if (!$date) return 'Jamais';
-    
-    $timestamp = strtotime($date);
-    $now = time();
-    $diff = $now - $timestamp;
-    
-    if ($diff < 60) {
-        return 'À l\'instant';
-    } elseif ($diff < 3600) {
-        $minutes = floor($diff / 60);
-        return "Il y a $minutes minute" . ($minutes > 1 ? 's' : '');
-    } elseif ($diff < 86400) {
-        $hours = floor($diff / 3600);
-        return "Il y a $hours heure" . ($hours > 1 ? 's' : '');
-    } elseif ($diff < 604800) {
-        $days = floor($diff / 86400);
-        return "Il y a $days jour" . ($days > 1 ? 's' : '');
-    } elseif ($diff < 2592000) {
-        $weeks = floor($diff / 604800);
-        return "Il y a $weeks semaine" . ($weeks > 1 ? 's' : '');
-    } elseif ($diff < 31536000) {
-        $months = floor($diff / 2592000);
-        return "Il y a $months mois";
-    } else {
-        $years = floor($diff / 31536000);
-        return "Il y a $years an" . ($years > 1 ? 's' : '');
-    }
 }
 
 /**

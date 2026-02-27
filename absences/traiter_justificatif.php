@@ -2,10 +2,10 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Inclusion des fichiers nécessaires
-require_once __DIR__ . '/../API/auth_central.php';
-require_once 'includes/db.php';
-require_once 'includes/functions.php';
+// Inclusion de l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
+require_once __DIR__ . '/includes/functions.php';
 
 // Vérifier que l'utilisateur est connecté et autorisé
 if (!isLoggedIn() || !canManageAbsences()) {

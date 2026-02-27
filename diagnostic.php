@@ -499,10 +499,9 @@ $sessionInfo = [
 
 // Vérifier les fichiers d'authentification des modules
 $authFiles = [
-    'API/autoload.php' => __DIR__ . '/API/autoload.php',
-    'API/core/auth.php' => __DIR__ . '/API/core/auth.php',
-    'Notes/includes/auth.php' => __DIR__ . '/notes/includes/auth.php',
-    'Absences/includes/auth.php' => __DIR__ . '/absences/includes/auth.php',
+    'API/core.php' => __DIR__ . '/API/core.php',
+    'API/bootstrap.php' => __DIR__ . '/API/bootstrap.php',
+    'API/Legacy/Bridge.php' => __DIR__ . '/API/Legacy/Bridge.php',
     'Agenda/includes/auth.php' => __DIR__ . '/agenda/includes/auth.php',
     'CahierDeTextes/includes/auth.php' => __DIR__ . '/cahierdetextes/includes/auth.php',
 ];

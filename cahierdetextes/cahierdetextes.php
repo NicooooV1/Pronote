@@ -4,37 +4,16 @@ ob_start();
 
 // Inclure l'API centralisée
 require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
 
 // Vérifier l'authentification
 requireAuth();
 
-// Récupérer l'utilisateur actuel
+// Récupérer les informations utilisateur via l'API
 $user = getCurrentUser();
-
-// Récupérer la connexion à la base de données
-try {
-    $pdo = getDatabaseConnection();
-} catch (Exception $e) {
-    logError("Erreur de connexion DB dans cahier de textes: " . $e->getMessage());
-    die("Erreur de connexion à la base de données");
-}
-
-// Vérifier si l'utilisateur est connecté
-if (!isLoggedIn()) {
-    header('Location: ../login/public/index.php');
-    exit;
-}
-
-// Récupérer les informations de l'utilisateur connecté
-$user = $_SESSION['user'] ?? null;
-if (!$user) {
-    header('Location: ../login/public/index.php');
-    exit;
-}
-
-$user_role = $user['profil'];
-$user_fullname = $user['prenom'] . ' ' . $user['nom'];
-$user_initials = strtoupper(mb_substr($user['prenom'], 0, 1) . mb_substr($user['nom'], 0, 1));
+$user_role = getUserRole();
+$user_fullname = getUserFullName();
+$user_initials = getUserInitials();
 
 // Initialiser les variables pour éviter les notices
 $order = [];
@@ -52,30 +31,6 @@ $aujourdhui = new DateTime();
 try {
     // Vérifier si la table existe
     $tableExists = false;
-    try {
-        $checkTable = $pdo->query("SHOW TABLES LIKE 'devoirs'");
-        $tableExists = $checkTable->rowCount() > 0;
-    } catch (PDOException $e) {
-        $tableExists = false;
-    }
-    
-    if (!$tableExists) {
-        // Créer la table si elle n'existe pas
-        $pdo->exec("
-            CREATE TABLE IF NOT EXISTS devoirs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                titre VARCHAR(255) NOT NULL,
-                description TEXT,
-                classe VARCHAR(50) NOT NULL,
-                nom_matiere VARCHAR(100) NOT NULL,
-                nom_professeur VARCHAR(100) NOT NULL,
-                date_ajout DATE NOT NULL,
-                date_rendu DATE NOT NULL,
-                date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ");
-    }
-    
     // Récupération des devoirs selon le rôle de l'utilisateur
     if (isStudent()) {
         $stmt_eleve = $pdo->prepare('SELECT classe FROM eleves WHERE prenom = ? AND nom = ?');
@@ -227,65 +182,20 @@ try {
 
 // Variables pour le template
 $pageTitle = "Cahier de textes";
+$activePage = 'cahierdetextes';
+$isAdmin = $user_role === 'administrateur';
+$user_fullname = $user_fullname ?? '';
+$extraCss = ['assets/css/cahierdetextes.css'];
+
+// Contenu supplémentaire sidebar : Filtres + Infos
+ob_start();
 ?>
-
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $pageTitle ?> - PRONOTE</title>
-    <link rel="stylesheet" href="assets/css/cahierdetextes.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-</head>
-<body>
-
-<div class="app-container">
-    <!-- Sidebar -->
-    <div class="sidebar">
-        <div class="logo-container">
-            <div class="app-logo">P</div>
-            <div class="app-title">PRONOTE</div>
-        </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Navigation</div>
-            <div class="sidebar-nav">
-                <a href="../accueil/accueil.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
-                    <span>Accueil</span>
-                </a>
-                <a href="../notes/notes.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
-                    <span>Notes</span>
-                </a>
-                <a href="../agenda/agenda.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar"></i></span>
-                    <span>Agenda</span>
-                </a>
-                <a href="cahierdetextes.php" class="sidebar-nav-item active">
-                    <span class="sidebar-nav-icon"><i class="fas fa-book"></i></span>
-                    <span>Cahier de textes</span>
-                </a>
-                <a href="../messagerie/index.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
-                    <span>Messagerie</span>
-                </a>
-                <?php if ($user_role === 'vie_scolaire' || $user_role === 'administrateur'): ?>
-                <a href="../absences/absences.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
-                    <span>Absences</span>
-                </a>
-                <?php endif; ?>
-            </div>
-        </div>
-        
         <div class="sidebar-section">
             <div class="sidebar-section-header">Filtres</div>
             <div class="sidebar-nav">
                 <a href="#" class="sidebar-nav-item filter-link" data-filter="urgent">
                     <span class="sidebar-nav-icon"><i class="fas fa-exclamation-circle"></i></span>
-                    <span>Devoirs urgents (< 3 jours)</span>
+                    <span>Devoirs urgents (&lt; 3 jours)</span>
                 </a>
                 <a href="#" class="sidebar-nav-item filter-link" data-filter="soon">
                     <span class="sidebar-nav-icon"><i class="fas fa-clock"></i></span>
@@ -313,30 +223,28 @@ $pageTitle = "Cahier de textes";
                 <div class="info-value"><?= ucfirst(htmlspecialchars($user_role)) ?></div>
             </div>
         </div>
-    </div>
+<?php
+$sidebarExtraContent = ob_get_clean();
 
-    <!-- Main Content -->
-    <div class="main-content">
-        <!-- Header -->
-        <div class="top-header">
-            <div class="page-title">
-                <h1>Cahier de textes</h1>
-            </div>
-            
-            <div class="header-actions">
-                <div class="view-toggle">
-                    <a href="?mode=list" class="view-toggle-option <?= $displayMode !== 'calendar' ? 'active' : '' ?>">
+// Actions supplémentaires dans le header
+ob_start();
+?>
+                <div class="view-toggle" style="display:flex;gap:5px;">
+                    <a href="?mode=list" class="btn btn-sm <?= $displayMode !== 'calendar' ? 'btn-primary' : 'btn-secondary' ?>">
                         <i class="fas fa-list"></i> Liste
                     </a>
-                    <a href="?mode=calendar" class="view-toggle-option <?= $displayMode === 'calendar' ? 'active' : '' ?>">
+                    <a href="?mode=calendar" class="btn btn-sm <?= $displayMode === 'calendar' ? 'btn-primary' : 'btn-secondary' ?>">
                         <i class="fas fa-calendar-alt"></i> Calendrier
                     </a>
                 </div>
-                
-                <a href="/~u22405372/SAE/Pronote/login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
-                <div class="user-avatar"><?= $user_initials ?></div>
-            </div>
-        </div>
+<?php
+$headerExtraActions = ob_get_clean();
+
+// Inclusion des templates partagés
+include __DIR__ . '/../templates/shared_header.php';
+include __DIR__ . '/../templates/shared_sidebar.php';
+include __DIR__ . '/../templates/shared_topbar.php';
+?>
 
         <!-- Welcome Banner -->
         <div class="welcome-banner">
@@ -674,23 +582,13 @@ $pageTitle = "Cahier de textes";
 
             <!-- Footer -->
             <div class="footer">
-                <div class="footer-content">
-                    <div class="footer-links">
-                        <a href="#">Mentions Légales</a>
-                    </div>
-                    <div class="footer-copyright">
-                        &copy; <?= date('Y') ?> PRONOTE - Tous droits réservés
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
+<?php
+// Script spécifique au cahier de textes
+ob_start();
+?>
 <script>
 // Filtrage des devoirs
 document.addEventListener('DOMContentLoaded', function() {
-    // Filtres de la sidebar
     const filterLinks = document.querySelectorAll('.filter-link');
     const devoirItems = document.querySelectorAll('.devoir-card');
     
@@ -698,14 +596,8 @@ document.addEventListener('DOMContentLoaded', function() {
         link.addEventListener('click', function(e) {
             e.preventDefault();
             const filter = this.getAttribute('data-filter');
-            
-            // Retirer la classe active de tous les liens
             filterLinks.forEach(l => l.classList.remove('active'));
-            
-            // Ajouter la classe active au lien cliqué
             this.classList.add('active');
-            
-            // Filtrer les devoirs
             devoirItems.forEach(item => {
                 if (filter === 'all') {
                     item.style.display = '';
@@ -719,33 +611,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
-    
-    // Pour fermer les messages d'alerte
-    document.querySelectorAll('.alert-close').forEach(button => {
-        button.addEventListener('click', function() {
-            const alert = this.parentElement;
-            alert.style.opacity = '0';
-            setTimeout(() => {
-                alert.style.display = 'none';
-            }, 300);
-        });
-    });
-
-    // Auto-masquer les alertes après 5 secondes
-    document.querySelectorAll('.alert-banner').forEach(alert => {
-        setTimeout(() => {
-            alert.style.opacity = '0';
-            setTimeout(() => {
-                alert.style.display = 'none';
-            }, 300);
-        }, 5000);
-    });
 });
 </script>
-
-</body>
-</html>
-
 <?php
+$extraScriptHtml = ob_get_clean();
+
+include __DIR__ . '/../templates/shared_footer.php';
+
 ob_end_flush();
 ?>

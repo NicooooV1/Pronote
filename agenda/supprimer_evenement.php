@@ -1,8 +1,10 @@
 <?php
 ob_start();
 
-include 'includes/db.php';
-include 'includes/auth.php';
+// Inclusion de l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
+require_once __DIR__ . '/includes/auth.php';
 
 if (!isLoggedIn()) {
     header('Location: ../login/public/login.php');

@@ -9,6 +9,12 @@ if (defined('PRONOTE_LEGACY_BRIDGE_LOADED')) {
 }
 define('PRONOTE_LEGACY_BRIDGE_LOADED', true);
 
+// ==================== CONSTANTES GLOBALES ====================
+
+if (!defined('LOGIN_URL')) {
+	define('LOGIN_URL', '../login/public/index.php');
+}
+
 // ==================== AUTHENTIFICATION ====================
 
 if (!function_exists('isLoggedIn')) {
@@ -20,6 +26,15 @@ if (!function_exists('isLoggedIn')) {
 if (!function_exists('getCurrentUser')) {
 	function getCurrentUser() {
 		return app('auth')->user();
+	}
+}
+
+if (!function_exists('checkAuth')) {
+	/**
+	 * Alias de getCurrentUser() pour compatibilité messagerie
+	 */
+	function checkAuth() {
+		return getCurrentUser();
 	}
 }
 
@@ -266,6 +281,29 @@ if (!function_exists('redirect')) {
 	}
 }
 
+if (!function_exists('redirectTo')) {
+	/**
+	 * Redirige vers une URL avec message flash optionnel
+	 * Alias simplifié de redirect()
+	 */
+	function redirectTo($url, $message = null) {
+		if ($message) {
+			$_SESSION['error_message'] = $message;
+		}
+		header("Location: {$url}");
+		exit;
+	}
+}
+
+if (!function_exists('setFlashMessage')) {
+	/**
+	 * Définit un message flash en session
+	 */
+	function setFlashMessage($type, $message) {
+		$_SESSION[$type . '_message'] = $message;
+	}
+}
+
 // ==================== SESSION CLEANUP ====================
 
 if (!function_exists('cleanExpiredSessions')) {
@@ -312,6 +350,89 @@ if (!function_exists('getPDO')) {
 	 */
 	function getPDO(): PDO {
 		return app('db')->getConnection();
+	}
+}
+
+// ==================== FONCTIONS UTILITAIRES COMMUNES ====================
+
+if (!function_exists('formatDate')) {
+	/**
+	 * Formate une date au format français
+	 * @param string $date La date au format SQL
+	 * @param string $format Le format de sortie (défaut: d/m/Y)
+	 * @return string La date formatée
+	 */
+	function formatDate($date, $format = 'd/m/Y') {
+		if (empty($date)) return '';
+		$timestamp = strtotime($date);
+		return $timestamp ? date($format, $timestamp) : '';
+	}
+}
+
+if (!function_exists('formatDateTime')) {
+	/**
+	 * Formate une date et heure au format français
+	 * @param string $datetime La date et heure au format SQL
+	 * @return string La date et heure formatée
+	 */
+	function formatDateTime($datetime) {
+		if (empty($datetime)) return '';
+		$timestamp = strtotime($datetime);
+		return $timestamp ? date('d/m/Y à H:i', $timestamp) : '';
+	}
+}
+
+if (!function_exists('getTrimestre')) {
+	/**
+	 * Détermine le trimestre scolaire actuel
+	 * @return string Trimestre actuel
+	 */
+	function getTrimestre() {
+		$mois = date('n');
+		if ($mois >= 9 && $mois <= 12) return "1er trimestre";
+		if ($mois >= 1 && $mois <= 3) return "2ème trimestre";
+		if ($mois >= 4 && $mois <= 6) return "3ème trimestre";
+		return "Période estivale";
+	}
+}
+
+// ==================== ADMIN ====================
+
+if (!function_exists('isAdminManagementAllowed')) {
+	/**
+	 * Vérifie si la gestion des comptes administrateurs est autorisée
+	 * @return bool
+	 */
+	function isAdminManagementAllowed() {
+		// Par défaut, seul un administrateur connecté peut gérer les admins
+		return isLoggedIn() && getUserRole() === 'administrateur';
+	}
+}
+
+if (!function_exists('validateStrongPassword')) {
+	/**
+	 * Valide la robustesse d'un mot de passe
+	 * @param string $password Le mot de passe à valider
+	 * @return array ['valid' => bool, 'errors' => string[]]
+	 */
+	function validateStrongPassword($password) {
+		$errors = [];
+		if (strlen($password) < 8) {
+			$errors[] = "Le mot de passe doit contenir au moins 8 caractères";
+		}
+		if (!preg_match('/[A-Z]/', $password)) {
+			$errors[] = "Le mot de passe doit contenir au moins une lettre majuscule";
+		}
+		if (!preg_match('/[a-z]/', $password)) {
+			$errors[] = "Le mot de passe doit contenir au moins une lettre minuscule";
+		}
+		if (!preg_match('/[0-9]/', $password)) {
+			$errors[] = "Le mot de passe doit contenir au moins un chiffre";
+		}
+		if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+			$errors[] = "Le mot de passe doit contenir au moins un caractère spécial";
+		}
+		return ['valid' => empty($errors), 'errors' => $errors];
 	}
 }
 

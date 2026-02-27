@@ -1,34 +1,20 @@
 <?php
 ob_start();
 
-// Utilisation des Facades API
-$bootstrap_path = dirname(__DIR__) . '/API/bootstrap.php';
-if (!file_exists($bootstrap_path)) {
-    die("Erreur: Le fichier bootstrap.php n'existe pas à l'emplacement: " . $bootstrap_path);
-}
-require_once $bootstrap_path;
-
-use API\Core\Facades\Auth;
-use API\Core\Facades\DB;
+// Inclure l'API centralisée
+require_once dirname(__DIR__) . '/API/core.php';
 
 // Authentification via API
-Auth::requireAuth();
+requireAuth();
 
 // Récupération des infos utilisateur via API
-$user = Auth::user();
-$eleve_nom = $user['prenom'] . ' ' . $user['nom'];
+$user = getCurrentUser();
+$eleve_nom = getUserFullName();
 $classe = $user['classe'] ?? '';
-$user_role = $user['profil'];
-$user_initials = strtoupper(substr($user['prenom'], 0, 1) . substr($user['nom'], 0, 1));
+$user_role = getUserRole();
+$user_initials = getUserInitials();
 
-// Détermination du trimestre
-function getTrimestre() {
-    $mois = date('n');
-    if ($mois >= 9 && $mois <= 12) return "1er trimestre";
-    if ($mois >= 1 && $mois <= 3) return "2ème trimestre";
-    if ($mois >= 4 && $mois <= 6) return "3ème trimestre";
-    return "Période estivale";
-}
+// getTrimestre() est fourni par l'API (Bridge)
 
 $aujourdhui = date('d/m/Y');
 $trimestre = getTrimestre();
@@ -40,28 +26,8 @@ $json_file = __DIR__ . '/../login/data/etablissement.json';
 $etablissement_data = file_exists($json_file) ? json_decode(file_get_contents($json_file), true) : [];
 $nom_etablissement = $etablissement_data['nom'] ?? 'Établissement Scolaire';
 
-// Connexion DB via API avec gestion d'erreur
-try {
-    if (!class_exists('API\Core\Facades\DB')) {
-        throw new Exception("La classe DB facade n'est pas disponible");
-    }
-    $pdo = DB::getPDO();
-} catch (Exception $e) {
-    error_log("Erreur DB Facade: " . $e->getMessage());
-    // Fallback vers connexion directe si nécessaire
-    $config_path = dirname(__DIR__) . '/API/config/database.php';
-    if (file_exists($config_path)) {
-        $db_config = require $config_path;
-        $pdo = new PDO(
-            "mysql:host={$db_config['host']};dbname={$db_config['database']};charset=utf8mb4",
-            $db_config['username'],
-            $db_config['password'],
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-        );
-    } else {
-        die("Erreur: Impossible de se connecter à la base de données");
-    }
-}
+// Connexion DB via API centralisée
+$pdo = getPDO();
 
 // Prochains événements
 $prochains_evenements = [];
@@ -141,115 +107,39 @@ try {
 
 // Détermination admin
 $isAdmin = $user_role === 'administrateur';
+
+// Contenu supplémentaire sidebar : Informations
+ob_start();
 ?>
-
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Accueil - PRONOTE</title>
-    <link rel="stylesheet" href="assets/css/accueil.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-</head>
-<body>
-
-<div class="app-container">
-    <!-- Sidebar -->
-    <div class="sidebar">
-        <div class="logo-container">
-            <div class="app-logo">P</div>
-            <div class="app-title">PRONOTE</div>
+    <div class="sidebar-section">
+        <div class="sidebar-section-header">Informations</div>
+        <div class="info-item">
+            <div class="info-label">Établissement</div>
+            <div class="info-value"><?= htmlspecialchars($nom_etablissement) ?></div>
         </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Navigation</div>
-            <div class="sidebar-nav">
-                <a href="accueil.php" class="sidebar-nav-item active">
-                    <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
-                    <span>Accueil</span>
-                </a>
-                <a href="../notes/notes.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
-                    <span>Notes</span>
-                </a>
-                <a href="../agenda/agenda.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar"></i></span>
-                    <span>Agenda</span>
-                </a>
-                <a href="../cahierdetextes/cahierdetextes.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-book"></i></span>
-                    <span>Cahier de textes</span>
-                </a>
-                <a href="../messagerie/index.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
-                    <span>Messagerie</span>
-                </a>
-                <a href="../absences/absences.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
-                    <span>Absences</span>
-                </a>
-            </div>
+        <div class="info-item">
+            <div class="info-label">Date</div>
+            <div class="info-value"><?= $jour . ' ' . $aujourdhui ?></div>
         </div>
-        
-        <?php if ($isAdmin): ?>
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Administration</div>
-            <div class="sidebar-nav">
-                <a href="../login/public/register.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-user-plus"></i></span>
-                    <span>Ajouter un utilisateur</span>
-                </a>
-                <a href="../admin/reset_user_password.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-key"></i></span>
-                    <span>Réinitialiser mot de passe</span>
-                </a>
-                <a href="../admin/reset_requests.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-clipboard-list"></i></span>
-                    <span>Demandes de réinitialisation</span>
-                </a>
-                <a href="../admin/admin_accounts.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-user-shield"></i></span>
-                    <span>Gestion des administrateurs</span>
-                </a>
-                <a href="../admin/user_accounts.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-users-cog"></i></span>
-                    <span>Gestion des utilisateurs</span>
-                </a>
-            </div>
-        </div>
-        <?php endif; ?>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Informations</div>
-            <div class="info-item">
-                <div class="info-label">Établissement</div>
-                <div class="info-value"><?= htmlspecialchars($nom_etablissement) ?></div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Date</div>
-                <div class="info-value"><?= $jour . ' ' . $aujourdhui ?></div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Période</div>
-                <div class="info-value"><?= $trimestre ?></div>
-            </div>
+        <div class="info-item">
+            <div class="info-label">Période</div>
+            <div class="info-value"><?= $trimestre ?></div>
         </div>
     </div>
+<?php
+$sidebarExtraContent = ob_get_clean();
 
-    <!-- Main Content -->
-    <div class="main-content">
-        <!-- Header -->
-        <div class="top-header">
-            <div class="page-title">
-                <h1>Tableau de bord</h1>
-            </div>
-            
-            <div class="header-actions">
-                <a href="<?= BASE_URL ?>/login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
-                <div class="user-avatar"><?= $user_initials ?></div>
-            </div>
-        </div>
+// Configuration des templates partagés
+$pageTitle = 'Tableau de bord';
+$activePage = 'accueil';
+$user_fullname = $eleve_nom;
+$extraCss = ['assets/css/accueil.css'];
+
+// Inclusion des templates partagés
+include __DIR__ . '/../templates/shared_header.php';
+include __DIR__ . '/../templates/shared_sidebar.php';
+include __DIR__ . '/../templates/shared_topbar.php';
+?>
 
         <!-- Welcome Banner -->
         <div class="welcome-banner">
@@ -414,23 +304,7 @@ $isAdmin = $user_role === 'administrateur';
             </div>
         </div>
         
-        <!-- Footer -->
-        <div class="footer">
-            <div class="footer-content">
-                <div class="footer-links">
-                    <a href="#">Mentions Légales</a>
-                </div>
-                <div class="footer-copyright">
-                    &copy; <?= date('Y') ?> PRONOTE - Tous droits réservés
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-</body>
-</html>
-
 <?php
+include __DIR__ . '/../templates/shared_footer.php';
 ob_end_flush();
 ?>

@@ -1,28 +1,26 @@
 <?php
 ob_start();
 
-// Inclusion des fichiers nécessaires
-include 'includes/db.php';
-include 'includes/auth.php';
+// Inclusion de l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
+require_once __DIR__ . '/includes/auth.php';
 
 // Vérifications d'accès
+requireAuth();
 if (!canManageDevoirs()) {
   header('Location: cahierdetextes.php');
   exit;
 }
 
 // Générer ou vérifier le token CSRF
-session_start();
-if (empty($_SESSION['csrf_token'])) {
-  $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-$csrf_token = $_SESSION['csrf_token'];
+$csrf_token = csrf_token();
 
 // Récupérer les informations de l'utilisateur
 $user = getCurrentUser();
 $user_fullname = getUserFullName();
 $user_role = getUserRole();
-$user_initials = strtoupper(mb_substr($user['prenom'], 0, 1) . mb_substr($user['nom'], 0, 1));
+$user_initials = getUserInitials();
 
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
   header('Location: cahierdetextes.php');
@@ -149,106 +147,9 @@ if ($date_rendu < $aujourdhui) {
 
 // Variables pour le template
 $pageTitle = "Modifier un devoir";
+
+include 'includes/header.php';
 ?>
-
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $pageTitle ?> - PRONOTE</title>
-    <link rel="stylesheet" href="assets/css/cahierdetextes.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-</head>
-<body>
-
-<div class="app-container">
-    <!-- Sidebar -->
-    <div class="sidebar">
-        <div class="logo-container">
-            <div class="app-logo">P</div>
-            <div class="app-title">PRONOTE</div>
-        </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Navigation</div>
-            <div class="sidebar-nav">
-                <a href="../accueil/accueil.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
-                    <span>Accueil</span>
-                </a>
-                <a href="../notes/notes.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
-                    <span>Notes</span>
-                </a>
-                <a href="../agenda/agenda.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar"></i></span>
-                    <span>Agenda</span>
-                </a>
-                <a href="cahierdetextes.php" class="sidebar-nav-item active">
-                    <span class="sidebar-nav-icon"><i class="fas fa-book"></i></span>
-                    <span>Cahier de textes</span>
-                </a>
-                <a href="../messagerie/index.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
-                    <span>Messagerie</span>
-                </a>
-                <?php if ($user_role === 'vie_scolaire' || $user_role === 'administrateur'): ?>
-                <a href="../absences/absences.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
-                    <span>Absences</span>
-                </a>
-                <?php endif; ?>
-            </div>
-        </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Actions</div>
-            <div class="sidebar-nav">
-                <a href="cahierdetextes.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-list"></i></span>
-                    <span>Liste des devoirs</span>
-                </a>
-                <a href="ajouter_devoir.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-plus"></i></span>
-                    <span>Ajouter un devoir</span>
-                </a>
-            </div>
-        </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Informations</div>
-            <div class="info-item">
-                <div class="info-label">Date</div>
-                <div class="info-value"><?= date('d/m/Y') ?></div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Utilisateur</div>
-                <div class="info-value"><?= htmlspecialchars($user_fullname) ?></div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Profil</div>
-                <div class="info-value"><?= ucfirst(htmlspecialchars($user_role)) ?></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content -->
-    <div class="main-content">
-        <!-- Header -->
-        <div class="top-header">
-            <div class="page-title">
-                <h1>Modifier un devoir</h1>
-            </div>
-            
-            <div class="header-actions">
-                <a href="cahierdetextes.php" class="btn btn-secondary" title="Retour à la liste">
-                    <i class="fas fa-arrow-left"></i> Retour
-                </a>
-                <a href="/~u22405372/SAE/Pronote/login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
-                <div class="user-avatar"><?= $user_initials ?></div>
-            </div>
-        </div>
 
         <!-- Welcome Banner -->
         <div class="welcome-banner">
@@ -546,5 +447,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-</body>
-</html>
+<?php
+include 'includes/footer.php';
+?>

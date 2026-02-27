@@ -28,11 +28,18 @@ class Database
         }
 
         try {
+            // Forcer TCP/IP: "localhost" utilise le socket Unix, "127.0.0.1" force TCP
+            $host = $this->config['host'];
+            if (strtolower($host) === 'localhost') {
+                $host = '127.0.0.1';
+            }
+
             $dsn = sprintf(
-                'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
-                $this->config['host'],
+                'mysql:host=%s;port=%d;dbname=%s;charset=%s',
+                $host,
                 $this->config['port'] ?? 3306,
-                $this->config['database']
+                $this->config['database'],
+                $this->config['charset'] ?? 'utf8mb4'
             );
 
             $this->connection = new PDO(
@@ -43,6 +50,7 @@ class Database
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                     PDO::ATTR_EMULATE_PREPARES => false,
+                    PDO::ATTR_TIMEOUT => 5,
                 ]
             );
 

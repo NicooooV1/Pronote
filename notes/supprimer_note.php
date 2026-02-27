@@ -3,8 +3,8 @@
 ob_start();
 
 // Inclure les fichiers nécessaires de manière sécurisée
-require_once __DIR__ . '/../API/auth_central.php';
-require_once 'includes/db.php';
+require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
 
 // Vérifier les permissions pour gérer les notes avec validation stricte
 requireAuth();

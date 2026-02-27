@@ -8,27 +8,17 @@ if (!defined('ABSPATH')) {
     define('ABSPATH', dirname(dirname(__FILE__)));
 }
 
-// Charger l'API centralisée
-$apiPath = dirname(dirname(__DIR__)) . '/API/core.php';
-if (!file_exists($apiPath)) {
-    die("Impossible de charger l'API. Vérifiez l'installation.");
-}
-require_once $apiPath;
+// Charger le CSRF messagerie AVANT l'API centralisée.
+// L'API utilise des gardes function_exists() : l'implémentation session-unique
+// de la messagerie (compatible AJAX) prend donc le dessus automatiquement.
+require_once dirname(__DIR__) . '/core/csrf.php';
 
-// Utiliser la session de l'API
-if (session_status() === PHP_SESSION_NONE) {
-    session_name('pronote_session');
-    session_start();
-}
+// Charger l'API centralisée
+require_once dirname(dirname(__DIR__)) . '/API/core.php';
 
 // Récupérer la connexion PDO depuis l'API
-try {
-    $pdo = getDatabaseConnection();
-    $GLOBALS['pdo'] = $pdo;
-} catch (Exception $e) {
-    error_log("Erreur de connexion messagerie: " . $e->getMessage());
-    die("Erreur de connexion à la base de données");
-}
+$pdo = getPDO();
+$GLOBALS['pdo'] = $pdo;
 
 // Définir les chemins
 if (!defined('BASE_URL')) {

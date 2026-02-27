@@ -2,15 +2,9 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Utiliser le système de gestion d'erreurs centralisé avec chemin absolu
-$errorsPath = __DIR__ . '/../API/errors.php';
-if (file_exists($errorsPath)) {
-    require_once $errorsPath;
-}
-
-// Inclusion des fichiers nécessaires avec chemins absolus
-require_once __DIR__ . '/../API/auth_central.php';
-require_once __DIR__ . '/includes/db.php';
+// Inclusion de l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
 require_once __DIR__ . '/includes/functions.php';
 
 // Vérifier que l'utilisateur est connecté et autorisé
@@ -96,93 +90,11 @@ $date_suggere = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
 $heure_debut_suggere = isset($_GET['debut']) ? $_GET['debut'] : '08:00';
 $heure_fin_suggere = isset($_GET['fin']) ? $_GET['fin'] : '09:00';
 $id_eleve_suggere = isset($_GET['eleve']) ? $_GET['eleve'] : '';
+<?php
+$pageTitle = 'Signaler une absence';
+$currentPage = 'ajouter';
+include 'includes/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ajouter une absence - PRONOTE</title>
-  <link rel="stylesheet" href="assets/css/absences.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-</head>
-<body>
-  <div class="app-container">
-    <!-- Sidebar - Style harmonisé avec l'accueil -->
-    <div class="sidebar">
-      <a href="../accueil/accueil.php" class="logo-container">
-        <div class="app-logo">P</div>
-        <div class="app-title">PRONOTE</div>
-      </a>
-      
-      <!-- Module de navigation principal -->
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">NAVIGATION</div>
-        <div class="sidebar-nav">
-          <a href="../accueil/accueil.php" class="sidebar-nav-item">
-            <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
-            <span>Accueil</span>
-          </a>
-          <a href="../notes/notes.php" class="sidebar-nav-item">
-            <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
-            <span>Notes</span>
-          </a>
-          <a href="../agenda/agenda.php" class="sidebar-nav-item">
-            <span class="sidebar-nav-icon"><i class="fas fa-calendar"></i></span>
-            <span>Agenda</span>
-          </a>
-          <a href="../cahierdetextes/cahierdetextes.php" class="sidebar-nav-item">
-            <span class="sidebar-nav-icon"><i class="fas fa-book"></i></span>
-            <span>Cahier de textes</span>
-          </a>
-          <a href="../messagerie/index.php" class="sidebar-nav-item">
-            <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
-            <span>Messagerie</span>
-          </a>
-          <a href="absences.php" class="sidebar-nav-item">
-            <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
-            <span>Absences</span>
-          </a>
-        </div>
-      </div>
-      
-      <!-- Même structure et typographie que l'accueil -->
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">ACTIONS</div>
-        <div class="sidebar-nav">
-          <a href="absences.php" class="sidebar-nav-item">
-            <span class="sidebar-nav-icon"><i class="fas fa-list"></i></span>
-            <span>Liste des absences</span>
-          </a>
-          
-          <a href="ajouter_absence.php" class="sidebar-nav-item active">
-            <span class="sidebar-nav-icon"><i class="fas fa-plus"></i></span>
-            <span>Signaler une absence</span>
-          </a>
-          <a href="appel.php" class="sidebar-nav-item">
-            <span class="sidebar-nav-icon"><i class="fas fa-clipboard-list"></i></span>
-            <span>Faire l'appel</span>
-          </a>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Main Content -->
-    <div class="main-content">
-      <!-- Header -->
-      <div class="top-header">
-        <div class="page-title">
-          <a href="absences.php" class="back-button">
-            <i class="fas fa-arrow-left"></i>
-          </a>
-          <h1>Signaler une absence</h1>
-        </div>
-        
-        <div class="header-actions">
-          <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
-          <div class="user-avatar"><?= $user_initials ?></div>
-        </div>
-      </div>
       
       <!-- Content -->
       <div class="content-section">

@@ -8,41 +8,38 @@ require_once __DIR__ . '/../core/uploader.php';
 
 /**
  * Marque une conversation comme lue pour un utilisateur
- * @param int $convId ID de la conversation
- * @param int $userId ID de l'utilisateur
- * @param string $userType Type d'utilisateur
- * @return bool Succès de l'opération
  */
 function markConversationAsRead($convId, $userId, $userType) {
     global $pdo;
-    
     try {
-        // Mettre à jour la date de dernière lecture du participant
         $stmt = $pdo->prepare("
             UPDATE conversation_participants 
             SET last_read_at = NOW(), unread_count = 0
             WHERE conversation_id = ? AND user_id = ? AND user_type = ?
         ");
         $stmt->execute([$convId, $userId, $userType]);
-        
         return $stmt->rowCount() > 0;
     } catch (Exception $e) {
-        error_log("Erreur lors du marquage de la conversation comme lue: " . $e->getMessage());
+        error_log("Erreur markConversationAsRead: " . $e->getMessage());
         return false;
     }
 }
 
 /**
- * Récupère les messages d'une conversation
+ * Récupère les messages d'une conversation avec pagination
+ * Corrige le problème N+1 en batch-chargeant les pièces jointes
+ *
  * @param int $convId
  * @param int $userId
  * @param string $userType
- * @return array
+ * @param int $limit   Nombre de messages à charger
+ * @param int $before  Charger les messages avant cet ID (0 = depuis la fin)
+ * @return array ['messages' => [...], 'has_more' => bool, 'pinned' => [...]]
  */
-function getMessages($convId, $userId, $userType) {
+function getMessages($convId, $userId, $userType, $limit = 50, $before = 0) {
     global $pdo;
     
-    // Vérifier que l'utilisateur est participant à la conversation
+    // Vérifier que l'utilisateur est participant
     $checkParticipant = $pdo->prepare("
         SELECT id FROM conversation_participants 
         WHERE conversation_id = ? AND user_id = ? AND user_type = ? AND is_deleted = 0
@@ -52,10 +49,25 @@ function getMessages($convId, $userId, $userType) {
         throw new Exception("Vous n'êtes pas autorisé à accéder à cette conversation");
     }
     
-    // Récupérer les messages - Remove is_deleted condition since column doesn't exist
-    // and use consistent field names
+    $nameCase = getUserNameCaseSQL('m.sender_id', 'm.sender_type');
+    
+    // Construire la requête avec pagination "avant ID"
+    $whereClause = "m.conversation_id = ? AND (m.deleted_at IS NULL)";
+    $params = [$userId, $userType, $userId, $userType];
+    
+    if ($before > 0) {
+        $whereClause .= " AND m.id < ?";
+        $params[] = $before;
+    }
+    
+    $params = array_merge([$convId], $params);
+    
+    // Charger limit+1 pour savoir s'il y a encore des messages avant
     $stmt = $pdo->prepare("
-        SELECT m.*, 
+        SELECT m.id, m.conversation_id, m.sender_id, m.sender_type, m.body, 
+               m.original_body, m.status, m.parent_message_id,
+               m.created_at, m.updated_at, m.edited_at, m.deleted_at,
+               m.is_pinned, m.pinned_at, m.pinned_by_id, m.pinned_by_type,
                CASE 
                    WHEN cp.last_read_at IS NULL OR m.created_at > cp.last_read_at THEN 0
                    ELSE 1
@@ -64,63 +76,125 @@ function getMessages($convId, $userId, $userType) {
                    WHEN m.sender_id = ? AND m.sender_type = ? THEN 1
                    ELSE 0
                END as is_self,
-               m.sender_id, 
-               m.sender_type,
-               CASE 
-                   WHEN m.sender_type = 'eleve' THEN 
-                       (SELECT CONCAT(e.prenom, ' ', e.nom) FROM eleves e WHERE e.id = m.sender_id)
-                   WHEN m.sender_type = 'parent' THEN 
-                       (SELECT CONCAT(p.prenom, ' ', p.nom) FROM parents p WHERE p.id = m.sender_id)
-                   WHEN m.sender_type = 'professeur' THEN 
-                       (SELECT CONCAT(p.prenom, ' ', p.nom) FROM professeurs p WHERE p.id = m.sender_id)
-                   WHEN m.sender_type = 'vie_scolaire' THEN 
-                       (SELECT CONCAT(v.prenom, ' ', v.nom) FROM vie_scolaire v WHERE v.id = m.sender_id)
-                   WHEN m.sender_type = 'administrateur' THEN 
-                       (SELECT CONCAT(a.prenom, ' ', a.nom) FROM administrateurs a WHERE a.id = m.sender_id)
-                   ELSE 'Inconnu'
-               END as expediteur_nom,
+               {$nameCase} as expediteur_nom,
                UNIX_TIMESTAMP(m.created_at) as timestamp
         FROM messages m
         LEFT JOIN conversation_participants cp ON (
-            m.conversation_id = cp.conversation_id AND 
-            cp.user_id = ? AND 
-            cp.user_type = ?
+            m.conversation_id = cp.conversation_id AND cp.user_id = ? AND cp.user_type = ?
         )
-        WHERE m.conversation_id = ?
-        ORDER BY m.created_at ASC
+        WHERE {$whereClause}
+        ORDER BY m.created_at DESC
+        LIMIT ?
     ");
-    $stmt->execute([$userId, $userType, $userId, $userType, $convId]);
+    $allParams = [$userId, $userType, $userId, $userType, $convId];
+    if ($before > 0) {
+        $allParams[] = $before;
+    }
+    $allParams[] = $limit + 1;
+    
+    $stmt->execute($allParams);
     $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Get attachments for each message
-    $attachmentStmt = $pdo->prepare("
-        SELECT id, message_id, file_name as nom_fichier, file_path as chemin
-        FROM message_attachments 
-        WHERE message_id = ?
-    ");
-    
-    foreach ($messages as &$message) {
-        $attachmentStmt->execute([$message['id']]);
-        $message['pieces_jointes'] = $attachmentStmt->fetchAll(PDO::FETCH_ASSOC);
+    $hasMore = count($messages) > $limit;
+    if ($hasMore) {
+        array_pop($messages); // Retirer le message supplémentaire
     }
+    
+    // Inverser pour obtenir l'ordre chronologique
+    $messages = array_reverse($messages);
+    
+    // ── FIX N+1 : batch-charger les pièces jointes ──
+    if (!empty($messages)) {
+        $msgIds = array_column($messages, 'id');
+        $placeholders = implode(',', array_fill(0, count($msgIds), '?'));
+        
+        $attachStmt = $pdo->prepare("
+            SELECT id, message_id, file_name as nom_fichier, file_path as chemin
+            FROM message_attachments WHERE message_id IN ({$placeholders})
+        ");
+        $attachStmt->execute($msgIds);
+        $allAttachments = $attachStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $attachByMsg = [];
+        foreach ($allAttachments as $a) {
+            $attachByMsg[$a['message_id']][] = $a;
+        }
+        
+        // Batch-charger les réactions
+        $reactStmt = $pdo->prepare("
+            SELECT message_id, reaction, COUNT(*) as count,
+                   GROUP_CONCAT(CONCAT(user_id, ':', user_type) SEPARATOR ',') as users
+            FROM message_reactions 
+            WHERE message_id IN ({$placeholders})
+            GROUP BY message_id, reaction
+        ");
+        $reactStmt->execute($msgIds);
+        $allReactions = $reactStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $reactionsByMsg = [];
+        foreach ($allReactions as $r) {
+            $reactionsByMsg[$r['message_id']][] = [
+                'reaction' => $r['reaction'],
+                'count' => (int) $r['count'],
+                'users' => $r['users'],
+                'user_reacted' => strpos($r['users'], "{$userId}:{$userType}") !== false
+            ];
+        }
+        
+        // Batch-charger les messages parents pour les réponses
+        $parentIds = array_filter(array_unique(array_column($messages, 'parent_message_id')));
+        $parentMessages = [];
+        if (!empty($parentIds)) {
+            $pPlaceholders = implode(',', array_fill(0, count($parentIds), '?'));
+            $parentNameCase = getUserNameCaseSQL('pm.sender_id', 'pm.sender_type');
+            $pStmt = $pdo->prepare("
+                SELECT pm.id, pm.body, pm.sender_id, pm.sender_type,
+                       {$parentNameCase} as expediteur_nom
+                FROM messages pm WHERE pm.id IN ({$pPlaceholders})
+            ");
+            $pStmt->execute(array_values($parentIds));
+            foreach ($pStmt->fetchAll(PDO::FETCH_ASSOC) as $pm) {
+                $parentMessages[$pm['id']] = $pm;
+            }
+        }
+        
+        foreach ($messages as &$message) {
+            $message['pieces_jointes'] = $attachByMsg[$message['id']] ?? [];
+            $message['reactions'] = $reactionsByMsg[$message['id']] ?? [];
+            $message['parent_message'] = $parentMessages[$message['parent_message_id']] ?? null;
+        }
+        unset($message);
+    }
+    
+    // Récupérer les messages épinglés séparément
+    $pinnedStmt = $pdo->prepare("
+        SELECT m.id, m.body, m.sender_id, m.sender_type, m.pinned_at,
+               " . getUserNameCaseSQL('m.sender_id', 'm.sender_type') . " as expediteur_nom,
+               UNIX_TIMESTAMP(m.created_at) as timestamp
+        FROM messages m
+        WHERE m.conversation_id = ? AND m.is_pinned = 1 AND m.deleted_at IS NULL
+        ORDER BY m.pinned_at DESC
+    ");
+    $pinnedStmt->execute([$convId]);
+    $pinnedMessages = $pinnedStmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Marquer la conversation comme lue
     markConversationAsRead($convId, $userId, $userType);
     
-    return $messages;
+    return [
+        'messages' => $messages,
+        'has_more' => $hasMore,
+        'pinned' => $pinnedMessages
+    ];
 }
 
 /**
- * Récupère les messages d'une conversation même si elle est supprimée
- * @param int $convId
- * @param int $userId
- * @param string $userType
- * @return array
+ * Récupère les messages même pour les conversations supprimées (corbeille)
  */
-function getMessagesEvenIfDeleted($convId, $userId, $userType) {
+function getMessagesEvenIfDeleted($convId, $userId, $userType, $limit = 50, $before = 0) {
     global $pdo;
     
-    // Vérifier que l'utilisateur est participant à la conversation
+    // Vérifier que l'utilisateur est participant (même supprimé)
     $checkParticipant = $pdo->prepare("
         SELECT id FROM conversation_participants 
         WHERE conversation_id = ? AND user_id = ? AND user_type = ?
@@ -130,58 +204,51 @@ function getMessagesEvenIfDeleted($convId, $userId, $userType) {
         throw new Exception("Vous n'êtes pas autorisé à accéder à cette conversation");
     }
     
-    // Use the same query as getMessages to ensure consistency
+    $nameCase = getUserNameCaseSQL('m.sender_id', 'm.sender_type');
+    
+    $whereClause = "m.conversation_id = ?";
+    $allParams = [$userId, $userType, $userId, $userType, $convId];
+    
+    if ($before > 0) {
+        $whereClause .= " AND m.id < ?";
+        $allParams[] = $before;
+    }
+    $allParams[] = $limit + 1;
+    
     $stmt = $pdo->prepare("
-        SELECT m.*, 
-               CASE 
-                   WHEN cp.last_read_at IS NULL OR m.created_at > cp.last_read_at THEN 0
-                   ELSE 1
-               END as est_lu,
-               CASE 
-                   WHEN m.sender_id = ? AND m.sender_type = ? THEN 1
-                   ELSE 0
-               END as is_self,
-               m.sender_id, 
-               m.sender_type,
-               CASE 
-                   WHEN m.sender_type = 'eleve' THEN 
-                       (SELECT CONCAT(e.prenom, ' ', e.nom) FROM eleves e WHERE e.id = m.sender_id)
-                   WHEN m.sender_type = 'parent' THEN 
-                       (SELECT CONCAT(p.prenom, ' ', p.nom) FROM parents p WHERE p.id = m.sender_id)
-                   WHEN m.sender_type = 'professeur' THEN 
-                       (SELECT CONCAT(p.prenom, ' ', p.nom) FROM professeurs p WHERE p.id = m.sender_id)
-                   WHEN m.sender_type = 'vie_scolaire' THEN 
-                       (SELECT CONCAT(v.prenom, ' ', v.nom) FROM vie_scolaire v WHERE v.id = m.sender_id)
-                   WHEN m.sender_type = 'administrateur' THEN 
-                       (SELECT CONCAT(a.prenom, ' ', a.nom) FROM administrateurs a WHERE a.id = m.sender_id)
-                   ELSE 'Inconnu'
-               END as expediteur_nom,
+        SELECT m.id, m.conversation_id, m.sender_id, m.sender_type, m.body, 
+               m.original_body, m.status, m.parent_message_id,
+               m.created_at, m.updated_at, m.edited_at, m.deleted_at,
+               m.is_pinned, m.pinned_at,
+               CASE WHEN cp.last_read_at IS NULL OR m.created_at > cp.last_read_at THEN 0 ELSE 1 END as est_lu,
+               CASE WHEN m.sender_id = ? AND m.sender_type = ? THEN 1 ELSE 0 END as is_self,
+               {$nameCase} as expediteur_nom,
                UNIX_TIMESTAMP(m.created_at) as timestamp
         FROM messages m
-        LEFT JOIN conversation_participants cp ON (
-            m.conversation_id = cp.conversation_id AND 
-            cp.user_id = ? AND 
-            cp.user_type = ?
-        )
-        WHERE m.conversation_id = ?
-        ORDER BY m.created_at ASC
+        LEFT JOIN conversation_participants cp ON (m.conversation_id = cp.conversation_id AND cp.user_id = ? AND cp.user_type = ?)
+        WHERE {$whereClause}
+        ORDER BY m.created_at DESC LIMIT ?
     ");
-    $stmt->execute([$userId, $userType, $userId, $userType, $convId]);
+    $stmt->execute($allParams);
     $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Get attachments for each message
-    $attachmentStmt = $pdo->prepare("
-        SELECT id, message_id, file_name as nom_fichier, file_path as chemin
-        FROM message_attachments 
-        WHERE message_id = ?
-    ");
+    $hasMore = count($messages) > $limit;
+    if ($hasMore) array_pop($messages);
+    $messages = array_reverse($messages);
     
-    foreach ($messages as &$message) {
-        $attachmentStmt->execute([$message['id']]);
-        $message['pieces_jointes'] = $attachmentStmt->fetchAll(PDO::FETCH_ASSOC);
+    // Batch pièces jointes
+    if (!empty($messages)) {
+        $msgIds = array_column($messages, 'id');
+        $ph = implode(',', array_fill(0, count($msgIds), '?'));
+        $aStmt = $pdo->prepare("SELECT id, message_id, file_name as nom_fichier, file_path as chemin FROM message_attachments WHERE message_id IN ($ph)");
+        $aStmt->execute($msgIds);
+        $byMsg = [];
+        foreach ($aStmt->fetchAll(PDO::FETCH_ASSOC) as $a) $byMsg[$a['message_id']][] = $a;
+        foreach ($messages as &$msg) $msg['pieces_jointes'] = $byMsg[$msg['id']] ?? [];
+        unset($msg);
     }
     
-    return $messages;
+    return ['messages' => $messages, 'has_more' => $hasMore, 'pinned' => []];
 }
 
 /**
@@ -700,86 +767,178 @@ function markMessageAsUnread($messageId, $userId, $userType) {
 }
 
 /**
- * Marque un message comme supprimé
- * @param int $messageId
- * @param int $userId
- * @param string $userType
- * @return bool
+ * Suppression soft d'un message (avec affichage "Ce message a été supprimé")
  */
 function deleteMessage($messageId, $userId, $userType) {
     global $pdo;
     
-    // Vérifier que l'utilisateur est l'auteur du message
-    $stmt = $pdo->prepare("
-        SELECT conversation_id, sender_id, sender_type 
-        FROM messages 
+    $stmt = $pdo->prepare("SELECT conversation_id, sender_id, sender_type FROM messages WHERE id = ? AND deleted_at IS NULL");
+    $stmt->execute([$messageId]);
+    $message = $stmt->fetch();
+    
+    if (!$message) return false;
+    
+    // Vérifier : auteur ou modérateur
+    $isAuthor = ($message['sender_id'] == $userId && $message['sender_type'] == $userType);
+    if (!$isAuthor) {
+        $modStmt = $pdo->prepare("
+            SELECT id FROM conversation_participants
+            WHERE conversation_id = ? AND user_id = ? AND user_type = ? 
+            AND (is_moderator = 1 OR is_admin = 1) AND is_deleted = 0
+        ");
+        $modStmt->execute([$message['conversation_id'], $userId, $userType]);
+        if (!$modStmt->fetch()) return false;
+    }
+    
+    $del = $pdo->prepare("
+        UPDATE messages SET deleted_at = NOW(), deleted_by_id = ?, deleted_by_type = ?,
+                            body = '[Message supprimé]'
         WHERE id = ?
+    ");
+    $del->execute([$userId, $userType, $messageId]);
+    
+    return $del->rowCount() > 0;
+}
+
+/**
+ * Édite un message (autorisé pendant 5 minutes après envoi)
+ */
+function editMessage($messageId, $userId, $userType, $newBody) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT id, sender_id, sender_type, body, created_at 
+        FROM messages 
+        WHERE id = ? AND deleted_at IS NULL
     ");
     $stmt->execute([$messageId]);
     $message = $stmt->fetch();
     
     if (!$message) {
-        return false;
+        throw new Exception("Message introuvable");
     }
     
-    // Vérifier si l'utilisateur est l'auteur ou un modérateur
+    // Seul l'auteur peut éditer
     if ($message['sender_id'] != $userId || $message['sender_type'] != $userType) {
-        // Si ce n'est pas l'auteur, vérifier s'il est modérateur
-        $isModerator = $pdo->prepare("
-            SELECT id FROM conversation_participants
-            WHERE conversation_id = ? AND user_id = ? AND user_type = ? 
-            AND (is_moderator = 1 OR is_admin = 1) AND is_deleted = 0
-        ");
-        $isModerator->execute([$message['conversation_id'], $userId, $userType]);
-        
-        if (!$isModerator->fetch()) {
-            return false; // Ni auteur ni modérateur
-        }
+        throw new Exception("Vous ne pouvez modifier que vos propres messages");
     }
     
-    // Comme la colonne is_deleted n'existe pas, nous allons simplement supprimer le message
-    // Dans un système de production, vous devriez probablement ajouter cette colonne
-    // pour permettre une suppression "soft" plutôt qu'une suppression réelle
-    $delete = $pdo->prepare("DELETE FROM messages WHERE id = ?");
-    $delete->execute([$messageId]);
+    // Vérifier le délai de 5 minutes
+    $createdAt = strtotime($message['created_at']);
+    if ((time() - $createdAt) > 300) {
+        throw new Exception("Le délai de modification de 5 minutes est dépassé");
+    }
     
-    return $delete->rowCount() > 0;
+    $newBody = trim($newBody);
+    if (empty($newBody) || mb_strlen($newBody) > 10000) {
+        throw new Exception("Le contenu du message est invalide");
+    }
+    
+    $upd = $pdo->prepare("
+        UPDATE messages 
+        SET body = ?, original_body = COALESCE(original_body, ?), edited_at = NOW(), updated_at = NOW()
+        WHERE id = ?
+    ");
+    $upd->execute([$newBody, $message['body'], $messageId]);
+    
+    return $upd->rowCount() > 0;
 }
 
-/* 
-* La fonction canReplyToAnnouncement() est déjà déclarée dans core/utils.php
-* Ne pas la redéclarer ici pour éviter l'erreur
-*/
-
-/* 
-* La fonction canSetMessageImportance() est déjà déclarée dans core/utils.php
-* Ne pas la redéclarer ici pour éviter l'erreur
-*/
-
 /**
- * Fonctions liées aux messages
+ * Épingle ou désépingle un message (modérateurs/admins uniquement)
  */
-require_once __DIR__ . '/../core/utils.php';
-
-/**
- * Envoie un message groupé à une classe
- * @param int $userId ID de l'utilisateur
- * @param string $classe Nom de la classe
- * @param string $titre Titre du message
- * @param string $contenu Contenu du message
- * @param string $importance Niveau d'importance du message
- * @param bool $notificationObligatoire Si la notification est obligatoire
- * @param bool $includeParents Si les parents d'élèves doivent être inclus
- * @param array $files Fichiers à joindre
- * @return int ID de la conversation créée
- */
-function sendMessageToClass($userId, $classe, $titre, $contenu, $importance = 'normal', $notificationObligatoire = false, $includeParents = false, $files = []) {
+function togglePinMessage($messageId, $userId, $userType) {
     global $pdo;
     
-    // ...existing code...
+    $stmt = $pdo->prepare("SELECT conversation_id, is_pinned FROM messages WHERE id = ? AND deleted_at IS NULL");
+    $stmt->execute([$messageId]);
+    $message = $stmt->fetch();
+    
+    if (!$message) {
+        throw new Exception("Message introuvable");
+    }
+    
+    // Vérifier que l'utilisateur est modérateur/admin
+    $modStmt = $pdo->prepare("
+        SELECT id FROM conversation_participants
+        WHERE conversation_id = ? AND user_id = ? AND user_type = ? 
+        AND (is_moderator = 1 OR is_admin = 1) AND is_deleted = 0
+    ");
+    $modStmt->execute([$message['conversation_id'], $userId, $userType]);
+    if (!$modStmt->fetch()) {
+        throw new Exception("Seuls les modérateurs peuvent épingler des messages");
+    }
+    
+    $newState = $message['is_pinned'] ? 0 : 1;
+    
+    $upd = $pdo->prepare("
+        UPDATE messages 
+        SET is_pinned = ?, 
+            pinned_at = IF(? = 1, NOW(), NULL),
+            pinned_by_id = IF(? = 1, ?, NULL),
+            pinned_by_type = IF(? = 1, ?, NULL)
+        WHERE id = ?
+    ");
+    $upd->execute([$newState, $newState, $newState, $userId, $newState, $userType, $messageId]);
+    
+    return ['pinned' => (bool) $newState];
+}
+
+/**
+ * Ajoute ou retire une réaction à un message
+ */
+function toggleReaction($messageId, $userId, $userType, $reaction) {
+    global $pdo;
+    
+    // Vérifier que le message existe et que l'utilisateur est participant
+    $stmt = $pdo->prepare("
+        SELECT m.conversation_id FROM messages m
+        JOIN conversation_participants cp ON m.conversation_id = cp.conversation_id
+        WHERE m.id = ? AND cp.user_id = ? AND cp.user_type = ? AND cp.is_deleted = 0 AND m.deleted_at IS NULL
+    ");
+    $stmt->execute([$messageId, $userId, $userType]);
+    if (!$stmt->fetch()) {
+        throw new Exception("Message introuvable ou accès refusé");
+    }
+    
+    // Vérifier si la réaction existe déjà
+    $existing = $pdo->prepare("
+        SELECT id FROM message_reactions 
+        WHERE message_id = ? AND user_id = ? AND user_type = ? AND reaction = ?
+    ");
+    $existing->execute([$messageId, $userId, $userType, $reaction]);
+    
+    if ($existing->fetch()) {
+        // Retirer la réaction
+        $del = $pdo->prepare("
+            DELETE FROM message_reactions 
+            WHERE message_id = ? AND user_id = ? AND user_type = ? AND reaction = ?
+        ");
+        $del->execute([$messageId, $userId, $userType, $reaction]);
+        $action = 'removed';
+    } else {
+        // Ajouter la réaction
+        $ins = $pdo->prepare("
+            INSERT INTO message_reactions (message_id, user_id, user_type, reaction) VALUES (?, ?, ?, ?)
+        ");
+        $ins->execute([$messageId, $userId, $userType, $reaction]);
+        $action = 'added';
+    }
+    
+    // Retourner le nouveau comptage
+    $countStmt = $pdo->prepare("
+        SELECT reaction, COUNT(*) as count FROM message_reactions WHERE message_id = ? GROUP BY reaction
+    ");
+    $countStmt->execute([$messageId]);
+    
+    return ['action' => $action, 'reactions' => $countStmt->fetchAll(PDO::FETCH_ASSOC)];
 }
 
 /* 
-* La fonction canReplyToAnnouncement() est déjà déclarée dans core/utils.php
-* Ne pas la redéclarer ici pour éviter l'erreur
-*/
+ * canReplyToAnnouncement() et canSetMessageImportance() sont dans core/utils.php
+ */
+
+/**
+ * Fonctions liées aux messages (doublons supprimés — sendMessageToClass est dans models/class.php)
+ */
+require_once __DIR__ . '/../core/utils.php';

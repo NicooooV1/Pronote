@@ -60,7 +60,7 @@ class ConfigServiceProvider extends ServiceProvider
         try {
             $envLoader->validate($this->requiredEnvVars);
         } catch (\RuntimeException $e) {
-            die($e->getMessage());
+            throw new \RuntimeException("Configuration incomplète : " . $e->getMessage());
         }
     }
 }

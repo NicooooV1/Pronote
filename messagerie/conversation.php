@@ -8,6 +8,8 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/constants.php';
 require_once __DIR__ . '/core/utils.php';
 require_once __DIR__ . '/core/auth.php';
+require_once __DIR__ . '/core/csrf.php';
+require_once __DIR__ . '/core/validator.php';
 require_once __DIR__ . '/models/conversation.php';
 require_once __DIR__ . '/models/message.php';
 require_once __DIR__ . '/models/participant.php';
@@ -19,7 +21,7 @@ require_once __DIR__ . '/controllers/participant.php';
 $user = requireAuth();
 
 // Récupérer l'ID de la conversation
-$convId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$convId = Validator::id($_GET['id'] ?? null);
 
 if (!$convId) {
     redirect('index.php');
@@ -50,10 +52,16 @@ try {
     
     // Récupérer les messages et participants
     if (!$isDeleted) {
-        $messages = getMessages($convId, $user['id'], $user['type']);
+        $messagesResult = getMessages($convId, $user['id'], $user['type']);
+        $messages = $messagesResult['messages'];
+        $pinnedMessages = $messagesResult['pinned'] ?? [];
+        $hasMoreMessages = $messagesResult['has_more'];
         $participants = getParticipants($convId);
     } else {
-        $messages = getMessagesEvenIfDeleted($convId, $user['id'], $user['type']);
+        $messagesResult = getMessagesEvenIfDeleted($convId, $user['id'], $user['type']);
+        $messages = $messagesResult['messages'];
+        $pinnedMessages = [];
+        $hasMoreMessages = $messagesResult['has_more'];
         $participants = getParticipants($convId);
     }
     
@@ -63,6 +71,8 @@ try {
     
     // Traitement des actions POST
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && !$isDeleted) {
+        csrf_verify();
+        
         switch ($_POST['action']) {
             case 'send_message':
                 $result = handleSendMessage(
@@ -233,7 +243,37 @@ include 'templates/header.php';
     </aside>
     
     <main class="conversation-main">
-        <div class="messages-container">
+        <?php if (!empty($pinnedMessages)): ?>
+        <div class="pinned-messages-bar">
+            <div class="pinned-header">
+                <i class="fas fa-thumbtack"></i> Messages épinglés (<?= count($pinnedMessages) ?>)
+                <button class="btn-icon toggle-pinned" onclick="document.querySelector('.pinned-messages-list').classList.toggle('collapsed')">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </div>
+            <div class="pinned-messages-list">
+                <?php foreach ($pinnedMessages as $pinned): ?>
+                <div class="pinned-message-preview" data-message-id="<?= $pinned['id'] ?>">
+                    <strong><?= h($pinned['expediteur_nom']) ?></strong>: 
+                    <?= h(mb_substr($pinned['body'], 0, 100)) ?><?= mb_strlen($pinned['body']) > 100 ? '…' : '' ?>
+                    <a href="#" onclick="scrollToMessage(<?= $pinned['id'] ?>); return false;" class="jump-to-msg">
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+        
+        <?php if ($hasMoreMessages): ?>
+        <div class="load-more-messages" id="load-more-messages">
+            <button class="btn secondary btn-sm" onclick="loadOlderMessages()">
+                <i class="fas fa-history"></i> Charger les messages précédents
+            </button>
+        </div>
+        <?php endif; ?>
+        
+        <div class="messages-container" data-conv-id="<?= $convId ?>" data-has-more="<?= $hasMoreMessages ? '1' : '0' ?>">
             <?php foreach ($messages as $message): ?>
                 <?php include 'templates/components/message-item.php'; ?>
             <?php endforeach; ?>
@@ -243,6 +283,7 @@ include 'templates/header.php';
 <div class="conversation-deleted">
     <p>Cette conversation a été déplacée dans la corbeille. Vous ne pouvez plus y répondre.</p>
     <form method="post" action="" id="restoreForm">
+        <?= csrf_field() ?>
         <input type="hidden" name="action" value="restore_conversation">
         <button type="submit" class="btn primary">Restaurer la conversation</button>
     </form>
@@ -250,6 +291,7 @@ include 'templates/header.php';
 <?php elseif ($canReply): ?>
 <div class="reply-box">
     <form method="post" enctype="multipart/form-data" id="messageForm">
+        <?= csrf_field() ?>
         <input type="hidden" name="action" value="send_message">
         <input type="hidden" name="parent_message_id" id="parent-message-id" value="">
         
@@ -305,6 +347,7 @@ include 'templates/header.php';
         <span class="close" onclick="closeAddParticipantModal()">&times;</span>
         <h3>Ajouter des participants</h3>
         <form method="post" id="addParticipantForm">
+            <?= csrf_field() ?>
             <input type="hidden" name="action" value="add_participant">
             
             <div class="form-group">
@@ -333,24 +376,29 @@ include 'templates/header.php';
 
 <!-- Formulaires cachés pour les actions -->
 <form id="archiveForm" method="post" style="display: none;">
+    <?= csrf_field() ?>
     <input type="hidden" name="action" value="archive_conversation">
 </form>
 
 <form id="deleteForm" method="post" style="display: none;">
+    <?= csrf_field() ?>
     <input type="hidden" name="action" value="delete_conversation">
 </form>
 
 <form id="promoteForm" method="post" style="display: none;">
+    <?= csrf_field() ?>
     <input type="hidden" name="action" value="promote_moderator">
     <input type="hidden" name="participant_id" id="promote_participant_id" value="">
 </form>
 
 <form id="demoteForm" method="post" style="display: none;">
+    <?= csrf_field() ?>
     <input type="hidden" name="action" value="demote_moderator">
     <input type="hidden" name="participant_id" id="demote_participant_id" value="">
 </form>
 
 <form id="removeForm" method="post" style="display: none;">
+    <?= csrf_field() ?>
     <input type="hidden" name="action" value="remove_participant">
     <input type="hidden" name="participant_id" id="remove_participant_id" value="">
 </form>

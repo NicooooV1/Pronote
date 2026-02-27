@@ -69,12 +69,37 @@ io.on('connection', (socket) => {
     socket.on('joinConversation', (convId) => {
         socket.join(`conv_${convId}`);
         console.log(`User ${socket.userId} joined conversation ${convId}`);
+        
+        // Notifier les autres participants
+        socket.to(`conv_${convId}`).emit('participantJoined', {
+            userId: socket.userId,
+            userType: socket.userType,
+            conversationId: convId
+        });
     });
     
     // Quitter une conversation
     socket.on('leaveConversation', (convId) => {
         socket.leave(`conv_${convId}`);
         console.log(`User ${socket.userId} left conversation ${convId}`);
+        
+        socket.to(`conv_${convId}`).emit('participantLeft', {
+            userId: socket.userId,
+            userType: socket.userType,
+            conversationId: convId
+        });
+    });
+    
+    // ── Indicateur de frappe ──
+    socket.on('typing', (data) => {
+        if (!data || !data.conversationId) return;
+        socket.to(`conv_${data.conversationId}`).emit('typing', {
+            userId: socket.userId,
+            userType: socket.userType,
+            userName: data.userName || '',
+            conversationId: data.conversationId,
+            isTyping: !!data.isTyping
+        });
     });
     
     // Joindre un canal de classe
@@ -197,6 +222,68 @@ app.get('/health', (req, res) => {
         connections: activeConnections.size,
         uptime: process.uptime()
     });
+});
+
+// ──────────────── Routes messagerie avancées ────────────────
+
+/**
+ * Route HTTP: Message édité
+ */
+app.post('/notify/message-edited', (req, res) => {
+    const { convId, messageId, newBody, editedAt, secret } = req.body;
+    if (secret !== process.env.API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
+    if (!convId || !messageId) return res.status(400).json({ error: 'Missing convId or messageId' });
+
+    io.to(`conv_${convId}`).emit('messageEdited', { messageId, newBody, editedAt });
+    res.json({ success: true });
+});
+
+/**
+ * Route HTTP: Message supprimé
+ */
+app.post('/notify/message-deleted', (req, res) => {
+    const { convId, messageId, secret } = req.body;
+    if (secret !== process.env.API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
+    if (!convId || !messageId) return res.status(400).json({ error: 'Missing convId or messageId' });
+
+    io.to(`conv_${convId}`).emit('messageDeleted', { messageId });
+    res.json({ success: true });
+});
+
+/**
+ * Route HTTP: Message épinglé / désépinglé
+ */
+app.post('/notify/message-pinned', (req, res) => {
+    const { convId, messageId, isPinned, pinnedBy, secret } = req.body;
+    if (secret !== process.env.API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
+    if (!convId || !messageId) return res.status(400).json({ error: 'Missing convId or messageId' });
+
+    io.to(`conv_${convId}`).emit('messagePinned', { messageId, isPinned, pinnedBy });
+    res.json({ success: true });
+});
+
+/**
+ * Route HTTP: Reaction ajoutée / retirée
+ */
+app.post('/notify/reaction', (req, res) => {
+    const { convId, messageId, reactions, secret } = req.body;
+    if (secret !== process.env.API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
+    if (!convId || !messageId) return res.status(400).json({ error: 'Missing convId or messageId' });
+
+    io.to(`conv_${convId}`).emit('reactionUpdated', { messageId, reactions });
+    res.json({ success: true });
+});
+
+/**
+ * Route HTTP: Message lu par un participant
+ */
+app.post('/notify/message-read', (req, res) => {
+    const { convId, userId, userType, messageId, readAt, secret } = req.body;
+    if (secret !== process.env.API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
+    if (!convId || !userId) return res.status(400).json({ error: 'Missing convId or userId' });
+
+    io.to(`conv_${convId}`).emit('messageRead', { userId, userType, messageId, readAt });
+    res.json({ success: true });
 });
 
 // Démarrage du serveur

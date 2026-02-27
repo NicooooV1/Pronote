@@ -1,58 +1,20 @@
 <?php
 /**
- * Module d'authentification pour la messagerie - Utilise l'API
+ * Module d'authentification pour la messagerie
+ * Charge l'API centralisée (Bridge fournit : requireAuth, getCurrentUser, checkAuth, etc.)
  */
 
-// S'assurer que l'API est chargée
-if (!function_exists('getCurrentUser')) {
-    require_once dirname(dirname(dirname(__DIR__))) . '/API/core.php';
-}
+require_once __DIR__ . '/../../API/core.php';
+
+// checkAuth() est fourni par l'API (Bridge) — alias de getCurrentUser()
 
 /**
- * Vérifie si l'utilisateur est authentifié
- * @return array|false Données utilisateur ou false
- */
-function checkAuth() {
-    return getCurrentUser();
-}
-
-/**
- * Vérifie l'authentification et redirige si nécessaire
- * @param string $redirect URL de redirection
- * @return array Données utilisateur
- */
-function requireAuth($redirect = null) {
-    $user = getCurrentUser();
-    
-    if (!$user) {
-        $loginUrl = defined('LOGIN_URL') ? LOGIN_URL : '/login/public/index.php';
-        
-        if ($redirect === null) {
-            $returnUrl = urlencode($_SERVER['REQUEST_URI']);
-            $delimiter = (strpos($loginUrl, '?') === false) ? '?' : '&';
-            $redirect = $loginUrl . $delimiter . 'return=' . $returnUrl;
-        }
-        
-        header('Location: ' . $redirect);
-        exit;
-    }
-    
-    // Normaliser le type d'utilisateur
-    if (!isset($user['type']) && isset($user['profil'])) {
-        $user['type'] = $user['profil'];
-    }
-    
-    return $user;
-}
-
-/**
- * Compte les notifications non lues - délégué à l'API
+ * Compte les notifications non lues pour un utilisateur
  */
 if (!function_exists('countUnreadNotifications')) {
     function countUnreadNotifications($userId, $userType) {
-        global $pdo;
-        
         try {
+            $pdo = getPDO();
             $stmt = $pdo->prepare("
                 SELECT COUNT(*) FROM message_notifications 
                 WHERE user_id = ? AND user_type = ? AND is_read = 0
@@ -65,4 +27,3 @@ if (!function_exists('countUnreadNotifications')) {
         }
     }
 }
-?>

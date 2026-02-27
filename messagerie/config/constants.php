@@ -59,7 +59,9 @@ $participantTypes = [
 ];
 
 // Chemins
-define('BASE_PATH', dirname(__DIR__) . '/');
+if (!defined('BASE_PATH')) {
+    define('BASE_PATH', dirname(__DIR__) . '/');
+}
 define('UPLOAD_DIR', BASE_PATH . 'assets/uploads/');
 define('TEMPLATES_DIR', BASE_PATH . 'templates/');
 define('ASSETS_DIR', BASE_PATH . 'assets/');

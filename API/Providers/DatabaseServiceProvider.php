@@ -23,7 +23,7 @@ class DatabaseServiceProvider extends ServiceProvider
             // Établir la connexion au démarrage
             $this->app->make('db')->connect();
         } catch (\RuntimeException $e) {
-            die("Erreur de connexion à la base de données. Vérifiez votre configuration .env");
+            throw new \RuntimeException("Erreur de connexion à la base de données. Vérifiez votre configuration .env : " . $e->getMessage());
         }
     }
 }

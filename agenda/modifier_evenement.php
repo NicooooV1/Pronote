@@ -2,9 +2,10 @@
 // Démarrer la mise en mémoire tampon de sortie
 ob_start();
 
-// Inclure les fichiers nécessaires
-require_once __DIR__ . '/../API/auth_central.php';
-require_once __DIR__ . '/includes/db.php';
+// Inclusion de l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
+require_once __DIR__ . '/includes/auth.php';
 
 // Vérifier que l'utilisateur est connecté
 if (!isLoggedIn()) {
@@ -240,12 +241,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $user_fullname
                 ];
                 
-                // Ajouter personnes_concernees si la colonne existe
-                $stmt_check = $pdo->query("SHOW COLUMNS FROM evenements LIKE 'personnes_concernees'");
-                if ($stmt_check && $stmt_check->rowCount() > 0) {
-                    $sql .= ", personnes_concernees = ?";
-                    $params[] = $personnes_concernees;
-                }
+                $sql .= ", personnes_concernees = ?";
+                $params[] = $personnes_concernees;
                 
                 $sql .= " WHERE id = ?";
                 $params[] = $id;

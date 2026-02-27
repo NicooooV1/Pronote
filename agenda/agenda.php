@@ -2,40 +2,19 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Inclure UNIQUEMENT l'API centralisée
+// Inclure l'API centralisée
 require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
+require_once __DIR__ . '/includes/auth.php';
 
 // Vérifier l'authentification
 requireAuth();
 
-// Récupérer l'utilisateur actuel
+// Récupérer les informations utilisateur via l'API
 $user = getCurrentUser();
-
-// Récupérer la connexion UNIQUEMENT via l'API
-try {
-    $pdo = getDatabaseConnection();
-} catch (Exception $e) {
-    logError("Erreur de connexion DB dans agenda: " . $e->getMessage());
-    die("Erreur de connexion à la base de données");
-}
-
-// Vérifier que l'utilisateur est connecté - en utilisant isLoggedIn() au lieu de requireLogin()
-if (!isLoggedIn()) {
-    // Rediriger vers la page de connexion
-    header('Location: /~u22405372/SAE/Pronote/login/public/index.php');
-    exit;
-}
-
-// Récupérer les informations de l'utilisateur connecté
-$user = $_SESSION['user'] ?? null;
-if (!$user) {
-    header('Location: /~u22405372/SAE/Pronote/login/public/index.php');
-    exit;
-}
-
-$user_fullname = $user['prenom'] . ' ' . $user['nom'];
-$user_role = $user['profil'];
-$user_initials = strtoupper(substr($user['prenom'], 0, 1) . substr($user['nom'], 0, 1));
+$user_fullname = getUserFullName();
+$user_role = getUserRole();
+$user_initials = getUserInitials();
 
 // Récupérer les paramètres de filtrage
 $view = isset($_GET['view']) ? $_GET['view'] : 'month';
@@ -124,69 +103,8 @@ if (file_exists($json_file)) {
 
 // Récupérer les événements
 $events = [];
+$personnes_concernees_exists = true;
 
-// Vérifier si la table evenements existe
-$table_exists = false;
-try {
-    $stmt_check = $pdo->query("SHOW TABLES LIKE 'evenements'");
-    $table_exists = $stmt_check->rowCount() > 0;
-} catch (PDOException $e) {
-    // La table n'existe probablement pas
-    $table_exists = false;
-}
-
-// Si la table n'existe pas, essayer de la créer
-if (!$table_exists) {
-    try {
-        $sql = "CREATE TABLE IF NOT EXISTS evenements (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            titre VARCHAR(100) NOT NULL,
-            description TEXT,
-            date_debut DATETIME NOT NULL,
-            date_fin DATETIME NOT NULL,
-            type_evenement VARCHAR(50) NOT NULL,
-            type_personnalise VARCHAR(100) DEFAULT NULL,
-            statut VARCHAR(30) DEFAULT 'actif',
-            createur VARCHAR(100) NOT NULL,
-            visibilite VARCHAR(255) NOT NULL,
-            personnes_concernees TEXT,
-            lieu VARCHAR(100),
-            classes VARCHAR(255),
-            matieres VARCHAR(100),
-            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )";
-        $pdo->exec($sql);
-        $table_exists = true;
-    } catch (PDOException $e) {
-        // Erreur lors de la création de la table
-        echo "Erreur lors de la création de la table: " . $e->getMessage();
-    }
-}
-
-// Vérifier si la colonne 'personnes_concernees' existe
-$personnes_concernees_exists = false;
-try {
-    $stmt_check_column = $pdo->query("SHOW COLUMNS FROM evenements LIKE 'personnes_concernees'");
-    $personnes_concernees_exists = $stmt_check_column && $stmt_check_column->rowCount() > 0;
-} catch (PDOException $e) {
-    // La colonne n'existe probablement pas
-    $personnes_concernees_exists = false;
-}
-
-// Si la colonne n'existe pas, l'ajouter
-if ($table_exists && !$personnes_concernees_exists) {
-    try {
-        $pdo->exec("ALTER TABLE evenements ADD COLUMN personnes_concernees TEXT AFTER visibilite");
-        $personnes_concernees_exists = true;
-    } catch (PDOException $e) {
-        // Erreur lors de l'ajout de la colonne
-        echo "Erreur lors de l'ajout de la colonne personnes_concernees: " . $e->getMessage();
-    }
-}
-
-// Si la table existe, récupérer les événements en fonction de la vue
-if ($table_exists) {
     // Paramètres de filtrage
     $params = [];
     $where_clauses = [];
@@ -304,7 +222,6 @@ if ($table_exists) {
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
 
 // Organiser les événements par jour pour la vue mois
 $events_by_day = [];

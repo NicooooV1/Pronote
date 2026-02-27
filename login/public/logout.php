@@ -7,5 +7,5 @@
 require_once __DIR__ . '/../../API/core.php';
 
 // Effectuer la déconnexion via l'API centralisée
-logoutUser();
+logout();
 ?>

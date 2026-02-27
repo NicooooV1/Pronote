@@ -1,5 +1,6 @@
 /**
  * /assets/js/conversation.js - Scripts pour les conversations
+ * v2 : CSRF, XSS-safe, polling unifié, edit/delete/pin/reactions, load more
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -12,8 +13,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialisation du système de lecture des messages
     initReadTracker();
     
-    // Actualisation en temps réel pour les modifications de conversation
-    setupRealTimeUpdates();
+    // Polling unifié (remplace les 3 pollings séparés)
+    setupUnifiedPolling();
     
     // Validation du formulaire de message
     setupMessageValidation();
@@ -27,7 +28,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Nettoyage des ressources lors de la navigation
     setupBeforeUnloadHandler();
     
-    // ✅ REMPLACER le polling par WebSocket
+    // Indicateur de frappe
+    setupTypingIndicator();
+    
+    // Dropdown menus pour actions messages
+    setupMessageDropdowns();
+
+    // WebSocket (désactive polling si connecté)
     setupWebSocketForConversation();
 });
 
@@ -83,44 +90,62 @@ function setupBeforeUnloadHandler() {
 }
 
 /**
- * Set common fetch options to ensure credentials are sent
- * @returns {Object} Fetch options with credentials
+ * Get common fetch options with credentials and CSRF token
+ * @param {string} [method='GET'] - HTTP method
+ * @returns {Object} Fetch options
  */
-function getFetchOptions() {
-    return {
+function getFetchOptions(method = 'GET') {
+    const opts = {
+        method,
         credentials: 'same-origin',
         headers: {
             'X-Requested-With': 'XMLHttpRequest'
         }
     };
+    // Ajouter CSRF pour les requêtes mutantes
+    if (method !== 'GET') {
+        const token = document.querySelector('meta[name="csrf-token"]')?.content || window.csrfToken || '';
+        opts.headers['X-CSRF-Token'] = token;
+    }
+    return opts;
+}
+
+/**
+ * Helper: fetch JSON avec CSRF et gestion d'erreurs
+ */
+function apiFetch(url, options = {}) {
+    const defaults = getFetchOptions(options.method || 'GET');
+    const merged = { ...defaults, ...options, headers: { ...defaults.headers, ...(options.headers || {}) } };
+    
+    if (window.activeConnections?.abortController) {
+        merged.signal = window.activeConnections.abortController.signal;
+    }
+    
+    return fetch(url, merged).then(r => {
+        if (!r.ok) throw new Error(`Erreur réseau: ${r.status}`);
+        return r.json();
+    });
+}
+
+/**
+ * Get API base path
+ */
+function getApiBase() {
+    return window.location.pathname.split('/').slice(0, -1).join('/') + '/api';
 }
 
 /**
  * Initialise le système de détection et de suivi des messages lus
+ * (simplifié — le polling est géré par setupUnifiedPolling)
  */
 function initReadTracker() {
-    // Variables pour l'état de lecture
-    let lastReadMessageId = 0;
-    let isMarkingMessage = false;
-    let pollingActive = false;
-    let pollingInterval = 3000; // Interroger le serveur toutes les 3 secondes
-    let versionSum = 0; // Pour suivre la version des statuts de lecture
-    
-    // Récupérer le dernier message lu lors du chargement initial
-    const messageElements = document.querySelectorAll('.message');
-    if (messageElements.length > 0) {
-        const lastMessage = messageElements[messageElements.length - 1];
-        lastReadMessageId = parseInt(lastMessage.dataset.id || '0', 10);
-    }
-    
-    // Configuration améliorée de l'IntersectionObserver
+    // Configuration de l'IntersectionObserver pour le marquage auto
     const messageObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
                 const messageEl = entry.target;
                 const messageId = parseInt(messageEl.dataset.id, 10);
                 
-                // Éviter les requêtes inutiles pour les messages déjà lus ou envoyés par l'utilisateur
                 if (!messageEl.classList.contains('read') && !messageEl.classList.contains('self')) {
                     markMessageAsRead(messageId);
                 }
@@ -128,8 +153,8 @@ function initReadTracker() {
         });
     }, {
         root: document.querySelector('.messages-container'),
-        threshold: 0.7, // 70% visible pour être considéré comme lu
-        rootMargin: '0px 0px -20% 0px' // Ignorer le bas de l'écran
+        threshold: 0.7,
+        rootMargin: '0px 0px -20% 0px'
     });
     
     // Observer tous les messages qui ne sont pas de l'utilisateur
@@ -137,501 +162,158 @@ function initReadTracker() {
         messageObserver.observe(message);
     });
     
-    /**
-     * Marque un message comme lu via l'API
-     */
-    function markMessageAsRead(messageId) {
-        // Éviter les requêtes concurrentes
-        if (isMarkingMessage) return;
-        
-        isMarkingMessage = true;
-        
-        const convId = new URLSearchParams(window.location.search).get('id');
-        const apiPath = `${window.location.origin}${window.location.pathname.split('/').slice(0, -1).join('/')}/api/read_status.php`;
+    // Exposer l'observer pour les nouveaux messages
+    window.messageObserver = messageObserver;
+}
 
-        fetch(`${apiPath}?action=read&conv_id=${convId}`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({ messageId }),
-            signal: window.activeConnections.abortController.signal,
-            credentials: 'same-origin'
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Erreur réseau: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                // Mettre à jour l'interface avec le nouveau statut
-                updateReadStatus(data.read_status);
-            } else {
-                console.warn("Échec du marquage comme lu:", data.error || "Erreur inconnue");
-            }
-        })
-        .catch(error => {
-            // Ne pas afficher d'erreur si la requête a été annulée (navigation)
-            if (error.name !== 'AbortError') {
-                console.error('Erreur lors du marquage comme lu:', error);
-                // Réessayer après un délai
-                setTimeout(() => {
-                    isMarkingMessage = false;
-                    markMessageAsRead(messageId);
-                }, 2000);
-            }
-        })
-        .finally(() => {
-            isMarkingMessage = false;
-        });
-    }
+/**
+ * Met à jour l'affichage du statut de lecture d'un message
+ */
+function updateReadStatus(readStatus) {
+    if (!readStatus || !readStatus.message_id) return;
     
-    /**
-     * Met à jour l'affichage du statut de lecture d'un message
-     */
-    function updateReadStatus(readStatus) {
-        if (!readStatus || !readStatus.message_id) return;
-        
-        const messageEl = document.querySelector(`.message[data-id="${readStatus.message_id}"]`);
-        if (!messageEl) return;
-        
-        const statusEl = messageEl.querySelector('.message-read-status');
-        if (!statusEl) return;
-        
-        // Mettre à jour le contenu selon l'état de lecture
-        if (readStatus.all_read) {
-            statusEl.innerHTML = `
-                <div class="all-read">
-                    <i class="fas fa-check-double"></i> Vu
-                </div>
-            `;
-            // Ajouter la classe 'read' au message
-            messageEl.classList.add('read');
-        } else if (readStatus.read_by_count > 0) {
-            // Créer la liste des noms des lecteurs
-            const readerNames = readStatus.readers && readStatus.readers.length > 0 
-                ? readStatus.readers.map(r => r.nom_complet).join(', ')
-                : 'Personne';
-            
-            statusEl.innerHTML = `
-                <div class="partial-read">
-                    <i class="fas fa-check"></i>
-                    <span class="read-count">${readStatus.read_by_count}/${readStatus.total_participants - 1}</span>
-                    <span class="read-tooltip" title="${readerNames}">
-                        <i class="fas fa-info-circle"></i>
-                    </span>
-                </div>
-            `;
-        }
-    }
+    const messageEl = document.querySelector(`.message[data-id="${readStatus.message_id}"]`);
+    if (!messageEl) return;
     
-    /**
-     * Démarre le polling AJAX pour les mises à jour de lecture
-     * Utilise setInterval au lieu de setTimeout récursif
-     */
-    function startPolling() {
-        console.log('AJAX Read Status Polling: Démarrage');
-        
-        // Démarrer immédiatement avec un état initial
-        pollForUpdates();
-        
-        // Gestion inefficace des timers avec setInterval
-        // Si une requête prend plus de temps que l'intervalle, on risque d'avoir des requêtes simultanées
-        const pollingIntervalId = setInterval(() => {
-            // Ne déclencher le polling que si l'indicateur est actif
-            if (window.activeConnections && window.activeConnections.readStatusPolling) {
-                pollForUpdates();
-            } else {
-                console.log('AJAX Read Status Polling: En pause');
-            }
-        }, pollingInterval);
-        
-        // Stocker l'ID d'intervalle pour pouvoir l'annuler plus tard si nécessaire
-        window.readStatusPollingId = pollingIntervalId;
-        
-        function pollForUpdates() {
-            const convId = new URLSearchParams(window.location.search).get('id');
-            if (!convId) {
-                console.log('AJAX Read Status Polling: Pas d\'ID de conversation, arrêt');
-                clearInterval(pollingIntervalId);
-                return;
-            }
-            
-            // Utiliser le nouvel endpoint de polling au lieu du SSE
-            fetch(`api/read_status.php?action=read-polling&conv_id=${convId}&version=${versionSum}&since=${lastReadMessageId}`, {
-                signal: window.activeConnections.abortController.signal,
-                credentials: 'same-origin',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`Erreur réseau: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        // Mettre à jour la version pour les prochaines requêtes
-                        versionSum = data.version || 0;
-                        
-                        // Si c'est la première requête et qu'on a un état initial
-                        if (data.initialState) {
-                            // Mettre à jour tous les statuts de lecture
-                            Object.entries(data.initialState).forEach(([messageId, readStatus]) => {
-                                updateReadStatus(readStatus);
-                            });
-                        }
-                        
-                        // Traiter les mises à jour
-                        if (data.hasUpdates && data.updates) {
-                            data.updates.forEach(update => {
-                                updateReadStatus(update.read_status);
-                                
-                                // Mettre à jour lastReadMessageId si nécessaire
-                                if (update.messageId > lastReadMessageId) {
-                                    lastReadMessageId = update.messageId;
-                                }
-                            });
-                        }
-                    } else {
-                        console.error('Erreur de polling des statuts de lecture:', data.error || 'Erreur inconnue');
-                    }
-                })
-                .catch(error => {
-                    // Ne pas afficher d'erreur si la requête a été annulée (navigation)
-                    if (error.name !== 'AbortError') {
-                        console.error('Erreur de polling des statuts de lecture:', error);
-                    }
-                });
-        }
-        
-        // Gérer les événements de visibilité du document
-        document.addEventListener('visibilitychange', function() {
-            if (document.visibilityState === 'visible') {
-                // Réactiver le polling et actualiser immédiatement
-                window.activeConnections.readStatusPolling = true;
-                // Réinitialiser l'intervalle quand la page est visible
-                pollingInterval = 3000;
-                // Forcer une mise à jour immédiate
-                pollForUpdates();
-            } else {
-                // Ralentir le polling quand l'onglet n'est pas actif
-                pollingInterval = 10000; // 10 secondes quand inactif
-            }
-        });
-        
-        // Réinitialiser l'intervalle quand l'onglet redevient actif
-        window.addEventListener('focus', function() {
-            pollingInterval = 3000; // Retour à 3 secondes quand actif
-            // Forcer une mise à jour immédiate
-            pollForUpdates();
-        });
-    }
+    const statusEl = messageEl.querySelector('.message-read-status');
+    if (!statusEl) return;
     
-    // Démarrer le polling AJAX
-    startPolling();
-    
-    // Marque un message comme non lu
-    function markMessageAsUnread(messageId) {
-        if (isMarkingMessage) return;
-        
-        isMarkingMessage = true;
-        
-        fetch(`api/messages.php?id=${messageId}&action=mark_unread`, {
-            signal: window.activeConnections.abortController.signal,
-            credentials: 'same-origin',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Erreur réseau: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success) {
-                    // Mettre à jour l'interface utilisateur
-                    const message = document.querySelector(`.message[data-id="${messageId}"]`);
-                    if (message) {
-                        message.classList.remove('read');
-                        
-                        // Mettre à jour le bouton
-                        const unreadBtn = message.querySelector('.mark-unread-btn');
-                        if (unreadBtn) {
-                            const readBtn = document.createElement('button');
-                            readBtn.className = 'btn-icon mark-read-btn';
-                            readBtn.setAttribute('data-message-id', messageId);
-                            readBtn.innerHTML = '<i class="fas fa-envelope-open"></i> Marquer comme lu';
-                            
-                            unreadBtn.parentNode.replaceChild(readBtn, unreadBtn);
-                        }
-                    }
-                    
-                    // Mettre à jour le statut de lecture
-                    if (data.readStatus) {
-                        updateReadStatus(data.readStatus);
-                    }
-                } else {
-                    afficherNotificationErreur("Erreur: " + (data.error || "Une erreur est survenue"));
-                    console.error('Erreur:', data.error);
-                }
-            })
-            .catch(error => {
-                // Ne pas afficher d'erreur si la requête a été annulée (navigation)
-                if (error.name !== 'AbortError') {
-                    afficherNotificationErreur("Erreur: " + error.message);
-                    console.error('Erreur:', error);
-                }
-            })
-            .finally(() => {
-                isMarkingMessage = false;
-            });
+    if (readStatus.all_read) {
+        statusEl.innerHTML = `<div class="all-read"><i class="fas fa-check-double"></i> Vu</div>`;
+        messageEl.classList.add('read');
+    } else if (readStatus.read_by_count > 0) {
+        const readerNames = readStatus.readers?.map(r => r.nom_complet).join(', ') || '';
+        statusEl.innerHTML = `
+            <div class="partial-read">
+                <i class="fas fa-check"></i>
+                <span class="read-count">${readStatus.read_by_count}/${readStatus.total_participants - 1}</span>
+                ${readerNames ? `<span class="read-tooltip" title="${escapeHTML(readerNames)}"><i class="fas fa-info-circle"></i></span>` : ''}
+            </div>`;
     }
 }
 
 /**
- * Configure les mises à jour en temps réel pour la conversation
+ * Polling unifié — un seul setInterval pour messages + read_status
+ * Remplace les 3 pollings séparés (checkForUpdates, startPolling, fetchNewMessages)
  */
-function setupRealTimeUpdates() {
-    // Variables pour la gestion des mises à jour
+function setupUnifiedPolling() {
     const convId = new URLSearchParams(window.location.search).get('id');
-    const refreshInterval = 5000; // 5 secondes entre chaque vérification
-    let lastTimestamp = 0;
-    let isCheckingForUpdates = false; // Flag pour éviter les requêtes concurrentes
-    
-    // Initialiser le timestamp de départ avec le dernier message
-    const lastMessage = document.querySelector('.message:last-child');
-    if (lastMessage) {
-        lastTimestamp = parseInt(lastMessage.getAttribute('data-timestamp') || '0', 10);
-    }
-    
-    // Ne pas continuer si on n'est pas sur une page de conversation
     if (!convId) return;
     
-    // Fonction de vérification des mises à jour
-    function checkForUpdates() {
-        // Éviter les requêtes concurrentes
-        if (isCheckingForUpdates || !window.activeConnections.messagePolling) {
-            return;
-        }
-        
-        // Vérifier si l'utilisateur a le focus sur l'onglet et n'est pas en train d'écrire
-        const textareaActive = document.querySelector('textarea:focus');
-        const modalOpen = document.querySelector('.modal[style*="display: block"]');
-        
-        if (textareaActive || modalOpen) {
-            // L'utilisateur est en train d'écrire ou un modal est ouvert, on reporte la vérification
-            return;
-        }
-        
-        isCheckingForUpdates = true;
-        const apiPath = `${window.location.origin}${window.location.pathname.split('/').slice(0, -1).join('/')}/api/messages.php`;
-        
-        // Requête de vérification avec gestion d'erreur améliorée
-        fetch(`${apiPath}?conv_id=${convId}&action=check_updates&last_timestamp=${lastTimestamp}`, {
-            signal: window.activeConnections.abortController.signal,
-            credentials: 'same-origin'  // Add credentials for session management
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Erreur réseau: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success && data.hasUpdates) {
-                    // Si des mises à jour sont disponibles, les récupérer
-                    fetchNewMessages();
-                }
-                
-                // Vérifier les changements de participants
-                if (data.success && data.participantsChanged) {
-                    refreshParticipantsList();
-                }
-                
-                // Mettre à jour le timestamp - Utiliser le timestamp du dernier message
-                // au lieu du timestamp actuel pour éviter les confusions
-                if (data.timestamp) {
-                    lastTimestamp = data.timestamp;
-                }
-                
-                isCheckingForUpdates = false;
-            })
-            .catch(error => {
-                // Ne pas afficher d'erreur si la requête a été annulée (navigation)
-                if (error.name !== 'AbortError') {
-                    console.error('Erreur lors de la vérification des mises à jour:', error);
-                    isCheckingForUpdates = false;
-                }
-            });
+    let lastTimestamp = 0;
+    let readVersionSum = 0;
+    let lastReadMessageId = 0;
+    let isPolling = false;
+    let pollInterval = 5000; // 5s normal
+    
+    // Initialiser depuis le dernier message existant
+    const lastMsg = document.querySelector('.message:last-child');
+    if (lastMsg) {
+        lastTimestamp = parseInt(lastMsg.getAttribute('data-timestamp') || '0', 10);
+        lastReadMessageId = parseInt(lastMsg.getAttribute('data-id') || '0', 10);
     }
     
-    /**
-     * Affiche un indicateur de nouveaux messages
-     * @param {number} count - Nombre de nouveaux messages
-     */
-    function showNewMessagesIndicator(count) {
-        // Créer ou mettre à jour un indicateur flottant
-        let indicator = document.getElementById('new-messages-indicator');
+    async function poll() {
+        if (isPolling || !window.activeConnections?.messagePolling) return;
+        isPolling = true;
         
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'new-messages-indicator';
-            indicator.style.position = 'fixed';
-            indicator.style.bottom = '100px';
-            indicator.style.right = '20px';
-            indicator.style.backgroundColor = '#009b72';
-            indicator.style.color = 'white';
-            indicator.style.padding = '10px 15px';
-            indicator.style.borderRadius = '20px';
-            indicator.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
-            indicator.style.cursor = 'pointer';
-            indicator.style.zIndex = '1000';
+        try {
+            // ── Vérification nouveaux messages ──
+            const msgData = await apiFetch(
+                `${getApiBase()}/v2.php?resource=messages&action=check_updates&conv_id=${convId}&last_timestamp=${lastTimestamp}`
+            );
             
-            indicator.addEventListener('click', function() {
-                const messagesContainer = document.querySelector('.messages-container');
-                scrollToBottom(messagesContainer);
-                this.style.display = 'none';
-            });
-            
-            document.body.appendChild(indicator);
-        }
-        
-        indicator.textContent = `${count} nouveau(x) message(s)`;
-        indicator.style.display = 'block';
-        
-        // Masquer après un délai si non cliqué
-        setTimeout(() => {
-            if (indicator) indicator.style.display = 'none';
-        }, 5000);
-    }
-    
-    /**
-     * Joue un son de notification (optionnel)
-     */
-    function playNotificationSound() {
-        // On pourrait implémenter un son de notification ici
-        // Par exemple:
-        // const audio = new Audio('/assets/sounds/notification.mp3');
-        // audio.play();
-    }
-    
-    /**
-     * Récupère et ajoute les nouveaux messages à la conversation
-     */
-    function fetchNewMessages() {
-        const apiPath = `${window.location.origin}${window.location.pathname.split('/').slice(0, -1).join('/')}/api/messages.php`;
-        
-        fetch(`${apiPath}?conv_id=${convId}&action=get_new&last_timestamp=${lastTimestamp}`, {
-            signal: window.activeConnections.abortController.signal,
-            credentials: 'same-origin'  // Add credentials for session management
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Erreur réseau: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success && data.messages && data.messages.length > 0) {
-                    // Mettre à jour la référence du dernier timestamp
-                    const messages = data.messages;
-                    const messagesContainer = document.querySelector('.messages-container');
+            if (msgData.success && msgData.has_updates && msgData.new_count > 0) {
+                // Récupérer les nouveaux messages
+                const newData = await apiFetch(
+                    `${getApiBase()}/v2.php?resource=messages&action=get_new&conv_id=${convId}&last_timestamp=${lastTimestamp}`
+                );
+                
+                if (newData.success && newData.messages?.length > 0) {
+                    const container = document.querySelector('.messages-container');
+                    const wasAtBottom = isScrolledToBottom(container);
                     
-                    // On était déjà en bas avant les nouveaux messages?
-                    const wasAtBottom = isScrolledToBottom(messagesContainer);
-                    
-                    // Ajouter chaque nouveau message
-                    messages.forEach(message => {
-                        appendMessageToDOM(message, messagesContainer);
-                        
-                        // Mise à jour du lastTimestamp avec le plus récent
-                        if (message.timestamp > lastTimestamp) {
-                            lastTimestamp = message.timestamp;
+                    newData.messages.forEach(msg => {
+                        // Éviter doublons
+                        if (!document.querySelector(`.message[data-id="${msg.id}"]`)) {
+                            appendMessageToDOM(msg, container);
+                            if (msg.timestamp > lastTimestamp) lastTimestamp = msg.timestamp;
                         }
                     });
                     
-                    // Faire défiler vers le bas si l'utilisateur était déjà en bas
-                    if (wasAtBottom) {
-                        scrollToBottom(messagesContainer);
-                    } else {
-                        // Sinon, indiquer qu'il y a de nouveaux messages
-                        showNewMessagesIndicator(messages.length);
-                    }
-                    
-                    // Lecture audio pour notification (optionnelle)
-                    playNotificationSound();
+                    if (wasAtBottom) scrollToBottom(container);
+                    else showNewMessagesIndicator(newData.messages.length);
                 }
-            })
-            .catch(error => {
-                // Ne pas afficher d'erreur si la requête a été annulée (navigation)
-                if (error.name !== 'AbortError') {
-                    console.error('Erreur lors de la récupération des nouveaux messages:', error);
+            }
+            
+            // ── Vérification read status ──
+            const readData = await apiFetch(
+                `${getApiBase()}/v2.php?resource=messages&action=read_status&conv_id=${convId}&version=${readVersionSum}&since=${lastReadMessageId}`
+            );
+            
+            if (readData.success) {
+                readVersionSum = readData.version || 0;
+                if (readData.has_updates && readData.updates) {
+                    readData.updates.forEach(u => updateReadStatus(u));
                 }
-            });
-    }
-    
-    /**
-     * Actualise la liste des participants
-     */
-    function refreshParticipantsList() {
-        const apiPath = `${window.location.origin}${window.location.pathname.split('/').slice(0, -1).join('/')}/api/participants.php`;
-        
-        fetch(`${apiPath}?conv_id=${convId}&action=get_list`, {
-            signal: window.activeConnections.abortController.signal,
-            credentials: 'same-origin'  // Add credentials for session management
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Erreur réseau: ${response.status}`);
-                }
-                return response.text();
-            })
-            .then(html => {
-                const participantsList = document.querySelector('.participants-list');
-                if (participantsList) {
-                    participantsList.innerHTML = html;
-                }
-            })
-            .catch(error => {
-                // Ne pas afficher d'erreur si la requête a été annulée (navigation)
-                if (error.name !== 'AbortError') {
-                    console.error('Erreur lors de l\'actualisation des participants:', error);
-                }
-            });
-    }
-    
-    // Utiliser setInterval au lieu de setTimeout récursif pour plus de robustesse
-    const messagePollingId = setInterval(() => {
-        // Ne déclencher le polling que si l'indicateur est actif
-        if (window.activeConnections && window.activeConnections.messagePolling) {
-            checkForUpdates();
+            }
+        } catch (e) {
+            if (e.name !== 'AbortError') console.error('Polling error:', e);
+        } finally {
+            isPolling = false;
         }
-    }, refreshInterval);
+    }
     
-    // Stocker l'ID d'intervalle pour pouvoir l'annuler plus tard si nécessaire
-    window.messagePollingId = messagePollingId;
+    // Démarrage initial après 1s
+    setTimeout(poll, 1000);
     
-    // Effectuer une vérification initiale
-    setTimeout(checkForUpdates, 1000);
+    // Polling régulier
+    const pollingId = setInterval(poll, pollInterval);
+    window.unifiedPollingId = pollingId;
     
-    // Gestion du scroll - si l'utilisateur fait défiler vers le bas, masquer l'indicateur
-    const messagesContainer = document.querySelector('.messages-container');
-    if (messagesContainer) {
-        messagesContainer.addEventListener('scroll', function() {
-            if (isScrolledToBottom(this)) {
-                const indicator = document.getElementById('new-messages-indicator');
-                if (indicator) indicator.style.display = 'none';
+    // Ralentir quand onglet inactif
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            window.activeConnections.messagePolling = true;
+            poll(); // MAJ immédiate
+        }
+    });
+    
+    // Scroll: masquer indicateur
+    const container = document.querySelector('.messages-container');
+    if (container) {
+        container.addEventListener('scroll', () => {
+            if (isScrolledToBottom(container)) {
+                const ind = document.getElementById('new-messages-indicator');
+                if (ind) ind.style.display = 'none';
             }
         });
     }
+}
+
+/**
+ * Affiche un indicateur de nouveaux messages
+ */
+function showNewMessagesIndicator(count) {
+    let indicator = document.getElementById('new-messages-indicator');
+    
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'new-messages-indicator';
+        indicator.className = 'new-messages-indicator';
+        
+        indicator.addEventListener('click', function() {
+            scrollToBottom(document.querySelector('.messages-container'));
+            this.style.display = 'none';
+        });
+        
+        document.body.appendChild(indicator);
+    }
+    
+    indicator.textContent = `${count} nouveau(x) message(s)`;
+    indicator.style.display = 'block';
+    
+    setTimeout(() => { if (indicator) indicator.style.display = 'none'; }, 5000);
 }
 
 /**
@@ -667,14 +349,18 @@ function setupAjaxMessageSending() {
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi en cours...';
         
-        // Envoyer la requête AJAX
-        const apiPath = `${window.location.origin}${window.location.pathname.split('/').slice(0, -1).join('/')}/api/messages.php`;
+        // Envoyer la requête AJAX avec CSRF
+        const apiPath = `${window.location.origin}${getApiBase()}/v2.php?resource=messages&action=send_message`;
+        
+        // Ajouter le CSRF token au FormData
+        const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        formData.append('_csrf_token', token);
         
         fetch(apiPath, {
             method: 'POST',
             body: formData,
             signal: window.activeConnections.abortController.signal,
-            credentials: 'same-origin'  // Add credentials for session management
+            credentials: 'same-origin'
         })
         .then(response => {
             // Vérifier si la réponse est ok avant de continuer
@@ -733,126 +419,191 @@ function setupAjaxMessageSending() {
 }
 
 /**
- * Ajoute un message au DOM
- * @param {Object} message - Objet message à ajouter
- * @param {HTMLElement} container - Conteneur où ajouter le message
+ * Ajoute un message au DOM (v2 : XSS-safe, reactions, edit/delete, secure attachments)
+ * @param {Object} message - Objet message
+ * @param {HTMLElement} container - Conteneur
  */
 function appendMessageToDOM(message, container) {
-    // Créer un nouvel élément div pour le message
     const messageElement = document.createElement('div');
     
-    // Déterminer les classes du message
     let classes = ['message'];
     if (message.is_self) classes.push('self');
     if (message.est_lu === 1 || message.est_lu === true) classes.push('read');
-    if (message.status) classes.push(message.status);
+    if (message.is_pinned) classes.push('pinned');
+    if (message.deleted_at) classes.push('deleted');
+    if (message.status && message.status !== 'normal') classes.push(message.status);
     
     messageElement.className = classes.join(' ');
     messageElement.setAttribute('data-id', message.id);
     messageElement.setAttribute('data-timestamp', message.timestamp);
+    messageElement.id = `message-${message.id}`;
     
-    // Formater la date lisible
     const messageDate = new Date(message.timestamp * 1000);
     const formattedDate = formatMessageDate(messageDate);
     
-    // Construction du HTML du message
-    let messageHTML = `
-        <div class="message-header">
-            <div class="sender">
-                <strong>${escapeHTML(message.expediteur_nom)}</strong>
-                <span class="sender-type">${getParticipantType(message.sender_type)}</span>
-            </div>
-            <div class="message-meta">
-    `;
+    // Construction XSS-safe via textContent + DOM API
+    // Header
+    const header = document.createElement('div');
+    header.className = 'message-header';
     
-    // Ajouter le tag d'importance si non standard
+    const senderDiv = document.createElement('div');
+    senderDiv.className = 'sender';
+    const strong = document.createElement('strong');
+    strong.textContent = message.expediteur_nom || 'Inconnu';
+    const typeSpan = document.createElement('span');
+    typeSpan.className = 'sender-type';
+    typeSpan.textContent = getParticipantType(message.sender_type);
+    senderDiv.appendChild(strong);
+    senderDiv.appendChild(typeSpan);
+    
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'message-meta';
+    
     if (message.status && message.status !== 'normal') {
-        messageHTML += `<span class="importance-tag ${message.status}">${message.status}</span>`;
+        const tag = document.createElement('span');
+        tag.className = `importance-tag ${escapeHTML(message.status)}`;
+        tag.textContent = message.status;
+        metaDiv.appendChild(tag);
     }
     
-    messageHTML += `
-                <span class="date">${formattedDate}</span>
-            </div>
-        </div>
-        <div class="message-content">${nl2br(escapeHTML(message.body || message.contenu))}</div>
-    `;
+    if (message.edited_at) {
+        const editTag = document.createElement('span');
+        editTag.className = 'edited-tag';
+        editTag.innerHTML = '<i class="fas fa-pencil-alt"></i> modifié';
+        metaDiv.appendChild(editTag);
+    }
     
-    // Ajouter les pièces jointes si présentes
-    if (message.pieces_jointes && message.pieces_jointes.length > 0) {
-        messageHTML += `<div class="attachments">`;
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'date';
+    dateSpan.textContent = formattedDate;
+    metaDiv.appendChild(dateSpan);
+    
+    // Dropdown menu actions (seulement si pas supprimé)
+    if (!message.deleted_at) {
+        const dropdown = document.createElement('div');
+        dropdown.className = 'message-dropdown';
+        dropdown.innerHTML = `<button class="btn-icon message-menu-btn" title="Actions"><i class="fas fa-ellipsis-v"></i></button>`;
+        const dropContent = document.createElement('div');
+        dropContent.className = 'message-dropdown-content';
+        
+        if (message.is_self) {
+            // Auteur peut éditer dans les 5 minutes
+            const age = Math.floor(Date.now() / 1000) - message.timestamp;
+            if (age < 300) {
+                const editBtn = document.createElement('button');
+                editBtn.innerHTML = '<i class="fas fa-edit"></i> Modifier';
+                editBtn.addEventListener('click', () => editMessage(message.id));
+                dropContent.appendChild(editBtn);
+            }
+            const delBtn = document.createElement('button');
+            delBtn.innerHTML = '<i class="fas fa-trash"></i> Supprimer';
+            delBtn.addEventListener('click', () => deleteMessage(message.id));
+            dropContent.appendChild(delBtn);
+        }
+        
+        if (!message.is_self) {
+            const replyBtn = document.createElement('button');
+            replyBtn.innerHTML = '<i class="fas fa-reply"></i> Répondre';
+            replyBtn.addEventListener('click', () => replyToMessage(message.id, message.expediteur_nom));
+            dropContent.appendChild(replyBtn);
+        }
+        
+        dropdown.appendChild(dropContent);
+        metaDiv.appendChild(dropdown);
+    }
+    
+    header.appendChild(senderDiv);
+    header.appendChild(metaDiv);
+    messageElement.appendChild(header);
+    
+    // Reply quote
+    if (message.parent_message_id) {
+        const quote = document.createElement('div');
+        quote.className = 'reply-quote';
+        quote.innerHTML = '<i class="fas fa-reply"></i> En réponse';
+        quote.addEventListener('click', () => scrollToMessage(message.parent_message_id));
+        messageElement.appendChild(quote);
+    }
+    
+    // Content (XSS-safe: textContent puis nl2br)
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.id = `msg-content-${message.id}`;
+    const body = message.body || message.contenu || '';
+    contentDiv.innerHTML = nl2br(escapeHTML(body));
+    messageElement.appendChild(contentDiv);
+    
+    // Pièces jointes (SECURE: via download.php)
+    if (message.pieces_jointes && message.pieces_jointes.length > 0 && !message.deleted_at) {
+        const attachDiv = document.createElement('div');
+        attachDiv.className = 'attachments';
         message.pieces_jointes.forEach(piece => {
-            messageHTML += `
-                <a href="${piece.chemin}" class="attachment" target="_blank">
-                    <i class="fas fa-paperclip"></i> ${escapeHTML(piece.nom_fichier)}
-                </a>
-            `;
+            const link = document.createElement('a');
+            link.href = `download.php?id=${piece.id || 0}`;
+            link.className = 'attachment';
+            link.target = '_blank';
+            link.innerHTML = '<i class="fas fa-paperclip"></i> ';
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = piece.nom_fichier || piece.file_name || 'Fichier';
+            link.appendChild(nameSpan);
+            attachDiv.appendChild(link);
         });
-        messageHTML += `</div>`;
+        messageElement.appendChild(attachDiv);
     }
     
-    messageHTML += `<div class="message-footer">`;
+    // Reactions
+    if (message.reactions && message.reactions.length > 0 && !message.deleted_at) {
+        const reactDiv = document.createElement('div');
+        reactDiv.className = 'message-reactions';
+        message.reactions.forEach(r => {
+            const btn = document.createElement('button');
+            btn.className = `reaction-badge ${r.user_reacted ? 'active' : ''}`;
+            btn.innerHTML = `${r.emoji} <span class="reaction-count">${r.count}</span>`;
+            btn.addEventListener('click', () => toggleReaction(message.id, r.emoji));
+            reactDiv.appendChild(btn);
+        });
+        messageElement.appendChild(reactDiv);
+    }
     
-    // Ajouter le statut de lecture pour les propres messages de l'utilisateur
+    // Reaction add button
+    if (!message.deleted_at) {
+        const reactAdd = document.createElement('div');
+        reactAdd.className = 'message-reactions-add';
+        const addBtn = document.createElement('button');
+        addBtn.className = 'btn-icon reaction-add-btn';
+        addBtn.title = 'Ajouter une réaction';
+        addBtn.innerHTML = '<i class="far fa-smile"></i>';
+        addBtn.addEventListener('click', () => showReactionPicker(message.id));
+        reactAdd.appendChild(addBtn);
+        messageElement.appendChild(reactAdd);
+    }
+    
+    // Footer
+    const footer = document.createElement('div');
+    footer.className = 'message-footer';
+    
     if (message.is_self) {
-        messageHTML += `
-            <div class="message-status">
-                <div class="message-read-status" data-message-id="${message.id}">
-                    ${(message.est_lu === 1 || message.est_lu === true) ? 
-                        '<div class="all-read"><i class="fas fa-check-double"></i> Vu</div>' : 
-                        '<div class="partial-read"><i class="fas fa-check"></i> <span class="read-count">0/' + 
-                        (document.querySelectorAll('.participants-list li:not(.left)').length - 1) + 
-                        '</span></div>'}
-                </div>
-            </div>
-        `;
+        const statusHtml = (message.est_lu === 1 || message.est_lu === true) 
+            ? '<div class="all-read"><i class="fas fa-check-double"></i> Vu</div>' 
+            : `<div class="partial-read"><i class="fas fa-check"></i> <span class="read-count">0/${Math.max(0, (document.querySelectorAll('.participants-list li:not(.left)').length || 2) - 1)}</span></div>`;
+        footer.innerHTML = `<div class="message-status"><div class="message-read-status" data-message-id="${message.id}">${statusHtml}</div></div>`;
     } else {
-        // Ajouter les actions pour les messages des autres
-        messageHTML += `
-            <div class="message-actions">
-                ${(message.est_lu === 1 || message.est_lu === true) ? 
-                    `<button class="btn-icon mark-unread-btn" data-message-id="${message.id}">
-                        <i class="fas fa-envelope"></i> Marquer comme non lu
-                    </button>` : 
-                    `<button class="btn-icon mark-read-btn" data-message-id="${message.id}">
-                        <i class="fas fa-envelope-open"></i> Marquer comme lu
-                    </button>`
-                }
-                <button class="btn-icon" onclick="replyToMessage(${message.id}, '${escapeHTML(message.expediteur_nom)}')">
-                    <i class="fas fa-reply"></i> Répondre
-                </button>
-            </div>
-        `;
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'message-actions';
+        const replyBtn = document.createElement('button');
+        replyBtn.className = 'btn-icon';
+        replyBtn.innerHTML = '<i class="fas fa-reply"></i> Répondre';
+        replyBtn.addEventListener('click', () => replyToMessage(message.id, message.expediteur_nom));
+        actionsDiv.appendChild(replyBtn);
+        footer.appendChild(actionsDiv);
     }
     
-    messageHTML += `</div>`;
-    
-    // Définir le HTML du message
-    messageElement.innerHTML = messageHTML;
-    
-    // Ajouter le message au conteneur
+    messageElement.appendChild(footer);
     container.appendChild(messageElement);
     
-    // Observer le nouveau message si ce n'est pas un message de l'utilisateur
-    if (!message.is_self) {
-        const messageObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
-                    const messageEl = entry.target;
-                    const messageId = parseInt(messageEl.dataset.id, 10);
-                    
-                    if (!messageEl.classList.contains('read')) {
-                        markMessageAsRead(messageId);
-                        messageObserver.unobserve(messageEl);
-                    }
-                }
-            });
-        }, {
-            root: document.querySelector('.messages-container'),
-            threshold: 0.7,
-            rootMargin: '0px 0px -20% 0px'
-        });
-        
-        messageObserver.observe(messageElement);
+    // Observer le nouveau message pour le marquage auto
+    if (!message.is_self && window.messageObserver) {
+        window.messageObserver.observe(messageElement);
     }
 }
 
@@ -1239,176 +990,424 @@ function setupMessageValidation() {
 
 /**
  * Utilitaire pour afficher des notifications d'erreur
- * @param {string} message - Message d'erreur
- * @param {number} duration - Durée d'affichage
+ * Utilise la version globale de main.js si disponible, sinon fallback local
  */
-function afficherNotificationErreur(message, duration = 5000) {
-    // Créer la div de notification si elle n'existe pas
-    let notifContainer = document.getElementById('error-notification-container');
-    
-    if (!notifContainer) {
-        notifContainer = document.createElement('div');
-        notifContainer.id = 'error-notification-container';
-        
-        // Styles pour centrer la notification
-        notifContainer.style.position = 'fixed';
-        notifContainer.style.top = '50%';
-        notifContainer.style.left = '50%';
-        notifContainer.style.transform = 'translate(-50%, -50%)';
-        notifContainer.style.zIndex = '10000';
-        notifContainer.style.width = 'auto';
-        notifContainer.style.maxWidth = '80%';
-        
-        document.body.appendChild(notifContainer);
-    }
-    
-    // Créer la notification
-    const notification = document.createElement('div');
-    notification.className = 'error-notification';
-    
-    // Styles de la notification
-    notification.style.backgroundColor = '#f8d7da';
-    notification.style.color = '#721c24';
-    notification.style.padding = '15px 20px';
-    notification.style.margin = '10px';
-    notification.style.borderRadius = '5px';
-    notification.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.2)';
-    notification.style.display = 'flex';
-    notification.style.justifyContent = 'space-between';
-    notification.style.alignItems = 'center';
-    notification.style.minWidth = '300px';
-    
-    // Créer le contenu de la notification
-    const content = document.createElement('div');
-    content.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
-    
-    // Créer le bouton de fermeture
-    const closeBtn = document.createElement('button');
-    closeBtn.innerHTML = '&times;';
-    closeBtn.style.background = 'none';
-    closeBtn.style.border = 'none';
-    closeBtn.style.color = '#721c24';
-    closeBtn.style.fontSize = '20px';
-    closeBtn.style.cursor = 'pointer';
-    closeBtn.style.marginLeft = '15px';
-    
-    // Ajouter le contenu et le bouton à la notification
-    notification.appendChild(content);
-    notification.appendChild(closeBtn);
-    
-    // Ajouter la notification au conteneur
-    notifContainer.appendChild(notification);
-    
-    // Fermer la notification quand on clique sur le bouton
-    closeBtn.addEventListener('click', function() {
-        notifContainer.removeChild(notification);
-        
-        // Supprimer le conteneur s'il n'y a plus de notifications
-        if (notifContainer.children.length === 0) {
-            document.body.removeChild(notifContainer);
-        }
-    });
-    
-    // Fermer automatiquement après la durée spécifiée
-    setTimeout(function() {
-        if (notification.parentNode === notifContainer) {
-            notifContainer.removeChild(notification);
-            
-            // Supprimer le conteneur s'il n'y a plus de notifications
-            if (notifContainer.children.length === 0) {
-                document.body.removeChild(notifContainer);
-            }
-        }
-    }, duration);
-    
-    return notification;
+if (typeof window.afficherNotificationErreur === 'undefined') {
+    // Fallback si main.js n'est pas chargé
+    window.afficherNotificationErreur = function(message, duration = 5000) {
+        console.error('[Notification]', message);
+        alert(message);
+    };
 }
 
 /**
- * Fonction utilitaire pour marquer un message comme lu
- * Exposée globalement pour être utilisée par d'autres scripts
- * @param {number} messageId - ID du message à marquer comme lu
+ * Marquer un message comme lu via l'API v2
  */
 function markMessageAsRead(messageId) {
     const convId = new URLSearchParams(window.location.search).get('id');
     
-    fetch(`api/read_status.php?action=read&conv_id=${convId}`, {
+    apiFetch(`${getApiBase()}/v2.php?resource=messages&action=mark_read`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId }),
-        signal: window.activeConnections.abortController.signal
+        body: JSON.stringify({ messageId })
     })
-    .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Mettre à jour l'interface avec le nouveau statut
             const messageEl = document.querySelector(`.message[data-id="${messageId}"]`);
             if (messageEl) {
                 messageEl.classList.add('read');
-                
-                // Mettre à jour le bouton si présent
-                const readBtn = messageEl.querySelector('.mark-read-btn');
-                if (readBtn) {
-                    const unreadBtn = document.createElement('button');
-                    unreadBtn.className = 'btn-icon mark-unread-btn';
-                    unreadBtn.setAttribute('data-message-id', messageId);
-                    unreadBtn.innerHTML = '<i class="fas fa-envelope"></i> Marquer comme non lu';
-                    
-                    readBtn.parentNode.replaceChild(unreadBtn, readBtn);
-                }
             }
+            if (data.readStatus) updateReadStatus(data.readStatus);
         }
     })
-    .catch(error => {
-        if (error.name !== 'AbortError') {
-            console.error('Erreur lors du marquage comme lu:', error);
+    .catch(e => { if (e.name !== 'AbortError') console.error('Mark read error:', e); });
+}
+
+// ═══════════════════════════════════════════════════
+// NOUVELLES FEATURES : Edit, Delete, Pin, Reactions
+// ═══════════════════════════════════════════════════
+
+/**
+ * Modifier un message
+ */
+function editMessage(messageId) {
+    const contentEl = document.getElementById(`msg-content-${messageId}`);
+    if (!contentEl) return;
+    
+    const currentText = contentEl.innerText;
+    
+    // Remplacer le contenu par un textarea
+    const editArea = document.createElement('textarea');
+    editArea.className = 'edit-message-textarea';
+    editArea.value = currentText;
+    editArea.rows = 3;
+    
+    const editActions = document.createElement('div');
+    editActions.className = 'edit-message-actions';
+    
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn primary btn-sm';
+    saveBtn.textContent = 'Sauvegarder';
+    saveBtn.addEventListener('click', () => {
+        const newBody = editArea.value.trim();
+        if (!newBody) return;
+        
+        apiFetch(`${getApiBase()}/v2.php?resource=messages&action=edit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message_id: messageId, body: newBody })
+        })
+        .then(data => {
+            if (data.success) {
+                contentEl.innerHTML = nl2br(escapeHTML(newBody));
+                // Ajouter badge "modifié"
+                const meta = contentEl.closest('.message')?.querySelector('.message-meta');
+                if (meta && !meta.querySelector('.edited-tag')) {
+                    const editTag = document.createElement('span');
+                    editTag.className = 'edited-tag';
+                    editTag.innerHTML = '<i class="fas fa-pencil-alt"></i> modifié';
+                    meta.insertBefore(editTag, meta.querySelector('.date'));
+                }
+                afficherNotification('Message modifié', 'success');
+            } else {
+                afficherNotificationErreur(data.error || 'Erreur lors de la modification');
+            }
+        })
+        .catch(e => afficherNotificationErreur(e.message));
+    });
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn secondary btn-sm';
+    cancelBtn.textContent = 'Annuler';
+    cancelBtn.addEventListener('click', () => {
+        contentEl.innerHTML = nl2br(escapeHTML(currentText));
+    });
+    
+    editActions.appendChild(saveBtn);
+    editActions.appendChild(cancelBtn);
+    
+    contentEl.innerHTML = '';
+    contentEl.appendChild(editArea);
+    contentEl.appendChild(editActions);
+    editArea.focus();
+}
+
+/**
+ * Supprimer un message (soft delete)
+ */
+function deleteMessage(messageId) {
+    if (!confirm('Supprimer ce message ?')) return;
+    
+    apiFetch(`${getApiBase()}/v2.php?resource=messages&action=delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: messageId })
+    })
+    .then(data => {
+        if (data.success) {
+            const msgEl = document.querySelector(`.message[data-id="${messageId}"]`);
+            if (msgEl) {
+                msgEl.classList.add('deleted');
+                const content = msgEl.querySelector('.message-content');
+                if (content) content.textContent = '[Message supprimé]';
+                // Retirer les actions
+                const dropdown = msgEl.querySelector('.message-dropdown');
+                if (dropdown) dropdown.remove();
+                const reactions = msgEl.querySelector('.message-reactions');
+                if (reactions) reactions.remove();
+                const reactAdd = msgEl.querySelector('.message-reactions-add');
+                if (reactAdd) reactAdd.remove();
+            }
+            afficherNotification('Message supprimé', 'success');
+        } else {
+            afficherNotificationErreur(data.error || 'Erreur lors de la suppression');
+        }
+    })
+    .catch(e => afficherNotificationErreur(e.message));
+}
+
+/**
+ * Épingler / Désépingler un message
+ */
+function togglePinMessage(messageId) {
+    apiFetch(`${getApiBase()}/v2.php?resource=messages&action=pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: messageId })
+    })
+    .then(data => {
+        if (data.success) {
+            const msgEl = document.querySelector(`.message[data-id="${messageId}"]`);
+            if (msgEl) {
+                if (data.is_pinned) {
+                    msgEl.classList.add('pinned');
+                    if (!msgEl.querySelector('.pinned-badge')) {
+                        const badge = document.createElement('div');
+                        badge.className = 'pinned-badge';
+                        badge.innerHTML = '<i class="fas fa-thumbtack"></i> Épinglé';
+                        msgEl.prepend(badge);
+                    }
+                } else {
+                    msgEl.classList.remove('pinned');
+                    msgEl.querySelector('.pinned-badge')?.remove();
+                }
+            }
+            afficherNotification(data.is_pinned ? 'Message épinglé' : 'Message désépinglé', 'success');
+        } else {
+            afficherNotificationErreur(data.error || 'Erreur');
+        }
+    })
+    .catch(e => afficherNotificationErreur(e.message));
+}
+
+/**
+ * Toggle une réaction emoji sur un message
+ */
+function toggleReaction(messageId, emoji) {
+    apiFetch(`${getApiBase()}/v2.php?resource=reactions&action=toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: messageId, reaction: emoji })
+    })
+    .then(data => {
+        if (data.success && data.reactions) {
+            // Mettre à jour les badges de réaction
+            const msgEl = document.querySelector(`.message[data-id="${messageId}"]`);
+            if (!msgEl) return;
+            
+            let reactDiv = msgEl.querySelector('.message-reactions');
+            if (!reactDiv) {
+                reactDiv = document.createElement('div');
+                reactDiv.className = 'message-reactions';
+                const reactAdd = msgEl.querySelector('.message-reactions-add');
+                if (reactAdd) msgEl.insertBefore(reactDiv, reactAdd);
+                else msgEl.appendChild(reactDiv);
+            }
+            
+            reactDiv.innerHTML = '';
+            data.reactions.forEach(r => {
+                const btn = document.createElement('button');
+                btn.className = `reaction-badge ${r.user_reacted ? 'active' : ''}`;
+                btn.innerHTML = `${r.emoji} <span class="reaction-count">${r.count}</span>`;
+                btn.addEventListener('click', () => toggleReaction(messageId, r.emoji));
+                reactDiv.appendChild(btn);
+            });
+        }
+    })
+    .catch(e => { if (e.name !== 'AbortError') console.error('Reaction error:', e); });
+}
+
+/**
+ * Afficher le sélecteur de réactions
+ */
+function showReactionPicker(messageId) {
+    // Fermer tout picker existant
+    document.querySelectorAll('.reaction-picker').forEach(p => p.remove());
+    
+    const reactions = ['👍', '❤️', '😂', '😮', '😢', '👏'];
+    
+    const picker = document.createElement('div');
+    picker.className = 'reaction-picker';
+    
+    reactions.forEach(emoji => {
+        const btn = document.createElement('button');
+        btn.className = 'reaction-picker-btn';
+        btn.textContent = emoji;
+        btn.addEventListener('click', () => {
+            toggleReaction(messageId, emoji);
+            picker.remove();
+        });
+        picker.appendChild(btn);
+    });
+    
+    const msgEl = document.querySelector(`.message[data-id="${messageId}"]`);
+    if (msgEl) {
+        const reactAddDiv = msgEl.querySelector('.message-reactions-add');
+        if (reactAddDiv) reactAddDiv.appendChild(picker);
+    }
+    
+    // Fermer au clic en dehors
+    setTimeout(() => {
+        document.addEventListener('click', function closePicker(e) {
+            if (!picker.contains(e.target) && !e.target.closest('.reaction-add-btn')) {
+                picker.remove();
+                document.removeEventListener('click', closePicker);
+            }
+        });
+    }, 0);
+}
+
+/**
+ * Scroll vers un message spécifique
+ */
+function scrollToMessage(messageId) {
+    const el = document.getElementById(`message-${messageId}`) || document.querySelector(`.message[data-id="${messageId}"]`);
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('highlight');
+        setTimeout(() => el.classList.remove('highlight'), 2000);
+    }
+}
+
+/**
+ * Charger les messages plus anciens
+ */
+function loadOlderMessages() {
+    const convId = new URLSearchParams(window.location.search).get('id');
+    const container = document.querySelector('.messages-container');
+    const firstMsg = container?.querySelector('.message');
+    if (!firstMsg || !convId) return;
+    
+    const beforeId = parseInt(firstMsg.getAttribute('data-id'), 10);
+    const btn = document.querySelector('#load-more-messages button');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Chargement...'; }
+    
+    apiFetch(`${getApiBase()}/v2.php?resource=messages&action=list&conv_id=${convId}&before=${beforeId}&limit=50`)
+    .then(data => {
+        if (data.success && data.messages?.length > 0) {
+            const scrollBefore = container.scrollHeight;
+            
+            // Insérer au début
+            data.messages.reverse().forEach(msg => {
+                if (!document.querySelector(`.message[data-id="${msg.id}"]`)) {
+                    const el = buildMessageElement(msg);
+                    container.prepend(el);
+                    if (!msg.is_self && window.messageObserver) window.messageObserver.observe(el);
+                }
+            });
+            
+            // Maintenir la position de scroll
+            container.scrollTop += container.scrollHeight - scrollBefore;
+            
+            if (!data.has_more) {
+                document.getElementById('load-more-messages')?.remove();
+            }
+        } else {
+            document.getElementById('load-more-messages')?.remove();
+        }
+    })
+    .catch(e => afficherNotificationErreur(e.message))
+    .finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-history"></i> Charger les messages précédents'; }
+    });
+}
+
+/**
+ * Construit un élément message mais ne l'ajoute pas au DOM
+ * (utilisé par loadOlderMessages pour prepend)
+ */
+function buildMessageElement(message) {
+    // Réutiliser la logique de appendMessageToDOM avec un container temporaire
+    const temp = document.createElement('div');
+    appendMessageToDOM(message, temp);
+    return temp.firstChild;
+}
+
+/**
+ * Indicateur de frappe (typing indicator)
+ */
+function setupTypingIndicator() {
+    const textarea = document.querySelector('textarea[name="contenu"]');
+    const convId = new URLSearchParams(window.location.search).get('id');
+    if (!textarea || !convId || !window.wsClient) return;
+    
+    let typingTimeout = null;
+    let isTyping = false;
+    
+    textarea.addEventListener('input', () => {
+        if (!isTyping) {
+            isTyping = true;
+            window.wsClient.emit?.('typing', { conversationId: convId, isTyping: true });
+        }
+        
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+            isTyping = false;
+            window.wsClient.emit?.('typing', { conversationId: convId, isTyping: false });
+        }, 2000);
+    });
+    
+    // Écouter les indicateurs des autres
+    window.wsClient.on?.('typing', (data) => {
+        if (data.userId == window.currentUserId && data.userType == window.currentUserType) return;
+        
+        let indicator = document.getElementById('typing-indicator');
+        if (data.isTyping) {
+            if (!indicator) {
+                indicator = document.createElement('div');
+                indicator.id = 'typing-indicator';
+                indicator.className = 'typing-indicator';
+                const container = document.querySelector('.reply-box') || document.querySelector('.messages-container');
+                if (container) container.parentNode.insertBefore(indicator, container.nextSibling);
+            }
+            indicator.textContent = `${data.userName || 'Quelqu\'un'} est en train d'écrire...`;
+            indicator.style.display = 'block';
+        } else {
+            if (indicator) indicator.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * Setup dropdown menus on message action buttons
+ */
+function setupMessageDropdowns() {
+    document.addEventListener('click', (e) => {
+        const menuBtn = e.target.closest('.message-menu-btn');
+        if (menuBtn) {
+            e.stopPropagation();
+            // Fermer les autres
+            document.querySelectorAll('.message-dropdown-content.show').forEach(d => {
+                if (d !== menuBtn.nextElementSibling) d.classList.remove('show');
+            });
+            menuBtn.nextElementSibling?.classList.toggle('show');
+        } else {
+            // Fermer tous les dropdowns
+            document.querySelectorAll('.message-dropdown-content.show').forEach(d => d.classList.remove('show'));
         }
     });
 }
 
 /**
  * Configure WebSocket pour la conversation en temps réel
+ * Désactive le polling si WebSocket est connecté
  */
 function setupWebSocketForConversation() {
     const convId = new URLSearchParams(window.location.search).get('id');
     if (!convId || !window.wsClient) return;
     
     // Rejoindre le canal de la conversation
-    window.wsClient.joinConversation(convId);
+    window.wsClient.joinConversation?.(convId);
     
     // Écouter les nouveaux messages
-    window.wsClient.on('newMessage', (message) => {
-        console.log('Nouveau message reçu via WebSocket:', message);
-        
-        // Vérifier si ce n'est pas notre propre message (éviter doublon)
+    window.wsClient.on?.('newMessage', (message) => {
         const isOwnMessage = message.sender_id == window.currentUserId && 
                             message.sender_type == window.currentUserType;
         
         if (!isOwnMessage) {
             const container = document.querySelector('.messages-container');
-            if (container) {
+            if (container && !document.querySelector(`.message[data-id="${message.id}"]`)) {
                 appendMessageToDOM(message, container);
                 
-                // Auto-scroll si l'utilisateur est en bas
-                if (isScrolledToBottom(container)) {
-                    scrollToBottom(container);
-                } else {
-                    showNewMessagesIndicator(1);
-                }
+                if (isScrolledToBottom(container)) scrollToBottom(container);
+                else showNewMessagesIndicator(1);
             }
         }
     });
     
-    // ⚠️ SUPPRIMER l'ancien polling setInterval
-    // if (window.messagePollingId) {
-    //     clearInterval(window.messagePollingId);
-    // }
+    // Écouter les mises à jour de read status
+    window.wsClient.on?.('messageRead', (data) => {
+        updateReadStatus(data);
+    });
     
-    // Fallback: si WebSocket non connecté après 5s, activer polling
+    // Fallback: si WebSocket non connecté après 5s, garder le polling actif
     setTimeout(() => {
-        if (!window.wsClient.connected) {
-            console.warn('WebSocket non connecté, activation du fallback polling');
-            enablePollingFallback();
+        if (window.wsClient.connected) {
+            // WebSocket connecté → désactiver le polling
+            if (window.unifiedPollingId) {
+                clearInterval(window.unifiedPollingId);
+                console.log('Polling désactivé (WebSocket actif)');
+            }
         }
     }, 5000);
 }
@@ -1420,10 +1419,34 @@ function enablePollingFallback() {
     const convId = new URLSearchParams(window.location.search).get('id');
     if (!convId) return;
     
-    console.log('Activation du fallback polling (30s)');
+    console.log('Activation du fallback polling (15s)');
+    window.unifiedPollingId = setInterval(() => {
+        if (window.activeConnections?.messagePolling) {
+            // Sera géré par setupUnifiedPolling
+        }
+    }, 15000);
+}
+
+// ═══════════════════════════════════════════════════
+// UTILITAIRES DE NOTIFICATION
+// ═══════════════════════════════════════════════════
+
+/**
+ * Notification de succès
+ */
+function afficherNotification(message, type = 'info', duration = 3000) {
+    const notif = document.createElement('div');
+    notif.className = `notification-toast ${type}`;
+    notif.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'}"></i>
+        <span>${escapeHTML(message)}</span>
+        <button class="notif-close">&times;</button>
+    `;
     
-    // Polling moins fréquent qu'avant (30s au lieu de 5s)
-    window.messagePollingId = setInterval(() => {
-        checkForUpdates();
-    }, 30000);
+    document.body.appendChild(notif);
+    
+    notif.querySelector('.notif-close').addEventListener('click', () => notif.remove());
+    setTimeout(() => { if (notif.parentNode) notif.remove(); }, duration);
+    
+    return notif;
 }

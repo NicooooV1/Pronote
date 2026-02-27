@@ -1,143 +1,64 @@
-/* Style principal pour le module messagerie - harmonisé avec les autres modules Pronote */
+/**
+ * PRONOTE - Module Messagerie
+ * Styles spécifiques au module Messagerie uniquement.
+ * Les styles de layout (sidebar, header, footer, boutons, alertes, formulaires)
+ * sont fournis par pronote-unified.css.
+ */
 
-/* ======= RESET ET BASE ======= */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* ======= FOLDER MENU (sidebar content) ======= */
+.folder-menu {
+  margin-bottom: 10px;
 }
 
-body {
-  font-family: 'Segoe UI', Arial, sans-serif;
-  background-color: #f5f5f5;
-  color: #333;
-  line-height: 1.5;
-  margin: 0;
-}
-
-a {
-  text-decoration: none;
-  color: inherit;
-}
-
-/* ======= STRUCTURE PRINCIPALE ======= */
-.app-container {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-}
-
-.sidebar {
-  width: 250px;
-  background-color: white;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  display: flex;
-  flex-direction: column;
-  z-index: 10;
-  overflow-y: auto;
-}
-
-.main-content {
-  flex: 1;
-  overflow-y: auto;
-  background-color: #f5f5f5;
-  display: flex;
-  flex-direction: column;
-}
-
-.top-header {
-  background-color: white;
-  padding: 15px 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 5;
-}
-
-.content-container {
-  flex: 1;
-  padding: 20px;
-  overflow-y: auto;
-}
-
-/* ======= HEADER ======= */
-.logo-container {
+.folder-menu a {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 20px;
-  padding: 15px 20px;
-  border-bottom: 1px solid #eee;
+  padding: 10px 15px;
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  transition: background-color 0.2s;
+  border-radius: 6px;
+  font-size: 14px;
+  margin-bottom: 3px;
 }
 
-.app-logo {
-  width: 32px;
-  height: 32px;
-  background-color: #00843d; /* Couleur harmonisée avec les autres modules */
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.folder-menu a:hover {
+  background-color: rgba(255, 255, 255, 0.1);
   color: white;
-  font-weight: bold;
 }
 
-.app-title {
-  font-size: 18px;
-  font-weight: 500;
-  color: #333;
+.folder-menu a.active {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: white;
+  font-weight: 600;
 }
 
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 15px;
+.folder-menu a i {
+  width: 20px;
+  text-align: center;
 }
 
-.logout-button {
+/* ======= BOUTONS SPÉCIFIQUES MESSAGERIE ======= */
+.create-button {
+  width: 100%;
+  background-color: rgba(255, 255, 255, 0.15);
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #666;
-  font-size: 24px;
-  padding: 5px;
-  border-radius: 50%;
+  gap: 8px;
+  font-weight: 500;
+  margin-bottom: 8px;
   transition: background-color 0.2s;
 }
 
-.logout-button:hover {
-  background-color: #f0f0f0;
-  color: #333;
-}
-
-.user-avatar {
-  width: 32px;
-  height: 32px;
-  background-color: #00843d;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 500;
-}
-
-/* ======= NAVIGATION ======= */
-.page-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.page-title h1 {
-  font-size: 22px;
-  font-weight: 500;
-  color: #333;
-  margin: 0;
+.create-button:hover {
+  background-color: rgba(255, 255, 255, 0.25);
 }
 
 .back-button {
@@ -151,118 +72,12 @@ a {
   cursor: pointer;
   font-size: 14px;
   color: #555;
+  text-decoration: none;
   transition: background-color 0.2s;
 }
 
 .back-button:hover {
   background-color: #e0e0e0;
-}
-
-/* ======= SIDEBAR ======= */
-.sidebar-section {
-  padding: 15px;
-  border-bottom: 1px solid #eee;
-}
-
-.sidebar-section-header {
-  font-weight: 500;
-  margin-bottom: 10px;
-}
-
-.folder-menu {
-  margin-bottom: 20px;
-}
-
-.folder-menu a {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 20px;
-  color: #495057;
-  text-decoration: none;
-  transition: background-color 0.2s;
-  border-radius: 0;
-  font-size: 14px;
-}
-
-.folder-menu a:hover {
-  background-color: rgba(0, 132, 61, 0.05);
-}
-
-.folder-menu a.active {
-  background-color: rgba(0, 132, 61, 0.1);
-  color: #00843d;
-  border-left: 3px solid #00843d;
-  font-weight: 600;
-}
-
-.folder-menu a i {
-  color: #00843d;
-  width: 20px;
-  text-align: center;
-}
-
-/* ======= BOUTONS ET ACTIONS ======= */
-.button, .btn {
-  padding: 10px 15px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  text-decoration: none;
-  transition: background-color 0.2s;
-}
-
-.button-primary, .btn-primary {
-  background-color: #00843d;
-  color: white;
-}
-
-.button-primary:hover, .btn-primary:hover {
-  background-color: #006e32;
-}
-
-.button-secondary, .btn-secondary {
-  background-color: #f5f5f5;
-  color: #444;
-}
-
-.button-secondary:hover, .btn-secondary:hover {
-  background-color: #e0e0e0;
-}
-
-.button-danger, .btn-danger {
-  background-color: #e74c3c;
-  color: white;
-}
-
-.button-danger:hover, .btn-danger:hover {
-  background-color: #c0392b;
-}
-
-.create-button {
-  width: 100%;
-  background-color: #00843d;
-  color: white;
-  border: none;
-  padding: 10px 15px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-weight: 500;
-  margin-top: 10px;
-  transition: background-color 0.2s;
-}
-
-.create-button:hover {
-  background-color: #006e32;
 }
 
 /* ======= CONVERSATION LIST ======= */
@@ -273,7 +88,7 @@ a {
 .conversation-item {
   background-color: white;
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-light, 0 1px 3px rgba(0,0,0,0.1));
   margin-bottom: 10px;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
@@ -284,17 +99,30 @@ a {
 
 .conversation-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+  box-shadow: var(--shadow-medium, 0 3px 8px rgba(0,0,0,0.15));
 }
 
 .conversation-item.selected {
   background-color: #f0f7ff;
-  border-left: 3px solid #00843d;
+  border-left-color: var(--primary-color, #0f4c81);
 }
 
 .conversation-item.unread {
-  border-left: 3px solid #00843d;
-  background-color: #f0f9f6;
+  border-left-color: var(--primary-color, #0f4c81);
+  background-color: rgba(15, 76, 129, 0.05);
+}
+
+.conversation-item.important .conversation-status {
+  color: #ffc107;
+}
+
+.conversation-item.urgent .conversation-status {
+  color: #ff3b30;
+}
+
+.conversation-item.annonce {
+  background-color: #fff8e1;
+  border-left-color: #ffc107;
 }
 
 .conversation-checkbox {
@@ -312,7 +140,7 @@ a {
 
 .conversation-content {
   flex-grow: 1;
-  min-width: 0; /* Pour permettre le text-overflow */
+  min-width: 0;
 }
 
 .conversation-header {
@@ -344,7 +172,7 @@ a {
 .unread-indicator {
   width: 8px;
   height: 8px;
-  background-color: #00843d;
+  background-color: var(--primary-color, #0f4c81);
   border-radius: 50%;
   display: inline-block;
   margin-right: 5px;
@@ -397,7 +225,7 @@ a {
 }
 
 .conversation-type i {
-  color: #00843d;
+  color: var(--primary-color, #0f4c81);
 }
 
 .conversation-actions {
@@ -415,14 +243,14 @@ a {
 }
 
 .conversation-action:hover {
-  color: #00843d;
+  color: var(--primary-color, #0f4c81);
 }
 
 .conversation-action.danger:hover {
-  color: #e74c3c;
+  color: #ff3b30;
 }
 
-/* ======= BARRE DE FILTRES ET RECHERCHE ======= */
+/* ======= HEADER DE LA LISTE ======= */
 .conversation-list-header {
   display: flex;
   justify-content: space-between;
@@ -431,9 +259,10 @@ a {
   padding: 15px;
   background-color: white;
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-light, 0 1px 3px rgba(0,0,0,0.1));
 }
 
+/* ======= ACTIONS EN MASSE ======= */
 .bulk-actions {
   display: flex;
   flex-wrap: wrap;
@@ -473,8 +302,8 @@ a {
 }
 
 .checkbox-container input:checked ~ .checkmark {
-  background-color: #00843d;
-  border-color: #00843d;
+  background-color: var(--primary-color, #0f4c81);
+  border-color: var(--primary-color, #0f4c81);
 }
 
 .checkmark:after {
@@ -513,7 +342,7 @@ a {
 }
 
 .bulk-action-btn.danger {
-  color: #e74c3c;
+  color: #ff3b30;
 }
 
 .bulk-action-btn.danger:hover {
@@ -525,6 +354,7 @@ a {
   cursor: not-allowed;
 }
 
+/* ======= RECHERCHE ======= */
 .conversation-search {
   flex: 0 0 250px;
 }
@@ -537,13 +367,13 @@ a {
   font-size: 14px;
 }
 
-/* ======= ÉTATS SPÉCIAUX ======= */
+/* ======= ÉTATS VIDES ======= */
 .empty-state {
   text-align: center;
   padding: 40px 20px;
   background-color: white;
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-light, 0 1px 3px rgba(0,0,0,0.1));
 }
 
 .empty-state i {
@@ -557,56 +387,7 @@ a {
   font-size: 16px;
 }
 
-/* États des conversations */
-.conversation-item.unread {
-  background-color: #f0f9f6;
-  border-left: 3px solid #00843d;
-}
-
-.conversation-item.important .conversation-status {
-  color: #ffc107;
-}
-
-.conversation-item.urgent .conversation-status {
-  color: #e74c3c;
-}
-
-.conversation-item.annonce {
-  background-color: #fff8e1;
-  border-left: 3px solid #ffc107;
-}
-
-/* ======= Messages et Alertes ======= */
-.alert, .message {
-  padding: 15px;
-  border-radius: 4px;
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.alert-success, .message.success {
-  background-color: #e0f2e9;
-  color: #00843d;
-  border-left: 4px solid #00843d;
-}
-
-.alert-error, .message.error {
-  background-color: #f8d7da;
-  color: #721c24;
-  border-left: 4px solid #721c24;
-}
-
-.alert-info, .message.info {
-  background-color: #d1ecf1;
-  color: #0c5460;
-  border-left: 4px solid #0c5460;
-  padding: 10px;
-  margin-bottom: 10px;
-}
-
-/* ======= Utilitaires ======= */
+/* ======= BADGES ======= */
 .badge {
   display: inline-block;
   padding: 3px 8px;
@@ -622,7 +403,7 @@ a {
 }
 
 .badge-primary {
-  background-color: #00843d;
+  background-color: var(--primary-color, #0f4c81);
   color: white;
 }
 
@@ -632,12 +413,12 @@ a {
 }
 
 .badge-success {
-  background-color: #28a745;
+  background-color: #34c759;
   color: white;
 }
 
 .badge-danger {
-  background-color: #dc3545;
+  background-color: #ff3b30;
   color: white;
 }
 
@@ -647,21 +428,113 @@ a {
 }
 
 .badge-info {
-  background-color: #17a2b8;
+  background-color: #007aff;
   color: white;
 }
 
-/* ======= RESPONSIVE ======= */
+/* ======= BOUTONS SPÉCIFIQUES ======= */
+.button {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.button-primary {
+  background-color: var(--primary-color, #0f4c81);
+  color: white;
+}
+
+.button-primary:hover {
+  background-color: var(--primary-dark, #0a3962);
+}
+
+.button-secondary {
+  background-color: #f5f5f5;
+  color: #444;
+}
+
+.button-secondary:hover {
+  background-color: #e0e0e0;
+}
+
+.button-danger {
+  background-color: #ff3b30;
+  color: white;
+}
+
+.button-danger:hover {
+  background-color: #e12e1c;
+}
+
+/* ======= COMPATIBILITÉ ANCIENS STYLES ======= */
+.container {
+  max-width: 1200px;
+  min-height: 100vh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background-color: #fff;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+}
+
+.content {
+  display: flex;
+  flex-grow: 1;
+}
+
+main {
+  flex-grow: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+main h2 {
+  font-size: 20px;
+  margin-bottom: 20px;
+  color: #212529;
+  font-weight: 500;
+}
+
+/* ======= UTILITAIRES ======= */
+.fw-bold { font-weight: 700; }
+.fw-semibold { font-weight: 600; }
+.fw-medium { font-weight: 500; }
+.fw-normal { font-weight: 400; }
+.fw-light { font-weight: 300; }
+
+.mt-1 { margin-top: 0.25rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-3 { margin-top: 1rem; }
+.mt-4 { margin-top: 1.5rem; }
+.mt-5 { margin-top: 3rem; }
+.mb-1 { margin-bottom: 0.25rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-3 { margin-bottom: 1rem; }
+.mb-4 { margin-bottom: 1.5rem; }
+.mb-5 { margin-bottom: 3rem; }
+.ml-1 { margin-left: 0.25rem; }
+.ml-2 { margin-left: 0.5rem; }
+.ml-3 { margin-left: 1rem; }
+.mr-1 { margin-right: 0.25rem; }
+.mr-2 { margin-right: 0.5rem; }
+.mr-3 { margin-right: 1rem; }
+
+.d-flex { display: flex; }
+.d-block { display: block; }
+.d-inline { display: inline; }
+.d-inline-block { display: inline-block; }
+.d-none { display: none; }
+
+/* ======= RESPONSIVE (module-specific) ======= */
 @media (max-width: 768px) {
-  .app-container {
-    flex-direction: column;
-  }
-  
-  .sidebar {
-    width: 100%;
-    max-height: 250px;
-  }
-  
   .conversation-list-header {
     flex-direction: column;
     align-items: flex-start;
@@ -684,114 +557,3 @@ a {
     margin-top: 5px;
   }
 }
-
-/* ======= Ancien style ======= */
-
-/* Ancien conteneur principal - pour compatibilité avec le code existant */
-.container {
-  max-width: 1200px;
-  min-height: 100vh;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  background-color: #fff;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-}
-
-/* Ancien header - pour compatibilité avec le code existant */
-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 20px;
-  background-color: #00843d; /* Utilise la couleur du menu notes */
-  color: white;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-header h1 {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.back-link {
-  color: white;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-/* Ancien contenu - pour compatibilité avec le code existant */
-.content {
-  display: flex;
-  flex-grow: 1;
-}
-
-/* Ancien main - pour compatibilité avec le code existant */
-main {
-  flex-grow: 1;
-  padding: 20px;
-  overflow-y: auto;
-}
-
-main h2 {
-  font-size: 20px;
-  margin-bottom: 20px;
-  color: #212529;
-  font-weight: 500;
-}
-
-/* Polices */
-.fw-bold {
-  font-weight: 700;
-}
-
-.fw-semibold {
-  font-weight: 600;
-}
-
-.fw-medium {
-  font-weight: 500;
-}
-
-.fw-normal {
-  font-weight: 400;
-}
-
-.fw-light {
-  font-weight: 300;
-}
-
-/* Marges */
-.mt-1 { margin-top: 0.25rem; }
-.mt-2 { margin-top: 0.5rem; }
-.mt-3 { margin-top: 1rem; }
-.mt-4 { margin-top: 1.5rem; }
-.mt-5 { margin-top: 3rem; }
-
-.mb-1 { margin-bottom: 0.25rem; }
-.mb-2 { margin-bottom: 0.5rem; }
-.mb-3 { margin-bottom: 1rem; }
-.mb-4 { margin-bottom: 1.5rem; }
-.mb-5 { margin-bottom: 3rem; }
-
-.ml-1 { margin-left: 0.25rem; }
-.ml-2 { margin-left: 0.5rem; }
-.ml-3 { margin-left: 1rem; }
-.ml-4 { margin-left: 1.5rem; }
-.ml-5 { margin-left: 3rem; }
-
-.mr-1 { margin-right: 0.25rem; }
-.mr-2 { margin-right: 0.5rem; }
-.mr-3 { margin-right: 1rem; }
-.mr-4 { margin-right: 1.5rem; }
-.mr-5 { margin-right: 3rem; }
-
-/* Affichage */
-.d-flex { display: flex; }
-.d-block { display: block; }
-.d-inline { display: inline; }
-.d-inline-block { display: inline-block; }
-.d-none { display: none; }

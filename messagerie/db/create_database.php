@@ -46,6 +46,127 @@ function columnExists($table, $column) {
 
 echo "<h1>Script de mise à jour de la base de données</h1>";
 
+// ============================================================
+// 0. Créer les tables de base si elles n'existent pas
+// ============================================================
+echo "<h2>Vérification des tables de base</h2>";
+
+// Table conversations
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `conversations` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `subject` varchar(255) NOT NULL,
+        `type` varchar(50) DEFAULT 'standard',
+        `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        KEY `idx_conv_updated` (`updated_at`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    echo "Table 'conversations' : OK<br>";
+} catch (PDOException $e) {
+    echo "Erreur table conversations: " . $e->getMessage() . "<br>";
+}
+
+// Table conversation_participants
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `conversation_participants` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `conversation_id` int(11) NOT NULL,
+        `user_id` int(11) NOT NULL,
+        `user_type` enum('eleve','parent','professeur','vie_scolaire','administrateur') NOT NULL,
+        `joined_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `last_read_at` datetime DEFAULT NULL,
+        `unread_count` int(11) NOT NULL DEFAULT 0,
+        `is_admin` tinyint(1) NOT NULL DEFAULT 0,
+        `is_moderator` tinyint(1) NOT NULL DEFAULT 0,
+        `is_archived` tinyint(1) NOT NULL DEFAULT 0,
+        `is_deleted` tinyint(1) NOT NULL DEFAULT 0,
+        `version` int(11) NOT NULL DEFAULT 1,
+        PRIMARY KEY (`id`),
+        KEY `idx_cp_conv_user` (`conversation_id`, `user_id`, `user_type`),
+        KEY `idx_cp_deleted_archived` (`is_deleted`, `is_archived`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    echo "Table 'conversation_participants' : OK<br>";
+} catch (PDOException $e) {
+    echo "Erreur table conversation_participants: " . $e->getMessage() . "<br>";
+}
+
+// Table messages (si elle n'existe pas)
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `messages` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `conversation_id` int(11) NOT NULL,
+        `sender_id` int(11) NOT NULL,
+        `sender_type` enum('eleve','parent','professeur','vie_scolaire','administrateur') NOT NULL,
+        `body` text NOT NULL,
+        `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        `status` enum('normal','important','urgent','annonce') NOT NULL DEFAULT 'normal',
+        PRIMARY KEY (`id`),
+        KEY `idx_conversation` (`conversation_id`),
+        KEY `idx_sender` (`sender_id`,`sender_type`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    echo "Table 'messages' : OK<br>";
+} catch (PDOException $e) {
+    echo "Erreur table messages: " . $e->getMessage() . "<br>";
+}
+
+// Table message_attachments
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `message_attachments` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `message_id` int(11) NOT NULL,
+        `file_name` varchar(255) NOT NULL,
+        `file_path` varchar(255) NOT NULL,
+        `uploaded_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        KEY `message_id` (`message_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    echo "Table 'message_attachments' : OK<br>";
+} catch (PDOException $e) {
+    echo "Erreur table message_attachments: " . $e->getMessage() . "<br>";
+}
+
+// Table message_notifications
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `message_notifications` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `user_id` int(11) NOT NULL,
+        `user_type` enum('eleve','parent','professeur','vie_scolaire','administrateur') NOT NULL,
+        `message_id` int(11) NOT NULL,
+        `notification_type` enum('unread','broadcast','mention','reply','important') NOT NULL DEFAULT 'unread',
+        `notified_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `is_read` tinyint(1) NOT NULL DEFAULT 0,
+        `read_at` datetime DEFAULT NULL,
+        PRIMARY KEY (`id`),
+        KEY `message_id` (`message_id`),
+        KEY `idx_message_notifications_user_read` (`user_id`,`user_type`,`is_read`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    echo "Table 'message_notifications' : OK<br>";
+} catch (PDOException $e) {
+    echo "Erreur table message_notifications: " . $e->getMessage() . "<br>";
+}
+
+// Table message_reactions
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `message_reactions` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `message_id` int(11) NOT NULL,
+        `user_id` int(11) NOT NULL,
+        `user_type` varchar(50) NOT NULL,
+        `reaction` varchar(20) NOT NULL,
+        `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        UNIQUE KEY `unique_reaction` (`message_id`, `user_id`, `user_type`, `reaction`),
+        KEY `idx_reaction_message` (`message_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    echo "Table 'message_reactions' : OK<br>";
+} catch (PDOException $e) {
+    echo "Erreur table message_reactions: " . $e->getMessage() . "<br>";
+}
+
+echo "<h2>Mises à jour des colonnes</h2>";
+
 // Vérifier et ajouter la colonne is_deleted à la table messages si elle n'existe pas
 if (!columnExists('messages', 'is_deleted')) {
     echo "Ajout de la colonne is_deleted à la table messages...<br>";

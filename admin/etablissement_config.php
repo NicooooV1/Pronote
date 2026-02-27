@@ -52,26 +52,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $data = $etablissementService->getData();
 ?>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configuration Établissement - PRONOTE</title>
-    <link rel="stylesheet" href="../assets/css/pronote-theme.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-</head>
-<body>
-    <div class="app-container">
-        <!-- Sidebar (identique aux autres pages admin) -->
-        <div class="sidebar">
-            <!-- ...navigation... -->
-        </div>
-
-        <div class="main-content">
-            <div class="top-header">
-                <h1>Configuration de l'Établissement</h1>
-            </div>
+<?php
+$pageTitle = 'Configuration Établissement';
+$currentPage = 'etablissement';
+ob_start();
+?>
+<style>
+    .tabs { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 0; }
+    .tab-button { padding: 10px 20px; border: none; background: transparent; cursor: pointer; font-size: 14px; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
+    .tab-button.active { color: #0f4c81; border-bottom-color: #0f4c81; }
+    .tab-button:hover { color: #0f4c81; }
+    .tab-content { display: none; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .tab-content.active { display: block; }
+    .periode-group { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+    .periode-group h4 { margin-top: 0; color: #0f4c81; }
+</style>
+<?php
+$extraHeadHtml = ob_get_clean();
+include 'includes/header.php';
+?>
 
             <?php if ($error): ?>
                 <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
@@ -145,8 +144,6 @@ $data = $etablissementService->getData();
                     <button type="submit" name="configure_periodes" class="btn btn-primary">Enregistrer les périodes</button>
                 </form>
             </div>
-        </div>
-    </div>
 
     <script>
         // Gestion des onglets
@@ -198,5 +195,4 @@ $data = $etablissementService->getData();
         // Initialiser les champs de périodes
         generatePeriodeFields(3, 'trimestre');
     </script>
-</body>
-</html>
+<?php include 'includes/footer.php'; ?>

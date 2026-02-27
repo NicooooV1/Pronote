@@ -1,6 +1,7 @@
 <?php
 // src/User.php
 require_once __DIR__ . '/password_generator.php';
+require_once __DIR__ . '/../../API/core.php';
 
 class User {
     private $pdo;
@@ -399,8 +400,7 @@ class User {
         // Gestion spéciale pour les comptes administrateur
         if ($profil === 'administrateur') {
             // Toujours permettre la mise à jour des administrateurs existants
-            require_once __DIR__ . '/../../API/config/admin_config.php';
-            if (!isAdminManagementAllowed()) {
+            if (function_exists('isAdminManagementAllowed') && !isAdminManagementAllowed()) {
                 $this->errorMessage = "La modification des comptes administrateurs n'est pas autorisée.";
                 return false;
             }
@@ -484,8 +484,7 @@ class User {
         
         // Vérification supplémentaire pour les administrateurs
         if ($profil === 'administrateur') {
-            require_once __DIR__ . '/../../API/config/admin_config.php';
-            if (!isAdminManagementAllowed()) {
+            if (function_exists('isAdminManagementAllowed') && !isAdminManagementAllowed()) {
                 $this->errorMessage = "La suppression des comptes administrateurs n'est pas autorisée.";
                 return false;
             }
@@ -530,8 +529,7 @@ class User {
         
         // Vérification supplémentaire pour les administrateurs
         if ($profil === 'administrateur') {
-            require_once __DIR__ . '/../../API/config/admin_config.php';
-            $validation = validateStrongPassword($newPassword);
+            $validation = function_exists('validateStrongPassword') ? validateStrongPassword($newPassword) : ['valid' => true, 'errors' => []];
             if (!$validation['valid']) {
                 $this->errorMessage = implode('. ', $validation['errors']);
                 return false;
@@ -634,27 +632,13 @@ class User {
                 // Skip administrator accounts for this method
                 if ($profil === 'administrateur') continue;
                 
-                // Check if 'actif' column exists and include it if it does
                 try {
-                    $stmt = $this->pdo->prepare("SHOW COLUMNS FROM `$table` LIKE 'actif'");
-                    $stmt->execute();
-                    $actifExists = $stmt->fetch() !== false;
-                    
-                    $fieldsToSelect = "id, identifiant, nom, prenom, mail";
-                    if ($actifExists) {
-                        $fieldsToSelect .= ", actif";
-                    }
-                    
-                    $stmt = $this->pdo->query("SELECT $fieldsToSelect FROM `$table`");
+                    $stmt = $this->pdo->query("SELECT id, identifiant, nom, prenom, mail, actif FROM `$table`");
                     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     
                     // Ajouter le profil à chaque utilisateur
                     foreach ($users as &$user) {
                         $user['profil'] = $profil;
-                        // Set default value for actif if not present
-                        if (!isset($user['actif'])) {
-                            $user['actif'] = 1;
-                        }
                     }
                     
                     $allUsers = array_merge($allUsers, $users);

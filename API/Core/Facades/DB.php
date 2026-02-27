@@ -3,66 +3,50 @@ declare(strict_types=1);
 
 namespace API\Core\Facades;
 
+use API\Core\Facade;
 use PDO;
-use PDOException;
 
-class DB
+/**
+ * Facade DB - Proxy statique vers le service 'db' du container
+ * Toutes les connexions passent par API\Database\Database (centralisé).
+ */
+class DB extends Facade
 {
-    private static $pdo = null;
+    protected static function getFacadeAccessor()
+    {
+        return 'db';
+    }
 
     /**
-     * Get PDO instance
+     * Retourne l'instance PDO centralisée
      * @return PDO
      */
-    public static function getPDO()
+    public static function getPDO(): PDO
     {
-        if (self::$pdo === null) {
-            self::connect();
-        }
-        return self::$pdo;
+        return app('db')->getConnection();
     }
 
     /**
-     * Initialize database connection
-     */
-    private static function connect()
-    {
-        $config_path = dirname(dirname(__DIR__)) . '/config/database.php';
-        
-        if (!file_exists($config_path)) {
-            throw new \Exception("Le fichier de configuration database.php est introuvable");
-        }
-
-        $config = require $config_path;
-
-        try {
-            self::$pdo = new PDO(
-                "mysql:host={$config['host']};dbname={$config['database']};charset=utf8mb4",
-                $config['username'],
-                $config['password'],
-                [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    PDO::ATTR_EMULATE_PREPARES => false
-                ]
-            );
-        } catch (PDOException $e) {
-            error_log("Erreur de connexion DB: " . $e->getMessage());
-            throw new \Exception("Erreur de connexion à la base de données");
-        }
-    }
-
-    /**
-     * Execute a query
+     * Exécute une requête préparée
      * @param string $query
-     * @param array $params
+     * @param array  $params
      * @return \PDOStatement
      */
-    public static function query($query, $params = [])
+    public static function query(string $query, array $params = []): \PDOStatement
     {
         $pdo = self::getPDO();
         $stmt = $pdo->prepare($query);
         $stmt->execute($params);
         return $stmt;
+    }
+
+    /**
+     * Retourne un QueryBuilder pour une table
+     * @param string $table
+     * @return \API\Database\QueryBuilder
+     */
+    public static function table(string $table)
+    {
+        return app('db')->table($table);
     }
 }

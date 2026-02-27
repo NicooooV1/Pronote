@@ -11,6 +11,8 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/constants.php';
 require_once __DIR__ . '/core/utils.php';
 require_once __DIR__ . '/core/auth.php';
+require_once __DIR__ . '/core/csrf.php';
+require_once __DIR__ . '/core/validator.php';
 require_once __DIR__ . '/models/participant.php';
 require_once __DIR__ . '/models/conversation.php';
 require_once __DIR__ . '/controllers/conversation.php';
@@ -33,6 +35,7 @@ $importance = isset($_POST['importance']) ? $_POST['importance'] : 'normal';
 
 // Traitement du formulaire d'envoi
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_verify();
     $errors = [];
     
     try {
@@ -221,6 +224,7 @@ include 'templates/header.php';
         </div>
         
         <form method="post" enctype="multipart/form-data" id="messageForm">
+            <?= csrf_field() ?>
             <div class="form-group">
                 <label for="destinataires">Destinataires</label>
                 <div class="multiselect-container">

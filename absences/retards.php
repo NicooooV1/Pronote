@@ -2,9 +2,9 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Inclusion des fichiers nécessaires avec chemins absolus
-require_once __DIR__ . '/../API/auth_central.php';
-require_once __DIR__ . '/includes/db.php';
+// Inclusion de l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
 require_once __DIR__ . '/includes/functions.php';
 
 // Vérifier que l'utilisateur est connecté de façon centralisée
@@ -24,20 +24,6 @@ $date_debut = filter_input(INPUT_GET, 'date_debut', FILTER_SANITIZE_STRING) ?: d
 $date_fin = filter_input(INPUT_GET, 'date_fin', FILTER_SANITIZE_STRING) ?: date('Y-m-d');
 $classe = filter_input(INPUT_GET, 'classe', FILTER_SANITIZE_STRING) ?: '';
 $justifie = filter_input(INPUT_GET, 'justifie', FILTER_SANITIZE_STRING) ?: '';
-
-// Vérifier si la table retards existe
-try {
-    $tableCheck = $pdo->query("SHOW TABLES LIKE 'retards'");
-    if ($tableCheck->rowCount() == 0) {
-        // Créer la table si elle n'existe pas
-        createRetardsTableIfNotExists($pdo);
-    }
-} catch (PDOException $e) {
-    // Utiliser le système de journalisation centralisé
-    \Pronote\Logging\error("Erreur lors de la vérification/création de la table retards: " . $e->getMessage());
-    // Afficher un message convivial
-    $error_message = "Un problème est survenu lors de l'initialisation du module. Veuillez contacter l'administrateur.";
-}
 
 // Récupérer la liste des retards selon le rôle de l'utilisateur
 $retards = [];
@@ -158,101 +144,81 @@ if (!empty($etablissement_data['classes'])) {
         }
     }
 }
+<?php
+$pageTitle = 'Gestion des retards';
+$currentPage = 'retards';
+
+// Sidebar personnalisée avec filtres
+ob_start();
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestion des retards - Pronote</title>
-  <link rel="stylesheet" href="../agenda/assets/css/calendar.css">
-  <link rel="stylesheet" href="assets/css/absences.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-</head>
-<body>
-  <div class="app-container">
-    <!-- Sidebar -->
-    <div class="sidebar">
-      <a href="../accueil/accueil.php" class="logo-container">
-        <div class="app-logo">P</div>
-        <div class="app-title">Pronote Retards</div>
-      </a>
-      
-      <!-- Filtres -->
-      <div class="sidebar-section">
-        <form id="filters-form" method="get" action="retards.php">
-          <div class="form-group">
-            <label for="date_debut">Du</label>
-            <input type="date" id="date_debut" name="date_debut" value="<?= $date_debut ?>" max="<?= date('Y-m-d') ?>">
-          </div>
-          
-          <div class="form-group">
-            <label for="date_fin">Au</label>
-            <input type="date" id="date_fin" name="date_fin" value="<?= $date_fin ?>" max="<?= date('Y-m-d') ?>">
-          </div>
-          
-          <?php if (isAdmin() || isVieScolaire() || isTeacher()): ?>
-          <div class="form-group">
-            <label for="classe">Classe</label>
-            <select id="classe" name="classe">
-              <option value="">Toutes les classes</option>
-              <?php foreach ($classes as $c): ?>
-              <option value="<?= $c ?>" <?= $classe == $c ? 'selected' : '' ?>><?= $c ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <?php endif; ?>
-          
-          <div class="form-group">
-            <label for="justifie">Justification</label>
-            <select id="justifie" name="justifie">
-              <option value="">Toutes</option>
-              <option value="oui" <?= $justifie == 'oui' ? 'selected' : '' ?>>Justifiés</option>
-              <option value="non" <?= $justifie == 'non' ? 'selected' : '' ?>>Non justifiés</option>
-            </select>
-          </div>
-          
-          <button type="submit" class="filter-button">Appliquer les filtres</button>
-        </form>
-      </div>
-      
-      <!-- Actions -->
-      <div class="sidebar-section">
-        <?php if (canManageAbsences()): ?>
-        <a href="ajouter_retard.php" class="action-button">
-          <i class="fas fa-plus"></i> Ajouter un retard
-        </a>
-        <?php endif; ?>
-        
-        <a href="absences.php" class="action-button secondary">
-          <i class="fas fa-calendar"></i> Voir les absences
-        </a>
-        
-        <?php if (canManageAbsences()): ?>
-        <a href="justificatifs.php" class="action-button secondary">
-          <i class="fas fa-file-alt"></i> Justificatifs
-        </a>
-        <?php endif; ?>
-        
-        <a href="statistiques.php" class="action-button secondary">
-          <i class="fas fa-chart-bar"></i> Statistiques
-        </a>
-      </div>
-    </div>
-    
-    <!-- Main Content -->
-    <div class="main-content">
-      <!-- Header -->
-      <div class="top-header">
-        <div class="page-title">
-          <h1>Gestion des retards</h1>
+        <div class="sidebar-section">
+            <div class="sidebar-section-header">FILTRES</div>
+            <form id="filters-form" method="get" action="retards.php" style="padding: 0 15px;">
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label for="date_debut" style="font-size: 12px; color: #8e9aaf;">Du</label>
+                <input type="date" id="date_debut" name="date_debut" value="<?= $date_debut ?>" max="<?= date('Y-m-d') ?>" class="form-control" style="font-size: 13px;">
+              </div>
+              
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label for="date_fin" style="font-size: 12px; color: #8e9aaf;">Au</label>
+                <input type="date" id="date_fin" name="date_fin" value="<?= $date_fin ?>" max="<?= date('Y-m-d') ?>" class="form-control" style="font-size: 13px;">
+              </div>
+              
+              <?php if (isAdmin() || isVieScolaire() || isTeacher()): ?>
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label for="classe" style="font-size: 12px; color: #8e9aaf;">Classe</label>
+                <select id="classe" name="classe" class="form-control" style="font-size: 13px;">
+                  <option value="">Toutes les classes</option>
+                  <?php foreach ($classes as $c): ?>
+                  <option value="<?= $c ?>" <?= $classe == $c ? 'selected' : '' ?>><?= $c ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <?php endif; ?>
+              
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label for="justifie" style="font-size: 12px; color: #8e9aaf;">Justification</label>
+                <select id="justifie" name="justifie" class="form-control" style="font-size: 13px;">
+                  <option value="">Toutes</option>
+                  <option value="oui" <?= $justifie == 'oui' ? 'selected' : '' ?>>Justifiés</option>
+                  <option value="non" <?= $justifie == 'non' ? 'selected' : '' ?>>Non justifiés</option>
+                </select>
+              </div>
+              
+              <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 5px; font-size: 13px;">Appliquer les filtres</button>
+            </form>
         </div>
         
-        <div class="header-actions">
-          <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
-          <div class="user-avatar"><?= $user_initials ?></div>
+        <div class="sidebar-section">
+            <div class="sidebar-section-header">ACTIONS</div>
+            <div class="sidebar-nav">
+                <?php if (canManageAbsences()): ?>
+                <a href="ajouter_retard.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-plus"></i></span>
+                    <span>Ajouter un retard</span>
+                </a>
+                <?php endif; ?>
+                <a href="absences.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-calendar"></i></span>
+                    <span>Voir les absences</span>
+                </a>
+                <?php if (canManageAbsences()): ?>
+                <a href="justificatifs.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-file-alt"></i></span>
+                    <span>Justificatifs</span>
+                </a>
+                <?php endif; ?>
+                <a href="statistiques.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
+                    <span>Statistiques</span>
+                </a>
+            </div>
         </div>
-      </div>
+<?php
+$sidebarExtraContent = ob_get_clean();
+$headerExtraActions = '';
+include 'includes/header.php';
+?>
       
       <!-- Content -->
       <div class="content-container">
@@ -335,8 +301,4 @@ if (!empty($etablissement_data['classes'])) {
           </div>
         <?php endif; ?>
       </div>
-    </div>
-  </div>
-</body>
-</html>
-<?php ob_end_flush(); ?>
+<?php include 'includes/footer.php'; ob_end_flush(); ?>

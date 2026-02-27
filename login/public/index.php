@@ -8,7 +8,7 @@ require_once __DIR__ . '/../../API/core.php';
 
 // Si l'utilisateur est déjà connecté, le rediriger
 if (isLoggedIn()) {
-    redirect('accueil/accueil.php');
+    redirect('../../accueil/accueil.php');
 }
 
 $error = '';
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             error_log("SESSION USER: " . print_r($_SESSION['user'] ?? null, true));
             
             // Redirection vers l'accueil
-            redirect('accueil/accueil.php');
+            redirect('../../accueil/accueil.php');
             exit; // Sécurité supplémentaire
         } else {
             $error = "Identifiant ou mot de passe incorrect.";

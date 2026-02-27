@@ -2,9 +2,10 @@
 // Démarrer la mise en mémoire tampon de sortie pour éviter l'erreur "headers already sent"
 ob_start();
 
-// Inclure les fichiers nécessaires
-require_once __DIR__ . '/../API/auth_central.php';
-require_once __DIR__ . '/includes/db.php';
+// Inclusion de l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
+require_once __DIR__ . '/includes/auth.php';
 
 // Vérifier que l'utilisateur est connecté
 if (!isLoggedIn()) {
@@ -55,9 +56,7 @@ if ($error) {
 
 // Utiliser try-catch pour gérer les erreurs de base de données
 try {
-    // Vérifier si la colonne 'personnes_concernees' existe
-    $stmt_check_column = $pdo->query("SHOW COLUMNS FROM evenements LIKE 'personnes_concernees'");
-    $personnes_concernees_exists = $stmt_check_column && $stmt_check_column->rowCount() > 0;
+    $personnes_concernees_exists = true;
 
     // Récupérer les détails de l'événement avec une requête préparée
     $stmt = $pdo->prepare('SELECT * FROM evenements WHERE id = ?');
@@ -244,200 +243,32 @@ $personnes_concernees_array = [];
 if ($personnes_concernees_exists && !empty($evenement['personnes_concernees'])) {
     $personnes_concernees_array = explode(',', $evenement['personnes_concernees']);
 }
+
+// Préparer l'en-tête
+$pageTitle = htmlspecialchars($evenement['titre']);
+$extraCss = [];
+
+ob_start();
 ?>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    <meta http-equiv="X-Frame-Options" content="DENY">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com">
-    <title><?= htmlspecialchars($evenement['titre']) ?> - Agenda Pronote</title>
-    <link rel="stylesheet" href="assets/css/calendar.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" integrity="sha512-Fo3rlrZj/k7ujTnHg4CGR2D7kSs0v4LLanw2qksYuRlEzO+tcaEPQogQ0KaoGN26/zrn20ImR1DfuLWnOo7aBA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
-        /* Styles pour les notifications et alertes */
-        .alert-message {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 15px 20px;
-            border-radius: 5px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            animation: fade-in 0.3s ease-out forwards;
-            transition: opacity 0.5s;
-        }
-        
-        .alert-success {
-            background-color: #d4edda;
-            color: #155724;
-            border-left: 4px solid #28a745;
-        }
-        
-        .alert-error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border-left: 4px solid #dc3545;
-        }
-        
-        /* Animation d'entrée pour les messages d'alerte */
-        @keyframes fade-in {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        /* Style pour la modale de confirmation */
-        .modal {
-            display: none; 
-            position: fixed; 
-            z-index: 1050; 
-            left: 0;
-            top: 0;
-            width: 100%; 
-            height: 100%;
-            overflow: auto; 
-            background-color: rgba(0,0,0,0.4);
-            animation: fade-in 0.2s;
-        }
-        
-        .modal-content {
-            background-color: #fefefe;
-            margin: 10% auto;
-            padding: 0;
-            width: 400px;
-            border-radius: 8px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-        
-        .modal-header {
-            padding: 15px 20px;
-            border-bottom: 1px solid #e9ecef;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .modal-header h3 {
-            margin: 0;
-            font-size: 18px;
-        }
-        
-        .modal-body {
-            padding: 20px;
-        }
-        
-        .modal-footer {
-            border-top: 1px solid #e9ecef;
-            padding: 15px 20px;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-        
-        .close {
-            color: #aaa;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        
-        .close:hover {
-            color: black;
-        }
-        
-        /* Style pour les boutons */
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background-color 0.2s;
-        }
-        
-        .btn-danger {
-            background-color: #dc3545;
-            color: white;
-        }
-        
-        .btn-danger:hover {
-            background-color: #c82333;
-        }
-        
-        .btn-secondary {
-            background-color: #6c757d;
-            color: white;
-        }
-        
-        .btn-secondary:hover {
-            background-color: #5a6268;
-        }
+        .alert-message { position: fixed; top: 20px; right: 20px; padding: 15px 20px; border-radius: 5px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); z-index: 1000; display: flex; align-items: center; gap: 10px; animation: fade-in 0.3s ease-out forwards; transition: opacity 0.5s; }
+        .alert-success { background-color: #d4edda; color: #155724; border-left: 4px solid #28a745; }
+        .alert-error { background-color: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+        @keyframes fade-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); animation: fade-in 0.2s; }
+        .modal-content { background-color: #fefefe; margin: 10% auto; padding: 0; width: 400px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h3 { margin: 0; font-size: 18px; }
+        .modal-body { padding: 20px; }
+        .modal-footer { border-top: 1px solid #e9ecef; padding: 15px 20px; display: flex; justify-content: flex-end; gap: 10px; }
+        .close { color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: black; }
     </style>
-</head>
-<body>
-    <div class="app-container">
-        <!-- Sidebar -->
-        <div class="sidebar">
-            <a href="../accueil/accueil.php" class="logo-container">
-                <div class="app-logo">P</div>
-                <div class="app-title">Pronote Agenda</div>
-            </a>
-            
-            <!-- Mini-calendrier pour la navigation -->
-            <div class="mini-calendar">
-                <!-- Le mini-calendrier sera généré dynamiquement -->
-            </div>
-            
-            <!-- Créer un événement -->
-            <div class="sidebar-section">
-                <a href="ajouter_evenement.php" class="create-button">
-                    <span>+</span> Créer un événement
-                </a>
-            </div>
-            
-            <!-- Autres modules -->
-            <div class="sidebar-section">
-                <div class="sidebar-section-header">Autres modules</div>
-                <div class="folder-menu">
-                    <a href="../notes/notes.php" class="module-link">
-                        <i class="fas fa-chart-bar"></i> Notes
-                    </a>
-                    <a href="../messagerie/index.php" class="module-link">
-                        <i class="fas fa-envelope"></i> Messagerie
-                    </a>
-                    <a href="../absences/absences.php" class="module-link">
-                        <i class="fas fa-calendar-times"></i> Absences
-                    </a>
-                    <a href="../cahierdetextes/cahierdetextes.php" class="module-link">
-                        <i class="fas fa-book"></i> Cahier de textes
-                    </a>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Main Content -->
-        <div class="main-content">
-            <!-- Header -->
-            <div class="top-header">
-                <div class="calendar-navigation">
-                    <a href="agenda.php" class="back-button">
-                        <span class="back-icon">
-                            <i class="fas fa-arrow-left"></i>
-                        </span>
-                        Retour à l'agenda
-                    </a>
-                </div>
-                
-                <div class="header-actions">
-                    <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
-                    <div class="user-avatar"><?= htmlspecialchars($user_initials) ?></div>
-                </div>
-            </div>
+<?php
+$extraHeadHtml = ob_get_clean();
+
+include 'includes/header.php';
+?>
             
             <!-- Container principal -->
             <div class="calendar-container">

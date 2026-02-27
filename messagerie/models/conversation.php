@@ -6,23 +6,42 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../core/utils.php';
 
 /**
- * Récupère les conversations d'un utilisateur
+ * Sous-requête réutilisable pour obtenir le nom complet d'un utilisateur
+ * @return string SQL CASE expression
+ */
+function getUserNameCaseSQL(string $idCol = 'cp.user_id', string $typeCol = 'cp.user_type'): string {
+    return "CASE 
+        WHEN {$typeCol} = 'eleve' THEN (SELECT CONCAT(e.prenom, ' ', e.nom) FROM eleves e WHERE e.id = {$idCol})
+        WHEN {$typeCol} = 'parent' THEN (SELECT CONCAT(p.prenom, ' ', p.nom) FROM parents p WHERE p.id = {$idCol})
+        WHEN {$typeCol} = 'professeur' THEN (SELECT CONCAT(p.prenom, ' ', p.nom) FROM professeurs p WHERE p.id = {$idCol})
+        WHEN {$typeCol} = 'vie_scolaire' THEN (SELECT CONCAT(v.prenom, ' ', v.nom) FROM vie_scolaire v WHERE v.id = {$idCol})
+        WHEN {$typeCol} = 'administrateur' THEN (SELECT CONCAT(a.prenom, ' ', a.nom) FROM administrateurs a WHERE a.id = {$idCol})
+        ELSE 'Inconnu'
+    END";
+}
+
+/**
+ * Récupère les conversations d'un utilisateur avec pagination
+ * Corrige le problème N+1 en batch-chargeant les participants
+ *
  * @param int $userId
  * @param string $userType
  * @param string $dossier
- * @return array
+ * @param int $limit  Nombre de conversations par page
+ * @param int $offset Décalage pour la pagination
+ * @return array ['conversations' => [...], 'total' => int, 'has_more' => bool]
  */
-function getConversations($userId, $userType, $dossier = 'reception') {
+function getConversations($userId, $userType, $dossier = 'reception', $limit = 20, $offset = 0) {
     global $pdo;
     
     $baseQuery = "
         SELECT c.id, c.subject as titre, 
-               CASE 
-                   WHEN EXISTS (SELECT 1 FROM messages WHERE conversation_id = c.id AND status = 'annonce') THEN 'annonce'
-                   ELSE 'standard'
-               END as type,
+               COALESCE(c.type, 
+                   CASE WHEN EXISTS (SELECT 1 FROM messages WHERE conversation_id = c.id AND status = 'annonce') 
+                        THEN 'annonce' ELSE 'standard' END
+               ) as type,
                c.created_at as date_creation, 
-               (SELECT MAX(created_at) FROM messages WHERE conversation_id = c.id) as dernier_message,
+               c.updated_at as dernier_message,
                (SELECT body FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as apercu,
                (SELECT status FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as status,
                cp.unread_count as non_lus
@@ -31,65 +50,145 @@ function getConversations($userId, $userType, $dossier = 'reception') {
         WHERE cp.user_id = ? AND cp.user_type = ?
     ";
     
-    // Ajouter des conditions selon le dossier
-    $params = [$userId, $userType];
+    $countQuery = "
+        SELECT COUNT(*) FROM conversations c
+        JOIN conversation_participants cp ON c.id = cp.conversation_id
+        WHERE cp.user_id = ? AND cp.user_type = ?
+    ";
     
+    $params = [$userId, $userType];
+    $countParams = [$userId, $userType];
+    
+    $folderCondition = '';
     switch ($dossier) {
         case 'archives':
-            $baseQuery .= " AND cp.is_archived = 1 AND cp.is_deleted = 0";
+            $folderCondition = " AND cp.is_archived = 1 AND cp.is_deleted = 0";
             break;
         case 'corbeille':
-            $baseQuery .= " AND cp.is_deleted = 1";
+            $folderCondition = " AND cp.is_deleted = 1";
             break;
         case 'envoyes':
-            $baseQuery .= " AND cp.is_archived = 0 AND cp.is_deleted = 0 
-                          AND EXISTS (
-                            SELECT 1 FROM messages 
-                            WHERE conversation_id = c.id 
-                            AND sender_id = ? AND sender_type = ?
-                          )";
+            $folderCondition = " AND cp.is_archived = 0 AND cp.is_deleted = 0 
+                          AND EXISTS (SELECT 1 FROM messages WHERE conversation_id = c.id AND sender_id = ? AND sender_type = ?)";
             $params[] = $userId;
             $params[] = $userType;
+            $countParams[] = $userId;
+            $countParams[] = $userType;
             break;
         case 'information':
-            $baseQuery .= " AND cp.is_archived = 0 AND cp.is_deleted = 0 
+            $folderCondition = " AND cp.is_archived = 0 AND cp.is_deleted = 0 
                           AND EXISTS (SELECT 1 FROM messages WHERE conversation_id = c.id AND status = 'annonce')";
             break;
         case 'reception':
         default:
-            $baseQuery .= " AND cp.is_archived = 0 AND cp.is_deleted = 0 
+            $folderCondition = " AND cp.is_archived = 0 AND cp.is_deleted = 0 
                           AND NOT EXISTS (SELECT 1 FROM messages WHERE conversation_id = c.id AND status = 'annonce')";
     }
     
-    $baseQuery .= " ORDER BY c.updated_at DESC";
+    $baseQuery .= $folderCondition . " ORDER BY c.updated_at DESC LIMIT ? OFFSET ?";
+    $countQuery .= $folderCondition;
     
+    // Compter le total
+    $countStmt = $pdo->prepare($countQuery);
+    $countStmt->execute($countParams);
+    $total = (int) $countStmt->fetchColumn();
+    
+    // Récupérer la page courante
+    $params[] = $limit;
+    $params[] = $offset;
     $stmt = $pdo->prepare($baseQuery);
     $stmt->execute($params);
     $conversations = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Enrichir les données avec les participants
-    foreach ($conversations as &$conversation) {
+    // ── FIX N+1 : batch-charger les participants en UNE seule requête ──
+    if (!empty($conversations)) {
+        $convIds = array_column($conversations, 'id');
+        $placeholders = implode(',', array_fill(0, count($convIds), '?'));
+        $nameCase = getUserNameCaseSQL();
+        
         $participantsStmt = $pdo->prepare("
-            SELECT 
-                cp.user_id, cp.user_type, cp.is_admin, cp.is_moderator,
-                CASE 
-                    WHEN cp.user_type = 'eleve' THEN 
-                        (SELECT CONCAT(e.prenom, ' ', e.nom) FROM eleves e WHERE e.id = cp.user_id)
-                    WHEN cp.user_type = 'parent' THEN 
-                        (SELECT CONCAT(p.prenom, ' ', p.nom) FROM parents p WHERE p.id = cp.user_id)
-                    WHEN cp.user_type = 'professeur' THEN 
-                        (SELECT CONCAT(p.prenom, ' ', p.nom) FROM professeurs p WHERE p.id = cp.user_id)
-                    WHEN cp.user_type = 'vie_scolaire' THEN 
-                        (SELECT CONCAT(v.prenom, ' ', v.nom) FROM vie_scolaire v WHERE v.id = cp.user_id)
-                    WHEN cp.user_type = 'administrateur' THEN 
-                        (SELECT CONCAT(a.prenom, ' ', a.nom) FROM administrateurs a WHERE a.id = cp.user_id)
-                    ELSE 'Inconnu'
-                END as nom_complet
+            SELECT cp.conversation_id, cp.user_id, cp.user_type, cp.is_admin, cp.is_moderator,
+                   {$nameCase} as nom_complet
             FROM conversation_participants cp
-            WHERE cp.conversation_id = ? AND cp.is_deleted = 0
+            WHERE cp.conversation_id IN ({$placeholders}) AND cp.is_deleted = 0
         ");
-        $participantsStmt->execute([$conversation['id']]);
-        $conversation['participants'] = $participantsStmt->fetchAll(PDO::FETCH_ASSOC);
+        $participantsStmt->execute($convIds);
+        $allParticipants = $participantsStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Indexer par conversation_id
+        $participantsByConv = [];
+        foreach ($allParticipants as $p) {
+            $participantsByConv[$p['conversation_id']][] = $p;
+        }
+        
+        foreach ($conversations as &$conversation) {
+            $conversation['participants'] = $participantsByConv[$conversation['id']] ?? [];
+        }
+        unset($conversation);
+    }
+    
+    return [
+        'conversations' => $conversations,
+        'total' => $total,
+        'has_more' => ($offset + $limit) < $total
+    ];
+}
+
+/**
+ * Recherche dans les conversations d'un utilisateur (full-text)
+ *
+ * @param int $userId
+ * @param string $userType
+ * @param string $query Texte recherché
+ * @param int $limit
+ * @param int $offset
+ * @return array
+ */
+function searchConversations($userId, $userType, $query, $limit = 20, $offset = 0) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT c.id, c.subject as titre,
+               COALESCE(c.type, 'standard') as type,
+               c.created_at as date_creation,
+               c.updated_at as dernier_message,
+               cp.unread_count as non_lus,
+               MATCH(c.subject) AGAINST (? IN BOOLEAN MODE) as relevance_subject,
+               (SELECT MAX(MATCH(m2.body) AGAINST (? IN BOOLEAN MODE))
+                FROM messages m2 WHERE m2.conversation_id = c.id) as relevance_body
+        FROM conversations c
+        JOIN conversation_participants cp ON c.id = cp.conversation_id
+        LEFT JOIN messages m ON m.conversation_id = c.id
+        WHERE cp.user_id = ? AND cp.user_type = ? AND cp.is_deleted = 0
+          AND (MATCH(c.subject) AGAINST (? IN BOOLEAN MODE) OR MATCH(m.body) AGAINST (? IN BOOLEAN MODE))
+        ORDER BY (COALESCE(relevance_subject, 0) * 2 + COALESCE(relevance_body, 0)) DESC
+        LIMIT ? OFFSET ?
+    ");
+    $searchTerm = '*' . str_replace(' ', '* *', trim($query)) . '*';
+    $stmt->execute([$searchTerm, $searchTerm, $userId, $userType, $searchTerm, $searchTerm, $limit, $offset]);
+    $conversations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Batch-charger les participants
+    if (!empty($conversations)) {
+        $convIds = array_column($conversations, 'id');
+        $placeholders = implode(',', array_fill(0, count($convIds), '?'));
+        $nameCase = getUserNameCaseSQL();
+        
+        $pStmt = $pdo->prepare("
+            SELECT cp.conversation_id, cp.user_id, cp.user_type, cp.is_admin, cp.is_moderator,
+                   {$nameCase} as nom_complet
+            FROM conversation_participants cp
+            WHERE cp.conversation_id IN ({$placeholders}) AND cp.is_deleted = 0
+        ");
+        $pStmt->execute($convIds);
+        $grouped = [];
+        foreach ($pStmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            $grouped[$p['conversation_id']][] = $p;
+        }
+        foreach ($conversations as &$conv) {
+            $conv['participants'] = $grouped[$conv['id']] ?? [];
+        }
+        unset($conv);
     }
     
     return $conversations;

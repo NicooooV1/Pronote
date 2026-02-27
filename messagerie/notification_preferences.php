@@ -50,9 +50,6 @@ $preferences = getUserNotificationPreferences($user['id'], $user['type']);
 include 'templates/header.php';
 ?>
 
-<div class="content">
-    <?php include 'templates/sidebar.php'; ?>
-
     <main>
         <h2>Préférences de notification</h2>
         
@@ -133,7 +130,6 @@ include 'templates/header.php';
             </form>
         </div>
     </main>
-</div>
 
 <!-- Script pour la gestion des notifications du navigateur -->
 <script>

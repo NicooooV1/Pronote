@@ -8,6 +8,8 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/constants.php';
 require_once __DIR__ . '/core/utils.php';
 require_once __DIR__ . '/core/auth.php';
+require_once __DIR__ . '/core/csrf.php';
+require_once __DIR__ . '/core/validator.php';
 require_once __DIR__ . '/controllers/message.php';
 require_once __DIR__ . '/models/message.php';
 
@@ -50,6 +52,7 @@ function getAvailableClasses() {
 
 // Traitement du formulaire d'envoi d'annonce
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_verify();
     try {
         $titre = isset($_POST['titre']) ? trim($_POST['titre']) : '';
         $contenu = isset($_POST['contenu']) ? trim($_POST['contenu']) : '';
@@ -223,6 +226,8 @@ include 'templates/header.php';
             <i class="fas fa-info-circle"></i> Les annonces importantes sont des messages qui sont mis en évidence dans la messagerie des destinataires.
         </div>
         
+        <form method="post" enctype="multipart/form-data" id="announcementForm">
+            <?= csrf_field() ?>
             <div class="form-group">
                 <label for="titre">Titre de l'annonce</label>
                 <input type="text" name="titre" id="titre" value="<?= htmlspecialchars($titre) ?>" required maxlength="100">

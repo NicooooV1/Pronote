@@ -16,9 +16,10 @@ if (APP_ENV !== 'development') {
     ini_set('display_errors', 1);
 }
 
-// Inclusion des fichiers nécessaires
-require_once __DIR__ . '/../API/auth_central.php'; // Utiliser le système d'authentification centralisé
-require_once __DIR__ . '/includes/db.php';
+// Inclusion de l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
+require_once __DIR__ . '/includes/auth.php';
 
 // Vérifier que l'utilisateur est connecté
 if (!isLoggedIn()) {
@@ -503,397 +504,64 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_persons' && isset($_GET['
     
     exit;
 }
+
+// Préparer l'en-tête avec les styles inline de ce formulaire
+$pageTitle = 'Ajouter un événement';
+$extraCss = [];
+
+ob_start();
 ?>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    <meta http-equiv="X-Frame-Options" content="DENY">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com">
-    <title>Ajouter un événement - Agenda Pronote</title>
-    <link rel="stylesheet" href="assets/css/calendar.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" integrity="sha512-Fo3rlrZj/k7ujTnHg4CGR2D7kSs0v4LLanw2qksYuRlEzO+tcaEPQogQ0KaoGN26/zrn20ImR1DfuLWnOo7aBA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
-        /* Styles spécifiques pour la page de création d'événement */
-        body {
-          margin: 0;
-          padding: 0;
-          font-family: 'Segoe UI', Arial, sans-serif;
-          background-color: #f5f5f5;
-          color: #333;
-        }
-        
-        /* Container principal */
-        .event-creation-container {
-          max-width: 800px;
-          margin: 20px auto;
-          background-color: white;
-          border-radius: 8px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-          padding: 0;
-        }
-        
-        /* En-tête avec bouton retour */
-        .event-creation-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 15px 20px;
-          border-bottom: 1px solid #eee;
-        }
-        
-        .event-creation-header h2 {
-          margin: 0;
-          color: #333;
-          font-weight: 500;
-          font-size: 20px;
-        }
-        
-        .role-indicator {
-          padding: 4px 8px;
-          background-color: #e0f2e9;
-          color: #00843d;
-          border-radius: 4px;
-          font-size: 14px;
-          font-weight: 500;
-        }
-        
-        .back-button {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 12px;
-          background-color: #f5f5f5;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          color: #555;
-          text-decoration: none;
-          transition: background-color 0.2s;
-        }
-        
-        .back-button:hover {
-          background-color: #e0e0e0;
-        }
-        
-        /* Formulaire */
-        .event-creation-form {
-          padding: 20px;
-        }
-        
-        .form-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 15px;
-        }
-        
-        .form-full {
-          grid-column: 1 / -1;
-        }
-        
-        .form-group {
-          margin-bottom: 15px;
-        }
-        
-        .form-group label {
-          display: block;
-          margin-bottom: 6px;
-          font-weight: 500;
-          color: #555;
-          font-size: 14px;
-        }
-        
-        .form-group input[type="text"],
-        .form-group input[type="date"],
-        .form-group input[type="time"],
-        .form-group select,
-        .form-group textarea {
-          width: 100%;
-          padding: 10px 12px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-size: 14px;
-          transition: border-color 0.3s, box-shadow 0.3s;
-        }
-        
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-          border-color: #00843d;
-          outline: none;
-          box-shadow: 0 0 0 2px rgba(0,132,61,0.1);
-        }
-        
-        /* Type personnalisé */
-        .type-personnalise {
-          margin-top: 10px;
-          display: none;
-        }
-        
-        /* Actions du formulaire */
-        .form-actions {
-          display: flex;
-          justify-content: flex-end;
-          gap: 10px;
-          margin-top: 20px;
-          padding-top: 20px;
-          border-top: 1px solid #eee;
-        }
-        
-        .btn-cancel {
-          padding: 10px 15px;
-          background-color: #f5f5f5;
-          color: #333;
-          border: none;
-          border-radius: 4px;
-          font-size: 14px;
-          cursor: pointer;
-          text-decoration: none;
-          transition: background-color 0.2s;
-        }
-        
-        .btn-cancel:hover {
-          background-color: #e0e0e0;
-        }
-        
-        .btn-submit {
-          padding: 10px 15px;
-          background-color: #00843d;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          font-size: 14px;
-          cursor: pointer;
-          transition: background-color 0.2s;
-        }
-        
-        .btn-submit:hover {
-          background-color: #006e32;
-        }
-        
-        /* Messages */
-        .message {
-          padding: 10px 15px;
-          margin-bottom: 20px;
-          border-radius: 4px;
-        }
-        
-        .message.success {
-          background-color: #e0f2e9;
-          color: #00843d;
-          border: 1px solid #00843d;
-        }
-        
-        .message.error {
-          background-color: #ffe6e6;
-          color: #f44336;
-          border: 1px solid #f44336;
-        }
-        
-        /* Classes multiselect */
-        .multiselect-container {
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          overflow: hidden;
-          max-height: 300px;
-          display: flex;
-          flex-direction: column;
-        }
-        
-        .multiselect-search {
-          padding: 10px;
-          border-bottom: 1px solid #eee;
-        }
-        
-        .multiselect-search input {
-          width: 100%;
-          padding: 8px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-size: 14px;
-        }
-        
-        .multiselect-actions {
-          padding: 10px;
-          display: flex;
-          gap: 10px;
-          border-bottom: 1px solid #eee;
-        }
-        
-        .multiselect-action {
-          background: none;
-          border: none;
-          color: #00843d;
-          cursor: pointer;
-          font-size: 12px;
-          padding: 0;
-        }
-        
-        .multiselect-action:hover {
-          text-decoration: underline;
-        }
-        
-        .multiselect-options {
-          padding: 10px;
-          overflow-y: auto;
-          flex: 1;
-          max-height: 200px;
-        }
-        
-        .multiselect-option {
-          margin-bottom: 5px;
-        }
-        
-        .multiselect-option label {
-          display: flex;
-          align-items: center;
-          font-weight: normal;
-          cursor: pointer;
-          padding: 4px 0;
-        }
-        
-        .multiselect-option input[type="checkbox"] {
-          margin-right: 8px;
-          width: auto;
-        }
-        
-        /* Styles pour le sélecteur de personnes */
-        .persons-selector {
-          margin-top: 15px;
-        }
-        
-        .persons-list {
-          max-height: 300px;
-          overflow-y: auto;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          padding: 10px;
-          margin-top: 10px;
-        }
-        
-        .person-item {
-          display: flex;
-          align-items: center;
-          padding: 5px 0;
-          border-bottom: 1px solid #eee;
-        }
-        
-        .person-item:last-child {
-          border-bottom: none;
-        }
-        
-        .person-checkbox {
-          margin-right: 10px;
-        }
-        
-        .person-name {
-          font-weight: 500;
-        }
-        
-        .person-info {
-          font-size: 0.85em;
-          color: #666;
-          margin-left: 10px;
-        }
-        
-        .persons-search {
-          width: 100%;
-          padding: 8px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          margin-bottom: 10px;
-        }
-        
-        .persons-actions {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 10px;
-        }
-        
-        .persons-action {
-          background: none;
-          border: none;
-          color: #00843d;
-          cursor: pointer;
-          padding: 5px;
-        }
-        
-        .persons-count {
-          margin-top: 10px;
-          font-size: 0.9em;
-          color: #666;
-        }
-        
-        .loading-indicator {
-          text-align: center;
-          padding: 15px;
-          font-style: italic;
-          color: #666;
-        }
-        
-        .no-persons {
-          padding: 15px;
-          text-align: center;
-          color: #666;
-          font-style: italic;
-        }
-        
-        /* Responsive */
-        @media (max-width: 768px) {
-          .form-grid {
-            grid-template-columns: 1fr;
-          }
-          
-          .event-creation-container {
-            margin: 0;
-            border-radius: 0;
-            max-width: none;
-          }
-        }
-      </style>
-</head>
-<body>
-    <div class="app-container">
-        <!-- Sidebar -->
-        <div class="sidebar">
-            <div class="logo-container">
-                <div class="app-logo">P</div>
-                <div class="app-title">Agenda</div>
-            </div>
-            
-            <!-- Actions -->
-            <div class="sidebar-section">
-                <div class="sidebar-section-header">Actions</div>
-                <a href="agenda.php" class="button button-secondary">
-                    <i class="fas fa-calendar"></i> Retour à l'agenda
-                </a>
-            </div>
-            
-            <!-- Autres modules -->
-            <div class="sidebar-section">
-                <div class="sidebar-section-header">Autres modules</div>
-                <div class="folder-menu">
-                    <a href="../notes/notes.php" class="module-link">
-                        <i class="fas fa-chart-bar"></i> Notes
-                    </a>
-                    <a href="../messagerie/index.php" class="module-link">
-                        <i class="fas fa-envelope"></i> Messagerie
-                    </a>
-                    <a href="../absences/absences.php" class="module-link">
-                        <i class="fas fa-calendar-times"></i> Absences
-                    </a>
-                    <a href="../cahierdetextes/cahierdetextes.php" class="module-link">
-                        <i class="fas fa-book"></i> Cahier de textes
-                    </a>
-                    <a href="../accueil/accueil.php" class="module-link">
-                        <i class="fas fa-home"></i> Accueil
-                    </a>
-                </div>
-            </div>
-        </div>
+        .event-creation-container { max-width: 800px; margin: 20px auto; background-color: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 0; }
+        .event-creation-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; border-bottom: 1px solid #eee; }
+        .event-creation-header h2 { margin: 0; color: #333; font-weight: 500; font-size: 20px; }
+        .role-indicator { padding: 4px 8px; background-color: #e0f2e9; color: #00843d; border-radius: 4px; font-size: 14px; font-weight: 500; }
+        .event-creation-form { padding: 20px; }
+        .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .form-full { grid-column: 1 / -1; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 500; color: #555; font-size: 14px; }
+        .form-group input[type="text"], .form-group input[type="date"], .form-group input[type="time"], .form-group select, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; transition: border-color 0.3s, box-shadow 0.3s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #00843d; outline: none; box-shadow: 0 0 0 2px rgba(0,132,61,0.1); }
+        .type-personnalise { margin-top: 10px; display: none; }
+        .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
+        .btn-cancel { padding: 10px 15px; background-color: #f5f5f5; color: #333; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; text-decoration: none; }
+        .btn-cancel:hover { background-color: #e0e0e0; }
+        .btn-submit { padding: 10px 15px; background-color: #00843d; color: white; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; }
+        .btn-submit:hover { background-color: #006e32; }
+        .message { padding: 10px 15px; margin-bottom: 20px; border-radius: 4px; }
+        .message.success { background-color: #e0f2e9; color: #00843d; border: 1px solid #00843d; }
+        .message.error { background-color: #ffe6e6; color: #f44336; border: 1px solid #f44336; }
+        .multiselect-container { border: 1px solid #ddd; border-radius: 4px; overflow: hidden; max-height: 300px; display: flex; flex-direction: column; }
+        .multiselect-search { padding: 10px; border-bottom: 1px solid #eee; }
+        .multiselect-search input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .multiselect-actions { padding: 10px; display: flex; gap: 10px; border-bottom: 1px solid #eee; }
+        .multiselect-action { background: none; border: none; color: #00843d; cursor: pointer; font-size: 12px; padding: 0; }
+        .multiselect-action:hover { text-decoration: underline; }
+        .multiselect-options { padding: 10px; overflow-y: auto; flex: 1; max-height: 200px; }
+        .multiselect-option { margin-bottom: 5px; }
+        .multiselect-option label { display: flex; align-items: center; font-weight: normal; cursor: pointer; padding: 4px 0; }
+        .multiselect-option input[type="checkbox"] { margin-right: 8px; width: auto; }
+        .persons-selector { margin-top: 15px; }
+        .persons-list { max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px; margin-top: 10px; }
+        .person-item { display: flex; align-items: center; padding: 5px 0; border-bottom: 1px solid #eee; }
+        .person-item:last-child { border-bottom: none; }
+        .person-checkbox { margin-right: 10px; }
+        .person-name { font-weight: 500; }
+        .person-info { font-size: 0.85em; color: #666; margin-left: 10px; }
+        .persons-search { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 10px; }
+        .persons-actions { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .persons-action { background: none; border: none; color: #00843d; cursor: pointer; padding: 5px; }
+        .persons-count { margin-top: 10px; font-size: 0.9em; color: #666; }
+        .loading-indicator { text-align: center; padding: 15px; font-style: italic; color: #666; }
+        .no-persons { padding: 15px; text-align: center; color: #666; font-style: italic; }
+        @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } .event-creation-container { margin: 0; border-radius: 0; max-width: none; } }
+    </style>
+<?php
+$extraHeadHtml = ob_get_clean();
+
+include 'includes/header.php';
+?>
         
         <!-- Main Content -->
         <div class="event-creation-container">
@@ -1278,10 +946,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_persons' && isset($_GET['
         loadPersons(visibiliteSelect.value);
     });
     </script>
-</body>
-</html>
 
 <?php
-// Terminer la mise en mémoire tampon et envoyer la sortie
+include 'includes/footer.php';
 ob_end_flush();
 ?>

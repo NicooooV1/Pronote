@@ -73,59 +73,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
 
 // Charger les données d'établissement
 $etablissementData = getEtablissementData();
+
+// Configuration pour les templates partagés
+$pageTitle = 'Ajouter un utilisateur';
+$activePage = 'admin';
+$isAdmin = true;
+$rootPrefix = '../../';
+$currentPage = 'register';
+
+// Sidebar admin avec les bons chemins pour login/public/
+ob_start();
 ?>
-
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inscription - PRONOTE</title>
-    <link rel="stylesheet" href="../../assets/css/pronote-theme.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-</head>
-<body>
-
-<div class="app-container">
-    <!-- Sidebar -->
-    <div class="sidebar">
-        <a href="../../accueil/accueil.php" class="logo-container">
-            <div class="app-logo">P</div>
-            <div class="app-title">PRONOTE</div>
-        </a>
-        
         <div class="sidebar-section">
-            <div class="sidebar-section-header">Navigation</div>
-            <div class="sidebar-nav">
-                <a href="../../accueil/accueil.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
-                    <span>Accueil</span>
-                </a>
-                <a href="../../notes/notes.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
-                    <span>Notes</span>
-                </a>
-                <a href="../../agenda/agenda.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar"></i></span>
-                    <span>Agenda</span>
-                </a>
-                <a href="../../cahierdetextes/cahierdetextes.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-book"></i></span>
-                    <span>Cahier de textes</span>
-                </a>
-                <a href="../../messagerie/index.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
-                    <span>Messagerie</span>
-                </a>
-                <a href="../../absences/absences.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
-                    <span>Absences</span>
-                </a>
-            </div>
-        </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Administration</div>
+            <div class="sidebar-section-header">ADMINISTRATION</div>
             <div class="sidebar-nav">
                 <a href="register.php" class="sidebar-nav-item active">
                     <span class="sidebar-nav-icon"><i class="fas fa-user-plus"></i></span>
@@ -147,30 +107,21 @@ $etablissementData = getEtablissementData();
                     <span class="sidebar-nav-icon"><i class="fas fa-users-cog"></i></span>
                     <span>Gestion des utilisateurs</span>
                 </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content -->
-    <div class="main-content">
-        <!-- Header -->
-        <div class="top-header">
-            <div class="page-title">
-                <h1>Ajouter un utilisateur</h1>
-            </div>
-            
-            <div class="header-actions">
-                <a href="logout.php" class="logout-button" title="Déconnexion">
-                    <i class="fas fa-sign-out-alt"></i>
+                <a href="../../admin/etablissement_config.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-school"></i></span>
+                    <span>Configuration établissement</span>
                 </a>
-                <div class="user-avatar" title="<?= htmlspecialchars($user['prenom'] . ' ' . $user['nom']) ?>">
-                    <?= $admin_initials ?>
-                </div>
             </div>
         </div>
+<?php
+$sidebarExtraContent = ob_get_clean();
 
-        <!-- Content -->
-        <div class="content-container">
+include __DIR__ . '/../../templates/shared_header.php';
+include __DIR__ . '/../../templates/shared_sidebar.php';
+include __DIR__ . '/../../templates/shared_topbar.php';
+?>
+
+            <div class="content-wrapper">
             <div class="card">
                 <div class="card-header">
                     <h2>Inscription d'un utilisateur</h2>
@@ -392,5 +343,6 @@ $etablissementData = getEtablissementData();
         return options;
     }
 </script>
-</body>
-</html>
+            </div>
+
+<?php include __DIR__ . '/../../templates/shared_footer.php'; ?>

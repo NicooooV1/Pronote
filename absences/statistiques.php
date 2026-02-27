@@ -2,22 +2,19 @@
 // Démarrer la mise en mémoire tampon
 ob_start();
 
-// Inclusion des fichiers nécessaires avec chemins absolus
-require_once __DIR__ . '/includes/db.php';
-require_once __DIR__ . '/includes/auth.php';
+// Inclusion de l'API centralisée
+require_once __DIR__ . '/../API/core.php';
+$pdo = getPDO();
 require_once __DIR__ . '/includes/functions.php';
 
 // Vérifier que l'utilisateur est connecté
-if (!isLoggedIn()) {
-    header('Location: ../login/public/index.php');
-    exit;
-}
+requireAuth();
 
-// Récupérer les informations de l'utilisateur connecté
-$user = $_SESSION['user'];
-$user_fullname = $user['prenom'] . ' ' . $user['nom'];
-$user_role = $user['profil'];
-$user_initials = strtoupper(substr($user['prenom'], 0, 1) . substr($user['nom'], 0, 1));
+// Récupérer les informations de l'utilisateur connecté via l'API
+$user = getCurrentUser();
+$user_fullname = getUserFullName();
+$user_role = getUserRole();
+$user_initials = getUserInitials();
 
 // Définir les filtres par défaut
 $annee_scolaire = isset($_GET['annee_scolaire']) ? $_GET['annee_scolaire'] : 'current';
@@ -322,97 +319,149 @@ $annees_scolaires = [
     '2023-2024' => 'Année scolaire 2023-2024',
     '2022-2023' => 'Année scolaire 2022-2023'
 ];
+<?php
+$pageTitle = 'Statistiques des absences';
+$currentPage = 'statistiques';
+
+// CSS et JS supplémentaires
+ob_start();
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Statistiques des absences - Pronote</title>
-  <link rel="stylesheet" href="../agenda/assets/css/calendar.css">
-  <link rel="stylesheet" href="assets/css/absences.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-  <div class="app-container">
-    <!-- Sidebar -->
-    <div class="sidebar">
-      <a href="../accueil/accueil.php" class="logo-container">
-        <div class="app-logo">P</div>
-        <div class="app-title">Pronote Statistiques</div>
-      </a>
-      
-      <!-- Filtres -->
-      <div class="sidebar-section">
-        <form id="filters-form" method="get" action="statistiques.php">
-          <div class="form-group">
-            <label for="annee_scolaire">Année scolaire</label>
-            <select id="annee_scolaire" name="annee_scolaire">
-              <?php foreach ($annees_scolaires as $key => $label): ?>
-              <option value="<?= $key ?>" <?= $annee_scolaire == $key ? 'selected' : '' ?>><?= $label ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="periode">Période</label>
-            <select id="periode" name="periode">
-              <option value="annee" <?= $periode == 'annee' ? 'selected' : '' ?>>Année complète</option>
-              <option value="trimestre_1" <?= $periode == 'trimestre_1' ? 'selected' : '' ?>>1er trimestre (Sep-Nov)</option>
-              <option value="trimestre_2" <?= $periode == 'trimestre_2' ? 'selected' : '' ?>>2e trimestre (Déc-Fév)</option>
-              <option value="trimestre_3" <?= $periode == 'trimestre_3' ? 'selected' : '' ?>>3e trimestre (Mar-Mai)</option>
-              <option value="trimestre_4" <?= $periode == 'trimestre_4' ? 'selected' : '' ?>>4e trimestre (Juin-Août)</option>
-            </select>
-          </div>
-          
-          <?php if ((isAdmin() || isVieScolaire() || isTeacher()) && count($liste_classes) > 0): ?>
-          <div class="form-group">
-            <label for="classe">Classe</label>
-            <select id="classe" name="classe">
-              <option value="">Toutes les classes</option>
-              <?php foreach ($liste_classes as $c): ?>
-              <option value="<?= $c ?>" <?= $classe == $c ? 'selected' : '' ?>><?= $c ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <?php endif; ?>
-          
-          <button type="submit" class="filter-button">Appliquer les filtres</button>
-        </form>
-      </div>
-      
-      <!-- Actions -->
-      <div class="sidebar-section">
-        <a href="absences.php" class="action-button secondary">
-          <i class="fas fa-calendar"></i> Voir les absences
-        </a>
-        
-        <a href="retards.php" class="action-button secondary">
-          <i class="fas fa-clock"></i> Voir les retards
-        </a>
-        
-        <?php if (canManageAbsences()): ?>
-        <a href="export_stats.php" class="action-button secondary">
-          <i class="fas fa-file-excel"></i> Exporter les statistiques
-        </a>
-        <?php endif; ?>
-      </div>
-    </div>
-    
-    <!-- Main Content -->
-    <div class="main-content">
-      <!-- Header -->
-      <div class="top-header">
-        <div class="page-title">
-          <h1>Statistiques des absences</h1>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .stats-section {
+      background-color: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .stats-section h2 {
+      font-size: 1.3rem;
+      color: #333;
+      margin-top: 0;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    .stats-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 20px;
+    }
+    .stats-card {
+      background-color: #f9f9f9;
+      border-radius: 8px;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .stats-icon {
+      width: 60px;
+      height: 60px;
+      background-color: #e6f3ef;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 15px;
+    }
+    .stats-icon i { font-size: 24px; color: #009b72; }
+    .stats-content h3 { margin: 0; font-size: 14px; color: #666; font-weight: normal; }
+    .stats-value { font-size: 24px; font-weight: 500; color: #333; margin-top: 5px; }
+    .stats-percent { font-size: 14px; color: #009b72; }
+    .charts-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+      gap: 20px;
+    }
+    .chart-wrapper {
+      background-color: #f9f9f9;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .chart-wrapper h3 { margin-top: 0; font-size: 16px; color: #444; margin-bottom: 15px; }
+    canvas { width: 100%; height: 250px; }
+    .stats-table { overflow-x: auto; }
+    .stats-table table { width: 100%; border-collapse: collapse; }
+    .stats-table th, .stats-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+    .stats-table th { background-color: #f5f5f5; font-weight: 500; color: #444; }
+    .stats-table tr:hover { background-color: #f9f9f9; }
+    @media (max-width: 768px) {
+      .stats-cards { grid-template-columns: 1fr; }
+      .charts-container { grid-template-columns: 1fr; }
+    }
+</style>
+<?php
+$extraHeadHtml = ob_get_clean();
+
+// Sidebar personnalisée avec filtres
+ob_start();
+?>
+        <div class="sidebar-section">
+            <div class="sidebar-section-header">FILTRES</div>
+            <form id="filters-form" method="get" action="statistiques.php" style="padding: 0 15px;">
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label for="annee_scolaire" style="font-size: 12px; color: #8e9aaf;">Année scolaire</label>
+                <select id="annee_scolaire" name="annee_scolaire" class="form-control" style="font-size: 13px;">
+                  <?php foreach ($annees_scolaires as $key => $label): ?>
+                  <option value="<?= $key ?>" <?= $annee_scolaire == $key ? 'selected' : '' ?>><?= $label ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label for="periode" style="font-size: 12px; color: #8e9aaf;">Période</label>
+                <select id="periode" name="periode" class="form-control" style="font-size: 13px;">
+                  <option value="annee" <?= $periode == 'annee' ? 'selected' : '' ?>>Année complète</option>
+                  <option value="trimestre_1" <?= $periode == 'trimestre_1' ? 'selected' : '' ?>>1er trimestre (Sep-Nov)</option>
+                  <option value="trimestre_2" <?= $periode == 'trimestre_2' ? 'selected' : '' ?>>2e trimestre (Déc-Fév)</option>
+                  <option value="trimestre_3" <?= $periode == 'trimestre_3' ? 'selected' : '' ?>>3e trimestre (Mar-Mai)</option>
+                  <option value="trimestre_4" <?= $periode == 'trimestre_4' ? 'selected' : '' ?>>4e trimestre (Juin-Août)</option>
+                </select>
+              </div>
+              
+              <?php if ((isAdmin() || isVieScolaire() || isTeacher()) && count($liste_classes) > 0): ?>
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label for="classe" style="font-size: 12px; color: #8e9aaf;">Classe</label>
+                <select id="classe" name="classe" class="form-control" style="font-size: 13px;">
+                  <option value="">Toutes les classes</option>
+                  <?php foreach ($liste_classes as $c): ?>
+                  <option value="<?= $c ?>" <?= $classe == $c ? 'selected' : '' ?>><?= $c ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <?php endif; ?>
+              
+              <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 5px; font-size: 13px;">Appliquer les filtres</button>
+            </form>
         </div>
         
-        <div class="header-actions">
-          <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">⏻</a>
-          <div class="user-avatar"><?= $user_initials ?></div>
+        <div class="sidebar-section">
+            <div class="sidebar-section-header">ACTIONS</div>
+            <div class="sidebar-nav">
+                <a href="absences.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-calendar"></i></span>
+                    <span>Voir les absences</span>
+                </a>
+                <a href="retards.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-clock"></i></span>
+                    <span>Voir les retards</span>
+                </a>
+                <?php if (canManageAbsences()): ?>
+                <a href="export_stats.php" class="sidebar-nav-item">
+                    <span class="sidebar-nav-icon"><i class="fas fa-file-excel"></i></span>
+                    <span>Exporter les statistiques</span>
+                </a>
+                <?php endif; ?>
+            </div>
         </div>
-      </div>
+<?php
+$sidebarExtraContent = ob_get_clean();
+$headerExtraActions = '';
+include 'includes/header.php';
+?>
       
       <!-- Content -->
       <div class="content-container">
@@ -600,138 +649,7 @@ $annees_scolaires = [
           <?php endif; ?>
         <?php endif; ?>
       </div>
-    </div>
-  </div>
-  
-  <style>
-    .stats-section {
-      background-color: white;
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
     
-    .stats-section h2 {
-      font-size: 1.3rem;
-      color: #333;
-      margin-top: 0;
-      margin-bottom: 20px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid #eee;
-    }
-    
-    .stats-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 20px;
-    }
-    
-    .stats-card {
-      background-color: #f9f9f9;
-      border-radius: 8px;
-      padding: 20px;
-      display: flex;
-      align-items: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    
-    .stats-icon {
-      width: 60px;
-      height: 60px;
-      background-color: #e6f3ef;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-right: 15px;
-    }
-    
-    .stats-icon i {
-      font-size: 24px;
-      color: #009b72;
-    }
-    
-    .stats-content h3 {
-      margin: 0;
-      font-size: 14px;
-      color: #666;
-      font-weight: normal;
-    }
-    
-    .stats-value {
-      font-size: 24px;
-      font-weight: 500;
-      color: #333;
-      margin-top: 5px;
-    }
-    
-    .stats-percent {
-      font-size: 14px;
-      color: #009b72;
-    }
-    
-    .charts-container {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-      gap: 20px;
-    }
-    
-    .chart-wrapper {
-      background-color: #f9f9f9;
-      border-radius: 8px;
-      padding: 20px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    
-    .chart-wrapper h3 {
-      margin-top: 0;
-      font-size: 16px;
-      color: #444;
-      margin-bottom: 15px;
-    }
-    
-    canvas {
-      width: 100%;
-      height: 250px;
-    }
-    
-    .stats-table {
-      overflow-x: auto;
-    }
-    
-    .stats-table table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    
-    .stats-table th, .stats-table td {
-      padding: 12px 15px;
-      text-align: left;
-      border-bottom: 1px solid #eee;
-    }
-    
-    .stats-table th {
-      background-color: #f5f5f5;
-      font-weight: 500;
-      color: #444;
-    }
-    
-    .stats-table tr:hover {
-      background-color: #f9f9f9;
-    }
-    
-    @media (max-width: 768px) {
-      .stats-cards {
-        grid-template-columns: 1fr;
-      }
-      
-      .charts-container {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
-  
   <script>
     // Graphique des types d'absences (justifiées/non justifiées)
     const absencesTypeCtx = document.getElementById('absencesTypeChart').getContext('2d');
@@ -825,5 +743,4 @@ $annees_scolaires = [
     });
     <?php endif; ?>
   </script>
-</body>
-</html>
+<?php include 'includes/footer.php'; ?>

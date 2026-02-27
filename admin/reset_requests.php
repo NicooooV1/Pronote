@@ -1,26 +1,19 @@
 <?php
-require_once '../login/config/database.php';
-require_once '../login/src/auth.php';
-require_once '../login/src/user.php';
+// Inclure l'API centralisée
+require_once __DIR__ . '/../API/core.php';
 
-// Démarrer ou reprendre une session
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+// Vérifier l'authentification et les droits administrateur
+requireAuth();
+requireRole('administrateur');
 
-// Vérifier si l'utilisateur est connecté et est un administrateur
-if (!isset($_SESSION['user']) || 
-    !isset($_SESSION['user']['profil']) || 
-    $_SESSION['user']['profil'] !== 'administrateur') {
-    
-    // Rediriger vers la page de connexion
-    header("Location: ../login/public/index.php");
-    exit;
-}
+// Récupérer la connexion DB et l'utilisateur
+$pdo = getPDO();
+$admin = getCurrentUser();
+$admin_initials = getUserInitials();
 
-// Récupérer les informations de l'utilisateur administrateur
-$admin = $_SESSION['user'];
-$admin_initials = strtoupper(mb_substr($admin['prenom'], 0, 1) . mb_substr($admin['nom'], 0, 1));
+// Charger les classes nécessaires
+require_once __DIR__ . '/../login/src/auth.php';
+require_once __DIR__ . '/../login/src/user.php';
 
 $error = '';
 $success = '';
@@ -134,26 +127,11 @@ function generateRandomPassword($length = 10) {
 $pageTitle = "Demandes de réinitialisation de mot de passe";
 ?>
 
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($pageTitle) ?> - PRONOTE</title>
-    <link rel="stylesheet" href="../assets/css/pronote-theme.css">
-    <link rel="stylesheet" href="../login/public/assets/css/pronote-login.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        body {
-            display: block;
-            padding: 0;
-            margin: 0;
-            min-height: 100vh;
-            background-color: #f5f6fa;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #333;
-        }
-        
+<?php
+$currentPage = 'reset_requests';
+ob_start();
+?>
+<style>
         .requests-container {
             max-width: 900px;
             margin: 0 auto;
@@ -162,331 +140,40 @@ $pageTitle = "Demandes de réinitialisation de mot de passe";
             border-radius: 10px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
-        
-        /* Structure principale de l'application */
-        .app-container {
-            display: flex;
-            min-height: 100vh;
-        }
-        
-        /* Barre latérale */
-        .sidebar {
-            width: 260px;
-            background-color: #0f4c81;
-            color: white;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            position: fixed;
-            height: 100vh;
-            overflow-y: auto;
-            z-index: 10;
-        }
-        
-        .logo-container {
-            display: flex;
-            align-items: center;
-            padding: 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            margin-bottom: 20px;
-            text-decoration: none;
-            color: white;
-        }
-        
-        .app-logo {
-            width: 40px;
-            height: 40px;
-            background-color: #fff;
-            color: #0f4c81;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 24px;
-            margin-right: 15px;
-        }
-        
-        .app-title {
-            font-size: 22px;
-            font-weight: bold;
-            letter-spacing: 1px;
-        }
-        
-        .sidebar-section {
-            margin-bottom: 25px;
-            padding: 0 20px;
-        }
-        
-        .sidebar-section-header {
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
-            color: rgba(255, 255, 255, 0.6);
-            font-weight: 600;
-            padding: 0 15px;
-        }
-        
-        .sidebar-nav {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .sidebar-nav-item {
-            padding: 12px 15px;
-            display: flex;
-            align-items: center;
-            text-decoration: none;
-            color: rgba(255, 255, 255, 0.8);
-            border-radius: 6px;
-            margin-bottom: 2px;
-            transition: background-color 0.2s, color 0.2s;
-        }
-        
-        .sidebar-nav-item:hover, .sidebar-nav-item.active {
-            background-color: rgba(255, 255, 255, 0.1);
-            color: white;
-        }
-        
-        .sidebar-nav-icon {
-            margin-right: 12px;
-            width: 20px;
-            text-align: center;
-            font-size: 16px;
-        }
-        
-        /* Contenu principal */
-        .main-content {
-            flex: 1;
-            margin-left: 260px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-            background-color: #f5f6fa;
-        }
-        
-        .top-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-        
-        .page-title {
-            font-size: 28px;
-            font-weight: 600;
-            color: #0f4c81;
-        }
-        
-        .header-actions {
-            display: flex;
-            align-items: center;
-        }
-        
-        .logout-button {
-            background-color: transparent;
-            border: none;
-            color: #0f4c81;
-            font-size: 18px;
-            cursor: pointer;
-            margin-right: 20px;
-            transition: color 0.2s;
-        }
-        
-        .logout-button:hover {
-            color: #ff4d4d;
-        }
-        
-        .user-avatar {
-            width: 36px;
-            height: 36px;
-            background-color: #0f4c81;
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 16px;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        
-        .user-avatar:hover {
-            transform: scale(1.05);
-        }
-        
-        /* Tableaux */
         .requests-table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
             background-color: white;
-            border-radius: var(--radius-md);
-            box-shadow: var(--shadow-light);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
-        
-        .requests-table th,
-        .requests-table td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .requests-table th {
-            background-color: #f5f5f5;
-            font-weight: 500;
-        }
-        
-        .requests-table tr:hover {
-            background-color: rgba(15, 76, 129, 0.05);
-        }
-        
-        .request-date {
-            white-space: nowrap;
-            font-size: 14px;
-            color: var(--text-muted);
-        }
-        
-        .request-type {
-            text-transform: capitalize;
-            font-size: 14px;
-        }
-        
-        .request-type-eleve {
-            color: var(--accent-notes);
-        }
-        
-        .request-type-parent {
-            color: var(--accent-agenda);
-        }
-        
-        .request-type-professeur {
-            color: var(--accent-cahier);
-        }
-        
-        .request-type-vie_scolaire {
-            color: var(--accent-messagerie);
-        }
-        
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .btn-sm {
-            padding: 6px 10px;
-            font-size: 13px;
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 40px 0;
-            color: var(--text-muted);
-        }
-        
-        .empty-state i {
-            font-size: 40px;
-            margin-bottom: 15px;
-            opacity: 0.5;
-        }
-        
+        .requests-table th, .requests-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        .requests-table th { background-color: #f5f5f5; font-weight: 500; }
+        .requests-table tr:hover { background-color: rgba(15, 76, 129, 0.05); }
+        .request-date { white-space: nowrap; font-size: 14px; color: #8e9aaf; }
+        .request-type { text-transform: capitalize; font-size: 14px; }
+        .request-type-eleve { color: #f59e0b; }
+        .request-type-parent { color: #3b82f6; }
+        .request-type-professeur { color: #10b981; }
+        .request-type-vie_scolaire { color: #8b5cf6; }
+        .action-buttons { display: flex; gap: 10px; }
+        .btn-sm { padding: 6px 10px; font-size: 13px; }
+        .empty-state { text-align: center; padding: 40px 0; color: #8e9aaf; }
+        .empty-state i { font-size: 40px; margin-bottom: 15px; opacity: 0.5; }
         .user-credentials {
             background-color: #f5f5f5;
             border: 1px dashed #ccc;
-            padding: var(--space-md);
-            margin: var(--space-md) 0;
-            border-radius: var(--radius-sm);
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
             font-family: monospace;
         }
-    </style>
-</head>
-<body>
-
-<div class="app-container">
-    <!-- Sidebar -->
-    <div class="sidebar">
-        <a href="../accueil/accueil.php" class="logo-container">
-            <div class="app-logo">P</div>
-            <div class="app-title">PRONOTE</div>
-        </a>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Navigation</div>
-            <div class="sidebar-nav">
-                <a href="../accueil/accueil.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
-                    <span>Accueil</span>
-                </a>
-                <a href="../notes/notes.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
-                    <span>Notes</span>
-                </a>
-                <a href="../agenda/agenda.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar"></i></span>
-                    <span>Agenda</span>
-                </a>
-                <a href="../cahierdetextes/cahierdetextes.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-book"></i></span>
-                    <span>Cahier de textes</span>
-                </a>
-                <a href="../messagerie/index.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
-                    <span>Messagerie</span>
-                </a>
-                <a href="../absences/absences.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
-                    <span>Absences</span>
-                </a>
-            </div>
-        </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Administration</div>
-            <div class="sidebar-nav">
-                <a href="../login/public/register.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-user-plus"></i></span>
-                    <span>Ajouter un utilisateur</span>
-                </a>
-                <a href="reset_user_password.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-key"></i></span>
-                    <span>Réinitialiser mot de passe</span>
-                </a>
-                <a href="reset_requests.php" class="sidebar-nav-item active">
-                    <span class="sidebar-nav-icon"><i class="fas fa-clipboard-list"></i></span>
-                    <span>Demandes de réinitialisation</span>
-                </a>
-                <a href="admin_accounts.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-user-shield"></i></span>
-                    <span>Gestion des administrateurs</span>
-                </a>
-                <a href="user_accounts.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-users-cog"></i></span>
-                    <span>Gestion des utilisateurs</span>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content -->
-    <div class="main-content">
-        <!-- Header -->
-        <div class="top-header">
-            <div class="page-title">
-                <h1><?= htmlspecialchars($pageTitle) ?></h1>
-            </div>
-            
-            <div class="header-actions">
-                <a href="../login/public/logout.php" class="logout-button" title="Déconnexion">
-                    <i class="fas fa-sign-out-alt"></i>
-                </a>
-                <div class="user-avatar" title="<?= htmlspecialchars($admin['prenom'] . ' ' . $admin['nom']) ?>">
-                    <?= $admin_initials ?>
-                </div>
-            </div>
-        </div>
+</style>
+<?php
+$extraHeadHtml = ob_get_clean();
+include 'includes/header.php';
+?>
 
         <div class="requests-container">
             <!-- Messages -->
@@ -576,8 +263,4 @@ $pageTitle = "Demandes de réinitialisation de mot de passe";
                 </table>
             <?php endif; ?>
         </div>
-    </div>
-</div>
-
-</body>
-</html>
+<?php include 'includes/footer.php'; ?>
