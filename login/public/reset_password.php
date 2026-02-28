@@ -73,7 +73,7 @@ function formatPhoneNumber($phone) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Réinitialisation de mot de passe - PRONOTE</title>
+    <title>Réinitialisation de mot de passe - FRONOTE</title>
     <link rel="stylesheet" href="assets/css/pronote-login.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
@@ -82,7 +82,7 @@ function formatPhoneNumber($phone) {
         <!-- En-tête -->
         <div class="auth-header">
             <div class="app-logo">P</div>
-            <h1 class="app-title">PRONOTE</h1>
+            <h1 class="app-title">FRONOTE</h1>
             <p class="app-subtitle">Demande de réinitialisation de mot de passe</p>
         </div>
         

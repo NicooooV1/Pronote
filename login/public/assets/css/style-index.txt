@@ -1,6 +1,6 @@
-# Hiérarchie des styles CSS pour Pronote
+# Hiérarchie des styles CSS pour Fronote
 
-Ce document explique la hiérarchie et l'organisation des fichiers CSS dans l'application Pronote.
+Ce document explique la hiérarchie et l'organisation des fichiers CSS dans l'application Fronote.
 
 ## Fichiers CSS principaux
 

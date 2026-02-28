@@ -1,6 +1,6 @@
 <?php
 /**
- * Classe d'authentification pour Pronote
+ * Classe d'authentification pour Fronote
  * Délègue à l'API centralisée (AuthManager + UserProvider)
  */
 

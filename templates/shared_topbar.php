@@ -11,7 +11,7 @@
  *   $pageSubtitle, $headerExtraActions, $user_fullname
  */
 
-$pageTitle = $pageTitle ?? 'PRONOTE';
+$pageTitle = $pageTitle ?? 'FRONOTE';
 $user_initials = $user_initials ?? '';
 $pageSubtitle = $pageSubtitle ?? '';
 $headerExtraActions = $headerExtraActions ?? '';

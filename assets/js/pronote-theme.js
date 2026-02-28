@@ -1,5 +1,5 @@
 /**
- * PRONOTE - Theme JavaScript
+ * FRONOTE - Theme JavaScript
  * Helper functions for interactive UI elements
  */
 

@@ -1,6 +1,6 @@
 <?php
 /**
- * Script de déconnexion pour Pronote - Version intégrée
+ * Script de déconnexion pour Fronote - Version intégrée
  */
 
 // Inclure l'API centralisée - chemin uniformisé

@@ -253,7 +253,7 @@ include 'includes/header.php';
                         <a href="#">Mentions Légales</a>
                     </div>
                     <div class="footer-copyright">
-                        &copy; <?= date('Y') ?> PRONOTE - Tous droits réservés
+                        &copy; <?= date('Y') ?> FRONOTE - Tous droits réservés
                     </div>
                 </div>
             </div>

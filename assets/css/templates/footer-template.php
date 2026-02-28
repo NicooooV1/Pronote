@@ -1,6 +1,6 @@
 <?php
 /**
- * Footer Template for the new Pronote design system
+ * Footer Template for the new Fronote design system
  */
 ?>
                 <!-- End of page content -->

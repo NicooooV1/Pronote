@@ -225,7 +225,7 @@ function showBrowserNotification(count, latestNotification) {
     const shouldPlaySound = localStorage.getItem('notification_sound') !== 'false';
     
     // Créer la notification
-    const title = "Pronote - Messagerie";
+    const title = "Fronote - Messagerie";
     let expediteurNom = "Expéditeur";
     
     // Récupérer l'expéditeur

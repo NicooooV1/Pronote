@@ -633,7 +633,7 @@ class User {
                 if ($profil === 'administrateur') continue;
                 
                 try {
-                    $stmt = $this->pdo->query("SELECT id, identifiant, nom, prenom, mail, actif FROM `$table`");
+                    $stmt = $this->pdo->query("SELECT id, identifiant, nom, prenom, mail, COALESCE(actif, 1) as actif FROM `$table`");
                     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     
                     // Ajouter le profil à chaque utilisateur
@@ -681,7 +681,7 @@ class User {
             if (!empty($userType) && isset($this->tableMap[$userType])) {
                 $table = $this->tableMap[$userType];
                 $stmt = $this->pdo->prepare(
-                    "SELECT id, identifiant, nom, prenom, mail FROM `$table` 
+                    "SELECT id, identifiant, nom, prenom, mail, COALESCE(actif, 1) as actif FROM `$table` 
                      WHERE nom LIKE ? OR prenom LIKE ? OR identifiant LIKE ? OR mail LIKE ?"
                 );
                 $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
@@ -697,7 +697,7 @@ class User {
                 // Sinon, rechercher dans toutes les tables
                 foreach ($this->tableMap as $profil => $table) {
                     $stmt = $this->pdo->prepare(
-                        "SELECT id, identifiant, nom, prenom, mail FROM `$table` 
+                        "SELECT id, identifiant, nom, prenom, mail, COALESCE(actif, 1) as actif FROM `$table` 
                          WHERE nom LIKE ? OR prenom LIKE ? OR identifiant LIKE ? OR mail LIKE ?"
                     );
                     $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
@@ -751,6 +751,3 @@ class User {
         }
     }
 }
-
-// Ce fichier n'est plus utilisé pour la gestion des utilisateurs. Utilisez l'API centralisée.
-exit;

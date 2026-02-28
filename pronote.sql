@@ -1,4 +1,4 @@
--- Pronote empty schema (structure only) - corrected
+-- Fronote empty schema (structure only) - corrected
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
@@ -15,6 +15,7 @@ SET SESSION FOREIGN_KEY_CHECKS = 0;
 -- --------------------------------------------------------
 -- Drop existing tables (if any)
 -- --------------------------------------------------------
+DROP TABLE IF EXISTS `message_reports`;
 DROP TABLE IF EXISTS `message_reactions`;
 DROP TABLE IF EXISTS `message_notifications`;
 DROP TABLE IF EXISTS `message_attachments`;
@@ -37,15 +38,58 @@ DROP TABLE IF EXISTS `parents`;
 DROP TABLE IF EXISTS `professeurs`;
 DROP TABLE IF EXISTS `eleves`;
 DROP TABLE IF EXISTS `administrateurs`;
+DROP TABLE IF EXISTS `parent_eleve`;
 DROP TABLE IF EXISTS `audit_log`;
 DROP TABLE IF EXISTS `session_security`;
 DROP TABLE IF EXISTS `devoirs`;
 DROP TABLE IF EXISTS `evenements`;
 DROP TABLE IF EXISTS `justificatifs`;
+DROP TABLE IF EXISTS `etablissement_info`;
+DROP TABLE IF EXISTS `periodes`;
 
 -- --------------------------------------------------------
 -- Tables
 -- --------------------------------------------------------
+
+-- --------------------------------------------------------
+-- Table etablissement_info
+-- --------------------------------------------------------
+
+CREATE TABLE `etablissement_info` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `nom` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Établissement Scolaire',
+  `adresse` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `code_postal` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ville` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `telephone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `fax` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `chef_etablissement` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `academie` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `code_uai` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `type` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT 'college',
+  `annee_scolaire` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT '2025-2026',
+  `logo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `date_creation` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `etablissement_info` (`id`, `nom`) VALUES (1, 'Établissement Scolaire');
+
+-- --------------------------------------------------------
+-- Table periodes
+-- --------------------------------------------------------
+
+CREATE TABLE `periodes` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `numero` int(11) NOT NULL DEFAULT 1,
+  `nom` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `type` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'trimestre',
+  `date_debut` date NOT NULL,
+  `date_fin` date NOT NULL,
+  `annee_scolaire` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT '2025-2026',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `administrateurs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -480,6 +524,41 @@ CREATE TABLE `justificatifs` (
   KEY `idx_eleve` (`id_eleve`),
   KEY `idx_traite` (`traite`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+-- Table de signalement de messages (modération)
+-- --------------------------------------------------------
+CREATE TABLE `message_reports` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `message_id` int(11) NOT NULL,
+  `reporter_id` int(11) NOT NULL,
+  `reporter_type` enum('eleve','parent','professeur','vie_scolaire','administrateur') NOT NULL,
+  `reason` varchar(255) NOT NULL,
+  `details` text DEFAULT NULL,
+  `status` enum('pending','reviewed','dismissed') NOT NULL DEFAULT 'pending',
+  `reviewed_by` int(11) DEFAULT NULL,
+  `reviewed_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_message` (`message_id`),
+  KEY `idx_status` (`status`),
+  CONSTRAINT `fk_report_message` FOREIGN KEY (`message_id`)
+    REFERENCES `messages` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+-- Table liaison parent-élève
+-- --------------------------------------------------------
+CREATE TABLE `parent_eleve` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `id_parent` int(11) NOT NULL,
+  `id_eleve` int(11) NOT NULL,
+  `lien` varchar(50) DEFAULT 'parent',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_lien` (`id_parent`, `id_eleve`),
+  KEY `idx_parent` (`id_parent`),
+  KEY `idx_eleve` (`id_eleve`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `demandes_reinitialisation` (
   `id` int(11) NOT NULL AUTO_INCREMENT,

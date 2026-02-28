@@ -1,7 +1,7 @@
 <?php
 /**
  * En-tête standardisé pour le module Notes
- * Utilise les templates partagés Pronote
+ * Utilise les templates partagés Fronote
  */
 
 // S'assurer que l'API est chargée
@@ -29,8 +29,6 @@ $extraCss = $extraCss ?? ['assets/css/notes.css'];
 // Contenu supplémentaire sidebar
 ob_start();
 ?>
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Actions</div>
             <div class="sidebar-nav">
                 <a href="notes.php" class="sidebar-nav-item">
                     <span class="sidebar-nav-icon"><i class="fas fa-list"></i></span>
@@ -43,7 +41,6 @@ ob_start();
                 </a>
                 <?php endif; ?>
             </div>
-        </div>
 <?php
 $sidebarExtraContent = ob_get_clean();
 

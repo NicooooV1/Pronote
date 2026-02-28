@@ -1,7 +1,7 @@
 <?php
 /**
  * Pied de page HTML commun - Messagerie
- * Utilise le template partagé Pronote
+ * Utilise le template partagé Fronote
  */
 ?>
     </div><!-- Fin content-container -->

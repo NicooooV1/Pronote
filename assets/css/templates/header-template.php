@@ -1,6 +1,6 @@
 <?php
 /**
- * Header Template for the new Pronote design system
+ * Header Template for the new Fronote design system
  * 
  * @param string $pageTitle - Title of the page
  * @param string $moduleColor - Color class for the module (notes, agenda, cahier, messagerie, absences)
@@ -8,7 +8,7 @@
  */
 
 // Default values
-$pageTitle = $pageTitle ?? 'Pronote';
+$pageTitle = $pageTitle ?? 'Fronote';
 $moduleColor = $moduleColor ?? 'primary';
 $moduleClass = isset($moduleClass) ? $moduleClass : '';
 
@@ -58,7 +58,7 @@ $currentModule = $moduleClasses[$moduleClass] ?? ['color' => 'var(--primary-colo
         <div class="sidebar">
             <div class="sidebar-logo">
                 <div class="logo-icon">P</div>
-                <div class="logo-text">Pronote</div>
+                <div class="logo-text">Fronote</div>
             </div>
             
             <?php if (isset($sidebarContent)): ?>
@@ -117,7 +117,7 @@ $currentModule = $moduleClasses[$moduleClass] ?? ['color' => 'var(--primary-colo
             
             <div class="sidebar-footer">
                 <div class="text-small">
-                    © <?= date('Y') ?> Pronote v<?= defined('APP_VERSION') ? APP_VERSION : '1.0.0' ?>
+                    © <?= date('Y') ?> Fronote v<?= defined('APP_VERSION') ? APP_VERSION : '1.0.0' ?>
                 </div>
             </div>
         </div>

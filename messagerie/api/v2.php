@@ -1,6 +1,6 @@
 <?php
 /**
- * API REST étendue — Messagerie Pronote
+ * API REST étendue — Messagerie Fronote
  * Point d'entrée unique pour toutes les opérations messagerie.
  * Conçu pour être réutilisé par d'autres modules.
  *

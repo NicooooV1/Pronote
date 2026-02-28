@@ -40,7 +40,7 @@ header('Content-Type: text/html; charset=utf-8');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Débogage Pronote</title>
+    <title>Débogage Fronote</title>
     <link rel="stylesheet" href="assets/css/pronote-login.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -110,7 +110,7 @@ header('Content-Type: text/html; charset=utf-8');
 </head>
 <body>
     <div class="debug-container">
-        <h1><i class="fas fa-bug"></i> Page de débogage Pronote</h1>
+        <h1><i class="fas fa-bug"></i> Page de débogage Fronote</h1>
         <p>Cette page affiche des informations techniques pour aider à résoudre les problèmes d'authentification et de redirection.</p>
         
         <div class="action">

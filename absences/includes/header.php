@@ -1,7 +1,7 @@
 <?php
 /**
  * En-tête standardisé pour le module Absences 
- * Utilise les templates partagés Pronote
+ * Utilise les templates partagés Fronote
  */
 
 // S'assurer que l'API est chargée
@@ -36,8 +36,6 @@ $extraHeadHtml = ($extraHeadHtml ?? '') . '';
 if (!isset($sidebarExtraContent)) {
 ob_start();
 ?>
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">ACTIONS</div>
             <div class="sidebar-nav">
                 <a href="absences.php" class="sidebar-nav-item <?= isActiveLink('liste') ?>">
                     <span class="sidebar-nav-icon"><i class="fas fa-list"></i></span>
@@ -62,7 +60,6 @@ ob_start();
                 </a>
                 <?php endif; ?>
             </div>
-        </div>
 <?php
 $sidebarExtraContent = ob_get_clean();
 } // fin if (!isset($sidebarExtraContent))

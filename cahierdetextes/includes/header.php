@@ -1,7 +1,7 @@
 <?php
 /**
  * En-tête commun pour le module Cahier de Textes
- * Utilise les templates partagés Pronote
+ * Utilise les templates partagés Fronote
  */
 
 // S'assurer que l'API est chargée
@@ -41,8 +41,6 @@ $extraHeadHtml = ($extraHeadHtml ?? '') . '<style>
 // Construction du contenu sidebar spécifique
 ob_start();
 ?>
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">Actions</div>
         <div class="sidebar-nav">
           <a href="cahierdetextes.php" class="sidebar-nav-item">
             <span class="sidebar-nav-icon"><i class="fas fa-list"></i></span>
@@ -55,7 +53,6 @@ ob_start();
           </a>
           <?php endif; ?>
         </div>
-      </div>
 <?php
 $sidebarExtraContent = ob_get_clean();
 

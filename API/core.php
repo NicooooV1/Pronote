@@ -1,6 +1,6 @@
 <?php
 /**
- * Point d'entrée principal de l'API Pronote
+ * Point d'entrée principal de l'API Fronote
  */
 
 // Charger le bootstrap

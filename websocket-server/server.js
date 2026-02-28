@@ -1,5 +1,5 @@
 /**
- * Serveur WebSocket pour Pronote
+ * Serveur WebSocket pour Fronote
  * Gère les connexions temps réel et la diffusion d'événements
  */
 

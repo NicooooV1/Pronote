@@ -1,6 +1,6 @@
 <?php
 /**
- * Installation de Pronote — Assistant étape par étape
+ * Installation de Fronote — Assistant étape par étape
  * Chaque étape doit être validée avant de passer à la suivante.
  *
  * Étape 1 : Pré-requis (PHP, extensions, répertoires, fichiers)
@@ -167,7 +167,7 @@ function ensureDir(string $path): array {
 function writeEnvFile(string $dir, array $c): bool {
     $dbHost = (strtolower($c['db_host']) === 'localhost') ? '127.0.0.1' : $c['db_host'];
     $lines = [
-        "# Pronote — généré le " . date('Y-m-d H:i:s'),
+        "# Fronote — généré le " . date('Y-m-d H:i:s'),
         "# NE PAS PARTAGER CE FICHIER", "",
         "# Base de données",
         "DB_HOST={$dbHost}",
@@ -290,9 +290,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = '✅ Connexion MySQL vérifiée avec succès';
         }
 
-        // ── Étape 3 : configuration application ─────────────────────────────
+        // ── Étape 3 : configuration application + établissement ────────────
         elseif ($postStep === 3) {
-            $appName           = trim($_POST['app_name'] ?? 'Pronote');
+            $appName           = trim($_POST['app_name'] ?? 'Fronote');
             $appEnv            = $_POST['app_env'] ?? 'production';
             $appDebug          = !empty($_POST['app_debug']);
             $appUrl            = trim($_POST['app_url'] ?? $fullUrl);
@@ -308,10 +308,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Environnement invalide.');
             }
 
+            // Établissement
+            $etabNom       = trim($_POST['etab_nom'] ?? '');
+            $etabAdresse   = trim($_POST['etab_adresse'] ?? '');
+            $etabCp        = trim($_POST['etab_cp'] ?? '');
+            $etabVille     = trim($_POST['etab_ville'] ?? '');
+            $etabTel       = trim($_POST['etab_tel'] ?? '');
+            $etabEmail     = trim($_POST['etab_email'] ?? '');
+            $etabAcademie  = trim($_POST['etab_academie'] ?? '');
+            $etabType      = $_POST['etab_type'] ?? 'college';
+
+            if ($etabNom === '') throw new RuntimeException("Le nom de l'établissement est requis.");
+
+            // Périodes
+            $periodeSystem = $_POST['periode_system'] ?? 'trimestre';
+            $periodes = [];
+            if ($periodeSystem === 'trimestre') {
+                $periodes = [
+                    ['nom' => '1er trimestre',  'debut' => $_POST['p1_debut'] ?? '', 'fin' => $_POST['p1_fin'] ?? ''],
+                    ['nom' => '2ème trimestre', 'debut' => $_POST['p2_debut'] ?? '', 'fin' => $_POST['p2_fin'] ?? ''],
+                    ['nom' => '3ème trimestre', 'debut' => $_POST['p3_debut'] ?? '', 'fin' => $_POST['p3_fin'] ?? ''],
+                ];
+            } else {
+                $periodes = [
+                    ['nom' => '1er semestre',  'debut' => $_POST['s1_debut'] ?? '', 'fin' => $_POST['s1_fin'] ?? ''],
+                    ['nom' => '2ème semestre', 'debut' => $_POST['s2_debut'] ?? '', 'fin' => $_POST['s2_fin'] ?? ''],
+                ];
+            }
+
             $inst['app'] = compact(
                 'appName', 'appEnv', 'appDebug', 'appUrl', 'baseUrlIn',
                 'csrfLifetime', 'sessionLifetime', 'sessionName',
                 'maxLoginAttempts', 'rateLimitAttempts', 'rateLimitDecay'
+            );
+            $inst['etab'] = compact(
+                'etabNom', 'etabAdresse', 'etabCp', 'etabVille', 'etabTel',
+                'etabEmail', 'etabAcademie', 'etabType', 'periodeSystem', 'periodes'
             );
             $inst['step'] = 4;
             $currentStep  = 4;
@@ -456,6 +488,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $adminId = $pdo->lastInsertId();
             $log[] = ['ok', "Administrateur créé (ID {$adminId}) — identifiant : <strong>admin</strong>"];
 
+            // 5f-bis — Fichier etablissement.json
+            $etab = $inst['etab'] ?? [];
+            if (!empty($etab)) {
+                // Structure classes selon le type d'établissement
+                $defaultClasses = [];
+                $type = $etab['etabType'] ?? 'college';
+                if (in_array($type, ['primaire', 'tout'])) {
+                    $defaultClasses['primaire'] = [
+                        'CP' => ['CPA','CPB'], 'CE1' => ['CE1A','CE1B'],
+                        'CE2' => ['CE2A','CE2B'], 'CM1' => ['CM1A','CM1B'],
+                        'CM2' => ['CM2A','CM2B'],
+                    ];
+                }
+                if (in_array($type, ['college', 'tout'])) {
+                    $defaultClasses['college'] = [
+                        'sixieme' => ['6A','6B','6C'], 'cinquieme' => ['5A','5B','5C'],
+                        'quatrieme' => ['4A','4B','4C'], 'troisieme' => ['3A','3B','3C'],
+                    ];
+                }
+                if (in_array($type, ['lycee', 'tout'])) {
+                    $defaultClasses['lycee'] = [
+                        'seconde' => ['2A','2B','2C'], 'premiere' => ['1A','1B','1C'],
+                        'terminale' => ['TA','TB','TC'],
+                    ];
+                }
+
+                $defaultMatieres = [
+                    ['code'=>'FRAN','nom'=>'Français'], ['code'=>'MATH','nom'=>'Mathématiques'],
+                    ['code'=>'HG','nom'=>'Histoire-Géographie'], ['code'=>'ANG','nom'=>'Anglais'],
+                    ['code'=>'ESP','nom'=>'Espagnol'], ['code'=>'PC','nom'=>'Physique-Chimie'],
+                    ['code'=>'SVT','nom'=>'Sciences de la Vie et de la Terre'],
+                    ['code'=>'EPS','nom'=>'Éducation physique et sportive'],
+                    ['code'=>'ART','nom'=>'Arts plastiques'], ['code'=>'MUS','nom'=>'Musique'],
+                    ['code'=>'TECH','nom'=>'Technologie'],
+                ];
+
+                $etabJson = [
+                    'nom'         => $etab['etabNom'],
+                    'adresse'     => $etab['etabAdresse'],
+                    'code_postal' => $etab['etabCp'],
+                    'ville'       => $etab['etabVille'],
+                    'telephone'   => $etab['etabTel'],
+                    'email'       => $etab['etabEmail'],
+                    'academie'    => $etab['etabAcademie'],
+                    'type'        => $type,
+                    'classes'     => $defaultClasses,
+                    'matieres'    => $defaultMatieres,
+                    'periodes'    => [
+                        'systeme' => $etab['periodeSystem'],
+                        'liste'   => $etab['periodes'],
+                    ],
+                ];
+                $jsonDir = $installDir . '/login/data';
+                if (!is_dir($jsonDir)) @mkdir($jsonDir, 0755, true);
+                $jsonOk = @file_put_contents($jsonDir . '/etablissement.json', json_encode($etabJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
+                if ($jsonOk) {
+                    $log[] = ['ok', 'Fichier etablissement.json créé — <strong>' . htmlspecialchars($etab['etabNom']) . '</strong>'];
+                } else {
+                    $log[] = ['warn', 'Impossible d\'écrire etablissement.json'];
+                }
+            }
+
             // 5g — Bootstrap API
             $bootstrapFile = $installDir . '/API/bootstrap.php';
             $apiOk = false;
@@ -561,7 +655,7 @@ $steps     = [
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Installation Pronote</title>
+<title>Installation Fronote</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--primary:#667eea;--primary-dark:#5a67d8;--success:#48bb78;--warning:#ed8936;--danger:#e53e3e;--bg:#f7fafc;--text:#2d3748;--border:#e2e8f0;--card:#fff;--radius:8px}
@@ -655,7 +749,7 @@ code{background:#edf2f7;padding:1px 6px;border-radius:3px;font-size:.88em;font-f
 
 <!-- Header -->
 <div class="header">
-    <h1>🎓 Installation de Pronote</h1>
+    <h1>🎓 Installation de Fronote</h1>
     <p>Assistant de configuration — étape par étape</p>
 </div>
 
@@ -858,7 +952,7 @@ code{background:#edf2f7;padding:1px 6px;border-radius:3px;font-size:.88em;font-f
     <div class="grid">
         <div class="form-group">
             <label>Nom de l'application</label>
-            <input type="text" name="app_name" value="<?= htmlspecialchars($inst['app']['appName'] ?? 'Pronote') ?>" required>
+            <input type="text" name="app_name" value="<?= htmlspecialchars($inst['app']['appName'] ?? 'Fronote') ?>" required>
         </div>
         <div class="form-group">
             <label>Environnement</label>
@@ -885,7 +979,7 @@ code{background:#edf2f7;padding:1px 6px;border-radius:3px;font-size:.88em;font-f
     <div class="form-group">
         <label>Chemin de base (relatif)</label>
         <input type="text" name="base_url" value="<?= htmlspecialchars($inst['app']['baseUrlIn'] ?? $basePath) ?>">
-        <div class="help">Laisser vide si Pronote est à la racine du domaine</div>
+        <div class="help">Laisser vide si Fronote est à la racine du domaine</div>
     </div>
 
     <h3 style="margin:24px 0 14px;font-size:1em;color:#4a5568">🔒 Sécurité & sessions</h3>
@@ -916,6 +1010,109 @@ code{background:#edf2f7;padding:1px 6px;border-radius:3px;font-size:.88em;font-f
             <input type="number" name="rate_limit_decay" value="<?= (int)($inst['app']['rateLimitDecay'] ?? 1) ?>" min="1" required>
         </div>
     </div>
+
+    <h3 style="margin:24px 0 14px;font-size:1em;color:#4a5568">🏫 Établissement</h3>
+    <div class="grid">
+        <div class="form-group" style="grid-column:1/-1">
+            <label>Nom de l'établissement <span style="color:#e53e3e;">*</span></label>
+            <input type="text" name="etab_nom" value="<?= htmlspecialchars($inst['etab']['etabNom'] ?? '') ?>" required placeholder="Ex: Lycée Jean Monnet">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+            <label>Adresse</label>
+            <input type="text" name="etab_adresse" value="<?= htmlspecialchars($inst['etab']['etabAdresse'] ?? '') ?>" placeholder="1 rue de l'Éducation">
+        </div>
+        <div class="form-group">
+            <label>Code postal</label>
+            <input type="text" name="etab_cp" value="<?= htmlspecialchars($inst['etab']['etabCp'] ?? '') ?>" placeholder="75001">
+        </div>
+        <div class="form-group">
+            <label>Ville</label>
+            <input type="text" name="etab_ville" value="<?= htmlspecialchars($inst['etab']['etabVille'] ?? '') ?>" placeholder="Paris">
+        </div>
+        <div class="form-group">
+            <label>Téléphone</label>
+            <input type="text" name="etab_tel" value="<?= htmlspecialchars($inst['etab']['etabTel'] ?? '') ?>" placeholder="01 23 45 67 89">
+        </div>
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="etab_email" value="<?= htmlspecialchars($inst['etab']['etabEmail'] ?? '') ?>" placeholder="contact@etablissement.fr">
+        </div>
+        <div class="form-group">
+            <label>Académie</label>
+            <input type="text" name="etab_academie" value="<?= htmlspecialchars($inst['etab']['etabAcademie'] ?? '') ?>" placeholder="Paris">
+        </div>
+        <div class="form-group">
+            <label>Type d'établissement</label>
+            <?php $etType = $inst['etab']['etabType'] ?? 'college'; ?>
+            <select name="etab_type">
+                <option value="primaire" <?= $etType === 'primaire' ? 'selected' : '' ?>>Primaire</option>
+                <option value="college" <?= $etType === 'college' ? 'selected' : '' ?>>Collège</option>
+                <option value="lycee" <?= $etType === 'lycee' ? 'selected' : '' ?>>Lycée</option>
+                <option value="tout" <?= $etType === 'tout' ? 'selected' : '' ?>>Tout (Primaire + Collège + Lycée)</option>
+            </select>
+        </div>
+    </div>
+
+    <h3 style="margin:24px 0 14px;font-size:1em;color:#4a5568">📅 Périodes scolaires</h3>
+    <?php $pSys = $inst['etab']['periodeSystem'] ?? 'trimestre'; ?>
+    <div class="form-group">
+        <label>Système de périodes</label>
+        <select name="periode_system" id="periodeSystem" onchange="togglePeriodes()">
+            <option value="trimestre" <?= $pSys === 'trimestre' ? 'selected' : '' ?>>Trimestres (3 périodes)</option>
+            <option value="semestre" <?= $pSys === 'semestre' ? 'selected' : '' ?>>Semestres (2 périodes)</option>
+        </select>
+    </div>
+    <?php
+    $curYear = date('Y');
+    $nextYear = $curYear + (date('n') >= 9 ? 1 : 0);
+    $baseYear = date('n') >= 9 ? $curYear : $curYear - 1;
+    $defaultTrimestres = [
+        ['debut' => "$baseYear-09-01", 'fin' => "$baseYear-12-15"],
+        ['debut' => "$nextYear-01-03", 'fin' => "$nextYear-03-15"],
+        ['debut' => "$nextYear-03-16", 'fin' => "$nextYear-06-30"],
+    ];
+    $defaultSemestres = [
+        ['debut' => "$baseYear-09-01", 'fin' => "$nextYear-01-31"],
+        ['debut' => "$nextYear-02-01", 'fin' => "$nextYear-06-30"],
+    ];
+    ?>
+    <div id="trimestre-fields" style="<?= $pSys === 'semestre' ? 'display:none' : '' ?>">
+        <div class="grid">
+            <?php for ($i = 0; $i < 3; $i++): 
+                $pData = $inst['etab']['periodes'][$i] ?? $defaultTrimestres[$i];
+            ?>
+            <div class="form-group" style="grid-column:1/-1;display:flex;gap:12px;align-items:center;">
+                <strong style="min-width:120px"><?= ($i+1) === 1 ? '1er' : ($i+1).'ème' ?> trimestre</strong>
+                <label style="font-size:12px;margin:0">Du</label>
+                <input type="date" name="p<?= $i+1 ?>_debut" value="<?= htmlspecialchars($pData['debut'] ?? '') ?>" style="flex:1">
+                <label style="font-size:12px;margin:0">Au</label>
+                <input type="date" name="p<?= $i+1 ?>_fin" value="<?= htmlspecialchars($pData['fin'] ?? '') ?>" style="flex:1">
+            </div>
+            <?php endfor; ?>
+        </div>
+    </div>
+    <div id="semestre-fields" style="<?= $pSys === 'trimestre' ? 'display:none' : '' ?>">
+        <div class="grid">
+            <?php for ($i = 0; $i < 2; $i++): 
+                $sData = ($pSys === 'semestre' && isset($inst['etab']['periodes'][$i])) ? $inst['etab']['periodes'][$i] : $defaultSemestres[$i];
+            ?>
+            <div class="form-group" style="grid-column:1/-1;display:flex;gap:12px;align-items:center;">
+                <strong style="min-width:120px"><?= ($i+1) === 1 ? '1er' : '2ème' ?> semestre</strong>
+                <label style="font-size:12px;margin:0">Du</label>
+                <input type="date" name="s<?= $i+1 ?>_debut" value="<?= htmlspecialchars($sData['debut'] ?? '') ?>" style="flex:1">
+                <label style="font-size:12px;margin:0">Au</label>
+                <input type="date" name="s<?= $i+1 ?>_fin" value="<?= htmlspecialchars($sData['fin'] ?? '') ?>" style="flex:1">
+            </div>
+            <?php endfor; ?>
+        </div>
+    </div>
+    <script>
+    function togglePeriodes() {
+        var sys = document.getElementById('periodeSystem').value;
+        document.getElementById('trimestre-fields').style.display = sys === 'trimestre' ? '' : 'none';
+        document.getElementById('semestre-fields').style.display = sys === 'semestre' ? '' : 'none';
+    }
+    </script>
     <div class="actions">
         <a href="?step=2" class="btn btn-secondary">← Retour</a>
         <button type="submit" class="btn btn-primary">Continuer →</button>
@@ -1007,7 +1204,7 @@ document.getElementById('pw').addEventListener('input',function(){checkPw(this.v
         <?php $log = $inst['log'] ?? []; ?>
         <div class="result-card">
             <h2>🎉 Installation terminée !</h2>
-            <p>Pronote est prêt à être utilisé.</p>
+            <p>Fronote est prêt à être utilisé.</p>
         </div>
 
         <h3 style="font-size:1em;margin-bottom:8px">Journal d'installation</h3>

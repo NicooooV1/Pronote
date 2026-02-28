@@ -1,6 +1,6 @@
-# Pronote - Système de Gestion Scolaire
+# Fronote - Système de Gestion Scolaire
 
-Bienvenue dans le projet Pronote, une application web complète de gestion scolaire inspirée du célèbre logiciel Pronote. Cette application permet de gérer les notes, absences, cahiers de textes, messagerie et agenda dans un établissement scolaire de manière sécurisée et centralisée.
+Bienvenue dans le projet Fronote, une application web complète de gestion scolaire inspirée du célèbre logiciel Pronote. Cette application permet de gérer les notes, absences, cahiers de textes, messagerie et agenda dans un établissement scolaire de manière sécurisée et centralisée.
 
 ## Table des matières
 
@@ -147,4 +147,4 @@ Si nécessaire, pour réinstaller complètement :
 
 ---
 
-© 2025 Projet Pronote - Tous droits réservés
+© 2025 Projet Fronote - Tous droits réservés

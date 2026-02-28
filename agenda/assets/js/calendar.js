@@ -1,6 +1,6 @@
 /**
  * Fonctionnalités JavaScript pour le calendrier de l'agenda
- * Version harmonisée avec le design système Pronote
+ * Version harmonisée avec le design système Fronote
  */
 
 document.addEventListener('DOMContentLoaded', function() {

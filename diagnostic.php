@@ -1,6 +1,6 @@
 <?php
 /**
- * Page de diagnostic pour Pronote - RÉSERVÉE AUX ADMINISTRATEURS
+ * Page de diagnostic pour Fronote - RÉSERVÉE AUX ADMINISTRATEURS
  * Version améliorée avec sécurité renforcée et diagnostics avancés
  */
 
@@ -138,7 +138,7 @@ function testPageAccess($url) {
         curl_setopt($ch, CURLOPT_MAXREDIRS, 5); // Augmenté le nombre max de redirections
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Pronote-Diagnostic/1.0');
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Fronote-Diagnostic/1.0');
         
         // Ajouter un cookie de session pour les pages qui nécessitent l'authentification
         if (isset($_COOKIE[session_name()])) {
@@ -1037,7 +1037,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['diag_token'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Diagnostic Pronote - Administration</title>
+    <title>Diagnostic Fronote - Administration</title>
     <meta name="robots" content="noindex, nofollow">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
     <meta http-equiv="X-Frame-Options" content="DENY">
@@ -1171,8 +1171,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['diag_token'])) {
 </head>
 <body>
     <div class="section">
-        <h1>Diagnostic Pronote - Administration</h1>
-        <p>Cette page est réservée aux administrateurs pour diagnostiquer les problèmes de configuration, de permissions et de redirections dans l'application Pronote.</p>
+        <h1>Diagnostic Fronote - Administration</h1>
+        <p>Cette page est réservée aux administrateurs pour diagnostiquer les problèmes de configuration, de permissions et de redirections dans l'application Fronote.</p>
         <div class="tabs">
             <div class="tab active" data-tab="general">Général</div>
             <div class="tab" data-tab="permissions">Permissions</div>

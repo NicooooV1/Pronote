@@ -1,7 +1,7 @@
 <?php
 /**
  * Pied de page standardisé pour le module Notes
- * Utilise le template partagé Pronote
+ * Utilise le template partagé Fronote
  */
 ?>
 </div><!-- Fin content-container -->

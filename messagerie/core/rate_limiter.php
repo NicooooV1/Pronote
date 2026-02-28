@@ -1,6 +1,6 @@
 <?php
 /**
- * Rate Limiting — Messagerie Pronote
+ * Rate Limiting — Messagerie Fronote
  * Limite le nombre d'actions par utilisateur par fenêtre de temps.
  */
 

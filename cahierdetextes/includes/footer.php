@@ -1,7 +1,7 @@
 <?php
 /**
  * Pied de page commun pour le module Cahier de Textes
- * Utilise les templates partagés Pronote
+ * Utilise les templates partagés Fronote
  */
 ?>
       </div><!-- .content-container -->

@@ -19,7 +19,7 @@ require_once __DIR__ . '/models/conversation.php';
 require_once __DIR__ . '/models/notification.php';
 
 // Définir le titre de la page
-$pageTitle = 'Pronote - Messagerie';
+$pageTitle = 'Fronote - Messagerie';
 
 // Traitement des actions POST (avec CSRF)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['conv_id'])) {
@@ -59,7 +59,7 @@ $folderTitles = [
 ];
 
 $folderTitle = $folderTitles[$currentFolder] ?? 'Boîte de réception';
-$pageTitle = 'Pronote - Messagerie - ' . $folderTitle;
+$pageTitle = 'Fronote - Messagerie - ' . $folderTitle;
 
 // Pagination
 $page = Validator::positiveInt($_GET['page'] ?? 1);

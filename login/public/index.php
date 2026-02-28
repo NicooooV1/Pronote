@@ -1,6 +1,6 @@
 <?php
 /**
- * Page de connexion Pronote - Version intégrée à l'API centralisée
+ * Page de connexion Fronote - Version intégrée à l'API centralisée
  */
 
 // Charger l'API centralisée
@@ -76,7 +76,7 @@ $csrfToken = generateCSRFToken();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connexion - PRONOTE</title>
+    <title>Connexion - FRONOTE</title>
     <meta name="csrf-token" content="<?= htmlspecialchars($csrfToken) ?>">
     <link rel="stylesheet" href="assets/css/pronote-login.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -86,7 +86,7 @@ $csrfToken = generateCSRFToken();
         <!-- En-tête -->
         <div class="auth-header">
             <div class="app-logo">P</div>
-            <h1 class="app-title">PRONOTE</h1>
+            <h1 class="app-title">FRONOTE</h1>
             <p class="app-subtitle">Espace de connexion</p>
         </div>
 

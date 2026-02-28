@@ -71,7 +71,7 @@ try {
         $nouvelle_note = filter_input(INPUT_POST, 'note', FILTER_VALIDATE_FLOAT);
         $coefficient = filter_input(INPUT_POST, 'coefficient', FILTER_VALIDATE_FLOAT);
         $commentaire = filter_input(INPUT_POST, 'commentaire', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-        $date_evaluation = filter_input(INPUT_POST, 'date_evaluation', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $date_note = filter_input(INPUT_POST, 'date_note', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
         $trimestre = filter_input(INPUT_POST, 'trimestre', FILTER_VALIDATE_INT);
         
         // Validations métier
@@ -87,7 +87,7 @@ try {
             $errors[] = "Le trimestre doit être compris entre 1 et 3.";
         }
         
-        if ($date_evaluation && !validateDate($date_evaluation)) {
+        if ($date_note && !validateDate($date_note)) {
             $errors[] = "Date d'évaluation invalide.";
         }
         
@@ -100,7 +100,7 @@ try {
                     note = ?, 
                     coefficient = ?, 
                     commentaire = ?, 
-                    date_evaluation = ?, 
+                    date_note = ?, 
                     trimestre = ?,
                     date_modification = NOW()
                     WHERE id = ?";
@@ -110,7 +110,7 @@ try {
                     $nouvelle_note,
                     $coefficient,
                     $commentaire,
-                    $date_evaluation ?: null,
+                    $date_note ?: null,
                     $trimestre,
                     $id
                 ]);
@@ -226,9 +226,9 @@ include 'includes/header.php';
             
             <div class="form-row">
                 <div class="form-group col-md-6">
-                    <label for="date_evaluation">Date d'évaluation :</label>
-                    <input type="date" id="date_evaluation" name="date_evaluation" 
-                           value="<?= htmlspecialchars($note['date_evaluation'] ?? '', ENT_QUOTES, 'UTF-8') ?>" 
+                    <label for="date_note">Date d'évaluation :</label>
+                    <input type="date" id="date_note" name="date_note" 
+                           value="<?= htmlspecialchars($note['date_note'] ?? '', ENT_QUOTES, 'UTF-8') ?>" 
                            max="<?= date('Y-m-d') ?>" class="form-control">
                 </div>
                 

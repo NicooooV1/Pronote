@@ -1,7 +1,7 @@
 <?php
 /**
  * En-tête HTML commun - Messagerie
- * Utilise les templates partagés Pronote
+ * Utilise les templates partagés Fronote
  */
 
 // Inclure le modèle de notification

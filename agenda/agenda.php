@@ -389,93 +389,144 @@ include 'includes/header.php';
   </div>
 </div>
 
+<?php
+// Récupérer les prochains événements
+$upcoming_events = [];
+$past_recent_events = [];
+try {
+    $stmt_upcoming = $pdo->prepare("SELECT * FROM evenements WHERE date_debut >= NOW() ORDER BY date_debut ASC LIMIT 8");
+    $stmt_upcoming->execute();
+    $upcoming_events = $stmt_upcoming->fetchAll(PDO::FETCH_ASSOC);
+    
+    $stmt_past = $pdo->prepare("SELECT * FROM evenements WHERE date_debut < NOW() AND date_debut >= DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY date_debut DESC LIMIT 5");
+    $stmt_past->execute();
+    $past_recent_events = $stmt_past->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {}
+
+$type_counts = [];
+foreach ($events as $ev) {
+    $t = $ev['type_evenement'] ?? 'autre';
+    $type_counts[$t] = ($type_counts[$t] ?? 0) + 1;
+}
+?>
+
+<!-- Stats rapides -->
+<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:12px; margin-bottom:20px;">
+    <div style="background:white; border-radius:10px; padding:14px 16px; box-shadow:0 2px 6px rgba(0,0,0,0.05); text-align:center;">
+        <div style="font-size:24px; font-weight:700; color:var(--primary-color);"><?= count($events) ?></div>
+        <div style="font-size:12px; color:#718096;">Événements ce mois</div>
+    </div>
+    <?php foreach (array_slice($type_counts, 0, 4, true) as $type => $cnt): ?>
+    <div style="background:white; border-radius:10px; padding:14px 16px; box-shadow:0 2px 6px rgba(0,0,0,0.05); text-align:center;">
+        <div style="font-size:24px; font-weight:700; color:#667eea;"><?= $cnt ?></div>
+        <div style="font-size:12px; color:#718096;"><?= htmlspecialchars(ucfirst($types_evenements[$type] ?? $type)) ?></div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
 <!-- Calendar Container -->
 <div class="calendar-container">
   <?php if ($view === 'month'): ?>
-    <!-- Vue mensuelle -->
     <div class="calendar">
       <div class="calendar-header">
         <?php foreach ($day_names_full as $day): ?>
           <div class="calendar-header-day"><?= $day ?></div>
         <?php endforeach; ?>
       </div>
-      
       <div class="calendar-body">
         <?php
-        // Jours du mois précédent
         $prev_month = $month > 1 ? $month - 1 : 12;
         $prev_year = $month > 1 ? $year : $year - 1;
         $prev_month_days = cal_days_in_month(CAL_GREGORIAN, $prev_month, $prev_year);
-        
         for ($i = 1; $i < $first_day; $i++) {
           $day_num = $prev_month_days - $first_day + $i + 1;
-          echo '<div class="calendar-day other-month">';
-          echo '<div class="calendar-day-number">' . $day_num . '</div>';
-          echo '</div>';
+          echo '<div class="calendar-day other-month"><div class="calendar-day-number">' . $day_num . '</div></div>';
         }
-        
-        // Jours du mois courant
         for ($day = 1; $day <= $num_days; $day++) {
           $date_str = sprintf('%04d-%02d-%02d', $year, $month, $day);
           $is_today = ($day == $today_day && $month == $today_month && $year == $today_year);
-          
           $today_class = $is_today ? ' today' : '';
-          
           echo '<div class="calendar-day' . $today_class . '" data-date="' . $date_str . '" onclick="openDayView(\'' . $date_str . '\')">';
           echo '<div class="calendar-day-number">' . $day . '</div>';
-          
-          // Afficher les événements de ce jour
           if (isset($events_by_day[$day])) {
             echo '<div class="calendar-day-events">';
             foreach ($events_by_day[$day] as $event) {
               $event_time = date('H:i', strtotime($event['date_debut']));
               $event_class = 'event-' . strtolower($event['type_evenement']);
-              
-              if ($event['statut'] === 'annulé') {
-                $event_class .= ' event-cancelled';
-              } elseif ($event['statut'] === 'reporté') {
-                $event_class .= ' event-postponed';
-              }
-              
+              if ($event['statut'] === 'annulé') $event_class .= ' event-cancelled';
+              elseif ($event['statut'] === 'reporté') $event_class .= ' event-postponed';
               echo '<div class="calendar-event ' . $event_class . '" data-event-id="' . $event['id'] . '" onclick="openEventDetails(' . $event['id'] . ', event)">';
-              echo '<span class="event-time">' . $event_time . '</span> ';
-              echo htmlspecialchars($event['titre']);
+              echo '<span class="event-time">' . $event_time . '</span> ' . htmlspecialchars($event['titre']);
               echo '</div>';
             }
             echo '</div>';
           }
-          
           echo '</div>';
         }
-        
-        // Jours du mois suivant
         $days_shown = $first_day - 1 + $num_days;
         $remaining_days = 7 - ($days_shown % 7);
         if ($remaining_days < 7) {
           for ($day = 1; $day <= $remaining_days; $day++) {
-            echo '<div class="calendar-day other-month">';
-            echo '<div class="calendar-day-number">' . $day . '</div>';
-            echo '</div>';
+            echo '<div class="calendar-day other-month"><div class="calendar-day-number">' . $day . '</div></div>';
           }
         }
         ?>
       </div>
     </div>
-    
   <?php elseif ($view === 'day'): ?>
-    <!-- Vue jour -->
     <?php include 'views/day_view.php'; ?>
-    
   <?php elseif ($view === 'week'): ?>
-    <!-- Vue semaine -->
     <?php include 'views/week_view.php'; ?>
-    
   <?php elseif ($view === 'list'): ?>
-    <!-- Vue liste -->
     <?php include 'views/list_view.php'; ?>
-    
   <?php endif; ?>
 </div>
+
+<?php if ($view === 'month'): ?>
+<!-- Panneaux prochains / passés -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px;">
+    <div style="background:white; border-radius:10px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <h3 style="font-size:1em; color:#2d3748; margin-bottom:15px;"><i class="fas fa-arrow-right" style="color:var(--primary-color); margin-right:6px;"></i>Prochains événements</h3>
+        <?php if (empty($upcoming_events)): ?>
+            <p style="color:#a0aec0; font-size:14px; text-align:center; padding:20px 0;">Aucun événement à venir</p>
+        <?php else: ?>
+            <?php foreach ($upcoming_events as $ue): ?>
+            <a href="details_evenement.php?id=<?= $ue['id'] ?>" style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #f1f5f9; text-decoration:none; color:inherit;">
+                <div style="min-width:45px; text-align:center;">
+                    <div style="font-size:18px; font-weight:700; color:#2d3748; line-height:1;"><?= date('d', strtotime($ue['date_debut'])) ?></div>
+                    <div style="font-size:11px; color:#a0aec0;"><?= $month_names[(int)date('n', strtotime($ue['date_debut']))] ?></div>
+                </div>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-size:14px; font-weight:500; color:#2d3748; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><?= htmlspecialchars($ue['titre']) ?></div>
+                    <div style="font-size:12px; color:#718096;"><i class="far fa-clock"></i> <?= date('H:i', strtotime($ue['date_debut'])) ?><?php if (!empty($ue['lieu'])): ?> · <i class="fas fa-map-marker-alt"></i> <?= htmlspecialchars($ue['lieu']) ?><?php endif; ?></div>
+                </div>
+                <span style="padding:3px 8px; border-radius:10px; font-size:11px; font-weight:500; background:var(--primary-color); color:white; white-space:nowrap;"><?= htmlspecialchars(ucfirst($types_evenements[$ue['type_evenement']] ?? $ue['type_evenement'])) ?></span>
+            </a>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+    <div style="background:white; border-radius:10px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <h3 style="font-size:1em; color:#2d3748; margin-bottom:15px;"><i class="fas fa-history" style="color:#a0aec0; margin-right:6px;"></i>Événements récents</h3>
+        <?php if (empty($past_recent_events)): ?>
+            <p style="color:#a0aec0; font-size:14px; text-align:center; padding:20px 0;">Aucun événement récent</p>
+        <?php else: ?>
+            <?php foreach ($past_recent_events as $pe): ?>
+            <a href="details_evenement.php?id=<?= $pe['id'] ?>" style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #f1f5f9; text-decoration:none; color:inherit; opacity:0.7;">
+                <div style="min-width:45px; text-align:center;">
+                    <div style="font-size:18px; font-weight:700; color:#2d3748; line-height:1;"><?= date('d', strtotime($pe['date_debut'])) ?></div>
+                    <div style="font-size:11px; color:#a0aec0;"><?= $month_names[(int)date('n', strtotime($pe['date_debut']))] ?></div>
+                </div>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-size:14px; font-weight:500; color:#2d3748; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><?= htmlspecialchars($pe['titre']) ?></div>
+                    <div style="font-size:12px; color:#718096;"><i class="far fa-clock"></i> <?= date('H:i', strtotime($pe['date_debut'])) ?><?php if (!empty($pe['lieu'])): ?> · <i class="fas fa-map-marker-alt"></i> <?= htmlspecialchars($pe['lieu']) ?><?php endif; ?></div>
+                </div>
+                <span style="padding:3px 8px; border-radius:10px; font-size:11px; background:#e2e8f0; color:#718096;">Passé</span>
+            </a>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <script>
 // Fonctions pour la navigation

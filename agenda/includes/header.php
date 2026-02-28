@@ -1,7 +1,7 @@
 <?php
 /**
  * En-tête commun pour le module Agenda
- * Utilise les templates partagés Pronote
+ * Utilise les templates partagés Fronote
  */
 
 // S'assurer que l'API est chargée
@@ -25,27 +25,21 @@ $extraCss = array_merge(['assets/css/agenda.css'], $extraCss ?? []);
 ob_start();
 ?>
       <!-- Mini-calendrier pour la navigation -->
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">Calendrier</div>
-        <div class="mini-calendar">
-          <?php if (function_exists('generateMiniCalendar')): ?>
-            <?= generateMiniCalendar($month ?? date('n'), $year ?? date('Y'), $date ?? date('Y-m-d')) ?>
-          <?php endif; ?>
-        </div>
+      <div class="mini-calendar">
+        <?php if (function_exists('generateMiniCalendar')): ?>
+          <?= generateMiniCalendar($month ?? date('n'), $year ?? date('Y'), $date ?? date('Y-m-d')) ?>
+        <?php endif; ?>
       </div>
       
       <?php if (canManageAgendaEvents()): ?>
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">Actions</div>
-        <a href="ajouter_evenement.php" class="sidebar-action-btn">
-          <i class="fas fa-plus"></i> Ajouter un événement
-        </a>
-      </div>
+      <a href="ajouter_evenement.php" class="sidebar-action-btn">
+        <i class="fas fa-plus"></i> Ajouter un événement
+      </a>
       <?php endif; ?>
       
       <?php if (isset($available_event_types) && !empty($available_event_types)): ?>
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">Types d'événements</div>
+      <div style="margin-top:10px;">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.5);font-weight:600;margin-bottom:6px;">Types d'événements</div>
         <div class="sidebar-nav">
           <?php foreach ($types_evenements ?? [] as $code => $nom): ?>
             <?php if (in_array($code, $available_event_types)): ?>
@@ -67,8 +61,8 @@ ob_start();
       <?php endif; ?>
 
       <?php if (!empty($classes) && canManageAgendaEvents()): ?>
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">Classes</div>
+      <div style="margin-top:10px;">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.5);font-weight:600;margin-bottom:6px;">Classes</div>
         <div class="classes-dropdown">
           <button class="classes-dropdown-toggle" id="classesDropdownToggle">
             Filtrer par classe <i class="fas fa-chevron-down"></i>

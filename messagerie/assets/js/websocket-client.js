@@ -1,5 +1,5 @@
 /**
- * Client WebSocket pour la messagerie Pronote
+ * Client WebSocket pour la messagerie Fronote
  * Gère la connexion temps réel et les événements
  */
 

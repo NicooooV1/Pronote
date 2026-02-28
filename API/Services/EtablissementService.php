@@ -39,11 +39,24 @@ class EtablissementService
             return $this->cache['info'];
         }
 
-        $stmt = $this->pdo->query("SELECT * FROM etablissement_info LIMIT 1");
-        $info = $stmt->fetch(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->pdo->query("SELECT * FROM etablissement_info LIMIT 1");
+            $info = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$info) {
-            $info = $this->createDefaultInfo();
+            if (!$info) {
+                $info = $this->createDefaultInfo();
+            }
+        } catch (\PDOException $e) {
+            // Table might not exist yet
+            $info = [
+                'nom' => 'Établissement Scolaire',
+                'adresse' => '',
+                'code_postal' => '',
+                'ville' => '',
+                'telephone' => '',
+                'email' => '',
+                'academie' => ''
+            ];
         }
 
         $this->cache['info'] = $info;
@@ -59,12 +72,16 @@ class EtablissementService
             return $this->cache['classes'];
         }
 
-        $stmt = $this->pdo->query("
-            SELECT * FROM classes 
-            ORDER BY niveau, nom
-        ");
-        
-        $classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->pdo->query("
+                SELECT * FROM classes 
+                ORDER BY niveau, nom
+            ");
+            
+            $classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            $classes = [];
+        }
         
         // Organiser par niveau
         $organized = [];
@@ -89,13 +106,17 @@ class EtablissementService
             return $this->cache['matieres'];
         }
 
-        $stmt = $this->pdo->query("
-            SELECT code, nom, couleur 
-            FROM matieres 
-            ORDER BY nom
-        ");
-        
-        $this->cache['matieres'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->pdo->query("
+                SELECT code, nom, couleur 
+                FROM matieres 
+                ORDER BY nom
+            ");
+            
+            $this->cache['matieres'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            $this->cache['matieres'] = [];
+        }
         return $this->cache['matieres'];
     }
 
@@ -108,12 +129,16 @@ class EtablissementService
             return $this->cache['periodes'];
         }
 
-        $stmt = $this->pdo->query("
-            SELECT * FROM periodes 
-            ORDER BY date_debut
-        ");
-        
-        $this->cache['periodes'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->pdo->query("
+                SELECT * FROM periodes 
+                ORDER BY date_debut
+            ");
+            
+            $this->cache['periodes'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            $this->cache['periodes'] = [];
+        }
         return $this->cache['periodes'];
     }
 
@@ -122,30 +147,35 @@ class EtablissementService
      */
     public function updateInfo($data)
     {
-        $stmt = $this->pdo->prepare("
-            UPDATE etablissement_info SET
-                nom = ?,
-                adresse = ?,
-                code_postal = ?,
-                ville = ?,
-                telephone = ?,
-                email = ?,
-                academie = ?
-            WHERE id = 1
-        ");
+        try {
+            $stmt = $this->pdo->prepare("
+                UPDATE etablissement_info SET
+                    nom = ?,
+                    adresse = ?,
+                    code_postal = ?,
+                    ville = ?,
+                    telephone = ?,
+                    email = ?,
+                    academie = ?
+                WHERE id = 1
+            ");
 
-        $result = $stmt->execute([
-            $data['nom'],
-            $data['adresse'],
-            $data['code_postal'],
-            $data['ville'],
-            $data['telephone'],
-            $data['email'],
-            $data['academie']
-        ]);
+            $result = $stmt->execute([
+                $data['nom'] ?? '',
+                $data['adresse'] ?? '',
+                $data['code_postal'] ?? '',
+                $data['ville'] ?? '',
+                $data['telephone'] ?? '',
+                $data['email'] ?? '',
+                $data['academie'] ?? ''
+            ]);
 
-        unset($this->cache['info']);
-        return $result;
+            unset($this->cache['info']);
+            return $result;
+        } catch (\PDOException $e) {
+            error_log("EtablissementService::updateInfo error: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -153,14 +183,19 @@ class EtablissementService
      */
     public function addClasse($niveau, $nom)
     {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO classes (niveau, nom) 
-            VALUES (?, ?)
-        ");
-        
-        $result = $stmt->execute([$niveau, $nom]);
-        unset($this->cache['classes']);
-        return $result;
+        try {
+            $stmt = $this->pdo->prepare("
+                INSERT INTO classes (niveau, nom) 
+                VALUES (?, ?)
+            ");
+            
+            $result = $stmt->execute([$niveau, $nom]);
+            unset($this->cache['classes']);
+            return $result;
+        } catch (\PDOException $e) {
+            error_log("EtablissementService::addClasse error: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -179,14 +214,19 @@ class EtablissementService
      */
     public function addMatiere($code, $nom, $couleur = '#3498db')
     {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO matieres (code, nom, couleur) 
-            VALUES (?, ?, ?)
-        ");
-        
-        $result = $stmt->execute([$code, $nom, $couleur]);
-        unset($this->cache['matieres']);
-        return $result;
+        try {
+            $stmt = $this->pdo->prepare("
+                INSERT INTO matieres (code, nom, couleur) 
+                VALUES (?, ?, ?)
+            ");
+            
+            $result = $stmt->execute([$code, $nom, $couleur]);
+            unset($this->cache['matieres']);
+            return $result;
+        } catch (\PDOException $e) {
+            error_log("EtablissementService::addMatiere error: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -205,27 +245,32 @@ class EtablissementService
      */
     public function configurePeriodes($type, $periodes)
     {
-        // Supprimer les anciennes périodes
-        $this->pdo->exec("DELETE FROM periodes");
+        try {
+            // Supprimer les anciennes périodes
+            $this->pdo->exec("DELETE FROM periodes");
 
-        // Ajouter les nouvelles périodes
-        $stmt = $this->pdo->prepare("
-            INSERT INTO periodes (numero, nom, type, date_debut, date_fin) 
-            VALUES (?, ?, ?, ?, ?)
-        ");
+            // Ajouter les nouvelles périodes
+            $stmt = $this->pdo->prepare("
+                INSERT INTO periodes (numero, nom, type, date_debut, date_fin) 
+                VALUES (?, ?, ?, ?, ?)
+            ");
 
-        foreach ($periodes as $index => $periode) {
-            $stmt->execute([
-                $index + 1,
-                $periode['nom'],
-                $type,
-                $periode['date_debut'],
-                $periode['date_fin']
-            ]);
+            foreach ($periodes as $index => $periode) {
+                $stmt->execute([
+                    $index + 1,
+                    $periode['nom'],
+                    $type,
+                    $periode['date_debut'],
+                    $periode['date_fin']
+                ]);
+            }
+
+            unset($this->cache['periodes']);
+            return true;
+        } catch (\PDOException $e) {
+            error_log("EtablissementService::configurePeriodes error: " . $e->getMessage());
+            return false;
         }
-
-        unset($this->cache['periodes']);
-        return true;
     }
 
     /**
@@ -258,13 +303,18 @@ class EtablissementService
             'academie' => 'Paris'
         ];
 
-        $stmt = $this->pdo->prepare("
-            INSERT INTO etablissement_info 
-            (nom, adresse, code_postal, ville, telephone, email, academie) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ");
+        try {
+            $stmt = $this->pdo->prepare("
+                INSERT INTO etablissement_info 
+                (nom, adresse, code_postal, ville, telephone, email, academie) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ");
 
-        $stmt->execute(array_values($defaultInfo));
+            $stmt->execute(array_values($defaultInfo));
+        } catch (\PDOException $e) {
+            // Table might not exist, return defaults anyway
+            error_log("EtablissementService::createDefaultInfo error: " . $e->getMessage());
+        }
         
         return $defaultInfo;
     }
