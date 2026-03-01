@@ -1,0 +1,58 @@
+/* ======= M38 – COMPÉTENCES ======= */
+
+.comp-legend { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; font-size: .85rem; }
+.comp-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; }
+
+.comp-tree { display: flex; flex-direction: column; gap: 1rem; }
+
+.comp-domain {
+    background: var(--bg-card, #fff);
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+.comp-domain-header { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+.comp-code { font-weight: 700; font-size: 1rem; color: var(--primary, #4f46e5); background: rgba(79,70,229,.1); padding: .2rem .5rem; border-radius: 6px; }
+.comp-name { font-weight: 600; font-size: 1rem; }
+.comp-desc { font-size: .85rem; color: var(--text-secondary, #64748b); margin: 0 0 .5rem; }
+
+.comp-children { display: flex; flex-direction: column; gap: .25rem; padding-left: 1rem; border-left: 2px solid var(--border, #e2e8f0); }
+.comp-item { padding: .35rem .5rem; font-size: .9rem; display: flex; gap: .5rem; align-items: center; }
+.comp-code-sm { font-weight: 600; font-size: .8rem; color: var(--primary, #4f46e5); background: rgba(79,70,229,.08); padding: .1rem .35rem; border-radius: 4px; }
+
+/* Selectors */
+.comp-selectors { margin-bottom: 1rem; }
+.comp-selector-form { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; }
+.comp-selector-form .form-group { min-width: 180px; }
+.comp-selector-form .form-group label { font-size: .8rem; color: var(--text-secondary, #64748b); display: block; margin-bottom: .25rem; }
+
+/* Bilan */
+.bilan-title { font-size: 1.25rem; margin-bottom: 1rem; }
+.bilan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1rem; }
+
+.bilan-domain-card {
+    background: var(--bg-card, #fff);
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+.bilan-domain-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .75rem; padding-bottom: .5rem; border-bottom: 1px solid var(--border, #f1f5f9); }
+.bilan-domain-name { font-weight: 600; }
+.bilan-evals { display: flex; flex-direction: column; gap: .25rem; }
+.bilan-eval-row { display: flex; align-items: center; gap: .5rem; font-size: .85rem; padding: .2rem 0; }
+.bilan-comp-code { font-weight: 600; font-size: .75rem; color: var(--primary, #4f46e5); min-width: 40px; }
+.bilan-comp-name { flex: 1; }
+
+/* Stats distribution */
+.comp-distrib { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: #f1f5f9; min-width: 150px; }
+.comp-distrib-bar { height: 100%; transition: width .3s; }
+
+.stats-comp-table .table th, .stats-comp-table .table td { vertical-align: middle; }
+
+.mb-1 { margin-bottom: 1rem; }
+.empty-state { text-align: center; padding: 3rem; color: var(--text-secondary, #94a3b8); }
+
+@media (max-width: 768px) {
+    .bilan-grid { grid-template-columns: 1fr; }
+    .comp-selector-form { flex-direction: column; }
+}

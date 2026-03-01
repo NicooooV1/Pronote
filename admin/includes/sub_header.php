@@ -1,7 +1,10 @@
 <?php
 /**
  * En-tête pour les sous-pages admin (users/, scolaire/, classes/, messagerie/, etablissement/, systeme/)
+ * N'injecte PLUS de sous-navigation admin dans la sidebar.
+ * La sidebar globale gère la section Administration avec un seul lien.
  * Ajuste le rootPrefix pour les templates partagés puisqu'on est un niveau plus profond.
+ * Ajoute un fil d'Ariane dans le contenu.
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/admin_functions.php';
@@ -30,3 +33,4 @@ include __DIR__ . '/../../templates/shared_topbar.php';
 ?>
 
             <div class="content-container">
+                <?= renderAdminBreadcrumb($currentPage, $pageTitle, '../../') ?>

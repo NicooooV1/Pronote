@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Affectations professeurs ↔ classes — vue matricielle avec checkbox toggle
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -78,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $c
 
 $pageTitle = 'Affectations Prof ↔ Classes';
 $currentPage = 'affectations';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>

@@ -1,175 +1,91 @@
 <?php
-// Démarrer la mise en mémoire tampon
+/**
+ * justificatifs.php — Liste des justificatifs d'absences
+ * Refactorisé : AbsenceRepository + AbsenceHelper, suppression FILTER_SANITIZE_STRING,
+ * suppression établissement.json, pagination via AbsenceHelper::paginate().
+ */
 ob_start();
 
-// Inclusion de l'API centralisée
 require_once __DIR__ . '/../API/core.php';
-$pdo = getPDO();
-require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/AbsenceRepository.php';
+require_once __DIR__ . '/includes/AbsenceHelper.php';
 
-// Vérifier que l'utilisateur est connecté et autorisé avec le système centralisé
 if (!isLoggedIn() || !canManageAbsences()) {
     header('Location: ' . LOGIN_URL);
     exit;
 }
 
-// Récupérer les informations de l'utilisateur connecté via le système centralisé
+$pdo  = getPDO();
+$repo = new AbsenceRepository($pdo);
 $user = getCurrentUser();
+
 $user_fullname = getUserFullName();
-$user_role = getUserRole();
+$user_role     = getUserRole();
 $user_initials = getUserInitials();
 
-// Configuration de la page
-$pageTitle = 'Justificatifs d\'absence';
+$pageTitle   = 'Justificatifs d\'absence';
 $currentPage = 'justificatifs';
 
-// Définir les filtres par défaut avec validation
-$date_debut = filter_input(INPUT_GET, 'date_debut', FILTER_SANITIZE_STRING) ?: date('Y-m-d', strtotime('-30 days'));
-$date_fin = filter_input(INPUT_GET, 'date_fin', FILTER_SANITIZE_STRING) ?: date('Y-m-d');
-$classe = filter_input(INPUT_GET, 'classe', FILTER_SANITIZE_STRING) ?: '';
-$traite = filter_input(INPUT_GET, 'traite', FILTER_SANITIZE_STRING) ?: '';
+// --- Filtres ---
+$date_debut = AbsenceHelper::sanitizeDate($_GET['date_debut'] ?? '') ?: date('Y-m-d', strtotime('-30 days'));
+$date_fin   = AbsenceHelper::sanitizeDate($_GET['date_fin'] ?? '')   ?: date('Y-m-d');
+$classe     = AbsenceHelper::sanitize($_GET['classe'] ?? '');
+$traite     = AbsenceHelper::sanitize($_GET['traite'] ?? '');
 
-// Formatage des dates pour l'affichage convivial
 $date_debut_formattee = date('d/m/Y', strtotime($date_debut));
-$date_fin_formattee = date('d/m/Y', strtotime($date_fin));
+$date_fin_formattee   = date('d/m/Y', strtotime($date_fin));
 
-$dateColumn = 'date_soumission';
-
-// Récupérer la liste des justificatifs
+// --- Récupération des justificatifs ---
 $justificatifs = [];
-
 if (isAdmin() || isVieScolaire()) {
-    try {
-        // Construire la requête en utilisant la colonne de date déterminée avec paramètres nommés
-        $sql = "SELECT j.*, e.nom, e.prenom, e.classe 
-                FROM justificatifs j 
-                JOIN eleves e ON j.id_eleve = e.id 
-                WHERE j.$dateColumn BETWEEN :date_debut AND :date_fin ";
-                
-        $params = [
-            ':date_debut' => $date_debut,
-            ':date_fin' => $date_fin
-        ];
-        
-        if (!empty($classe)) {
-            $sql .= "AND e.classe = :classe ";
-            $params[':classe'] = $classe;
-        }
-        
-        if ($traite !== '') {
-            $sql .= "AND j.traite = :traite ";
-            $params[':traite'] = ($traite === 'oui') ? 1 : 0; // Conversion explicite en booléen
-        }
-        
-        $sql .= "ORDER BY j.$dateColumn DESC";
-        
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
-        $justificatifs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        // Journalisation et gestion de l'erreur
-        \Pronote\Logging\error("Erreur lors de la récupération des justificatifs: " . $e->getMessage());
-        $justificatifs = [];
-    }
+    $justificatifs = $repo->getJustificatifs([
+        'date_debut' => $date_debut,
+        'date_fin'   => $date_fin,
+        'classe'     => $classe,
+        'traite'     => $traite
+    ]);
 }
 
-// Traitement du formulaire de justification avec validation CSRF
-$message = '';
-$erreur = '';
+// --- Pagination ---
+$page      = max(1, intval($_GET['page'] ?? 1));
+$paginated = AbsenceHelper::paginate($justificatifs, $page, 20);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'traiter') {
-    // Vérifier le jeton CSRF
-    if (!isset($_POST['csrf_token']) || !isset($_SESSION['csrf_token']) || 
-        !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-        $erreur = "Erreur de sécurité. Veuillez réessayer.";
-    } else {
-        $id_justificatif = filter_input(INPUT_POST, 'id_justificatif', FILTER_VALIDATE_INT);
-        if (!$id_justificatif) {
-            $erreur = "Identifiant de justificatif invalide";
-        } else {
-            $approuve = isset($_POST['approuve']) ? 1 : 0;
-            $commentaire = filter_input(INPUT_POST, 'commentaire', FILTER_SANITIZE_STRING) ?: '';
-            
-            // Mise à jour du justificatif avec paramètres nommés
-            $stmt = $pdo->prepare("
-                UPDATE justificatifs 
-                SET traite = 1, 
-                    approuve = :approuve, 
-                    commentaire_admin = :commentaire, 
-                    date_traitement = NOW(), 
-                    traite_par = :traite_par 
-                WHERE id = :id
-            ");
-            
-            if ($stmt->execute([
-                ':approuve' => $approuve, 
-                ':commentaire' => $commentaire, 
-                ':traite_par' => $user_fullname, 
-                ':id' => $id_justificatif
-            ])) {
-                // Si approuvé, mettre à jour l'absence
-                if ($approuve && isset($_POST['id_absence'])) {
-                    $id_absence = intval($_POST['id_absence']);
-                    $stmt = $pdo->prepare("UPDATE absences SET justifie = 1 WHERE id = ?");
-                    $stmt->execute([$id_absence]);
-                }
-                
-                $message = "Le justificatif a été traité avec succès.";
-                // Recharger la liste des justificatifs
-                header('Location: justificatifs.php?success=1');
-                exit;
-            } else {
-                $erreur = "Une erreur est survenue lors du traitement du justificatif.";
-            }
-        }
-    }
-}
+// --- Classes pour le filtre ---
+$classes = AbsenceHelper::getClassesList();
 
-// Récupérer la liste des classes pour le filtre
-$classes = [];
-try {
-    $etablissement_data = json_decode(file_get_contents('../login/data/etablissement.json'), true);
-    if (!empty($etablissement_data['classes'])) {
-        foreach ($etablissement_data['classes'] as $niveau => $niveaux) {
-            foreach ($niveaux as $cycle => $liste_classes) {
-                foreach ($liste_classes as $nom_classe) {
-                    $classes[] = $nom_classe;
-                }
-            }
-        }
-    }
-} catch (Exception $e) {
-    error_log("Erreur lors de la récupération des classes: " . $e->getMessage());
-}
+// --- Succès via redirect ---
+$success = isset($_GET['success']);
 
-// Inclure l'en-tête
 include 'includes/header.php';
 ?>
 
-<!-- Bannière de bienvenue pour le contexte des justificatifs -->
+<?php if ($success): ?>
+<div class="alert alert-success">
+    <i class="fas fa-check-circle"></i>
+    <span>Le justificatif a été traité avec succès.</span>
+</div>
+<?php endif; ?>
+
+<!-- Bannière -->
 <div class="welcome-banner">
     <div class="welcome-content">
         <h2>Gestion des Justificatifs</h2>
         <p>Consultez et traitez les justificatifs d'absences soumis par les élèves et leurs parents.</p>
     </div>
-    <div class="welcome-icon">
-        <i class="fas fa-file-alt"></i>
-    </div>
+    <div class="welcome-icon"><i class="fas fa-file-alt"></i></div>
 </div>
 
-<!-- Barre de filtres -->
+<!-- Filtres -->
 <div class="filters-bar">
     <form id="filter-form" class="filter-form" method="get" action="justificatifs.php">
         <div class="filter-item">
             <label for="date_debut" class="filter-label">Du</label>
             <input type="date" id="date_debut" name="date_debut" value="<?= $date_debut ?>" max="<?= date('Y-m-d') ?>">
         </div>
-        
         <div class="filter-item">
             <label for="date_fin" class="filter-label">Au</label>
             <input type="date" id="date_fin" name="date_fin" value="<?= $date_fin ?>" max="<?= date('Y-m-d') ?>">
         </div>
-        
         <div class="filter-item">
             <label for="classe" class="filter-label">Classe</label>
             <select id="classe" name="classe">
@@ -179,7 +95,6 @@ include 'includes/header.php';
                 <?php endforeach; ?>
             </select>
         </div>
-        
         <div class="filter-item">
             <label for="traite" class="filter-label">Statut</label>
             <select id="traite" name="traite">
@@ -188,14 +103,9 @@ include 'includes/header.php';
                 <option value="non" <?= $traite === 'non' ? 'selected' : '' ?>>Non traités</option>
             </select>
         </div>
-        
         <div class="filter-buttons">
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-filter"></i> Filtrer
-            </button>
-            <a href="justificatifs.php" class="btn btn-secondary">
-                <i class="fas fa-redo"></i> Réinitialiser
-            </a>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Filtrer</button>
+            <a href="justificatifs.php" class="btn btn-secondary"><i class="fas fa-redo"></i> Réinitialiser</a>
         </div>
     </form>
 </div>
@@ -203,16 +113,11 @@ include 'includes/header.php';
 <!-- Contenu principal -->
 <div class="content-container">
     <div class="content-header">
-        <h2>Justificatifs du <?= $date_debut_formattee ?> au <?= $date_fin_formattee ?></h2>
-        <div class="content-actions">
-            <a href="export_justificatifs.php?format=excel&<?= http_build_query($_GET) ?>" class="btn btn-outline">
-                <i class="fas fa-file-excel"></i> Exporter
-            </a>
-        </div>
+        <h2>Justificatifs du <?= $date_debut_formattee ?> au <?= $date_fin_formattee ?> (<?= count($justificatifs) ?>)</h2>
     </div>
 
     <div class="content-body">
-        <?php if (empty($justificatifs)): ?>
+        <?php if (empty($paginated['items'])): ?>
             <div class="no-data-message">
                 <i class="fas fa-file-alt"></i>
                 <p>Aucun justificatif ne correspond aux critères sélectionnés.</p>
@@ -230,55 +135,60 @@ include 'includes/header.php';
                         <div class="list-actions">Actions</div>
                     </div>
                 </div>
-                
+
                 <div class="list-body">
-                    <?php foreach ($justificatifs as $justificatif): ?>
-                        <div class="list-row justificatif-row <?= $justificatif['traite'] ? 'traite' : 'non-traite' ?>">
-                            <div class="list-cell">
-                                <strong><?= htmlspecialchars($justificatif['nom']) ?></strong> <?= htmlspecialchars($justificatif['prenom']) ?>
-                            </div>
-                            <div class="list-cell"><?= htmlspecialchars($justificatif['classe']) ?></div>
-                            <div class="list-cell">
-                                <?= isset($justificatif[$dateColumn]) ? date('d/m/Y', strtotime($justificatif[$dateColumn])) : 'N/A' ?>
-                            </div>
-                            <div class="list-cell">
-                                Du <?= date('d/m/Y', strtotime($justificatif['date_debut_absence'])) ?>
-                                <br>
-                                au <?= date('d/m/Y', strtotime($justificatif['date_fin_absence'])) ?>
-                            </div>
-                            <div class="list-cell"><?= htmlspecialchars($justificatif['motif'] ?? 'Non spécifié') ?></div>
-                            <div class="list-cell">
-                                <?php if ($justificatif['traite']): ?>
-                                    <span class="badge badge-success">Traité</span>
-                                    <span class="badge <?= $justificatif['approuve'] ? 'badge-success' : 'badge-danger' ?>">
-                                        <?= $justificatif['approuve'] ? 'Approuvé' : 'Rejeté' ?>
-                                    </span>
-                                <?php else: ?>
-                                    <span class="badge badge-warning">En attente</span>
+                    <?php foreach ($paginated['items'] as $j): ?>
+                    <div class="list-row justificatif-row <?= $j['traite'] ? 'traite' : 'non-traite' ?>">
+                        <div class="list-cell"><strong><?= htmlspecialchars($j['nom']) ?></strong> <?= htmlspecialchars($j['prenom']) ?></div>
+                        <div class="list-cell"><?= htmlspecialchars($j['classe']) ?></div>
+                        <div class="list-cell"><?= isset($j['date_soumission']) ? date('d/m/Y', strtotime($j['date_soumission'])) : 'N/A' ?></div>
+                        <div class="list-cell">
+                            Du <?= date('d/m/Y', strtotime($j['date_debut_absence'])) ?><br>
+                            au <?= date('d/m/Y', strtotime($j['date_fin_absence'])) ?>
+                        </div>
+                        <div class="list-cell"><?= htmlspecialchars($j['motif'] ?? 'Non spécifié') ?></div>
+                        <div class="list-cell">
+                            <?php if ($j['traite']): ?>
+                                <span class="badge badge-success">Traité</span>
+                                <span class="badge <?= $j['approuve'] ? 'badge-success' : 'badge-danger' ?>">
+                                    <?= $j['approuve'] ? 'Approuvé' : 'Rejeté' ?>
+                                </span>
+                            <?php else: ?>
+                                <span class="badge badge-warning">En attente</span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="list-actions">
+                            <div class="action-buttons">
+                                <a href="details_justificatif.php?id=<?= $j['id'] ?>" class="btn-icon" title="Voir les détails"><i class="fas fa-eye"></i></a>
+                                <?php if (!$j['traite']): ?>
+                                <a href="traiter_justificatif.php?id=<?= $j['id'] ?>" class="btn-icon" title="Traiter"><i class="fas fa-check-circle"></i></a>
                                 <?php endif; ?>
                             </div>
-                            <div class="list-actions">
-                                <div class="action-buttons">
-                                    <a href="details_justificatif.php?id=<?= $justificatif['id'] ?>" class="btn-icon" title="Voir les détails">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                    <?php if (!$justificatif['traite']): ?>
-                                    <a href="traiter_justificatif.php?id=<?= $justificatif['id'] ?>" class="btn-icon" title="Traiter">
-                                        <i class="fas fa-check-circle"></i>
-                                    </a>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
                         </div>
+                    </div>
                     <?php endforeach; ?>
                 </div>
             </div>
+
+            <?php if ($paginated['totalPages'] > 1): ?>
+            <div class="pagination">
+                <a href="?<?= http_build_query(array_merge($_GET, ['page' => max(1, $paginated['currentPage'] - 1)])) ?>" class="page-link" <?= $paginated['currentPage'] === 1 ? 'disabled' : '' ?>>
+                    <i class="fas fa-chevron-left"></i> Précédent
+                </a>
+                <div class="page-numbers">
+                    <?php for ($i = max(1, $paginated['currentPage'] - 2); $i <= min($paginated['totalPages'], $paginated['currentPage'] + 2); $i++): ?>
+                    <a href="?<?= http_build_query(array_merge($_GET, ['page' => $i])) ?>" class="page-number <?= $i === $paginated['currentPage'] ? 'active' : '' ?>"><?= $i ?></a>
+                    <?php endfor; ?>
+                </div>
+                <a href="?<?= http_build_query(array_merge($_GET, ['page' => min($paginated['totalPages'], $paginated['currentPage'] + 1)])) ?>" class="page-link" <?= $paginated['currentPage'] === $paginated['totalPages'] ? 'disabled' : '' ?>>
+                    Suivant <i class="fas fa-chevron-right"></i>
+                </a>
+            </div>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>
 
 <?php
-// Inclure le pied de page
 include 'includes/footer.php';
 ob_end_flush();
-?>

@@ -101,16 +101,19 @@ class Container
 
     /**
      * Résout les dépendances du constructeur
+     * Compatible PHP 8+ (getClass() est déprécié depuis PHP 8.0)
      */
     protected function resolveDependencies($dependencies)
     {
         $results = [];
 
         foreach ($dependencies as $dependency) {
-            if (is_null($dependency->getClass())) {
-                $results[] = $this->resolveNonClass($dependency);
+            $type = $dependency->getType();
+
+            if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+                $results[] = $this->make($type->getName());
             } else {
-                $results[] = $this->make($dependency->getClass()->name);
+                $results[] = $this->resolveNonClass($dependency);
             }
         }
 

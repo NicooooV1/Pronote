@@ -29,24 +29,16 @@ $error = '';
 $success = '';
 
 /**
- * Récupère les classes disponibles à partir de l'API ou de la base de données
+ * Récupère les classes disponibles depuis la base de données
  * @return array
  */
 function getAvailableClasses() {
-    require_once __DIR__ . '/../../API/data.php';
-    
-    $allClasses = getAvailableClasses();
-    
-    if (empty($allClasses)) {
-        global $pdo;
-        $query = $pdo->query("SELECT DISTINCT classe FROM eleves ORDER BY classe");
-        if ($query) {
-            while ($row = $query->fetch()) {
-                $allClasses[] = $row['classe'];
-            }
-        }
+    global $pdo;
+    $allClasses = [];
+    $query = $pdo->query("SELECT DISTINCT classe FROM eleves WHERE classe IS NOT NULL AND classe != '' ORDER BY classe");
+    if ($query) {
+        $allClasses = $query->fetchAll(PDO::FETCH_COLUMN);
     }
-    
     return $allClasses;
 }
 

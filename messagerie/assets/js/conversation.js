@@ -1,20 +1,31 @@
 /**
- * /assets/js/conversation.js - Scripts pour les conversations
+ * /assets/js/conversation.js — Scripts pour les conversations
  * v2 : CSRF, XSS-safe, polling unifié, edit/delete/pin/reactions, load more
+ * Dépend de shared.js (chargé avant)
  */
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialiser les actions de conversation
-    initConversationActions();
-    
+    // Actions communes (archive/supprimer/restaurer/modals) — shared.js
+    setupConversationActions();
+
+    // Scroll auto en bas des messages
+    const messagesContainer = document.querySelector('.messages-container');
+    if (messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
     // Initialiser la configuration des connections actives
     setupActiveConnections();
     
     // Initialisation du système de lecture des messages
     initReadTracker();
     
-    // Polling unifié (remplace les 3 pollings séparés)
-    setupUnifiedPolling();
+    // Polling unifié — démarré en fallback si WebSocket indisponible
+    // (voir setupWebSocketForConversation → startPollingFallback)
+    window._setupUnifiedPolling = setupUnifiedPolling;
+    
+    // Si pas de WebSocket, démarrer le polling immédiatement
+    if (!window.wsClient) {
+        setupUnifiedPolling();
+    }
     
     // Validation du formulaire de message
     setupMessageValidation();
@@ -89,50 +100,7 @@ function setupBeforeUnloadHandler() {
     }
 }
 
-/**
- * Get common fetch options with credentials and CSRF token
- * @param {string} [method='GET'] - HTTP method
- * @returns {Object} Fetch options
- */
-function getFetchOptions(method = 'GET') {
-    const opts = {
-        method,
-        credentials: 'same-origin',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    };
-    // Ajouter CSRF pour les requêtes mutantes
-    if (method !== 'GET') {
-        const token = document.querySelector('meta[name="csrf-token"]')?.content || window.csrfToken || '';
-        opts.headers['X-CSRF-Token'] = token;
-    }
-    return opts;
-}
-
-/**
- * Helper: fetch JSON avec CSRF et gestion d'erreurs
- */
-function apiFetch(url, options = {}) {
-    const defaults = getFetchOptions(options.method || 'GET');
-    const merged = { ...defaults, ...options, headers: { ...defaults.headers, ...(options.headers || {}) } };
-    
-    if (window.activeConnections?.abortController) {
-        merged.signal = window.activeConnections.abortController.signal;
-    }
-    
-    return fetch(url, merged).then(r => {
-        if (!r.ok) throw new Error(`Erreur réseau: ${r.status}`);
-        return r.json();
-    });
-}
-
-/**
- * Get API base path
- */
-function getApiBase() {
-    return window.location.pathname.split('/').slice(0, -1).join('/') + '/api';
-}
+// getFetchOptions, apiFetch, getApiBase → shared.js
 
 /**
  * Initialise le système de détection et de suivi des messages lus
@@ -194,7 +162,7 @@ function updateReadStatus(readStatus) {
 
 /**
  * Polling unifié — un seul setInterval pour messages + read_status
- * Remplace les 3 pollings séparés (checkForUpdates, startPolling, fetchNewMessages)
+ * Smart polling : intervalles adaptatifs (5s actif → 30s inactif), suspension si onglet caché
  */
 function setupUnifiedPolling() {
     const convId = new URLSearchParams(window.location.search).get('id');
@@ -204,7 +172,10 @@ function setupUnifiedPolling() {
     let readVersionSum = 0;
     let lastReadMessageId = 0;
     let isPolling = false;
-    let pollInterval = 5000; // 5s normal
+
+    const POLL_ACTIVE = 5000;   // 5s quand onglet visible
+    const POLL_INACTIVE = 30000; // 30s quand onglet caché
+    let pollTimerId = null;
     
     // Initialiser depuis le dernier message existant
     const lastMsg = document.querySelector('.message:last-child');
@@ -220,13 +191,12 @@ function setupUnifiedPolling() {
         try {
             // ── Vérification nouveaux messages ──
             const msgData = await apiFetch(
-                `${getApiBase()}/v2.php?resource=messages&action=check_updates&conv_id=${convId}&last_timestamp=${lastTimestamp}`
+                `${getApiBase()}/messagerie.php?resource=messages&action=check_updates&conv_id=${convId}&last_timestamp=${lastTimestamp}`
             );
             
             if (msgData.success && msgData.has_updates && msgData.new_count > 0) {
-                // Récupérer les nouveaux messages
                 const newData = await apiFetch(
-                    `${getApiBase()}/v2.php?resource=messages&action=get_new&conv_id=${convId}&last_timestamp=${lastTimestamp}`
+                    `${getApiBase()}/messagerie.php?resource=messages&action=get_new&conv_id=${convId}&last_timestamp=${lastTimestamp}`
                 );
                 
                 if (newData.success && newData.messages?.length > 0) {
@@ -234,7 +204,6 @@ function setupUnifiedPolling() {
                     const wasAtBottom = isScrolledToBottom(container);
                     
                     newData.messages.forEach(msg => {
-                        // Éviter doublons
                         if (!document.querySelector(`.message[data-id="${msg.id}"]`)) {
                             appendMessageToDOM(msg, container);
                             if (msg.timestamp > lastTimestamp) lastTimestamp = msg.timestamp;
@@ -248,7 +217,7 @@ function setupUnifiedPolling() {
             
             // ── Vérification read status ──
             const readData = await apiFetch(
-                `${getApiBase()}/v2.php?resource=messages&action=read_status&conv_id=${convId}&version=${readVersionSum}&since=${lastReadMessageId}`
+                `${getApiBase()}/messagerie.php?resource=messages&action=read_status&conv_id=${convId}&version=${readVersionSum}&since=${lastReadMessageId}`
             );
             
             if (readData.success) {
@@ -263,21 +232,33 @@ function setupUnifiedPolling() {
             isPolling = false;
         }
     }
-    
-    // Démarrage initial après 1s
-    setTimeout(poll, 1000);
-    
-    // Polling régulier
-    const pollingId = setInterval(poll, pollInterval);
-    window.unifiedPollingId = pollingId;
-    
-    // Ralentir quand onglet inactif
+
+    /** Démarre / redémarre le timer avec l'intervalle approprié */
+    function startPollingTimer() {
+        stopPollingTimer();
+        const interval = document.visibilityState === 'visible' ? POLL_ACTIVE : POLL_INACTIVE;
+        pollTimerId = setInterval(poll, interval);
+        window.unifiedPollingId = pollTimerId;
+    }
+
+    function stopPollingTimer() {
+        if (pollTimerId) { clearInterval(pollTimerId); pollTimerId = null; }
+    }
+
+    // Adapter l'intervalle quand la visibilité change
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             window.activeConnections.messagePolling = true;
-            poll(); // MAJ immédiate
+            poll(); // MAJ immédiate au retour
+            startPollingTimer(); // repasser à 5s
+        } else {
+            startPollingTimer(); // repasser à 30s
         }
     });
+    
+    // Démarrage initial après 1s
+    setTimeout(poll, 1000);
+    startPollingTimer();
     
     // Scroll: masquer indicateur
     const container = document.querySelector('.messages-container');
@@ -350,7 +331,7 @@ function setupAjaxMessageSending() {
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi en cours...';
         
         // Envoyer la requête AJAX avec CSRF
-        const apiPath = `${window.location.origin}${getApiBase()}/v2.php?resource=messages&action=send_message`;
+        const apiPath = `${window.location.origin}${getApiBase()}/messagerie.php?resource=messages&action=send_message`;
         
         // Ajouter le CSRF token au FormData
         const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -632,79 +613,7 @@ function isScrolledToBottom(element) {
     return scrollPosition >= scrollHeight - tolerance;
 }
 
-/**
- * Initialise les actions principales de conversation
- */
-function initConversationActions() {
-    // Gestion du scroll dans les conversations
-    const messagesContainer = document.querySelector('.messages-container');
-    if (messagesContainer) {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-    
-    // Actions sur les conversations et participants
-    // Archiver une conversation
-    const archiveBtn = document.getElementById('archive-btn');
-    if (archiveBtn) {
-        archiveBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            if (confirm('Êtes-vous sûr de vouloir archiver cette conversation ?')) {
-                document.getElementById('archiveForm').submit();
-            }
-        });
-    }
-    
-    // Supprimer une conversation
-    const deleteBtn = document.getElementById('delete-btn');
-    if (deleteBtn) {
-        deleteBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            if (confirm('Êtes-vous sûr de vouloir supprimer cette conversation ?')) {
-                document.getElementById('deleteForm').submit();
-            }
-        });
-    }
-    
-    // Restaurer une conversation
-    const restoreBtn = document.getElementById('restore-btn');
-    if (restoreBtn) {
-        restoreBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            document.getElementById('restoreForm').submit();
-        });
-    }
-    
-    // Gestion du modal pour l'ajout de participants
-    const addParticipantBtn = document.getElementById('add-participant-btn');
-    if (addParticipantBtn) {
-        addParticipantBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            showAddParticipantModal();
-        });
-    }
-    
-    // Gestion de la fermeture du modal
-    const closeModalBtns = document.querySelectorAll('.close');
-    closeModalBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-            closeAddParticipantModal();
-        });
-    });
-    
-    // Fermeture du modal en cliquant en dehors
-    window.addEventListener('click', function(event) {
-        const modals = document.querySelectorAll('.modal');
-        modals.forEach(modal => {
-            if (event.target === modal) {
-                modal.style.display = 'none';
-            }
-        });
-    });
-}
-
-/**
- * Initialise la fonctionnalité de sidebar rétractable
- */
+// initConversationActions, showAddParticipantModal, closeAddParticipantModal → shared.js (setupConversationActions)
 function initSidebarCollapse() {
     // Créer le bouton de toggle s'il n'existe pas déjà
     let sidebarToggle = document.getElementById('sidebar-toggle');
@@ -758,25 +667,7 @@ function initSidebarCollapse() {
     });
 }
 
-/**
- * Affiche le modal d'ajout de participants
- */
-function showAddParticipantModal() {
-    const modal = document.getElementById('addParticipantModal');
-    if (modal) {
-        modal.style.display = 'block';
-    }
-}
-
-/**
- * Ferme le modal d'ajout de participants
- */
-function closeAddParticipantModal() {
-    const modal = document.getElementById('addParticipantModal');
-    if (modal) {
-        modal.style.display = 'none';
-    }
-}
+// showAddParticipantModal, closeAddParticipantModal → shared.js (showAddParticipantModal + closeModal)
 
 /**
  * Répond à un message spécifique
@@ -859,30 +750,21 @@ function loadParticipants() {
     // Vider la liste actuelle
     select.innerHTML = '<option value="">Chargement...</option>';
     
-    // Faire une requête AJAX pour récupérer les participants
-    const apiPath = `${window.location.origin}${window.location.pathname.split('/').slice(0, -1).join('/')}/api/participants.php`;
-    
-    fetch(`${apiPath}?type=${type}&conv_id=${convId}`, {
-        signal: window.activeConnections.abortController.signal,
-        credentials: 'same-origin'  // Add credentials for session management
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Erreur réseau: ${response.status}`);
-            }
-            return response.json();
-        })
+    // Faire une requête AJAX pour récupérer les participants (via API v2 unifiée)
+    apiFetch(`${getApiBase()}/messagerie.php?resource=participants&action=available&type=${type}&conv_id=${convId}`)
         .then(data => {
             select.innerHTML = '';
             
-            if (data.length === 0) {
+            const participants = data.participants || data;
+            
+            if (!participants || participants.length === 0) {
                 select.innerHTML = '<option value="">Aucun participant disponible</option>';
                 return;
             }
             
             select.innerHTML = '<option value="">Sélectionner un participant</option>';
             
-            data.forEach(participant => {
+            participants.forEach(participant => {
                 const option = document.createElement('option');
                 option.value = participant.id;
                 option.textContent = participant.nom_complet;
@@ -898,72 +780,7 @@ function loadParticipants() {
         });
 }
 
-/**
- * Échappe les caractères HTML
- * @param {string} text - Texte à échapper
- * @returns {string} Texte échappé
- */
-function escapeHTML(text) {
-    if (!text) return '';
-    return text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-/**
- * Convertit les retours à la ligne en <br>
- * @param {string} text - Texte à convertir
- * @returns {string} Texte avec des <br>
- */
-function nl2br(text) {
-    if (!text) return '';
-    return text.replace(/\n/g, '<br>');
-}
-
-/**
- * Renvoie le libellé du type de participant
- * @param {string} type - Type de participant
- * @returns {string} Libellé formaté
- */
-function getParticipantType(type) {
-    const types = {
-        'eleve': 'Élève',
-        'parent': 'Parent',
-        'professeur': 'Professeur',
-        'vie_scolaire': 'Vie scolaire',
-        'administrateur': 'Administrateur'
-    };
-    return types[type] || type;
-}
-
-/**
- * Formater la date d'un message
- * @param {Date} date - Date à formater
- * @returns {string} Date formatée
- */
-function formatMessageDate(date) {
-    const now = new Date();
-    const diffMs = now - date;
-    const diffSecs = Math.floor(diffMs / 1000);
-    const diffMins = Math.floor(diffSecs / 60);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-    
-    if (diffSecs < 60) {
-        return "À l'instant";
-    } else if (diffMins < 60) {
-        return `Il y a ${diffMins} minute${diffMins > 1 ? 's' : ''}`;
-    } else if (diffHours < 24) {
-        return `Il y a ${diffHours} heure${diffHours > 1 ? 's' : ''}`;
-    } else if (diffDays < 2) {
-        return `Hier à ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-    } else {
-        return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth()+1).toString().padStart(2, '0')}/${date.getFullYear()} à ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-    }
-}
+// escapeHTML, nl2br, getParticipantType, formatMessageDate → shared.js
 
 /**
  * Validation du formulaire de message
@@ -988,17 +805,7 @@ function setupMessageValidation() {
     }
 }
 
-/**
- * Utilitaire pour afficher des notifications d'erreur
- * Utilise la version globale de main.js si disponible, sinon fallback local
- */
-if (typeof window.afficherNotificationErreur === 'undefined') {
-    // Fallback si main.js n'est pas chargé
-    window.afficherNotificationErreur = function(message, duration = 5000) {
-        console.error('[Notification]', message);
-        alert(message);
-    };
-}
+// afficherNotificationErreur + afficherNotification → shared.js
 
 /**
  * Marquer un message comme lu via l'API v2
@@ -1006,7 +813,7 @@ if (typeof window.afficherNotificationErreur === 'undefined') {
 function markMessageAsRead(messageId) {
     const convId = new URLSearchParams(window.location.search).get('id');
     
-    apiFetch(`${getApiBase()}/v2.php?resource=messages&action=mark_read`, {
+    apiFetch(`${getApiBase()}/messagerie.php?resource=messages&action=mark_read`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messageId })
@@ -1052,7 +859,7 @@ function editMessage(messageId) {
         const newBody = editArea.value.trim();
         if (!newBody) return;
         
-        apiFetch(`${getApiBase()}/v2.php?resource=messages&action=edit`, {
+        apiFetch(`${getApiBase()}/messagerie.php?resource=messages&action=edit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message_id: messageId, body: newBody })
@@ -1098,7 +905,7 @@ function editMessage(messageId) {
 function deleteMessage(messageId) {
     if (!confirm('Supprimer ce message ?')) return;
     
-    apiFetch(`${getApiBase()}/v2.php?resource=messages&action=delete`, {
+    apiFetch(`${getApiBase()}/messagerie.php?resource=messages&action=delete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message_id: messageId })
@@ -1130,7 +937,7 @@ function deleteMessage(messageId) {
  * Épingler / Désépingler un message
  */
 function togglePinMessage(messageId) {
-    apiFetch(`${getApiBase()}/v2.php?resource=messages&action=pin`, {
+    apiFetch(`${getApiBase()}/messagerie.php?resource=messages&action=pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message_id: messageId })
@@ -1164,7 +971,7 @@ function togglePinMessage(messageId) {
  * Toggle une réaction emoji sur un message
  */
 function toggleReaction(messageId, emoji) {
-    apiFetch(`${getApiBase()}/v2.php?resource=reactions&action=toggle`, {
+    apiFetch(`${getApiBase()}/messagerie.php?resource=reactions&action=toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message_id: messageId, reaction: emoji })
@@ -1262,7 +1069,7 @@ function loadOlderMessages() {
     const btn = document.querySelector('#load-more-messages button');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Chargement...'; }
     
-    apiFetch(`${getApiBase()}/v2.php?resource=messages&action=list&conv_id=${convId}&before=${beforeId}&limit=50`)
+    apiFetch(`${getApiBase()}/messagerie.php?resource=messages&action=list&conv_id=${convId}&before=${beforeId}&limit=50`)
     .then(data => {
         if (data.success && data.messages?.length > 0) {
             const scrollBefore = container.scrollHeight;
@@ -1370,7 +1177,7 @@ function setupMessageDropdowns() {
 
 /**
  * Configure WebSocket pour la conversation en temps réel
- * Désactive le polling si WebSocket est connecté
+ * WebSocket-first: si WS connecté → pas de polling. Sinon, fallback polling après 5s.
  */
 function setupWebSocketForConversation() {
     const convId = new URLSearchParams(window.location.search).get('id');
@@ -1400,53 +1207,30 @@ function setupWebSocketForConversation() {
         updateReadStatus(data);
     });
     
-    // Fallback: si WebSocket non connecté après 5s, garder le polling actif
+    // Après 5s, si WS pas connecté → démarrer le polling en fallback
     setTimeout(() => {
-        if (window.wsClient.connected) {
-            // WebSocket connecté → désactiver le polling
-            if (window.unifiedPollingId) {
-                clearInterval(window.unifiedPollingId);
-                console.log('Polling désactivé (WebSocket actif)');
-            }
+        if (!window.wsClient.connected && !window.unifiedPollingId) {
+            console.log('WebSocket non connecté — démarrage du polling fallback');
+            window._setupUnifiedPolling?.();
         }
     }, 5000);
-}
 
-/**
- * Fallback polling si WebSocket échoue
- */
-function enablePollingFallback() {
-    const convId = new URLSearchParams(window.location.search).get('id');
-    if (!convId) return;
-    
-    console.log('Activation du fallback polling (15s)');
-    window.unifiedPollingId = setInterval(() => {
-        if (window.activeConnections?.messagePolling) {
-            // Sera géré par setupUnifiedPolling
+    // Réactiver le polling si WebSocket se déconnecte
+    window.wsClient.on?.('disconnect', () => {
+        console.log('WebSocket déconnecté — réactivation du polling');
+        if (!window.unifiedPollingId) {
+            window._setupUnifiedPolling?.();
         }
-    }, 15000);
+    });
+
+    // Si WS se (re)connecte, arrêter le polling
+    window.wsClient.on?.('connect', () => {
+        if (window.unifiedPollingId) {
+            clearInterval(window.unifiedPollingId);
+            window.unifiedPollingId = null;
+            console.log('WebSocket connecté — polling désactivé');
+        }
+    });
 }
 
-// ═══════════════════════════════════════════════════
-// UTILITAIRES DE NOTIFICATION
-// ═══════════════════════════════════════════════════
-
-/**
- * Notification de succès
- */
-function afficherNotification(message, type = 'info', duration = 3000) {
-    const notif = document.createElement('div');
-    notif.className = `notification-toast ${type}`;
-    notif.innerHTML = `
-        <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'}"></i>
-        <span>${escapeHTML(message)}</span>
-        <button class="notif-close">&times;</button>
-    `;
-    
-    document.body.appendChild(notif);
-    
-    notif.querySelector('.notif-close').addEventListener('click', () => notif.remove());
-    setTimeout(() => { if (notif.parentNode) notif.remove(); }, duration);
-    
-    return notif;
-}
+// afficherNotification → shared.js

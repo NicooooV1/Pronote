@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * AJAX — Récupère le profil complet d'un utilisateur pour la modale
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/user.php';
 
 requireAuth();
 requireRole('administrateur');

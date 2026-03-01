@@ -99,3 +99,60 @@ function getProfilBadgeClass($profil) {
     ];
     return $classes[$profil] ?? 'badge-default';
 }
+
+/**
+ * Retourne les informations de fil d'Ariane pour une page admin.
+ * @param string $currentPage Identifiant de la page courante
+ * @param string $pageTitle   Titre de secours
+ * @return array ['label' => string, 'parent' => string|null]
+ */
+function getAdminBreadcrumb($currentPage, $pageTitle = '') {
+    $sections = [
+        'dashboard'        => ['label' => 'Tableau de bord',           'parent' => null],
+        'users'            => ['label' => 'Tous les utilisateurs',     'parent' => 'Utilisateurs'],
+        'users_create'     => ['label' => 'Ajouter un utilisateur',    'parent' => 'Utilisateurs'],
+        'admins'           => ['label' => 'Administrateurs',           'parent' => 'Utilisateurs'],
+        'passwords'        => ['label' => 'Mots de passe',            'parent' => 'Utilisateurs'],
+        'sessions'         => ['label' => 'Sessions actives',         'parent' => 'Utilisateurs'],
+        'notes'            => ['label' => 'Notes & Évaluations',      'parent' => 'Vie scolaire'],
+        'absences'         => ['label' => 'Absences & Retards',       'parent' => 'Vie scolaire'],
+        'justificatifs'    => ['label' => 'Justificatifs',            'parent' => 'Vie scolaire'],
+        'devoirs'          => ['label' => 'Devoirs',                  'parent' => 'Vie scolaire'],
+        'classes'          => ['label' => 'Gestion des classes',      'parent' => 'Classes'],
+        'affectations'     => ['label' => 'Affectations professeurs', 'parent' => 'Classes'],
+        'msg_moderation'   => ['label' => 'Modération',              'parent' => 'Messagerie'],
+        'msg_conversations'=> ['label' => 'Conversations',           'parent' => 'Messagerie'],
+        'msg_annonces'     => ['label' => 'Annonces globales',       'parent' => 'Messagerie'],
+        'etab_info'        => ['label' => 'Informations',            'parent' => 'Établissement'],
+        'etab_matieres'    => ['label' => 'Matières & Coefficients', 'parent' => 'Établissement'],
+        'etab_periodes'    => ['label' => 'Périodes scolaires',      'parent' => 'Établissement'],
+        'etab_evenements'  => ['label' => 'Événements',              'parent' => 'Établissement'],
+        'audit'            => ['label' => 'Journal d\'audit',        'parent' => 'Système'],
+        'stats'            => ['label' => 'Statistiques',            'parent' => 'Système'],
+    ];
+    return $sections[$currentPage] ?? ['label' => $pageTitle, 'parent' => null];
+}
+
+/**
+ * Génère le HTML du fil d'Ariane admin.
+ * @param string $currentPage Page courante
+ * @param string $pageTitle   Titre de secours
+ * @param string $rootPrefix  Préfixe vers la racine du projet
+ * @return string HTML du breadcrumb
+ */
+function renderAdminBreadcrumb($currentPage, $pageTitle = '', $rootPrefix = '../../') {
+    $bc = getAdminBreadcrumb($currentPage, $pageTitle);
+    $dashboardUrl = $rootPrefix . 'admin/dashboard.php';
+    $html = '<nav class="admin-breadcrumb">';
+    $html .= '<a href="' . $dashboardUrl . '"><i class="fas fa-cogs"></i> Administration</a>';
+    if ($currentPage !== 'dashboard') {
+        if (!empty($bc['parent'])) {
+            $html .= '<span class="breadcrumb-sep"><i class="fas fa-chevron-right"></i></span>';
+            $html .= '<span>' . htmlspecialchars($bc['parent']) . '</span>';
+        }
+        $html .= '<span class="breadcrumb-sep"><i class="fas fa-chevron-right"></i></span>';
+        $html .= '<span class="breadcrumb-current">' . htmlspecialchars($bc['label']) . '</span>';
+    }
+    $html .= '</nav>';
+    return $html;
+}

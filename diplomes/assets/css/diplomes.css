@@ -1,0 +1,30 @@
+/* M44 – Diplômes & Relevés — CSS */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.stat-card { background: var(--card-bg, #fff); border-radius: 10px; padding: 1rem; text-align: center; border: 1px solid var(--border-color, #e0e0e0); }
+.stat-value { font-size: 1.6rem; font-weight: 700; color: var(--primary, #4f46e5); }
+.stat-label { font-size: .75rem; color: var(--text-muted, #9ca3af); text-transform: uppercase; }
+
+.filter-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+
+.diplomes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 1rem; }
+.diplome-card { display: flex; gap: 1rem; align-items: flex-start; padding: 1.2rem; border-radius: 12px; background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e0e0e0); }
+
+.diplome-icon { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
+
+.diplome-info { flex: 1; }
+.diplome-info h3 { font-size: .95rem; margin-bottom: .3rem; }
+.diplome-meta { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .3rem; }
+.diplome-details { display: flex; flex-direction: column; gap: .2rem; font-size: .8rem; color: var(--text-muted, #6b7280); }
+.diplome-details i { width: 16px; text-align: center; }
+
+.info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.info-item { display: flex; align-items: center; gap: .5rem; padding: .75rem; border-radius: 8px; background: var(--bg-secondary, #f9fafb); font-size: .9rem; }
+
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-grid-2 .full-width { grid-column: 1 / -1; }
+.form-actions { margin-top: 1.5rem; display: flex; gap: 1rem; }
+
+@media (max-width: 768px) {
+    .diplomes-grid { grid-template-columns: 1fr; }
+    .form-grid-2 { grid-template-columns: 1fr; }
+}

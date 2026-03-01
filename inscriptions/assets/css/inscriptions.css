@@ -1,0 +1,67 @@
+/* M26 – Inscriptions — CSS */
+
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.stat-card.stat-info .stat-value { color: #3b82f6; }
+.stat-card.stat-success .stat-value { color: #10b981; }
+
+.filter-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.filter-btn {
+    padding: .4rem .9rem; border-radius: 20px;
+    background: var(--bg-secondary, #f3f4f6); color: var(--text-color, #333);
+    text-decoration: none; font-size: .85rem; transition: all .2s;
+}
+.filter-btn:hover, .filter-btn.active { background: var(--primary, #4f46e5); color: #fff; }
+
+/* List */
+.inscription-list { display: flex; flex-direction: column; gap: .5rem; }
+.inscription-item {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 1rem 1.2rem;
+    background: var(--card-bg, #fff); border-radius: 10px;
+    border: 1px solid var(--border-color, #e0e0e0);
+}
+.insc-avatar {
+    width: 45px; height: 45px; border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: .9rem; flex-shrink: 0;
+}
+.insc-info { flex: 1; }
+.insc-info h3 { font-size: .95rem; margin-bottom: .25rem; }
+.insc-meta { display: flex; flex-wrap: wrap; gap: .5rem; font-size: .8rem; color: var(--text-muted, #6b7280); align-items: center; }
+
+/* Detail */
+.detail-status { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+.inline-form { display: inline-flex; }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+.detail-item label { display: block; font-size: .75rem; text-transform: uppercase; color: var(--text-muted, #9ca3af); font-weight: 600; margin-bottom: .15rem; }
+.detail-item span { font-weight: 500; }
+.detail-item.full-width { grid-column: 1 / -1; }
+
+/* Documents */
+.doc-list { display: flex; flex-direction: column; gap: .5rem; }
+.doc-item {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .75rem; border-radius: 8px;
+    background: var(--bg-secondary, #f9fafb);
+}
+.doc-item > i { color: var(--primary, #4f46e5); }
+.doc-info { flex: 1; display: flex; flex-direction: column; }
+.doc-type { font-weight: 500; font-size: .9rem; }
+.doc-date { font-size: .75rem; color: var(--text-muted, #9ca3af); }
+.doc-actions { display: flex; gap: .3rem; }
+
+/* Form */
+.form-section { margin-bottom: 1.5rem; }
+.form-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+.form-grid-2 .full-width { grid-column: 1 / -1; }
+.form-help { color: var(--text-muted, #6b7280); font-size: .85rem; margin-bottom: 1rem; }
+.doc-row { display: flex; gap: .5rem; margin-bottom: .5rem; align-items: center; }
+.doc-row select { max-width: 250px; }
+.form-actions { margin-top: 1.5rem; display: flex; gap: 1rem; }
+
+@media (max-width: 768px) {
+    .inscription-item { flex-direction: column; align-items: flex-start; }
+    .form-grid-2 { grid-template-columns: 1fr; }
+    .doc-row { flex-direction: column; }
+}

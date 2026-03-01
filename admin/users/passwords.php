@@ -1,11 +1,9 @@
-<?php
+﻿<?php
 /**
  * Gestion des mots de passe — Fusion demandes + réinitialisation manuelle
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
-require_once __DIR__ . '/../../login/src/user.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -106,31 +104,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['search_user'])) {
 
 $pageTitle = 'Gestion des mots de passe';
 $currentPage = 'passwords';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
 <style>
     .pwd-container { max-width: 1000px; margin: 0 auto; }
     .tabs { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 2px solid #eee; }
-    .tab-btn { padding: 10px 20px; border: none; background: transparent; cursor: pointer; font-size: 14px; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: #0f4c81; border-bottom-color: #0f4c81; }
     .tab-content { display: none; } .tab-content.active { display: block; }
     .req-table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .req-table th, .req-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
     .req-table th { background: #f7fafc; font-weight: 600; color: #4a5568; font-size: 13px; }
-    .actions-cell { display: flex; gap: 4px; }
-    .btn-xs { padding: 4px 8px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-    .btn-xs.success { background: #059669; } .btn-xs.danger { background: #dc2626; }
     .badge-count { background: #e74c3c; color: white; border-radius: 50%; padding: 1px 7px; font-size: 12px; font-weight: 600; margin-left: 6px; }
     .search-form { display: flex; gap: 10px; margin-bottom: 20px; }
     .search-form input { flex: 1; padding: 9px 12px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 14px; }
     .empty-state { text-align: center; padding: 40px; color: #999; }
     .empty-state i { font-size: 36px; margin-bottom: 10px; display: block; opacity: 0.3; }
-    .badge-profil { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-    .badge-eleve { background: #dbeafe; color: #1e40af; }
-    .badge-parent { background: #d1fae5; color: #065f46; }
-    .badge-prof { background: #ffedd5; color: #c2410c; }
-    .badge-vs { background: #ede9fe; color: #5b21b6; }
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();

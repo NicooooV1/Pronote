@@ -16,7 +16,10 @@ function getUserNotificationPreferences($userId, $userType) {
     
     // Vérifier si les préférences existent déjà
     $stmt = $pdo->prepare("
-        SELECT * FROM user_notification_preferences
+        SELECT id, user_id, user_type, email_notifications, browser_notifications,
+               notification_sound, mention_notifications, reply_notifications,
+               important_notifications, digest_frequency
+        FROM user_notification_preferences
         WHERE user_id = ? AND user_type = ?
     ");
     $stmt->execute([$userId, $userType]);
@@ -60,7 +63,7 @@ function updateUserNotificationPreferences($userId, $userType, $preferences) {
     
     // Vérifier si les préférences existent déjà
     $stmt = $pdo->prepare("
-        SELECT * FROM user_notification_preferences
+        SELECT id FROM user_notification_preferences
         WHERE user_id = ? AND user_type = ?
     ");
     $stmt->execute([$userId, $userType]);

@@ -5,11 +5,11 @@
 
 if (!function_exists('app')) {
     /**
-     * Retourne l'instance de l'application
+     * Retourne l'instance de l'application (via singleton, sans global)
      */
     function app($abstract = null)
     {
-        global $app;
+        $app = \API\Core\Application::getInstance();
         
         if (is_null($abstract)) {
             return $app;

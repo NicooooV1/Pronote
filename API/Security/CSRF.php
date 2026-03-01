@@ -17,10 +17,7 @@ class CSRF {
         $this->lifetime = $lifetime;
         $this->maxTokens = $maxTokens;
         
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-        
+        // La session doit être démarrée par le bootstrap avant instanciation du CSRF
         if (!isset($_SESSION[self::SESSION_KEY])) {
             $_SESSION[self::SESSION_KEY] = [];
         }

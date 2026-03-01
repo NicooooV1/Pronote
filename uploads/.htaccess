@@ -1,0 +1,4 @@
+# Interdire l'accès direct aux fichiers uploadés.
+# Les téléchargements passent par les scripts PHP (download.php, telecharger.php)
+# qui vérifient l'authentification et les droits d'accès.
+Deny from all

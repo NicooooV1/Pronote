@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Gestion des matières — CRUD, couleurs, coefficients
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -81,26 +80,17 @@ $matieres = $pdo->query("SELECT m.*, (SELECT COUNT(*) FROM notes n WHERE n.id_ma
 
 $pageTitle = 'Matières';
 $currentPage = 'etab_matieres';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
 <style>
     .mat-container { max-width: 900px; margin: 0 auto; }
-    .top-bar { display: flex; justify-content: flex-end; margin-bottom: 15px; }
     .mat-table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .mat-table th, .mat-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
     .mat-table th { background: #f7fafc; font-weight: 600; color: #4a5568; font-size: 12px; }
     .mat-table tr.inactive { opacity: 0.5; }
     .color-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
-    .btn-xs { padding: 3px 7px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-    .btn-xs.primary { background: #0f4c81; } .btn-xs.danger { background: #dc2626; } .btn-xs.success { background: #059669; } .btn-xs.warning { background: #f59e0b; }
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-    .modal-overlay.active { display: flex; }
-    .modal-box { background: white; border-radius: 12px; padding: 25px; width: 450px; }
-    .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #4a5568; }
-    .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
-    .form-row { display: flex; gap: 10px; } .form-row .form-group { flex: 1; }
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();

@@ -1,0 +1,55 @@
+/* ======= M16 – DOCUMENTS ======= */
+
+.doc-filters { margin-bottom: 1.25rem; }
+.doc-filter-form {
+    display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
+}
+.doc-filter-form .form-select { max-width: 220px; }
+.doc-filter-form .search-input-wrap { position: relative; flex: 1; min-width: 180px; }
+.doc-filter-form .search-input-wrap i { position: absolute; left: .75rem; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+.doc-filter-form .search-input-wrap .form-control { padding-left: 2.25rem; }
+
+.doc-grid { display: flex; flex-direction: column; gap: .75rem; }
+
+.doc-card {
+    display: flex; align-items: flex-start; gap: 1rem;
+    background: var(--bg-card, #fff);
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    transition: box-shadow .15s;
+}
+.doc-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+
+.doc-icon {
+    width: 48px; height: 48px;
+    border-radius: 10px;
+    background: var(--bg-secondary, #f1f5f9);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+
+.doc-body { flex: 1; min-width: 0; }
+.doc-title { font-size: 1rem; font-weight: 600; margin: 0 0 .25rem; }
+.doc-desc { font-size: .8rem; color: var(--text-secondary, #64748b); margin: 0 0 .4rem; }
+.doc-meta { display: flex; gap: .75rem; font-size: .75rem; color: var(--text-secondary, #94a3b8); margin-bottom: .35rem; flex-wrap: wrap; }
+.doc-meta i { margin-right: .2rem; }
+.doc-footer { display: flex; gap: .75rem; font-size: .75rem; color: var(--text-secondary, #94a3b8); }
+.doc-author i { margin-right: .2rem; }
+
+.doc-actions { display: flex; gap: .5rem; flex-shrink: 0; align-items: flex-start; }
+
+.checkbox-group { display: flex; gap: 1rem; flex-wrap: wrap; }
+.checkbox-label { display: flex; align-items: center; gap: .35rem; font-size: .9rem; cursor: pointer; }
+.checkbox-label input { margin: 0; }
+
+.form-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+.form-row .form-group { flex: 1; min-width: 200px; }
+
+.empty-state { text-align: center; padding: 3rem; color: var(--text-secondary, #94a3b8); }
+
+@media (max-width: 768px) {
+    .doc-card { flex-direction: column; }
+    .doc-actions { width: 100%; justify-content: flex-end; }
+}

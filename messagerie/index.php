@@ -103,6 +103,15 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == 1) {
 include 'templates/header.php';
 ?>
 
+<?php if (isset($user['type']) && $user['type'] === 'administrateur'): ?>
+<div class="admin-toolbar">
+    <span class="admin-toolbar-badge"><i class="fas fa-shield-alt"></i> Administration</span>
+    <span style="font-size:13px;color:#4a5568"><?= $totalConversations ?> conversation(s) — <?= $folderTitle ?></span>
+    <a href="new_announcement.php" class="btn-sm" style="background:#d97706;color:white;text-decoration:none;margin-left:auto"><i class="fas fa-bullhorn"></i> Annonce</a>
+    <a href="../admin/messagerie/moderation.php" class="btn-sm" style="background:#0f4c81;color:white;text-decoration:none"><i class="fas fa-shield-alt"></i> Modération</a>
+</div>
+<?php endif; ?>
+
 <!-- Barre de recherche -->
 <div class="search-bar">
     <form method="get" action="index.php" class="search-form">

@@ -1,11 +1,9 @@
-<?php
+﻿<?php
 /**
  * Gestion des administrateurs — Édition info, MDP, 2FA, déverrouillage
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
-require_once __DIR__ . '/../../login/src/user.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -102,33 +100,13 @@ try {
 
 $pageTitle = 'Gestion des administrateurs';
 $currentPage = 'admins';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
 <style>
     .admins-container { max-width: 1000px; margin: 0 auto; }
-    .admin-table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    .admin-table th, .admin-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
-    .admin-table th { background: #f7fafc; color: #4a5568; font-weight: 600; font-size: 13px; }
-    .admin-table tr:hover { background: #f9fafb; }
     .admin-table tr.current-user { background: #eff6ff; }
-    .btn-xs { padding: 4px 8px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-    .btn-xs.primary { background: #0f4c81; }
-    .btn-xs.success { background: #059669; }
-    .btn-xs.warning { background: #d97706; }
-    .btn-xs.danger { background: #dc2626; }
-    .actions-cell { display: flex; gap: 4px; flex-wrap: wrap; }
-    .status-active { color: #059669; font-weight: 600; }
-    .status-inactive { color: #dc2626; }
-    .status-locked { color: #d97706; }
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
-    .modal-overlay.show { display: flex; }
-    .modal-box { background: white; border-radius: 12px; width: 95%; max-width: 500px; padding: 25px; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
-    .modal-box h2 { margin: 0 0 20px; font-size: 18px; }
-    .modal-close { float: right; background: none; border: none; font-size: 22px; cursor: pointer; color: #666; }
-    .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: #4a5568; }
-    .form-group input { width: 100%; padding: 8px 10px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
     .two-fa { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
     .two-fa.on { background: #d1fae5; color: #065f46; }
     .two-fa.off { background: #fee2e2; color: #991b1b; }

@@ -43,45 +43,9 @@ try {
         die('Accès refusé : vous n\'êtes pas participant à cette conversation ou la pièce jointe n\'existe pas.');
     }
 
-    // Résoudre le chemin réel du fichier
-    $filePath = realpath(BASE_PATH . ltrim($attachment['file_path'], '/'));
-
-    // Vérifier que le fichier existe et est dans le répertoire autorisé
-    $uploadsDir = realpath(UPLOAD_DIR);
-    if (!$filePath || !$uploadsDir || strpos($filePath, $uploadsDir) !== 0) {
-        http_response_code(404);
-        die('Fichier introuvable');
-    }
-
-    if (!is_file($filePath) || !is_readable($filePath)) {
-        http_response_code(404);
-        die('Fichier introuvable ou illisible');
-    }
-
-    // Déterminer le MIME type
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $mimeType = $finfo->file($filePath) ?: 'application/octet-stream';
-
-    // Types MIME autorisés pour l'affichage inline (images, PDF)
-    $inlineTypes = [
-        'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-        'application/pdf'
-    ];
-    $disposition = in_array($mimeType, $inlineTypes) ? 'inline' : 'attachment';
-
-    // Nom de fichier sûr pour le header
-    $safeFileName = preg_replace('/[^a-zA-Z0-9._\-]/', '_', $attachment['file_name']);
-
-    // Envoyer les headers
-    header('Content-Type: ' . $mimeType);
-    header('Content-Disposition: ' . $disposition . '; filename="' . $safeFileName . '"');
-    header('Content-Length: ' . filesize($filePath));
-    header('Cache-Control: private, max-age=3600');
-    header('X-Content-Type-Options: nosniff');
-
-    // Servir le fichier
-    readfile($filePath);
-    exit;
+    // Servir le fichier via le service centralisé
+    $uploader = new \API\Services\FileUploadService('messagerie');
+    $uploader->serve($attachment['file_path'], $attachment['file_name']);
 
 } catch (Exception $e) {
     error_log("Download error: " . $e->getMessage());

@@ -1,0 +1,81 @@
+/* M31 – Santé / Infirmerie — CSS */
+
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.stat-card {
+    background: var(--card-bg, #fff); border-radius: 12px; padding: 1.2rem;
+    text-align: center; border: 1px solid var(--border-color, #e0e0e0);
+}
+.stat-card i { font-size: 1.5rem; color: var(--primary, #4f46e5); margin-bottom: .5rem; }
+.stat-value { font-size: 1.8rem; font-weight: 700; }
+.stat-label { font-size: .8rem; color: var(--text-muted, #9ca3af); }
+.stat-card.stat-warning .stat-value { color: #f59e0b; }
+.stat-card.stat-warning i { color: #f59e0b; }
+.stat-card.stat-danger .stat-value { color: #ef4444; }
+.stat-card.stat-danger i { color: #ef4444; }
+
+.filter-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.filter-bar .form-control { max-width: 200px; }
+
+/* Passages */
+.passages-list { display: flex; flex-direction: column; gap: .5rem; }
+.passage-item {
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    padding: .75rem 1rem; border-radius: 10px; background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e0e0e0); border-left: 4px solid #10b981;
+}
+.passage-item.orientation-repos_infirmerie { border-left-color: #3b82f6; }
+.passage-item.orientation-renvoye_domicile { border-left-color: #f59e0b; }
+.passage-item.orientation-urgences { border-left-color: #ef4444; }
+.passage-item.orientation-medecin { border-left-color: #8b5cf6; }
+
+.passage-left { min-width: 180px; }
+.passage-center { flex: 1; }
+.passage-right { display: flex; gap: .3rem; flex-wrap: wrap; }
+.passage-date { font-size: .8rem; color: var(--text-muted, #9ca3af); }
+.passage-motif { font-weight: 500; }
+
+/* Fiches santé list */
+.fiches-list { display: flex; flex-direction: column; gap: .5rem; }
+.fiche-item {
+    display: flex; align-items: center; gap: 1rem;
+    padding: .75rem 1rem; border-radius: 10px;
+    background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e0e0e0);
+}
+.fiche-avatar {
+    min-width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(135deg, #10b981, #059669); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: .8rem;
+}
+.fiche-info { flex: 1; }
+.fiche-tags { display: flex; gap: .3rem; flex-wrap: wrap; }
+
+/* Eleve header */
+.eleve-header { display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem; }
+.eleve-avatar {
+    width: 60px; height: 60px; border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; font-weight: 700;
+}
+
+/* Health alert */
+.health-alert label { color: #ef4444; }
+.health-alert textarea { border-color: #fca5a5; }
+
+/* Detail grid (read only) */
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.detail-item label { font-weight: 600; color: var(--text-muted, #6b7280); font-size: .8rem; text-transform: uppercase; margin-bottom: .25rem; display: block; }
+.detail-item p { margin: 0; }
+
+/* Form */
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-grid-2 .full-width { grid-column: 1 / -1; }
+.form-actions { margin-top: 1.5rem; display: flex; gap: 1rem; }
+
+@media (max-width: 768px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .form-grid-2, .detail-grid { grid-template-columns: 1fr; }
+    .passage-item { flex-direction: column; align-items: flex-start; }
+    .filter-bar .form-control { max-width: 100%; }
+}

@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Gestion des justificatifs — approuver / rejeter avec commentaire admin
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -81,6 +80,7 @@ $rejectedCount = $pdo->query("SELECT COUNT(*) FROM justificatifs WHERE traite = 
 
 $pageTitle = 'Justificatifs';
 $currentPage = 'justificatifs';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
@@ -102,8 +102,6 @@ ob_start();
     .status-pending { background: #fef3cd; color: #92400e; } .status-approved { background: #d1fae5; color: #065f46; } .status-rejected { background: #fee2e2; color: #991b1b; }
     .admin-comment { font-size: 12px; padding: 6px 10px; background: #f8f9fa; border-radius: 6px; margin-top: 6px; color: #555; }
     .action-form textarea { width: 100%; padding: 6px 8px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 12px; resize: vertical; box-sizing: border-box; }
-    .btn-xs { padding: 5px 10px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-    .btn-xs.success { background: #059669; } .btn-xs.danger { background: #dc2626; }
     .file-link { color: #0f4c81; font-size: 13px; text-decoration: none; }
     .file-link:hover { text-decoration: underline; }
     .empty-state { text-align: center; padding: 40px; color: #999; }

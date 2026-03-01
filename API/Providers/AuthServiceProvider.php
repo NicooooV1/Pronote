@@ -35,9 +35,6 @@ class AuthServiceProvider extends ServiceProvider
 
     public function boot()
     {
-        // Démarrer la session si nécessaire
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
+        // La session est déjà démarrée par le bootstrap — ne pas appeler session_start() ici
     }
 }

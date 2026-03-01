@@ -34,8 +34,8 @@ final class Auth extends Facade
     public static function requireAuth(): void
     {
         if (!self::check()) {
-            $loginUrl = config('auth.login_url', '/login/public/index.php');
-            $baseUrl = config('app.url', defined('BASE_URL') ? BASE_URL : '');
+            $loginUrl = config('auth.login_url', '/login/index.php');
+            $baseUrl = defined('BASE_URL') ? BASE_URL : '';
             $fullUrl = rtrim($baseUrl, '/') . '/' . ltrim($loginUrl, '/');
             header('Location: ' . $fullUrl);
             exit;

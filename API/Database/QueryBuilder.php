@@ -237,11 +237,11 @@ class QueryBuilder
      */
     public function insert(array $data)
     {
-        $columns = array_keys($data);
+        $columns = array_map(fn($c) => "`$c`", array_keys($data));
         $placeholders = array_fill(0, count($data), '?');
 
         $sql = sprintf(
-            'INSERT INTO %s (%s) VALUES (%s)',
+            'INSERT INTO `%s` (%s) VALUES (%s)',
             $this->table,
             implode(', ', $columns),
             implode(', ', $placeholders)
@@ -260,23 +260,16 @@ class QueryBuilder
         $bindings = [];
 
         foreach ($data as $column => $value) {
-            $sets[] = "$column = ?";
+            $sets[] = "`$column` = ?";
             $bindings[] = $value;
         }
 
         $bindings = array_merge($bindings, $this->bindings);
 
-        $sql = 'UPDATE ' . $this->table . ' SET ' . implode(', ', $sets);
+        $sql = 'UPDATE `' . $this->table . '` SET ' . implode(', ', $sets);
 
         if (!empty($this->wheres)) {
-            $sql .= ' WHERE ';
-            $conditions = [];
-            
-            foreach ($this->wheres as $where) {
-                $conditions[] = $where['column'] . ' ' . $where['operator'] . ' ?';
-            }
-            
-            $sql .= implode(' AND ', $conditions);
+            $sql .= ' WHERE ' . $this->buildWhereClause();
         }
 
         $stmt = $this->pdo->prepare($sql);
@@ -288,17 +281,10 @@ class QueryBuilder
      */
     public function delete()
     {
-        $sql = 'DELETE FROM ' . $this->table;
+        $sql = 'DELETE FROM `' . $this->table . '`';
 
         if (!empty($this->wheres)) {
-            $sql .= ' WHERE ';
-            $conditions = [];
-            
-            foreach ($this->wheres as $where) {
-                $conditions[] = $where['column'] . ' ' . $where['operator'] . ' ?';
-            }
-            
-            $sql .= implode(' AND ', $conditions);
+            $sql .= ' WHERE ' . $this->buildWhereClause();
         }
 
         $stmt = $this->pdo->prepare($sql);

@@ -4,7 +4,6 @@
  */
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../core/utils.php';
-require_once __DIR__ . '/../core/uploader.php';
 
 /**
  * Marque une conversation comme lue pour un utilisateur
@@ -368,9 +367,9 @@ function addMessage($convId, $senderId, $senderType, $content, $importance = 'no
         $stmt->execute([$convId, $senderId, $senderType, $content, $status]);
         $messageId = $pdo->lastInsertId();
         
-        // Mettre à jour la date du dernier message
-        $upd = $pdo->prepare("UPDATE conversations SET updated_at = NOW() WHERE id = ?");
-        $upd->execute([$convId]);
+        // Mettre à jour la date du dernier message et last_message_id
+        $upd = $pdo->prepare("UPDATE conversations SET updated_at = NOW(), last_message_id = ? WHERE id = ?");
+        $upd->execute([$messageId, $convId]);
         
         // Récupérer les participants
         $participantsStmt = $pdo->prepare("
@@ -439,10 +438,16 @@ function addMessage($convId, $senderId, $senderType, $content, $importance = 'no
             ]);
         }
         
-        // Traiter les pièces jointes
-        if (!empty($filesData) && isset($filesData['name']) && is_array($filesData['name'])) {
-            $uploadedFiles = handleFileUploads($filesData);
-            saveAttachments($pdo, $messageId, $uploadedFiles);
+        // Traiter les pièces jointes via FileUploadService centralisé
+        if (!empty($filesData) && isset($filesData['name']) && is_array($filesData['name']) && !empty($filesData['name'][0])) {
+            $fileUploader = new \API\Services\FileUploadService('messagerie');
+            $uploadResults = $fileUploader->uploadMultiple($filesData);
+            $saveStmt = $pdo->prepare("INSERT INTO message_attachments (message_id, file_name, file_path, uploaded_at) VALUES (?, ?, ?, NOW())");
+            foreach ($uploadResults as $r) {
+                if ($r['success']) {
+                    $saveStmt->execute([$messageId, $r['nom_original'], $r['chemin']]);
+                }
+            }
         }
         
         $pdo->commit();

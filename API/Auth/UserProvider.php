@@ -28,12 +28,16 @@ class UserProvider
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT id, nom, prenom, mail AS email, '{$userType}' as type 
-            FROM {$table} WHERE id = ?
+            SELECT id, nom, prenom, mail AS email
+            FROM `{$table}` WHERE id = ?
         ");
         $stmt->execute([$userId]);
         
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($user) {
+            $user['type'] = $userType;
+        }
+        return $user ?: null;
     }
 
     /**
@@ -56,14 +60,18 @@ class UserProvider
 
         // Lookup by email OR identifiant
         $stmt = $this->pdo->prepare("
-            SELECT id, nom, prenom, mail AS email, mot_de_passe, '{$userType}' as type 
-            FROM {$table} 
+            SELECT id, nom, prenom, mail AS email, mot_de_passe
+            FROM `{$table}` 
             WHERE mail = ? OR identifiant = ?
             LIMIT 1
         ");
         $stmt->execute([$login, $login]);
 
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($user) {
+            $user['type'] = $userType;
+        }
+        return $user ?: null;
     }
 
     /**

@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Gestion des classes — CRUD, effectifs, prof principal, affectation rapide
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -105,15 +104,12 @@ $avgEffectif = $totalClasses > 0 ? round($totalEleves / $totalClasses, 1) : 0;
 
 $pageTitle = 'Gestion des classes';
 $currentPage = 'classes';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
 <style>
     .classes-container { max-width: 1100px; margin: 0 auto; }
-    .stats-bar { display: flex; gap: 12px; margin-bottom: 20px; }
-    .stat-card { background: white; border-radius: 8px; padding: 12px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); flex: 1; text-align: center; }
-    .stat-card .val { font-size: 22px; font-weight: 700; } .stat-card .lbl { font-size: 12px; color: #888; }
-    .top-bar { display: flex; justify-content: flex-end; margin-bottom: 15px; }
     .classes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
     .class-card { background: white; border-radius: 10px; padding: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); border-left: 4px solid #0f4c81; transition: transform 0.2s; }
     .class-card:hover { transform: translateY(-2px); }
@@ -122,17 +118,8 @@ ob_start();
     .class-card .effectif { font-size: 24px; font-weight: 700; color: #0f4c81; }
     .class-meta { font-size: 13px; color: #666; margin-bottom: 8px; }
     .class-actions { display: flex; gap: 6px; margin-top: 10px; }
-    .btn-xs { padding: 4px 8px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-    .btn-xs.primary { background: #0f4c81; } .btn-xs.success { background: #059669; } .btn-xs.danger { background: #dc2626; }
     .badge-niveau { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: #e2e8f0; color: #4a5568; }
     .badge-inactive { background: #fee2e2; color: #991b1b; }
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-    .modal-overlay.active { display: flex; }
-    .modal-box { background: white; border-radius: 12px; padding: 25px; width: 500px; max-height: 80vh; overflow-y: auto; }
-    .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #4a5568; }
-    .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
-    .form-row { display: flex; gap: 10px; } .form-row .form-group { flex: 1; }
     .student-list { max-height: 300px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; }
     .student-list label { display: block; padding: 4px 6px; font-size: 13px; cursor: pointer; border-radius: 4px; }
     .student-list label:hover { background: #f0f4f8; }

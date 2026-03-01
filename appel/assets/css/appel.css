@@ -1,0 +1,262 @@
+/**
+ * Appel / Présence — Styles spécifiques (M04)
+ */
+
+:root {
+    --appel-present: #27ae60;
+    --appel-absent: #e74c3c;
+    --appel-retard: #f39c12;
+    --appel-dispense: #3498db;
+}
+
+/* ======= NAVIGATION DATE ======= */
+.date-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.date-input {
+    width: auto;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+/* ======= FEUILLE D'APPEL (TABLE) ======= */
+.appel-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.appel-table th {
+    background: #f8f9fa;
+    padding: 0.65rem 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-bottom: 2px solid #ddd;
+}
+
+.appel-table td {
+    padding: 0.5rem;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+}
+
+.appel-table .eleve-name {
+    min-width: 180px;
+}
+
+.appel-row[data-statut="absent"] {
+    background-color: rgba(231, 76, 60, 0.05);
+}
+
+.appel-row[data-statut="retard"] {
+    background-color: rgba(243, 156, 18, 0.05);
+}
+
+.appel-row[data-statut="dispense"] {
+    background-color: rgba(52, 152, 219, 0.05);
+}
+
+.row-highlight-absent { background-color: rgba(231, 76, 60, 0.08); }
+.row-highlight-retard { background-color: rgba(243, 156, 18, 0.08); }
+.row-highlight-dispense { background-color: rgba(52, 152, 219, 0.08); }
+
+/* ======= RADIO BUTTON PERSONNALISÉ ======= */
+.appel-radio {
+    display: flex;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.appel-radio input {
+    display: none;
+}
+
+.appel-radio-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+.appel-radio input:checked + .appel-present {
+    background: var(--appel-present);
+    border-color: var(--appel-present);
+}
+
+.appel-radio input:checked + .appel-absent {
+    background: var(--appel-absent);
+    border-color: var(--appel-absent);
+}
+
+.appel-radio input:checked + .appel-retard {
+    background: var(--appel-retard);
+    border-color: var(--appel-retard);
+}
+
+.appel-radio input:checked + .appel-dispense {
+    background: var(--appel-dispense);
+    border-color: var(--appel-dispense);
+}
+
+.appel-radio input:checked + .appel-radio-mark::after {
+    content: '✓';
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: bold;
+}
+
+/* ======= RÉSUMÉ ======= */
+.appel-summary {
+    display: flex;
+    gap: 1rem;
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+    background: #f8f9fa;
+    border-radius: 6px;
+    flex-wrap: wrap;
+}
+
+.appel-summary .badge {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+}
+
+/* ======= ACTIONS BAR ======= */
+.appel-actions-bar {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.inline-form {
+    display: inline-block;
+}
+
+.form-row-inline {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.form-row-inline .form-control {
+    width: auto;
+    min-width: 120px;
+}
+
+/* ======= CARTES D'APPELS ======= */
+.appels-liste {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.appel-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow 0.2s, transform 0.15s;
+}
+
+.appel-card:hover {
+    box-shadow: 0 3px 12px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+.appel-card-time {
+    font-weight: 700;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    min-width: 100px;
+    color: #2c3e50;
+}
+
+.appel-card-info {
+    flex: 1;
+}
+
+.appel-card-classe {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.appel-card-matiere,
+.appel-card-prof {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.appel-card-stats {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+/* ======= FORM ACTIONS ======= */
+.form-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+}
+
+/* ======= EMPTY STATE ======= */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #888;
+}
+
+.empty-state i {
+    margin-bottom: 1rem;
+    opacity: 0.4;
+}
+
+.empty-state h3 {
+    color: #555;
+    margin-bottom: 0.5rem;
+}
+
+/* ======= RESPONSIVE ======= */
+@media (max-width: 768px) {
+    .appel-table .text-center {
+        padding: 0.25rem;
+    }
+
+    .appel-radio-mark {
+        width: 24px;
+        height: 24px;
+    }
+
+    .appel-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .form-row-inline {
+        flex-direction: column;
+    }
+
+    .form-row-inline .form-control {
+        width: 100%;
+    }
+}

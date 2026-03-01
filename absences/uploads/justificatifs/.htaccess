@@ -1,0 +1,14 @@
+# Interdire l'accès direct aux fichiers uploadés
+# Les fichiers sont servis uniquement via download_fichier.php
+
+<Files "*">
+    Require all denied
+</Files>
+
+# Empêcher l'exécution de scripts
+<FilesMatch "\.(php|phtml|php3|php4|php5|php7|phps|cgi|pl|py|sh|bash)$">
+    Require all denied
+</FilesMatch>
+
+# Désactiver le moteur PHP dans ce répertoire
+php_flag engine off

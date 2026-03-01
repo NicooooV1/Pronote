@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Vue admin des conversations — navigation, participants, statistiques
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -67,14 +66,12 @@ $msgsToday = $pdo->query("SELECT COUNT(*) FROM messages WHERE DATE(created_at) =
 
 $pageTitle = 'Conversations';
 $currentPage = 'msg_conversations';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
 <style>
     .conv-container { max-width: 1100px; margin: 0 auto; }
-    .stats-bar { display: flex; gap: 12px; margin-bottom: 20px; }
-    .stat-card { background: white; border-radius: 8px; padding: 12px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); flex: 1; text-align: center; }
-    .stat-card .val { font-size: 22px; font-weight: 700; } .stat-card .lbl { font-size: 12px; color: #888; }
     .search-bar { display: flex; gap: 10px; margin-bottom: 15px; }
     .search-bar input { flex: 1; padding: 8px 12px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 13px; }
     .conv-table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
@@ -83,13 +80,8 @@ ob_start();
     .badge-type { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
     .bt-standard { background: #e2e8f0; color: #4a5568; }
     .bt-broadcast { background: #dbeafe; color: #1e40af; }
-    .btn-xs { padding: 3px 7px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-    .btn-xs.primary { background: #0f4c81; } .btn-xs.danger { background: #dc2626; }
     .detail-panel { display: none; background: #f8fafc; padding: 12px 14px; font-size: 13px; }
     .detail-panel.active { display: table-row; }
-    .pagination { display: flex; gap: 4px; justify-content: center; margin-top: 20px; }
-    .pagination a, .pagination span { padding: 6px 12px; border-radius: 6px; font-size: 13px; text-decoration: none; }
-    .pagination a { background: white; color: #333; border: 1px solid #ddd; } .pagination span.current { background: #0f4c81; color: white; }
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();

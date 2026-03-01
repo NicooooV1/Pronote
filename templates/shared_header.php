@@ -14,6 +14,7 @@
  *   $user_fullname      — string : nom complet pour le tooltip de l'avatar
  */
 
+// Gestion des variables globales pour tous les modules
 $pageTitle = $pageTitle ?? 'FRONOTE';
 $user_initials = $user_initials ?? '';
 $pageSubtitle = $pageSubtitle ?? '';
@@ -21,8 +22,12 @@ $extraCss = $extraCss ?? [];
 $extraHeadHtml = $extraHeadHtml ?? '';
 $headerExtraActions = $headerExtraActions ?? '';
 $user_fullname = $user_fullname ?? '';
-
+$activePage = $activePage ?? '';
+$isAdmin = $isAdmin ?? false;
 $rootPrefix = $rootPrefix ?? '../';
+
+// NOTE : $activePage doit être défini dans chaque page/module pour la coloration de la navigation
+// Exemples : 'accueil', 'notes', 'agenda', 'cahierdetextes', 'messagerie', 'absences', 'admin'
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -30,6 +35,7 @@ $rootPrefix = $rootPrefix ?? '../';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageTitle) ?> - FRONOTE</title>
+    <!-- CSS unifié pour toute l'application -->
     <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/pronote-unified.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <?php foreach ($extraCss as $css): ?>

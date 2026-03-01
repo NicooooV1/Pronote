@@ -1,0 +1,35 @@
+/* M33 – Facturation — CSS */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.stat-card { background: var(--card-bg, #fff); border-radius: 10px; padding: 1rem; text-align: center; border: 1px solid var(--border-color, #e0e0e0); }
+.stat-value { font-size: 1.6rem; font-weight: 700; color: var(--primary, #4f46e5); }
+.stat-label { font-size: .75rem; color: var(--text-muted, #9ca3af); text-transform: uppercase; }
+
+.filter-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+
+.factures-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
+.facture-card { background: var(--card-bg, #fff); border-radius: 12px; padding: 1.2rem; border: 1px solid var(--border-color, #e0e0e0); }
+.facture-header { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; flex-wrap: wrap; }
+.facture-body { display: flex; gap: 1rem; font-size: .85rem; color: var(--text-muted, #6b7280); margin-bottom: .5rem; }
+.facture-amounts { display: flex; gap: 1rem; font-size: .85rem; margin-bottom: .5rem; }
+.facture-amounts .reste { color: var(--danger, #ef4444); font-weight: 600; }
+
+.info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.info-item { display: flex; align-items: center; gap: .5rem; padding: .75rem; border-radius: 8px; background: var(--bg-secondary, #f9fafb); font-size: .9rem; }
+.info-item i { color: var(--primary, #4f46e5); }
+
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { padding: .5rem .6rem; border-bottom: 1px solid var(--border-color, #e5e7eb); text-align: left; font-size: .85rem; }
+.table th { background: var(--bg-secondary, #f9fafb); font-weight: 600; }
+.total-row td { font-weight: 600; border-top: 2px solid var(--border-color, #d1d5db); }
+
+.paiement-item { display: flex; gap: 1rem; align-items: center; padding: .5rem; border-bottom: 1px solid var(--border-color, #e5e7eb); font-size: .85rem; }
+
+.form-inline { display: flex; gap: .5rem; align-items: flex-end; flex-wrap: wrap; }
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-grid-2 .full-width { grid-column: 1 / -1; }
+.form-actions { margin-top: 1.5rem; display: flex; gap: 1rem; }
+
+@media (max-width: 768px) {
+    .form-grid-2 { grid-template-columns: 1fr; }
+    .factures-list { grid-template-columns: 1fr; }
+}

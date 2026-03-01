@@ -8,6 +8,13 @@ require_once __DIR__ . '/../core/csrf.php';
 require_once __DIR__ . '/../core/validator.php';
 require_once __DIR__ . '/../core/rate_limiter.php';
 
+// Fonction de log pour déboguer les uploads (fallback si non définie)
+if (!function_exists('logUpload')) {
+    function logUpload($message, $data = null) {
+        error_log('[messagerie] ' . $message . ($data ? ' - ' . json_encode($data) : ''));
+    }
+}
+
 /**
  * Gère l'envoi d'un message
  */
@@ -25,12 +32,11 @@ function handleSendMessage($convId, $user, $contenu, $importance = 'normal', $pa
     $importance = Validator::importance($importance);
     $parentMessageId = $parentMessageId ? Validator::id($parentMessageId) : null;
     
-    // Rate limiting
-    if (!RateLimiter::check($user['id'], $user['type'], 'send_message')) {
+    // Rate limiting (atomic check+hit to prevent race condition)
+    if (!RateLimiter::attempt($user['id'], $user['type'], 'send_message')) {
         $info = RateLimiter::getInfo($user['id'], $user['type'], 'send_message');
         return ['success' => false, 'message' => 'Trop de messages envoyés. Réessayez dans ' . $info['retry_after'] . 's'];
     }
-    RateLimiter::hit($user['id'], $user['type'], 'send_message');
     
     $uploadedFiles = []; // Initialiser avant utilisation
     
@@ -39,14 +45,15 @@ function handleSendMessage($convId, $user, $contenu, $importance = 'normal', $pa
         $pdo->beginTransaction();
         
         try {
-            // Traitement des fichiers
-            if (!empty($filesData) && isset($filesData['name']) && is_array($filesData['name'])) {
-                require_once __DIR__ . '/../core/uploader.php';
-                
-                // Logique de traitement des uploads ici
-                // ...
-                
-                // Si des fichiers ont été uploadés, les stocker dans $uploadedFiles
+            // Traitement des fichiers via FileUploadService centralisé
+            if (!empty($filesData) && isset($filesData['name']) && is_array($filesData['name']) && !empty($filesData['name'][0])) {
+                $fileUploader = new \API\Services\FileUploadService('messagerie');
+                $uploadResults = $fileUploader->uploadMultiple($filesData);
+                foreach ($uploadResults as $r) {
+                    if ($r['success']) {
+                        $uploadedFiles[] = ['name' => $r['nom_original'], 'path' => $r['chemin']];
+                    }
+                }
             }
             
             $messageId = addMessage(
@@ -68,8 +75,11 @@ function handleSendMessage($convId, $user, $contenu, $importance = 'normal', $pa
             // Sauvegarder les pièces jointes en base de données
             if (!empty($uploadedFiles)) {
                 logUpload("Sauvegarde des métadonnées des pièces jointes en base de données");
-                if (!saveAttachments($pdo, $messageId, $uploadedFiles)) {
-                    throw new Exception("Échec de la sauvegarde des pièces jointes en base de données");
+                $saveStmt = $pdo->prepare("INSERT INTO message_attachments (message_id, file_name, file_path, uploaded_at) VALUES (?, ?, ?, NOW())");
+                foreach ($uploadedFiles as $file) {
+                    if (!$saveStmt->execute([$messageId, $file['name'], $file['path']])) {
+                        throw new Exception("Échec de la sauvegarde des pièces jointes en base de données");
+                    }
                 }
             }
             
@@ -143,7 +153,13 @@ function handleSendAnnouncement($user, $titre, $contenu, $participants, $notific
         if (!empty($filesData) && isset($filesData['name']) && !empty($filesData['name'][0])) {
             try {
                 logUpload("Traitement des pièces jointes pour l'annonce");
-                $uploadedFiles = handleFileUploads($filesData);
+                $fileUploader = new \API\Services\FileUploadService('messagerie');
+                $uploadResults = $fileUploader->uploadMultiple($filesData);
+                foreach ($uploadResults as $r) {
+                    if ($r['success']) {
+                        $uploadedFiles[] = ['name' => $r['nom_original'], 'path' => $r['chemin']];
+                    }
+                }
                 logUpload("Pièces jointes traitées avec succès", $uploadedFiles);
             } catch (Exception $e) {
                 logUpload("Erreur lors du traitement des pièces jointes: " . $e->getMessage());
@@ -194,8 +210,11 @@ function handleSendAnnouncement($user, $titre, $contenu, $participants, $notific
             // Sauvegarder les pièces jointes en base de données
             if (!empty($uploadedFiles)) {
                 logUpload("Sauvegarde des métadonnées des pièces jointes en base de données");
-                if (!saveAttachments($pdo, $messageId, $uploadedFiles)) {
-                    throw new Exception("Échec de la sauvegarde des pièces jointes en base de données");
+                $saveStmt = $pdo->prepare("INSERT INTO message_attachments (message_id, file_name, file_path, uploaded_at) VALUES (?, ?, ?, NOW())");
+                foreach ($uploadedFiles as $file) {
+                    if (!$saveStmt->execute([$messageId, $file['name'], $file['path']])) {
+                        throw new Exception("Échec de la sauvegarde des pièces jointes en base de données");
+                    }
                 }
             }
             
@@ -273,7 +292,13 @@ function handleSendClassMessage($user, $classe, $titre, $contenu, $importance = 
         if (!empty($filesData) && isset($filesData['name']) && !empty($filesData['name'][0])) {
             try {
                 logUpload("Traitement des pièces jointes pour le message à la classe");
-                $uploadedFiles = handleFileUploads($filesData);
+                $fileUploader = new \API\Services\FileUploadService('messagerie');
+                $uploadResults = $fileUploader->uploadMultiple($filesData);
+                foreach ($uploadResults as $r) {
+                    if ($r['success']) {
+                        $uploadedFiles[] = ['name' => $r['nom_original'], 'path' => $r['chemin']];
+                    }
+                }
                 logUpload("Pièces jointes traitées avec succès", $uploadedFiles);
             } catch (Exception $e) {
                 logUpload("Erreur lors du traitement des pièces jointes: " . $e->getMessage());
@@ -322,8 +347,11 @@ function handleSendClassMessage($user, $classe, $titre, $contenu, $importance = 
             // Sauvegarder les pièces jointes en base de données
             if (!empty($uploadedFiles)) {
                 logUpload("Sauvegarde des métadonnées des pièces jointes en base de données");
-                if (!saveAttachments($pdo, $messageId, $uploadedFiles)) {
-                    throw new Exception("Échec de la sauvegarde des pièces jointes en base de données");
+                $saveStmt = $pdo->prepare("INSERT INTO message_attachments (message_id, file_name, file_path, uploaded_at) VALUES (?, ?, ?, NOW())");
+                foreach ($uploadedFiles as $file) {
+                    if (!$saveStmt->execute([$messageId, $file['name'], $file['path']])) {
+                        throw new Exception("Échec de la sauvegarde des pièces jointes en base de données");
+                    }
                 }
             }
             

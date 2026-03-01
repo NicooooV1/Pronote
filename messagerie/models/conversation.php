@@ -7,17 +7,11 @@ require_once __DIR__ . '/../core/utils.php';
 
 /**
  * Sous-requête réutilisable pour obtenir le nom complet d'un utilisateur
- * @return string SQL CASE expression
+ * Utilise la vue v_users (UNION ALL des 5 tables) pour éviter le CASE à 5 branches
+ * @return string SQL subquery expression
  */
 function getUserNameCaseSQL(string $idCol = 'cp.user_id', string $typeCol = 'cp.user_type'): string {
-    return "CASE 
-        WHEN {$typeCol} = 'eleve' THEN (SELECT CONCAT(e.prenom, ' ', e.nom) FROM eleves e WHERE e.id = {$idCol})
-        WHEN {$typeCol} = 'parent' THEN (SELECT CONCAT(p.prenom, ' ', p.nom) FROM parents p WHERE p.id = {$idCol})
-        WHEN {$typeCol} = 'professeur' THEN (SELECT CONCAT(p.prenom, ' ', p.nom) FROM professeurs p WHERE p.id = {$idCol})
-        WHEN {$typeCol} = 'vie_scolaire' THEN (SELECT CONCAT(v.prenom, ' ', v.nom) FROM vie_scolaire v WHERE v.id = {$idCol})
-        WHEN {$typeCol} = 'administrateur' THEN (SELECT CONCAT(a.prenom, ' ', a.nom) FROM administrateurs a WHERE a.id = {$idCol})
-        ELSE 'Inconnu'
-    END";
+    return "(SELECT vu.nom_complet FROM v_users vu WHERE vu.id = {$idCol} AND vu.user_type = {$typeCol} LIMIT 1)";
 }
 
 /**
@@ -42,11 +36,12 @@ function getConversations($userId, $userType, $dossier = 'reception', $limit = 2
                ) as type,
                c.created_at as date_creation, 
                c.updated_at as dernier_message,
-               (SELECT body FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as apercu,
-               (SELECT status FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as status,
+               lm.body as apercu,
+               lm.status as status,
                cp.unread_count as non_lus
         FROM conversations c
         JOIN conversation_participants cp ON c.id = cp.conversation_id
+        LEFT JOIN messages lm ON lm.id = c.last_message_id
         WHERE cp.user_id = ? AND cp.user_type = ?
     ";
     

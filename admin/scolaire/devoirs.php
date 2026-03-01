@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Administration des devoirs — liste, filtres, modifier, supprimer
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -72,6 +71,7 @@ $matieresList = $pdo->query("SELECT DISTINCT nom_matiere FROM devoirs ORDER BY n
 
 $pageTitle = 'Devoirs';
 $currentPage = 'devoirs';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
@@ -82,16 +82,8 @@ ob_start();
     .devoirs-table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .devoirs-table th, .devoirs-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
     .devoirs-table th { background: #f7fafc; font-weight: 600; color: #4a5568; font-size: 12px; }
-    .btn-xs { padding: 3px 7px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-    .btn-xs.primary { background: #0f4c81; } .btn-xs.danger { background: #dc2626; }
     .badge-date { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
     .date-past { background: #fee2e2; color: #991b1b; } .date-future { background: #dbeafe; color: #1e40af; } .date-today { background: #d1fae5; color: #065f46; }
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-    .modal-overlay.active { display: flex; }
-    .modal-box { background: white; border-radius: 12px; padding: 25px; width: 500px; }
-    .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #4a5568; }
-    .form-group input, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
     .stat-pill { display: inline-flex; align-items: center; gap: 6px; background: white; border-radius: 8px; padding: 8px 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 15px; margin-right: 10px; font-size: 14px; }
     .stat-pill strong { font-size: 18px; font-weight: 700; }
 </style>

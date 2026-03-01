@@ -10,13 +10,27 @@ class Application extends Container
     protected $providers = [];
     protected $booted = false;
 
+    /**
+     * Instance singleton de l'application
+     */
+    protected static $instance = null;
+
     public function __construct($basePath)
     {
         $this->basePath = $basePath;
+        static::$instance = $this;
         
         // Enregistrer l'instance de l'application
         $this->instance('app', $this);
         $this->instance(Application::class, $this);
+    }
+
+    /**
+     * Retourne l'instance singleton de l'application
+     */
+    public static function getInstance(): ?self
+    {
+        return static::$instance;
     }
 
     /**

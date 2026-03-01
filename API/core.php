@@ -35,7 +35,7 @@ if (!function_exists('requireAuth')) {
         $user = getCurrentUser();
         
         if (!$user) {
-            redirect('login/public/index.php');
+            redirect('login/index.php');
         }
         
         return $user;
@@ -143,7 +143,7 @@ if (!function_exists('authenticateUser')) {
 if (!function_exists('logoutUser')) {
     function logoutUser() {
         app('auth')->logout();
-        redirect('login/public/index.php');
+        redirect('login/index.php');
     }
 }
 

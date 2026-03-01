@@ -1,11 +1,9 @@
-<?php
+﻿<?php
 /**
  * Gestion de tous les utilisateurs — Recherche avancée, consultation, édition, actions
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
-require_once __DIR__ . '/../../login/src/user.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -188,58 +186,12 @@ try {
 
 $pageTitle = 'Gestion des utilisateurs';
 $currentPage = 'users';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
 <style>
     .users-container { max-width: 1100px; margin: 0 auto; }
-    .filters-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; align-items: center; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    .filters-bar input, .filters-bar select { padding: 8px 12px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 14px; }
-    .filters-bar input[type="text"] { flex: 1; min-width: 200px; }
-    .users-table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    .users-table th, .users-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
-    .users-table th { background: #f7fafc; color: #4a5568; font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.3px; }
-    .users-table tr:hover { background: #f9fafb; }
-    .badge-profil { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
-    .badge-eleve { background: #dbeafe; color: #1e40af; }
-    .badge-parent { background: #d1fae5; color: #065f46; }
-    .badge-prof { background: #ffedd5; color: #c2410c; }
-    .badge-vs { background: #ede9fe; color: #5b21b6; }
-    .badge-admin { background: #fce7f3; color: #9d174d; }
-    .status-active { color: #059669; font-weight: 600; }
-    .status-inactive { color: #dc2626; }
-    .status-locked { color: #d97706; }
-    .btn-xs { padding: 4px 8px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; }
-    .btn-xs.primary { background: #0f4c81; color: white; }
-    .btn-xs.success { background: #059669; color: white; }
-    .btn-xs.warning { background: #d97706; color: white; }
-    .btn-xs.danger { background: #dc2626; color: white; }
-    .btn-xs:hover { opacity: 0.9; }
-    .actions-cell { display: flex; gap: 4px; flex-wrap: wrap; }
-    .pagination { display: flex; justify-content: center; gap: 5px; margin-top: 20px; }
-    .pagination a, .pagination span { padding: 6px 12px; border: 1px solid #d2d6dc; border-radius: 4px; text-decoration: none; font-size: 13px; color: #4a5568; }
-    .pagination span.current { background: #0f4c81; color: white; border-color: #0f4c81; }
-    .results-count { font-size: 13px; color: #718096; margin-bottom: 10px; }
-
-    /* Modal */
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
-    .modal-overlay.show { display: flex; }
-    .modal-box { background: white; border-radius: 12px; width: 95%; max-width: 700px; max-height: 85vh; overflow-y: auto; padding: 25px; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
-    .modal-box h2 { margin: 0 0 20px; font-size: 18px; color: #1a202c; }
-    .modal-close { float: right; background: none; border: none; font-size: 22px; cursor: pointer; color: #666; line-height: 1; }
-    .modal-close:hover { color: #000; }
-    .detail-grid { display: grid; grid-template-columns: 140px 1fr; gap: 8px 12px; margin-bottom: 20px; }
-    .detail-label { font-weight: 500; color: #718096; font-size: 14px; }
-    .detail-value { color: #2d3748; font-size: 14px; }
-    .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-    .form-row .form-group { flex: 1; min-width: 200px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 500; color: #4a5568; margin-bottom: 4px; }
-    .form-group input, .form-group select { width: 100%; padding: 8px 10px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
-    .modal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; }
-    .tab-buttons { display: flex; gap: 2px; margin-bottom: 15px; border-bottom: 2px solid #e2e8f0; }
-    .tab-btn { padding: 8px 16px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: #718096; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: #0f4c81; border-bottom-color: #0f4c81; }
-    .tab-pane { display: none; } .tab-pane.active { display: block; }
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();
@@ -285,7 +237,7 @@ include __DIR__ . '/../includes/sub_header.php';
     <div class="results-count"><?= $totalUsers ?> utilisateur(s) trouvé(s)</div>
 
     <!-- Tableau -->
-    <table class="users-table">
+    <table class="admin-table">
         <thead>
             <tr>
                 <th>Nom</th>

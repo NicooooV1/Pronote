@@ -1,0 +1,44 @@
+/* M36 – Ressources pédagogiques — CSS */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.stat-card { background: var(--card-bg, #fff); border-radius: 10px; padding: 1rem; text-align: center; border: 1px solid var(--border-color, #e0e0e0); }
+.stat-value { font-size: 1.6rem; font-weight: 700; color: var(--primary, #4f46e5); }
+.stat-label { font-size: .75rem; color: var(--text-muted, #9ca3af); text-transform: uppercase; }
+
+.filter-bar { margin-bottom: 1.5rem; }
+.filter-form { display: flex; gap: .5rem; flex-wrap: wrap; }
+.filter-form .form-control { max-width: 200px; }
+
+.ressources-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+.ressource-card { display: flex; gap: 1rem; padding: 1.2rem; border-radius: 12px; background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e0e0e0); text-decoration: none; color: inherit; transition: all .2s; }
+.ressource-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+
+
+.res-icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; color: #fff; flex-shrink: 0; }
+.type-cours .res-icon { background: #3b82f6; }
+.type-exercice .res-icon { background: #f59e0b; }
+.type-video .res-icon { background: #ef4444; }
+.type-document .res-icon { background: #6b7280; }
+.type-lien .res-icon { background: #10b981; }
+.type-qcm .res-icon { background: #8b5cf6; }
+
+.res-info h3 { font-size: .95rem; margin-bottom: .3rem; line-height: 1.3; }
+.res-meta { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .25rem; font-size: .8rem; }
+.res-author { font-size: .78rem; color: var(--text-muted, #6b7280); }
+.res-tags { display: flex; gap: .3rem; flex-wrap: wrap; margin-top: .25rem; }
+.tag { padding: .15rem .5rem; border-radius: 20px; background: var(--bg-secondary, #f1f5f9); font-size: .72rem; color: var(--text-secondary, #64748b); }
+
+.info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.info-item { display: flex; align-items: center; gap: .5rem; padding: .75rem; border-radius: 8px; background: var(--bg-secondary, #f9fafb); font-size: .9rem; }
+
+.contenu-body { padding: 1.5rem; }
+.contenu-text { line-height: 1.7; white-space: pre-wrap; font-size: .9rem; }
+
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-grid-2 .full-width { grid-column: 1 / -1; }
+.form-actions { margin-top: 1.5rem; display: flex; gap: 1rem; }
+
+@media (max-width: 768px) {
+    .ressources-grid { grid-template-columns: 1fr; }
+    .form-grid-2 { grid-template-columns: 1fr; }
+    .filter-form .form-control { max-width: 100%; }
+}

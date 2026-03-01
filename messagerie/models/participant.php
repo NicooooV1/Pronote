@@ -58,7 +58,9 @@ function getParticipantInfo($convId, $userId, $userType) {
     }
     
     $stmt = $pdo->prepare("
-        SELECT * FROM conversation_participants 
+        SELECT id, conversation_id, user_id, user_type, joined_at, last_read_at,
+               unread_count, is_admin, is_moderator, is_archived, is_deleted, version
+        FROM conversation_participants 
         WHERE conversation_id = ? AND user_id = ? AND user_type = ?
     ");
     $stmt->execute([$convId, $userId, $userType]);
@@ -68,7 +70,7 @@ function getParticipantInfo($convId, $userId, $userType) {
         error_log("No participant found for convId=$convId, userId=$userId, userType=$userType");
         
         // Debug query to see if any participants exist for this conversation
-        $debugStmt = $pdo->prepare("SELECT * FROM conversation_participants WHERE conversation_id = ?");
+        $debugStmt = $pdo->prepare("SELECT id, user_id, user_type, is_admin, is_moderator, is_deleted FROM conversation_participants WHERE conversation_id = ?");
         $debugStmt->execute([$convId]);
         $debugResults = $debugStmt->fetchAll(PDO::FETCH_ASSOC);
         error_log("Found " . count($debugResults) . " participants for convId=$convId");
@@ -259,89 +261,58 @@ function removeParticipant($participantId, $removerId, $removerType, $conversati
 }
 
 /**
- * Récupère les participants disponibles pour ajout
+ * Récupère les participants disponibles pour ajout (avec recherche + pagination)
  * @param int $convId
  * @param string $type
+ * @param string $search  Terme de recherche (optionnel)
+ * @param int    $limit   Nombre max de résultats (défaut 50)
  * @return array
  */
-function getAvailableParticipants($convId, $type) {
+function getAvailableParticipants($convId, $type, $search = '', $limit = 50) {
     global $pdo;
     
-    // Récupérer la liste des participants déjà dans la conversation
-    $currentParticipants = [];
+    // Participants déjà dans la conversation
     $stmt = $pdo->prepare("
         SELECT user_id FROM conversation_participants 
         WHERE conversation_id = ? AND user_type = ? AND is_deleted = 0
     ");
     $stmt->execute([$convId, $type]);
-    while ($row = $stmt->fetch()) {
-        $currentParticipants[] = $row['user_id'];
-    }
+    $currentParticipants = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
-    // Debug log in development mode
-    if (defined('APP_ENV') && APP_ENV === 'development') {
-        error_log("Current participants for convId=$convId, type=$type: " . 
-                 json_encode($currentParticipants));
-    }
-    
-    // Créer la clause d'exclusion des participants actuels
+    // Clause d'exclusion
     $excludeClause = '';
-    $params = [$type];
+    $params = [];
     
     if (!empty($currentParticipants)) {
         $placeholders = implode(',', array_fill(0, count($currentParticipants), '?'));
         $excludeClause = "AND id NOT IN ($placeholders)";
-        $params = array_merge([$type], $currentParticipants);
+        $params = $currentParticipants;
     }
     
-    // Requête SQL selon le type de participant
-    switch ($type) {
-        case 'eleve':
-            $sql = "
-                SELECT id, CONCAT(prenom, ' ', nom) as nom_complet, classe
-                FROM eleves
-                WHERE 1=1 $excludeClause
-                ORDER BY nom, prenom
-            ";
-            break;
-        case 'parent':
-            $sql = "
-                SELECT id, CONCAT(prenom, ' ', nom) as nom_complet
-                FROM parents
-                WHERE 1=1 $excludeClause
-                ORDER BY nom, prenom
-            ";
-            break;
-        case 'professeur':
-            $sql = "
-                SELECT id, CONCAT(prenom, ' ', nom, ' (', matiere, ')') as nom_complet
-                FROM professeurs
-                WHERE 1=1 $excludeClause
-                ORDER BY nom, prenom
-            ";
-            break;
-        case 'vie_scolaire':
-            $sql = "
-                SELECT id, CONCAT(prenom, ' ', nom) as nom_complet
-                FROM vie_scolaire
-                WHERE 1=1 $excludeClause
-                ORDER BY nom, prenom
-            ";
-            break;
-        case 'administrateur':
-            $sql = "
-                SELECT id, CONCAT(prenom, ' ', nom) as nom_complet
-                FROM administrateurs
-                WHERE 1=1 $excludeClause
-                ORDER BY nom, prenom
-            ";
-            break;
+    // Clause de recherche
+    $searchClause = '';
+    if ($search !== '') {
+        $searchClause = "AND (prenom LIKE ? OR nom LIKE ?)";
+        $searchTerm = "%$search%";
+        $params[] = $searchTerm;
+        $params[] = $searchTerm;
     }
     
-    // Exécuter la requête
+    // SQL par type (conserve les infos spécifiques classe/matière)
+    $selectMap = [
+        'eleve'          => "SELECT id, CONCAT(prenom, ' ', nom) as nom_complet, classe FROM eleves",
+        'parent'         => "SELECT id, CONCAT(prenom, ' ', nom) as nom_complet, NULL as classe FROM parents",
+        'professeur'     => "SELECT id, CONCAT(prenom, ' ', nom, ' (', matiere, ')') as nom_complet, NULL as classe FROM professeurs",
+        'vie_scolaire'   => "SELECT id, CONCAT(prenom, ' ', nom) as nom_complet, NULL as classe FROM vie_scolaire",
+        'administrateur' => "SELECT id, CONCAT(prenom, ' ', nom) as nom_complet, NULL as classe FROM administrateurs",
+    ];
+    
+    $base = $selectMap[$type] ?? null;
+    if (!$base) return [];
+    
+    $sql = "$base WHERE 1=1 $excludeClause $searchClause ORDER BY nom, prenom LIMIT " . (int) $limit;
+    
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
-    $availableParticipants = $stmt->fetchAll();
-    
-    return $availableParticipants;
+    return $stmt->fetchAll();
 }

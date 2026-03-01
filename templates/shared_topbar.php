@@ -31,7 +31,12 @@ $rootPrefix = $rootPrefix ?? '../';
 
             <div class="header-actions">
                 <?= $headerExtraActions ?>
-                <a href="<?= $rootPrefix ?>login/public/logout.php" class="logout-button" title="Déconnexion">
+                <?php if (isAdmin()): ?>
+                <a href="<?= $rootPrefix ?>admin/dashboard.php" class="admin-topbar-link" title="Administration">
+                    <i class="fas fa-cogs"></i>
+                </a>
+                <?php endif; ?>
+                <a href="<?= $rootPrefix ?>login/logout.php" class="logout-button" title="Déconnexion">
                     <i class="fas fa-sign-out-alt"></i>
                 </a>
                 <div class="user-avatar" title="<?= htmlspecialchars($user_fullname) ?>"><?= htmlspecialchars($user_initials) ?></div>

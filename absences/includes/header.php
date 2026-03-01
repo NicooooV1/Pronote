@@ -42,19 +42,34 @@ ob_start();
                     <span>Liste des absences</span>
                 </a>
                 
+                <a href="absences.php?type=retards" class="sidebar-nav-item <?= isActiveLink('retards') ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-clock"></i></span>
+                    <span>Retards</span>
+                </a>
+                
                 <?php if (canManageAbsences()): ?>
                 <a href="ajouter_absence.php" class="sidebar-nav-item <?= isActiveLink('ajouter') ?>">
                     <span class="sidebar-nav-icon"><i class="fas fa-plus"></i></span>
                     <span>Signaler une absence</span>
                 </a>
-                <a href="appel.php" class="sidebar-nav-item <?= isActiveLink('appel') ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-clipboard-list"></i></span>
-                    <span>Faire l'appel</span>
+                <?php endif; ?>
+
+                <?php if (isAdmin() || isVieScolaire()): ?>
+                <a href="justificatifs.php" class="sidebar-nav-item <?= isActiveLink('justificatifs') ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-file-alt"></i></span>
+                    <span>Justificatifs</span>
+                </a>
+                <?php endif; ?>
+
+                <?php if (isStudent() || isParent()): ?>
+                <a href="soumettre_justificatif.php" class="sidebar-nav-item <?= isActiveLink('soumettre') ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-file-upload"></i></span>
+                    <span>Soumettre un justificatif</span>
                 </a>
                 <?php endif; ?>
                 
                 <?php if (isAdmin() || isVieScolaire()): ?>
-                <a href="statistiques.php" class="sidebar-nav-item <?= isActiveLink('statistiques') ?>">
+                <a href="absences.php?view=stats" class="sidebar-nav-item <?= isActiveLink('statistiques') ?>">
                     <span class="sidebar-nav-icon"><i class="fas fa-chart-pie"></i></span>
                     <span>Statistiques</span>
                 </a>

@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Statistiques générales — graphiques Chart.js
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -31,10 +30,10 @@ $notesDistrib = $pdo->query("
 
 // ── Absences sur 30 jours ──
 $absencesChart = $pdo->query("
-    SELECT DATE(date_absence) AS d, COUNT(*) AS c
+    SELECT DATE(date_debut) AS d, COUNT(*) AS c
     FROM absences
-    WHERE date_absence >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-    GROUP BY DATE(date_absence) ORDER BY d
+    WHERE date_debut >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    GROUP BY DATE(date_debut) ORDER BY d
 ")->fetchAll(PDO::FETCH_ASSOC);
 $absLabels = json_encode(array_map(fn($r) => date('d/m', strtotime($r['d'])), $absencesChart));
 $absData = json_encode(array_column($absencesChart, 'c'));
@@ -71,19 +70,7 @@ $auditData = json_encode(array_column($auditChart, 'c'));
 $pageTitle = 'Statistiques';
 $currentPage = 'stats';
 
-ob_start();
-?>
-<style>
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
-    .chart-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    .chart-card h3 { margin: 0 0 12px; font-size: 14px; color: #1a202c; }
-    .chart-card canvas { width: 100% !important; max-height: 260px; }
-    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; max-width: 1200px; margin: 0 auto 20px; }
-    .kpi { background: white; border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); text-align: center; }
-    .kpi .v { font-size: 26px; font-weight: 700; } .kpi .l { font-size: 11px; color: #888; }
-</style>
-<?php
-$extraHeadHtml = ob_get_clean();
+$extraCss = ['../../assets/css/admin.css'];
 include __DIR__ . '/../includes/sub_header.php';
 ?>
 

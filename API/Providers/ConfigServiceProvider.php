@@ -35,7 +35,7 @@ class ConfigServiceProvider extends ServiceProvider
                     'url' => env('APP_URL', 'http://localhost')
                 ],
                 'auth' => [
-                    'login_url' => env('AUTH_LOGIN_URL', '/login/public/index.php')
+                    'login_url' => env('AUTH_LOGIN_URL', '/login/index.php')
                 ],
                 'session' => [
                     'name' => env('SESSION_NAME', 'pronote_session'),

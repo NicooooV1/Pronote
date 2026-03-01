@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Gestion des événements — vue admin, CRUD
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -84,6 +83,7 @@ $types = $pdo->query("SELECT DISTINCT type_evenement FROM evenements ORDER BY ty
 
 $pageTitle = 'Événements';
 $currentPage = 'etab_evenements';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
@@ -96,15 +96,6 @@ ob_start();
     .ev-table th { background: #f7fafc; font-weight: 600; color: #4a5568; font-size: 12px; }
     .badge-ev { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
     .badge-actif { background: #d1fae5; color: #065f46; } .badge-annule { background: #fee2e2; color: #991b1b; }
-    .btn-xs { padding: 3px 7px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-    .btn-xs.primary { background: #0f4c81; } .btn-xs.danger { background: #dc2626; } .btn-xs.warning { background: #f59e0b; }
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-    .modal-overlay.active { display: flex; }
-    .modal-box { background: white; border-radius: 12px; padding: 25px; width: 500px; max-height: 80vh; overflow-y: auto; }
-    .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #4a5568; }
-    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
-    .form-row { display: flex; gap: 10px; } .form-row .form-group { flex: 1; }
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();

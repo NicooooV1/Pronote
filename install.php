@@ -207,6 +207,7 @@ function writeEnvFile(string $dir, array $c): bool {
         "# Divers",
         "APP_TIMEZONE=Europe/Paris",
         "ALLOWED_INSTALL_IP={$c['client_ip']}",
+        "JWT_SECRET=" . bin2hex(random_bytes(32)),
     ];
     return @file_put_contents($dir . '/.env', implode("\n", $lines), LOCK_EX) !== false;
 }
@@ -225,7 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($exts as $e) {
                 if (!extension_loaded($e)) throw new RuntimeException("Extension PHP manquante : {$e}");
             }
-            $dirs = ['API/logs', 'API/config', 'uploads', 'temp'];
+            $dirs = ['API/logs', 'API/config', 'uploads', 'uploads/messagerie', 'uploads/devoirs', 'uploads/justificatifs', 'temp'];
             foreach ($dirs as $d) {
                 $r = ensureDir($installDir . '/' . $d);
                 if (!$r['ok']) throw new RuntimeException("Répertoire {$d} : {$r['msg']}");
@@ -412,7 +413,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     '  Order allow,deny', '  Deny from all', '</FilesMatch>',
                     'Options -Indexes',
                 ]),
-                'uploads/.htaccess'  => "php_flag engine off\nOptions -ExecCGI",
+                'uploads/.htaccess'  => 'Deny from all',
                 'temp/.htaccess'     => 'Deny from all',
                 'API/logs/.htaccess' => 'Deny from all',
             ];
@@ -422,6 +423,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 @file_put_contents($installDir . '/' . $file, $content, LOCK_EX);
             }
             $log[] = ['ok', 'Fichiers de protection créés (.htaccess)'];
+
+            // 5b-bis — Répertoires uploads par contexte
+            foreach (['messagerie', 'devoirs', 'justificatifs'] as $ctx) {
+                $ctxDir = $installDir . '/uploads/' . $ctx;
+                if (!is_dir($ctxDir)) @mkdir($ctxDir, 0755, true);
+            }
+            $log[] = ['ok', 'Répertoires uploads créés (messagerie, devoirs, justificatifs)'];
 
             // 5c — Connexion MySQL
             $dbHostTcp = (strtolower($db['dbHost']) === 'localhost') ? '127.0.0.1' : $db['dbHost'];
@@ -794,7 +802,7 @@ code{background:#edf2f7;padding:1px 6px;border-radius:3px;font-size:.88em;font-f
     $extResults = [];
     foreach ($requiredExts as $ext) $extResults[$ext] = extension_loaded($ext);
 
-    $requiredDirs = ['API/logs', 'API/config', 'API/Core', 'API/Database', 'API/Auth', 'API/Providers', 'uploads', 'temp'];
+    $requiredDirs = ['API/logs', 'API/config', 'API/Core', 'API/Database', 'API/Auth', 'API/Providers', 'uploads', 'uploads/messagerie', 'uploads/devoirs', 'uploads/justificatifs', 'temp'];
     $dirResults = [];
     foreach ($requiredDirs as $d) $dirResults[$d] = ensureDir($installDir . '/' . $d);
 
@@ -1235,7 +1243,7 @@ document.getElementById('pw').addEventListener('input',function(){checkPw(this.v
         </div>
 
         <div style="text-align:center;margin-top:24px">
-            <a href="login/public/index.php" class="btn btn-success" style="font-size:1.05em;padding:14px 32px;width:100%;justify-content:center">
+            <a href="login/index.php" class="btn btn-success" style="font-size:1.05em;padding:14px 32px;width:100%;justify-content:center">
                 🔐 Se connecter maintenant
             </a>
         </div>

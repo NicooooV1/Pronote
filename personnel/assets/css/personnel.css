@@ -1,0 +1,29 @@
+/* M39 – Gestion du personnel — CSS */
+
+.stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.stat-card { background: var(--card-bg, #fff); border-radius: 10px; padding: 1rem; text-align: center; border: 1px solid var(--border-color, #e0e0e0); }
+.stat-value { font-size: 1.8rem; font-weight: 700; color: var(--primary, #4f46e5); }
+.stat-label { font-size: .75rem; color: var(--text-muted, #9ca3af); text-transform: uppercase; }
+
+.filter-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+
+.table-container { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { padding: .5rem .6rem; border-bottom: 1px solid var(--border-color, #e5e7eb); text-align: left; font-size: .85rem; }
+.table th { background: var(--bg-secondary, #f9fafb); font-weight: 600; }
+
+.form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+.form-inline { display: flex; gap: .5rem; align-items: flex-end; flex-wrap: wrap; }
+
+.remplacements-list { display: flex; flex-direction: column; gap: .75rem; }
+.remplacement-card { background: var(--card-bg, #fff); border-radius: 10px; padding: 1rem; border: 1px solid var(--border-color, #e0e0e0); }
+.remplacement-header { display: flex; gap: .5rem; margin-bottom: .5rem; }
+.remplacement-profs { display: flex; align-items: center; gap: .75rem; font-size: .95rem; flex-wrap: wrap; }
+.remplacement-profs .absent { color: var(--danger, #ef4444); }
+.remplacement-profs .remplacant { color: var(--success, #10b981); }
+.remplacement-profs .fa-arrow-right { color: var(--text-muted, #9ca3af); }
+.remplacement-meta { display: flex; gap: 1rem; font-size: .8rem; color: var(--text-muted, #9ca3af); margin-top: .4rem; }
+
+@media (max-width: 768px) {
+    .form-grid-3 { grid-template-columns: 1fr; }
+}

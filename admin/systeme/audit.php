@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Journal d'audit — navigation, filtres, export
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -47,14 +46,12 @@ $weekCount = $pdo->query("SELECT COUNT(*) FROM audit_log WHERE created_at >= DAT
 
 $pageTitle = 'Journal d\'audit';
 $currentPage = 'audit';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
 <style>
     .audit-container { max-width: 1200px; margin: 0 auto; }
-    .stats-bar { display: flex; gap: 12px; margin-bottom: 20px; }
-    .stat-card { background: white; border-radius: 8px; padding: 12px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); flex: 1; text-align: center; }
-    .stat-card .val { font-size: 22px; font-weight: 700; } .stat-card .lbl { font-size: 12px; color: #888; }
     .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; background: white; padding: 12px 15px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); align-items: flex-end; }
     .filters .fg { display: flex; flex-direction: column; gap: 3px; }
     .filters label { font-size: 11px; font-weight: 600; color: #4a5568; }
@@ -67,9 +64,6 @@ ob_start();
     .ba-update { background: #dbeafe; color: #1e40af; } .ba-default { background: #e2e8f0; color: #4a5568; }
     .json-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 11px; color: #666; cursor: pointer; }
     .json-cell:hover { white-space: normal; word-break: break-all; }
-    .pagination { display: flex; gap: 4px; justify-content: center; margin-top: 20px; }
-    .pagination a, .pagination span { padding: 6px 12px; border-radius: 6px; font-size: 13px; text-decoration: none; }
-    .pagination a { background: white; color: #333; border: 1px solid #ddd; } .pagination span.current { background: #0f4c81; color: white; }
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();

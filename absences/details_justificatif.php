@@ -1,25 +1,28 @@
 <?php
-// Démarrer la mise en mémoire tampon
+/**
+ * details_justificatif.php — Détails d'un justificatif
+ * Refactorisé : AbsenceRepository + AbsenceHelper, support pièces jointes,
+ * suppression inline SQL et error_log, suppression functions.php.
+ */
 ob_start();
 
-// Inclusion de l'API centralisée
 require_once __DIR__ . '/../API/core.php';
-$pdo = getPDO();
-require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/AbsenceRepository.php';
+require_once __DIR__ . '/includes/AbsenceHelper.php';
 
-// Vérifier que l'utilisateur est connecté et autorisé
 if (!isLoggedIn() || !canManageAbsences()) {
     header('Location: ' . LOGIN_URL);
     exit;
 }
 
-// Récupérer les informations de l'utilisateur connecté
-$user = getCurrentUser();
+$pdo  = getPDO();
+$repo = new AbsenceRepository($pdo);
+
 $user_fullname = getUserFullName();
-$user_role = getUserRole();
+$user_role     = getUserRole();
 $user_initials = getUserInitials();
 
-// Récupérer l'ID du justificatif avec validation
+// --- Validation de l'ID ---
 $id_justificatif = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 if (!$id_justificatif) {
     $_SESSION['error_message'] = "Identifiant de justificatif invalide";
@@ -27,62 +30,47 @@ if (!$id_justificatif) {
     exit;
 }
 
-// Récupérer les détails du justificatif
-$justificatif = null;
-try {
-    $stmt = $pdo->prepare("
-        SELECT j.*, e.nom, e.prenom, e.classe 
-        FROM justificatifs j
-        JOIN eleves e ON j.id_eleve = e.id
-        WHERE j.id = ?
-    ");
-    $stmt->execute([$id_justificatif]);
-    $justificatif = $stmt->fetch(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    error_log("Erreur lors de la récupération du justificatif: " . $e->getMessage());
-    $_SESSION['error_message'] = "Une erreur est survenue lors de la récupération des données.";
-    header('Location: justificatifs.php');
-    exit;
-}
-
+// --- Récupération via Repository ---
+$justificatif = $repo->getJustificatifById($id_justificatif);
 if (!$justificatif) {
     $_SESSION['error_message'] = "Justificatif non trouvé";
     header('Location: justificatifs.php');
     exit;
 }
 
-// Configuration de la page
-$pageTitle = 'Détails du justificatif';
-$currentPage = 'justificatifs';
-$showBackButton = true;
-$backLink = 'justificatifs.php';
-
-// Récupérer l'absence associée si elle existe
+// --- Absence associée ---
 $absence = null;
 if (!empty($justificatif['id_absence'])) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT a.*, e.nom, e.prenom, e.classe 
-            FROM absences a
-            JOIN eleves e ON a.id_eleve = e.id
-            WHERE a.id = ?
-        ");
-        $stmt->execute([$justificatif['id_absence']]);
-        $absence = $stmt->fetch(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("Erreur lors de la récupération de l'absence: " . $e->getMessage());
-    }
+    $absence = $repo->getById((int)$justificatif['id_absence']);
 }
 
-// Inclure l'en-tête
+// --- Pièces jointes ---
+$attachments = $repo->getAttachments($id_justificatif);
+
+// --- Config page ---
+$pageTitle      = 'Détails du justificatif';
+$currentPage    = 'justificatifs';
+$showBackButton = true;
+$backLink       = 'justificatifs.php';
+
+// Messages flash
+$success_msg = $_SESSION['success_message'] ?? '';
+$error_msg   = $_SESSION['error_message'] ?? '';
+unset($_SESSION['success_message'], $_SESSION['error_message']);
+
 include 'includes/header.php';
 ?>
 
+<?php if ($success_msg): ?>
+<div class="alert alert-success"><i class="fas fa-check-circle"></i> <span><?= htmlspecialchars($success_msg) ?></span></div>
+<?php endif; ?>
+<?php if ($error_msg): ?>
+<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> <span><?= htmlspecialchars($error_msg) ?></span></div>
+<?php endif; ?>
+
 <div class="content-container">
     <div class="content-header">
-        <h2>
-            Justificatif #<?= $id_justificatif ?>
-        </h2>
+        <h2>Justificatif #<?= $id_justificatif ?></h2>
         <div class="content-actions">
             <?php if (!$justificatif['traite']): ?>
             <a href="traiter_justificatif.php?id=<?= $id_justificatif ?>" class="btn btn-primary">
@@ -93,11 +81,11 @@ include 'includes/header.php';
     </div>
 
     <div class="content-body">
-        <!-- Statut du justificatif -->
+        <!-- Statut -->
         <div class="alert <?= $justificatif['traite'] ? ($justificatif['approuve'] ? 'alert-success' : 'alert-error') : 'alert-warning' ?>">
             <i class="fas <?= $justificatif['traite'] ? ($justificatif['approuve'] ? 'fa-check-circle' : 'fa-times-circle') : 'fa-clock' ?>"></i>
             <div>
-                <strong>Statut: </strong>
+                <strong>Statut : </strong>
                 <?php if ($justificatif['traite']): ?>
                     <?= $justificatif['approuve'] ? 'Approuvé' : 'Rejeté' ?>
                     <?php if (!empty($justificatif['traite_par'])): ?>
@@ -112,22 +100,13 @@ include 'includes/header.php';
             </div>
         </div>
 
-        <!-- Informations sur l'élève -->
+        <!-- Informations élève -->
         <div class="form-container">
             <h3>Informations sur l'élève</h3>
             <div class="form-grid">
-                <div class="form-group">
-                    <label>Nom</label>
-                    <div class="form-value"><?= htmlspecialchars($justificatif['nom']) ?></div>
-                </div>
-                <div class="form-group">
-                    <label>Prénom</label>
-                    <div class="form-value"><?= htmlspecialchars($justificatif['prenom']) ?></div>
-                </div>
-                <div class="form-group">
-                    <label>Classe</label>
-                    <div class="form-value"><?= htmlspecialchars($justificatif['classe']) ?></div>
-                </div>
+                <div class="form-group"><label>Nom</label><div class="form-value"><?= htmlspecialchars($justificatif['nom']) ?></div></div>
+                <div class="form-group"><label>Prénom</label><div class="form-value"><?= htmlspecialchars($justificatif['prenom']) ?></div></div>
+                <div class="form-group"><label>Classe</label><div class="form-value"><?= htmlspecialchars($justificatif['classe']) ?></div></div>
             </div>
         </div>
 
@@ -137,9 +116,7 @@ include 'includes/header.php';
             <div class="form-grid">
                 <div class="form-group">
                     <label>Date de soumission</label>
-                    <div class="form-value">
-                        <?= isset($justificatif['date_soumission']) ? date('d/m/Y', strtotime($justificatif['date_soumission'])) : 'N/A' ?>
-                    </div>
+                    <div class="form-value"><?= isset($justificatif['date_soumission']) ? date('d/m/Y', strtotime($justificatif['date_soumission'])) : 'N/A' ?></div>
                 </div>
                 <div class="form-group">
                     <label>Période d'absence</label>
@@ -156,8 +133,22 @@ include 'includes/header.php';
                     <label>Description</label>
                     <div class="form-value"><?= nl2br(htmlspecialchars($justificatif['description'] ?? 'Aucune description fournie')) ?></div>
                 </div>
-                
-                <?php if (!empty($justificatif['fichier_path'])): ?>
+
+                <?php if (!empty($attachments)): ?>
+                <div class="form-group form-full">
+                    <label>Pièces jointes (<?= count($attachments) ?>)</label>
+                    <div class="form-value">
+                        <div class="attachments-list">
+                            <?php foreach ($attachments as $att): ?>
+                            <a href="download_fichier.php?id=<?= $att['id'] ?>" class="btn btn-outline attachment-link">
+                                <i class="fas fa-file-download"></i> <?= htmlspecialchars($att['nom_original']) ?>
+                                <span class="text-small text-muted">(<?= round($att['taille'] / 1024) ?> Ko)</span>
+                            </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+                <?php elseif (!empty($justificatif['fichier_path'])): ?>
                 <div class="form-group form-full">
                     <label>Document justificatif</label>
                     <div class="form-value">
@@ -167,7 +158,7 @@ include 'includes/header.php';
                     </div>
                 </div>
                 <?php endif; ?>
-                
+
                 <?php if ($justificatif['traite'] && !empty($justificatif['commentaire_admin'])): ?>
                 <div class="form-group form-full">
                     <label>Commentaire administratif</label>
@@ -177,7 +168,7 @@ include 'includes/header.php';
             </div>
         </div>
 
-        <!-- Informations sur l'absence associée -->
+        <!-- Absence associée -->
         <?php if ($absence): ?>
         <div class="form-container mt-4">
             <h3>Absence associée</h3>
@@ -193,38 +184,21 @@ include 'includes/header.php';
                 <div class="form-group">
                     <label>Type</label>
                     <div class="form-value">
-                        <span class="badge badge-<?= $absence['type_absence'] ?>">
-                            <?php
-                            switch ($absence['type_absence']) {
-                                case 'cours': echo 'Cours'; break;
-                                case 'demi-journee': echo 'Demi-journée'; break;
-                                case 'journee': echo 'Journée'; break;
-                                default: echo htmlspecialchars($absence['type_absence']);
-                            }
-                            ?>
-                        </span>
+                        <span class="badge badge-<?= htmlspecialchars($absence['type_absence']) ?>"><?= AbsenceHelper::typeLabel($absence['type_absence']) ?></span>
                     </div>
                 </div>
                 <div class="form-group">
                     <label>Statut</label>
                     <div class="form-value">
-                        <?php if ($absence['justifie']): ?>
-                            <span class="badge badge-success">Justifiée</span>
-                        <?php else: ?>
-                            <span class="badge badge-danger">Non justifiée</span>
-                        <?php endif; ?>
+                        <span class="badge <?= $absence['justifie'] ? 'badge-success' : 'badge-danger' ?>"><?= $absence['justifie'] ? 'Justifiée' : 'Non justifiée' ?></span>
                     </div>
                 </div>
                 <div class="form-group form-full">
                     <label>Actions</label>
                     <div class="form-value">
-                        <a href="details_absence.php?id=<?= $absence['id'] ?>" class="btn btn-outline">
-                            <i class="fas fa-eye"></i> Voir les détails de l'absence
-                        </a>
+                        <a href="details_absence.php?id=<?= $absence['id'] ?>" class="btn btn-outline"><i class="fas fa-eye"></i> Voir les détails</a>
                         <?php if (canManageAbsences()): ?>
-                        <a href="modifier_absence.php?id=<?= $absence['id'] ?>" class="btn btn-outline ml-2">
-                            <i class="fas fa-edit"></i> Modifier l'absence
-                        </a>
+                        <a href="modifier_absence.php?id=<?= $absence['id'] ?>" class="btn btn-outline ml-2"><i class="fas fa-edit"></i> Modifier</a>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -237,21 +211,15 @@ include 'includes/header.php';
         </div>
         <?php endif; ?>
     </div>
-    
+
     <div class="form-actions">
-        <a href="justificatifs.php" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Retour à la liste
-        </a>
+        <a href="justificatifs.php" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Retour à la liste</a>
         <?php if (!$justificatif['traite']): ?>
-        <a href="traiter_justificatif.php?id=<?= $id_justificatif ?>" class="btn btn-primary">
-            <i class="fas fa-check-circle"></i> Traiter ce justificatif
-        </a>
+        <a href="traiter_justificatif.php?id=<?= $id_justificatif ?>" class="btn btn-primary"><i class="fas fa-check-circle"></i> Traiter ce justificatif</a>
         <?php endif; ?>
     </div>
 </div>
 
 <?php
-// Inclure le pied de page
 include 'includes/footer.php';
 ob_end_flush();
-?>

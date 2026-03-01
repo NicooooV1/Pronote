@@ -35,9 +35,9 @@ ob_start();
                     <span>Liste des notes</span>
                 </a>
                 <?php if (in_array($user_role ?? '', ['professeur', 'administrateur'])): ?>
-                <a href="ajouter_note.php" class="sidebar-nav-item">
+                <a href="form_note.php" class="sidebar-nav-item">
                     <span class="sidebar-nav-icon"><i class="fas fa-plus"></i></span>
-                    <span>Ajouter une note</span>
+                    <span>Ajouter des notes</span>
                 </a>
                 <?php endif; ?>
             </div>

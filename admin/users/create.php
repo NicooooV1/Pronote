@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Ajouter un utilisateur — Formulaire dynamique selon le type
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/user.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -88,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['csrf_token']) && $_PO
 
 $pageTitle = 'Ajouter un utilisateur';
 $currentPage = 'users_create';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
@@ -95,10 +95,6 @@ ob_start();
     .create-container { max-width: 800px; margin: 0 auto; }
     .form-card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }
     .form-card h3 { margin: 0 0 20px; font-size: 16px; color: #2d3748; }
-    .form-row { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px; }
-    .form-row .form-group { flex: 1; min-width: 200px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 500; color: #4a5568; margin-bottom: 4px; }
-    .form-group input, .form-group select { width: 100%; padding: 9px 12px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
     .form-group input:focus, .form-group select:focus { border-color: #0f4c81; outline: none; box-shadow: 0 0 0 3px rgba(15,76,129,0.1); }
     .profil-selector { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
     .profil-btn { padding: 10px 18px; border: 2px solid #e2e8f0; border-radius: 8px; background: white; cursor: pointer; font-size: 14px; transition: all 0.15s; display: flex; align-items: center; gap: 8px; }

@@ -16,27 +16,15 @@
   --note-good-bg: rgba(52, 199, 89, 0.1);
   --note-average-bg: rgba(255, 149, 0, 0.1);
   --note-bad-bg: rgba(255, 59, 48, 0.1);
-  
-  /* Couleurs des matières */
-  --color-francais: #e74c3c;
-  --color-mathematiques: #3498db;
-  --color-histoire-geo: #f39c12;
-  --color-anglais: #2ecc71;
-  --color-espagnol: #9b59b6;
-  --color-allemand: #34495e;
-  --color-physique-chimie: #1abc9c;
-  --color-svt: #27ae60;
-  --color-technologie: #c0392b;
-  --color-arts: #d35400;
-  --color-musique: #8e44ad;
-  --color-eps: #16a085;
-  --color-default: #7f8c8d;
 }
 
-/* Les styles de layout (sidebar, header, footer, boutons) 
+/* Les styles de layout (sidebar, header, footer, boutons)
    sont fournis par pronote-unified.css */
 
-/* Affichage des notes */
+/* ──────────────────────────────────────────────
+   Affichage des notes (pastilles colorées)
+   ────────────────────────────────────────────── */
+
 .note-value {
   font-weight: 700;
   padding: 4px 8px;
@@ -61,348 +49,165 @@
   background-color: var(--note-bad-bg);
 }
 
-/* Moyenne générale */
-.moyenne-generale {
-  font-size: 24px;
-  font-weight: 700;
-  color: white;
-  background-color: var(--primary-color);
-  padding: 8px 15px;
-  border-radius: 8px;
-  display: inline-block;
-}
+.note-value.note-good { color: #38a169; font-weight: 700; font-size: 15px; }
+.note-value.note-bad  { color: #e53e3e; font-weight: 700; font-size: 15px; }
+.note-sur { font-size: 12px; color: #a0aec0; }
 
-/* Résumé des notes en haut de page */
-.notes-summary {
-  margin-bottom: 30px;
-}
+/* ──────────────────────────────────────────────
+   Sélecteur de trimestre
+   ────────────────────────────────────────────── */
 
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 20px;
-}
-
-.summary-card {
-  background-color: white;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  padding: 20px;
+.trimestre-selector {
   display: flex;
-  align-items: center;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.summary-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
-}
-
-.summary-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  background-color: rgba(15, 76, 129, 0.1);
-  color: var(--primary-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  margin-right: 15px;
-}
-
-.summary-content {
-  flex: 1;
-}
-
-.summary-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--primary-color);
-  margin-bottom: 5px;
-}
-
-.summary-label {
-  color: #666;
-  font-size: 14px;
-}
-
-/* Cards de matières */
-.matieres-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  margin-bottom: 30px;
-}
-
-.matiere-card {
-  background-color: white;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
-  border-left: 4px solid var(--primary-color);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.matiere-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
-}
-
-.matiere-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 20px;
-  background-color: rgba(0, 0, 0, 0.02);
-  border-bottom: 1px solid #eee;
-  cursor: pointer;
-}
-
-.matiere-title {
-  font-size: 16px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
   gap: 10px;
+  margin-bottom: 25px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.trimestre-selector .trimestre-label {
+  font-weight: 600;
+  color: #4a5568;
+  margin-right: 5px;
 }
 
-.matiere-indicator {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
+/* ──────────────────────────────────────────────
+   Carte hero — moyenne générale élève
+   ────────────────────────────────────────────── */
 
-.matiere-moyenne {
-  font-weight: 700;
-  color: var(--primary-color);
-  background-color: rgba(15, 76, 129, 0.1);
-  padding: 4px 10px;
+.notes-hero-card {
+  background: linear-gradient(135deg, var(--primary-color, #0f4c81), #1a6cb5);
+  color: white;
   border-radius: 12px;
-}
-
-/* Liste des notes */
-.matiere-content {
-  display: none;
-}
-
-.notes-list {
-  background-color: rgba(245, 245, 245, 0.5);
-}
-
-.note-item {
+  padding: 25px 30px;
+  margin-bottom: 25px;
   display: flex;
   align-items: center;
-  gap: 15px;
-  padding: 12px 20px;
-  border-bottom: 1px solid #eee;
+  justify-content: space-between;
 }
+.notes-hero-label { font-size: 14px; opacity: 0.85; margin-bottom: 4px; }
+.notes-hero-value { font-size: 36px; font-weight: 700; }
+.notes-hero-unit  { font-size: 18px; opacity: 0.7; }
+.notes-hero-icon  { font-size: 48px; opacity: 0.2; }
 
-.note-item:last-child {
-  border-bottom: none;
+/* ──────────────────────────────────────────────
+   Sections
+   ────────────────────────────────────────────── */
+
+.section-title {
+  font-size: 1.1em;
+  margin-bottom: 15px;
+  color: #2d3748;
 }
-
-.note-date {
-  width: 90px;
-  color: #666;
-  font-size: 14px;
-}
-
-.note-description {
-  flex: 1;
-  font-weight: 500;
-  color: #333;
-}
-
-.note-coefficient {
-  padding: 2px 6px;
-  background-color: #f5f5f5;
-  border-radius: 4px;
-  font-size: 13px;
-  color: #555;
-}
-
-.note-actions {
-  display: flex;
-  gap: 8px;
-}
-
-/* Distribution des notes */
-.grade-distribution {
+.section-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 30px;
-  gap: 15px;
-}
-
-.grade-section {
-  flex: 1;
-  text-align: center;
-  padding: 15px;
-  border-radius: 10px;
-}
-
-.grade-section.low {
-  background-color: var(--note-bad-bg);
-}
-
-.grade-section.mid {
-  background-color: var(--note-average-bg);
-}
-
-.grade-section.high {
-  background-color: var(--note-good-bg);
-}
-
-.grade-section-value {
-  font-size: 28px;
-  font-weight: 700;
-  margin-bottom: 5px;
-}
-
-.grade-section.low .grade-section-value {
-  color: var(--note-bad);
-}
-
-.grade-section.mid .grade-section-value {
-  color: var(--note-average);
-}
-
-.grade-section.high .grade-section-value {
-  color: var(--note-good);
-}
-
-.grade-section-label {
-  font-size: 14px;
-  color: #333;
-}
-
-/* Interface professeur */
-.class-selector {
-  background-color: white;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  padding: 20px;
+  align-items: center;
   margin-bottom: 20px;
 }
+.section-header .section-title { margin: 0; }
 
-.data-table {
+/* ──────────────────────────────────────────────
+   Grille des moyennes par matière (vue élève)
+   ────────────────────────────────────────────── */
+
+.notes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 15px;
+  margin-bottom: 30px;
+}
+.notes-matiere-card {
+  background: white;
+  border-radius: 10px;
+  padding: 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border-left: 4px solid #3498db;
+}
+.notes-matiere-name   { font-size: 13px; color: #718096; margin-bottom: 6px; }
+.notes-matiere-moyenne { font-size: 26px; font-weight: 700; color: #2d3748; }
+.notes-matiere-unit   { font-size: 14px; color: #a0aec0; }
+.notes-matiere-count  { font-size: 12px; color: #a0aec0; margin-top: 4px; }
+
+/* ──────────────────────────────────────────────
+   Table des notes
+   ────────────────────────────────────────────── */
+
+.notes-table-wrapper {
+  background: white;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.notes-table {
   width: 100%;
   border-collapse: collapse;
 }
-
-.data-table th, 
-.data-table td {
+.notes-table thead tr { background: #f7fafc; }
+.notes-table th {
   padding: 12px 15px;
   text-align: left;
-  border-bottom: 1px solid #eee;
-}
-
-.data-table th {
-  background-color: rgba(0, 0, 0, 0.02);
+  font-size: 13px;
+  color: #4a5568;
   font-weight: 600;
-  color: #333;
+}
+.notes-table td { padding: 10px 15px; font-size: 14px; }
+.notes-table tbody tr { border-bottom: 1px solid #edf2f7; }
+.notes-table tbody tr:last-child { border-bottom: none; }
+
+/* Badge matière (pastille) */
+.badge-matiere {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
 }
 
-.data-table tr:last-child td {
-  border-bottom: none;
-}
+/* ──────────────────────────────────────────────
+   Statistiques admin / professeur
+   ────────────────────────────────────────────── */
 
-.data-table tr:hover {
-  background-color: rgba(0, 0, 0, 0.01);
+.notes-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 15px;
+  margin-bottom: 25px;
 }
-
-.table-actions {
-  display: flex;
-  gap: 8px;
+.notes-stat-card {
+  background: white;
+  border-radius: 10px;
+  padding: 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  text-align: center;
 }
+.notes-stat-value { font-size: 28px; font-weight: 700; }
+.notes-stat-value.primary { color: var(--primary-color, #0f4c81); }
+.notes-stat-value.success { color: #38a169; }
+.notes-stat-value.info    { color: #667eea; }
+.notes-stat-label { font-size: 13px; color: #718096; }
 
-.btn-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #f5f5f5;
-  color: #555;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
+/* ──────────────────────────────────────────────
+   Utilitaires
+   ────────────────────────────────────────────── */
 
-.btn-icon:hover {
-  background-color: #e0e0e0;
-}
+.text-center { text-align: center; }
+.text-muted  { color: #718096; }
+.font-medium { font-weight: 500; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
 
-.btn-icon.btn-danger {
-  background-color: rgba(255, 59, 48, 0.1);
-  color: var(--note-bad);
-}
-
-.btn-icon.btn-danger:hover {
-  background-color: rgba(255, 59, 48, 0.2);
-}
-
-/* Couleurs des matières */
-.color-francais { background-color: var(--color-francais); }
-.color-mathematiques { background-color: var(--color-mathematiques); }
-.color-histoire-geo { background-color: var(--color-histoire-geo); }
-.color-anglais { background-color: var(--color-anglais); }
-.color-espagnol { background-color: var(--color-espagnol); }
-.color-allemand { background-color: var(--color-allemand); }
-.color-physique-chimie { background-color: var(--color-physique-chimie); }
-.color-svt { background-color: var(--color-svt); }
-.color-technologie { background-color: var(--color-technologie); }
-.color-arts { background-color: var(--color-arts); }
-.color-musique { background-color: var(--color-musique); }
-.color-eps { background-color: var(--color-eps); }
-.color-default { background-color: var(--color-default); }
-
-/* Responsive pour les notes */
-@media (max-width: 1024px) {
-  .summary-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
+/* ──────────────────────────────────────────────
+   Responsive
+   ────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
-  .summary-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .note-item {
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  
-  .note-date {
-    width: 100%;
-    margin-bottom: 5px;
-  }
-  
-  .note-coefficient {
-    order: 3;
-  }
-  
-  .note-value {
-    order: 4;
-  }
-  
-  .note-actions {
-    width: 100%;
-    justify-content: flex-end;
-    margin-top: 10px;
-  }
+  .notes-grid { grid-template-columns: 1fr; }
+  .notes-stats-grid { grid-template-columns: 1fr 1fr; }
+  .notes-hero-card { flex-direction: column; text-align: center; }
+  .notes-hero-icon { margin-top: 10px; }
+  .section-header { flex-direction: column; gap: 10px; }
+  .trimestre-selector { justify-content: center; }
 }
 
-@media (max-width: 576px) {
-  .matiere-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .matiere-moyenne {
-    margin-top: 10px;
-  }
+@media (max-width: 480px) {
+  .notes-stats-grid { grid-template-columns: 1fr; }
 }

@@ -1,425 +1,143 @@
 <?php
-// Démarrer la mise en mémoire tampon
+/**
+ * agenda.php — Contrôleur principal du module Agenda.
+ *
+ * Utilise EventRepository pour un filtrage unique et centralisé.
+ * Aucun SQL en dur, aucun inline JS/CSS, aucun établissement.json.
+ */
 ob_start();
 
-// Inclure l'API centralisée
 require_once __DIR__ . '/../API/core.php';
 $pdo = getPDO();
 require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/EventRepository.php';
 
-// Vérifier l'authentification
 requireAuth();
 
-// Récupérer les informations utilisateur via l'API
-$user = getCurrentUser();
+$user          = getCurrentUser();
 $user_fullname = getUserFullName();
-$user_role = getUserRole();
+$user_role     = getUserRole();
 $user_initials = getUserInitials();
 
-// Récupérer les paramètres de filtrage
-$view = isset($_GET['view']) ? $_GET['view'] : 'month';
-$month = isset($_GET['month']) ? intval($_GET['month']) : intval(date('m'));
-$year = isset($_GET['year']) ? intval($_GET['year']) : intval(date('Y'));
-$date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
-$filter_types = isset($_GET['types']) ? (is_array($_GET['types']) ? $_GET['types'] : [$_GET['types']]) : [];
-$filter_classes = isset($_GET['classes']) ? (is_array($_GET['classes']) ? $_GET['classes'] : [$_GET['classes']]) : [];
+$repo = new EventRepository($pdo);
 
-// Garder une trace si les filtres ont été explicitement définis dans l'URL
-$filters_explicitly_set = isset($_GET['filter_set']);
+// ── Paramètres de requête ──
+$view          = $_GET['view']  ?? 'month';
+$month         = max(1, min(12, intval($_GET['month'] ?? date('m'))));
+$year          = intval($_GET['year'] ?? date('Y'));
+$date          = (isset($_GET['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'])) ? $_GET['date'] : date('Y-m-d');
+$filter_types  = isset($_GET['types']) ? (array) $_GET['types'] : [];
 
-// Assurer que le mois est entre 1 et 12
-if ($month < 1) {
-    $month = 12;
-    $year--;
-} elseif ($month > 12) {
-    $month = 1;
-    $year++;
-}
+// ── Options de filtrage par rôle (réutilisées partout) ──
+$roleOpts = $repo->getUserFilterOptions();
 
-// Vérifier le format de la date
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-    $date = date('Y-m-d');
-}
+// ── Constantes réutilisées par les vues ──
+$month_names    = EventRepository::MONTH_NAMES;
+$day_names      = EventRepository::DAY_NAMES;
+$day_names_full = EventRepository::DAY_NAMES_FULL;
 
-// Obtenir le nombre de jours dans le mois
-$num_days = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+// ── Calculs calendrier ──
+$num_days   = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+$first_day  = (int) date('N', mktime(0, 0, 0, $month, 1, $year));
+$today_day  = (int) date('j');
+$today_month = (int) date('n');
+$today_year = (int) date('Y');
 
-// Obtenir le premier jour du mois (1 = lundi, 7 = dimanche)
-$first_day_timestamp = mktime(0, 0, 0, $month, 1, $year);
-$first_day = date('N', $first_day_timestamp);
+// ── Requête centralisée via EventRepository ──
+$filterArgs = array_merge($roleOpts, [
+    'types' => $filter_types ?: null,
+]);
 
-// Obtenir le jour du mois pour aujourd'hui
-$today_day = date('j');
-$today_month = date('n');
-$today_year = date('Y');
-
-// Noms des mois en français
-$month_names = [
-    1 => 'Janvier', 2 => 'Février', 3 => 'Mars', 4 => 'Avril',
-    5 => 'Mai', 6 => 'Juin', 7 => 'Juillet', 8 => 'Août',
-    9 => 'Septembre', 10 => 'Octobre', 11 => 'Novembre', 12 => 'Décembre'
-];
-
-// Noms des jours en français
-$day_names = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-$day_names_full = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
-
-// Types d'événements pour le filtre
-$types_evenements = [
-    'cours' => 'Cours',
-    'devoirs' => 'Devoirs',
-    'reunion' => 'Réunion',
-    'examen' => 'Examen',
-    'sortie' => 'Sortie scolaire',
-    'autre' => 'Autre'
-];
-
-// Récupérer la liste des classes
-$classes = [];
-$json_file = __DIR__ . '/../login/data/etablissement.json';
-if (file_exists($json_file)) {
-    $etablissement_data = json_decode(file_get_contents($json_file), true);
-    
-    // Extraire les classes du secondaire
-    if (!empty($etablissement_data['classes'])) {
-        foreach ($etablissement_data['classes'] as $niveau => $niveaux) {
-            foreach ($niveaux as $sousniveau => $classe_array) {
-                foreach ($classe_array as $classe) {
-                    $classes[] = $classe;
-                }
-            }
-        }
-    }
-    
-    // Extraire les classes du primaire
-    if (!empty($etablissement_data['primaire'])) {
-        foreach ($etablissement_data['primaire'] as $niveau => $classe_array) {
-            foreach ($classe_array as $classe) {
-                $classes[] = $classe;
-            }
-        }
-    }
-}
-
-// Récupérer les événements
-$events = [];
-$personnes_concernees_exists = true;
-
-    // Paramètres de filtrage
-    $params = [];
-    $where_clauses = [];
-    
-    // Filtre de date selon la vue
-    if ($view === 'month') {
-        $where_clauses[] = "MONTH(date_debut) = ? AND YEAR(date_debut) = ?";
-        $params[] = $month;
-        $params[] = $year;
-    } elseif ($view === 'day') {
-        $where_clauses[] = "DATE(date_debut) = ?";
-        $params[] = $date;
-    } elseif ($view === 'week') {
-        // Calculer le début et la fin de la semaine
-        $date_obj = new DateTime($date);
-        $day_of_week = $date_obj->format('N'); // 1 (lundi) à 7 (dimanche)
-        $start_of_week = clone $date_obj;
-        $start_of_week->modify('-' . ($day_of_week - 1) . ' days');
-        $end_of_week = clone $start_of_week;
-        $end_of_week->modify('+6 days');
-        
-        $where_clauses[] = "DATE(date_debut) BETWEEN ? AND ?";
-        $params[] = $start_of_week->format('Y-m-d');
-        $params[] = $end_of_week->format('Y-m-d');
-    }
-    
-    // Filtre par type d'événement
-    if (!empty($filter_types)) {
-        $type_placeholders = implode(',', array_fill(0, count($filter_types), '?'));
-        $where_clauses[] = "type_evenement IN ($type_placeholders)";
-        $params = array_merge($params, $filter_types);
-    }
-    
-    // Filtre par classe
-    if (!empty($filter_classes)) {
-        $class_conditions = [];
-        foreach ($filter_classes as $class) {
-            $class_conditions[] = "classes LIKE ?";
-            $params[] = "%$class%";
-        }
-        if (!empty($class_conditions)) {
-            $where_clauses[] = "(" . implode(" OR ", $class_conditions) . ")";
-        }
-    }
-    
-    // Filtrage en fonction du rôle de l'utilisateur
-    if ($user_role === 'eleve') {
-        // Pour un élève, récupérer ses événements et ceux de sa classe
-        $classe = ''; // Classe de l'élève (à adapter)
-        
-        $where_clause = "(visibilite = 'public' 
-                OR visibilite = 'eleves' 
-                OR visibilite LIKE '%élèves%'
-                OR classes LIKE ? 
-                OR createur = ?";
-                
-        $params[] = "%$classe%";
-        $params[] = $user_fullname;
-        
-        // Ajouter la condition personnes_concernees seulement si la colonne existe
-        if ($personnes_concernees_exists) {
-            $where_clause .= " OR personnes_concernees LIKE ?";
-            $params[] = "%$user_fullname%";
-        }
-        
-        $where_clause .= ")";
-        $where_clauses[] = $where_clause;
-        
-    } elseif ($user_role === 'professeur') {
-        // Pour un professeur, récupérer ses événements et les événements publics/professeurs
-        $where_clause = "(visibilite = 'public' 
-                OR visibilite = 'professeurs' 
-                OR visibilite LIKE '%professeurs%'
-                OR createur = ?";
-                
-        $params[] = $user_fullname;
-        
-        // Ajouter la condition personnes_concernees seulement si la colonne existe
-        if ($personnes_concernees_exists) {
-            $where_clause .= " OR personnes_concernees LIKE ?";
-            $params[] = "%$user_fullname%";
-        }
-        
-        $where_clause .= ")";
-        $where_clauses[] = $where_clause;
-        
-    } elseif ($user_role === 'personnel' || $user_role === 'administration') {
-        // Pour le personnel et l'administration
-        $where_clause = "(visibilite = 'public' 
-                OR visibilite = 'personnel' 
-                OR visibilite = 'administration'
-                OR createur = ?";
-                
-        $params[] = $user_fullname;
-        
-        // Ajouter la condition personnes_concernees seulement si la colonne existe
-        if ($personnes_concernees_exists) {
-            $where_clause .= " OR personnes_concernees LIKE ?";
-            $params[] = "%$user_fullname%";
-        }
-        
-        $where_clause .= ")";
-        $where_clauses[] = $where_clause;
-    }
-    // Pour les autres rôles (admin, vie scolaire), aucun filtrage supplémentaire
-    
-    // Construire la requête SQL
-    $sql = "SELECT * FROM evenements";
-    if (!empty($where_clauses)) {
-        $sql .= " WHERE " . implode(" AND ", $where_clauses);
-    }
-    $sql .= " ORDER BY date_debut";
-    
-    // Exécuter la requête
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Organiser les événements par jour pour la vue mois
-$events_by_day = [];
 if ($view === 'month') {
-    foreach ($events as $event) {
-        $day = intval(date('j', strtotime($event['date_debut'])));
-        if (!isset($events_by_day[$day])) {
-            $events_by_day[$day] = [];
-        }
-        $events_by_day[$day][] = $event;
-    }
+    $filterArgs['month'] = $month;
+    $filterArgs['year']  = $year;
+} elseif ($view === 'day') {
+    $filterArgs['date'] = $date;
+} elseif ($view === 'week') {
+    $dateObj     = new DateTime($date);
+    $dow         = (int) $dateObj->format('N');
+    $startOfWeek = (clone $dateObj)->modify('-' . ($dow - 1) . ' days');
+    $endOfWeek   = (clone $startOfWeek)->modify('+6 days');
+    $filterArgs['date_start'] = $startOfWeek->format('Y-m-d');
+    $filterArgs['date_end']   = $endOfWeek->format('Y-m-d');
 }
 
-// Déterminer les types d'événements disponibles dans les résultats pour les filtres
-$available_event_types = [];
-foreach ($events as $event) {
-    if (!in_array($event['type_evenement'], $available_event_types)) {
-        $available_event_types[] = $event['type_evenement'];
-    }
-}
+$events = $repo->findFiltered($filterArgs);
 
-// Si aucun filtre n'est appliqué et que les filtres n'ont pas été explicitement définis,
-// sélectionner tous les types disponibles par défaut. Sinon respecter la sélection de l'utilisateur.
-if (empty($filter_types) && !$filters_explicitly_set) {
-    $filter_types = $available_event_types;
-}
+// Organiser par jour pour la vue mois
+$events_by_day = ($view === 'month') ? EventRepository::groupByDay($events) : [];
 
-// Mini-calendrier pour le mois actuel
-function generateMiniCalendar($month, $year, $selected_date = null) {
-    global $day_names, $month_names, $filters_explicitly_set, $filter_types;
-    
-    $num_days = cal_days_in_month(CAL_GREGORIAN, $month, $year);
-    $first_day_timestamp = mktime(0, 0, 0, $month, 1, $year);
-    $first_day = date('N', $first_day_timestamp);
-    
-    $today_day = date('j');
-    $today_month = date('n');
-    $today_year = date('Y');
-    
-    $selected_day = $selected_date ? date('j', strtotime($selected_date)) : null;
-    $selected_month = $selected_date ? date('n', strtotime($selected_date)) : null;
-    $selected_year = $selected_date ? date('Y', strtotime($selected_date)) : null;
-    
-    $html = '<div class="mini-calendar-header">';
-    $html .= '<span class="mini-calendar-title">' . $month_names[$month] . ' ' . $year . '</span>';
-    $html .= '<div class="mini-calendar-nav">';
-    
-    // Add filter_set parameter if filters were explicitly set
-    $filter_params = $filters_explicitly_set ? '&filter_set=1' : '';
-    
-    // Add type filters if explicitly set
-    if ($filters_explicitly_set && !empty($filter_types)) {
-        foreach ($filter_types as $type) {
-            $filter_params .= '&types[]=' . urlencode($type);
-        }
-    }
-    
-    $html .= '<button class="mini-calendar-nav-btn prev" data-month="' . ($month-1) . '" data-year="' . ($month==1 ? $year-1 : $year) . '" data-filters="' . htmlspecialchars($filter_params) . '">◀</button>';
-    $html .= '<button class="mini-calendar-nav-btn next" data-month="' . ($month+1) . '" data-year="' . ($month==12 ? $year+1 : $year) . '" data-filters="' . htmlspecialchars($filter_params) . '">▶</button>';
-    $html .= '</div>';
-    $html .= '</div>';
-    
-    $html .= '<div class="mini-calendar-grid">';
-    
-    // Afficher les noms des jours
-    foreach ($day_names as $day) {
-        $html .= '<div class="mini-calendar-day-name">' . $day . '</div>';
-    }
-    
-    // Jours du mois précédent pour remplir la première semaine
-    $prev_month = $month - 1;
-    $prev_year = $year;
-    if ($prev_month < 1) {
-        $prev_month = 12;
-        $prev_year--;
-    }
-    $prev_month_days = cal_days_in_month(CAL_GREGORIAN, $prev_month, $prev_year);
-    
-    for ($i = 1; $i < $first_day; $i++) {
-        $day_num = $prev_month_days - $first_day + $i + 1;
-        $html .= '<div class="mini-calendar-day other-month">' . $day_num . '</div>';
-    }
-    
-    // Jours du mois courant
-    for ($day = 1; $day <= $num_days; $day++) {
-        $is_today = ($day == $today_day && $month == $today_month && $year == $today_year);
-        $is_selected = ($day == $selected_day && $month == $selected_month && $year == $selected_year);
-        
-        $classes = '';
-        if ($is_today) $classes .= ' today';
-        if ($is_selected) $classes .= ' selected';
-        
-        $date = sprintf('%04d-%02d-%02d', $year, $month, $day);
-        
-        $html .= '<div class="mini-calendar-day' . $classes . '" data-date="' . $date . '">' . $day . '</div>';
-    }
-    
-    // Jours du mois suivant pour compléter la dernière semaine
-    $days_shown = $first_day - 1 + $num_days;
-    $remaining_days = 7 - ($days_shown % 7);
-    if ($remaining_days < 7) {
-        for ($day = 1; $day <= $remaining_days; $day++) {
-            $html .= '<div class="mini-calendar-day other-month">' . $day . '</div>';
-        }
-    }
-    
-    $html .= '</div>';
-    
-    return $html;
-}
+// Stats rapides
+$type_counts = EventRepository::countByType($events);
 
-// Définir le titre de la page selon la vue
+// Prochains & récents (avec filtrage rôle)
+$upcoming_events    = $repo->findUpcoming($roleOpts, 8);
+$past_recent_events = $repo->findRecentPast($roleOpts, 7, 5);
+
+// ── Titre de page ──
+$types_evenements = EventRepository::getTypesSimple();
+
 switch ($view) {
     case 'day':
-        $date_formatted = date('d/m/Y', strtotime($date));
-        $pageTitle = "Agenda - Journée du $date_formatted";
+        $pageTitle = "Agenda - Journée du " . date('d/m/Y', strtotime($date));
         break;
     case 'week':
-        $date_obj = new DateTime($date);
-        $day_of_week = $date_obj->format('N');
-        $start_of_week = clone $date_obj;
-        $start_of_week->modify('-' . ($day_of_week - 1) . ' days');
-        $end_of_week = clone $start_of_week;
-        $end_of_week->modify('+6 days');
-        $pageTitle = "Agenda - Semaine du " . $start_of_week->format('d/m') . " au " . $end_of_week->format('d/m/Y');
+        $d = new DateTime($date);
+        $sw = (clone $d)->modify('-' . ((int)$d->format('N') - 1) . ' days');
+        $ew = (clone $sw)->modify('+6 days');
+        $pageTitle = "Agenda - Semaine du " . $sw->format('d/m') . " au " . $ew->format('d/m/Y');
         break;
     case 'list':
         $pageTitle = "Agenda - Liste des événements";
         break;
-    default: // month
+    default:
         $pageTitle = "Agenda - " . $month_names[$month] . " " . $year;
 }
 
-// Inclusion de l'en-tête
 include 'includes/header.php';
 ?>
 
+<!-- Navigation -->
 <div class="calendar-navigation">
-  <button class="nav-button prev-button" onclick="navigateToPrevious()"><i class="fas fa-chevron-left"></i></button>
-  <button class="nav-button next-button" onclick="navigateToNext()"><i class="fas fa-chevron-right"></i></button>
-  <button class="today-button" onclick="navigateToToday()">Aujourd'hui</button>
+  <div>
+    <button class="nav-button" data-nav="prev" aria-label="Précédent"><i class="fas fa-chevron-left"></i></button>
+    <button class="nav-button" data-nav="next" aria-label="Suivant"><i class="fas fa-chevron-right"></i></button>
+    <button class="today-button" data-nav="today">Aujourd'hui</button>
+  </div>
   <h2 class="calendar-title">
     <?php if ($view === 'month'): ?>
       <?= $month_names[$month] . ' ' . $year ?>
     <?php elseif ($view === 'day'): ?>
-      <?= date('d', strtotime($date)) . ' ' . $month_names[date('n', strtotime($date))] . ' ' . date('Y', strtotime($date)) ?>
+      <?= date('d', strtotime($date)) . ' ' . $month_names[(int)date('n', strtotime($date))] . ' ' . date('Y', strtotime($date)) ?>
     <?php elseif ($view === 'week'): ?>
       <?php
-        $date_obj = new DateTime($date);
-        $day_of_week = $date_obj->format('N');
-        $start_of_week = clone $date_obj;
-        $start_of_week->modify('-' . ($day_of_week - 1) . ' days');
-        $end_of_week = clone $start_of_week;
-        $end_of_week->modify('+6 days');
-        echo $start_of_week->format('d') . ' - ' . $end_of_week->format('d') . ' ' . $month_names[$start_of_week->format('n')] . ' ' . $start_of_week->format('Y');
+        $d = new DateTime($date);
+        $sw = (clone $d)->modify('-' . ((int)$d->format('N') - 1) . ' days');
+        $ew = (clone $sw)->modify('+6 days');
+        echo $sw->format('d') . ' - ' . $ew->format('d') . ' ' . $month_names[(int)$sw->format('n')] . ' ' . $sw->format('Y');
       ?>
+    <?php elseif ($view === 'list'): ?>
+      Liste des événements
     <?php endif; ?>
   </h2>
-  
-  <div class="view-toggle">
-    <a href="?view=day&date=<?= $date ?>" class="view-toggle-option <?= $view === 'day' ? 'active' : '' ?>">Jour</a>
-    <a href="?view=week&date=<?= $date ?>" class="view-toggle-option <?= $view === 'week' ? 'active' : '' ?>">Semaine</a>
-    <a href="?view=month&month=<?= $month ?>&year=<?= $year ?>" class="view-toggle-option <?= $view === 'month' ? 'active' : '' ?>">Mois</a>
-    <a href="?view=list" class="view-toggle-option <?= $view === 'list' ? 'active' : '' ?>">Liste</a>
+  <div class="view-toggle" role="tablist">
+    <a href="?view=day&date=<?= $date ?>"  class="view-toggle-option <?= $view === 'day'   ? 'active' : '' ?>" role="tab" aria-selected="<?= $view === 'day' ? 'true' : 'false' ?>"><i class="fas fa-calendar-day"></i> Jour</a>
+    <a href="?view=week&date=<?= $date ?>" class="view-toggle-option <?= $view === 'week'  ? 'active' : '' ?>" role="tab" aria-selected="<?= $view === 'week' ? 'true' : 'false' ?>"><i class="fas fa-calendar-week"></i> Semaine</a>
+    <a href="?view=month&month=<?= $month ?>&year=<?= $year ?>" class="view-toggle-option <?= $view === 'month' ? 'active' : '' ?>" role="tab" aria-selected="<?= $view === 'month' ? 'true' : 'false' ?>"><i class="fas fa-calendar-alt"></i> Mois</a>
+    <a href="?view=list&month=<?= $month ?>&year=<?= $year ?>"  class="view-toggle-option <?= $view === 'list'  ? 'active' : '' ?>" role="tab" aria-selected="<?= $view === 'list' ? 'true' : 'false' ?>"><i class="fas fa-list"></i> Liste</a>
   </div>
 </div>
 
-<?php
-// Récupérer les prochains événements
-$upcoming_events = [];
-$past_recent_events = [];
-try {
-    $stmt_upcoming = $pdo->prepare("SELECT * FROM evenements WHERE date_debut >= NOW() ORDER BY date_debut ASC LIMIT 8");
-    $stmt_upcoming->execute();
-    $upcoming_events = $stmt_upcoming->fetchAll(PDO::FETCH_ASSOC);
-    
-    $stmt_past = $pdo->prepare("SELECT * FROM evenements WHERE date_debut < NOW() AND date_debut >= DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY date_debut DESC LIMIT 5");
-    $stmt_past->execute();
-    $past_recent_events = $stmt_past->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {}
-
-$type_counts = [];
-foreach ($events as $ev) {
-    $t = $ev['type_evenement'] ?? 'autre';
-    $type_counts[$t] = ($type_counts[$t] ?? 0) + 1;
-}
-?>
-
 <!-- Stats rapides -->
-<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:12px; margin-bottom:20px;">
-    <div style="background:white; border-radius:10px; padding:14px 16px; box-shadow:0 2px 6px rgba(0,0,0,0.05); text-align:center;">
-        <div style="font-size:24px; font-weight:700; color:var(--primary-color);"><?= count($events) ?></div>
-        <div style="font-size:12px; color:#718096;">Événements ce mois</div>
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value"><?= count($events) ?></div>
+        <div class="stat-label">Événements ce mois</div>
     </div>
     <?php foreach (array_slice($type_counts, 0, 4, true) as $type => $cnt): ?>
-    <div style="background:white; border-radius:10px; padding:14px 16px; box-shadow:0 2px 6px rgba(0,0,0,0.05); text-align:center;">
-        <div style="font-size:24px; font-weight:700; color:#667eea;"><?= $cnt ?></div>
-        <div style="font-size:12px; color:#718096;"><?= htmlspecialchars(ucfirst($types_evenements[$type] ?? $type)) ?></div>
+    <div class="stat-card">
+        <div class="stat-value"><?= $cnt ?></div>
+        <div class="stat-label"><?= htmlspecialchars($types_evenements[$type] ?? ucfirst($type)) ?></div>
     </div>
     <?php endforeach; ?>
 </div>
@@ -429,46 +147,48 @@ foreach ($events as $ev) {
   <?php if ($view === 'month'): ?>
     <div class="calendar">
       <div class="calendar-header">
-        <?php foreach ($day_names_full as $day): ?>
-          <div class="calendar-header-day"><?= $day ?></div>
+        <?php foreach ($day_names_full as $d): ?>
+          <div class="calendar-header-day"><?= $d ?></div>
         <?php endforeach; ?>
       </div>
       <div class="calendar-body">
         <?php
-        $prev_month = $month > 1 ? $month - 1 : 12;
-        $prev_year = $month > 1 ? $year : $year - 1;
-        $prev_month_days = cal_days_in_month(CAL_GREGORIAN, $prev_month, $prev_year);
+        // Jours du mois précédent
+        $prevM = $month > 1 ? $month - 1 : 12;
+        $prevY = $month > 1 ? $year : $year - 1;
+        $prevDays = cal_days_in_month(CAL_GREGORIAN, $prevM, $prevY);
         for ($i = 1; $i < $first_day; $i++) {
-          $day_num = $prev_month_days - $first_day + $i + 1;
-          echo '<div class="calendar-day other-month"><div class="calendar-day-number">' . $day_num . '</div></div>';
+            $dn = $prevDays - $first_day + $i + 1;
+            echo '<div class="calendar-day other-month"><div class="calendar-day-number">' . $dn . '</div></div>';
         }
-        for ($day = 1; $day <= $num_days; $day++) {
-          $date_str = sprintf('%04d-%02d-%02d', $year, $month, $day);
-          $is_today = ($day == $today_day && $month == $today_month && $year == $today_year);
-          $today_class = $is_today ? ' today' : '';
-          echo '<div class="calendar-day' . $today_class . '" data-date="' . $date_str . '" onclick="openDayView(\'' . $date_str . '\')">';
-          echo '<div class="calendar-day-number">' . $day . '</div>';
-          if (isset($events_by_day[$day])) {
-            echo '<div class="calendar-day-events">';
-            foreach ($events_by_day[$day] as $event) {
-              $event_time = date('H:i', strtotime($event['date_debut']));
-              $event_class = 'event-' . strtolower($event['type_evenement']);
-              if ($event['statut'] === 'annulé') $event_class .= ' event-cancelled';
-              elseif ($event['statut'] === 'reporté') $event_class .= ' event-postponed';
-              echo '<div class="calendar-event ' . $event_class . '" data-event-id="' . $event['id'] . '" onclick="openEventDetails(' . $event['id'] . ', event)">';
-              echo '<span class="event-time">' . $event_time . '</span> ' . htmlspecialchars($event['titre']);
-              echo '</div>';
+        // Jours courants
+        for ($d = 1; $d <= $num_days; $d++) {
+            $ds = sprintf('%04d-%02d-%02d', $year, $month, $d);
+            $tc = ($d == $today_day && $month == $today_month && $year == $today_year) ? ' today' : '';
+            echo '<div class="calendar-day' . $tc . '" data-date="' . $ds . '">';
+            echo '<div class="calendar-day-number">' . $d . '</div>';
+            if (!empty($events_by_day[$d])) {
+                echo '<div class="calendar-day-events">';
+                foreach ($events_by_day[$d] as $ev) {
+                    $eTime = date('H:i', strtotime($ev['date_debut']));
+                    $eCls  = 'event-' . strtolower($ev['type_evenement']);
+                    if ($ev['statut'] === 'annulé')  $eCls .= ' event-cancelled';
+                    elseif ($ev['statut'] === 'reporté') $eCls .= ' event-postponed';
+                    echo '<div class="calendar-event ' . $eCls . '" data-event-id="' . (int)$ev['id'] . '">';
+                    echo '<span class="event-time">' . $eTime . '</span> ' . htmlspecialchars($ev['titre']);
+                    echo '</div>';
+                }
+                echo '</div>';
             }
             echo '</div>';
-          }
-          echo '</div>';
         }
-        $days_shown = $first_day - 1 + $num_days;
-        $remaining_days = 7 - ($days_shown % 7);
-        if ($remaining_days < 7) {
-          for ($day = 1; $day <= $remaining_days; $day++) {
-            echo '<div class="calendar-day other-month"><div class="calendar-day-number">' . $day . '</div></div>';
-          }
+        // Jours mois suivant
+        $shown = $first_day - 1 + $num_days;
+        $rem   = 7 - ($shown % 7);
+        if ($rem < 7) {
+            for ($d = 1; $d <= $rem; $d++) {
+                echo '<div class="calendar-day other-month"><div class="calendar-day-number">' . $d . '</div></div>';
+            }
         }
         ?>
       </div>
@@ -484,43 +204,49 @@ foreach ($events as $ev) {
 
 <?php if ($view === 'month'): ?>
 <!-- Panneaux prochains / passés -->
-<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px;">
-    <div style="background:white; border-radius:10px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <h3 style="font-size:1em; color:#2d3748; margin-bottom:15px;"><i class="fas fa-arrow-right" style="color:var(--primary-color); margin-right:6px;"></i>Prochains événements</h3>
+<div class="upcoming-panels">
+    <div class="upcoming-card">
+        <h3 class="upcoming-card-title"><i class="fas fa-arrow-right"></i> Prochains événements</h3>
         <?php if (empty($upcoming_events)): ?>
-            <p style="color:#a0aec0; font-size:14px; text-align:center; padding:20px 0;">Aucun événement à venir</p>
+            <p class="upcoming-empty">Aucun événement à venir</p>
         <?php else: ?>
             <?php foreach ($upcoming_events as $ue): ?>
-            <a href="details_evenement.php?id=<?= $ue['id'] ?>" style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #f1f5f9; text-decoration:none; color:inherit;">
-                <div style="min-width:45px; text-align:center;">
-                    <div style="font-size:18px; font-weight:700; color:#2d3748; line-height:1;"><?= date('d', strtotime($ue['date_debut'])) ?></div>
-                    <div style="font-size:11px; color:#a0aec0;"><?= $month_names[(int)date('n', strtotime($ue['date_debut']))] ?></div>
+            <a href="details_evenement.php?id=<?= (int)$ue['id'] ?>" class="upcoming-item">
+                <div class="upcoming-item-date">
+                    <span class="upcoming-day"><?= date('d', strtotime($ue['date_debut'])) ?></span>
+                    <span class="upcoming-month"><?= $month_names[(int)date('n', strtotime($ue['date_debut']))] ?></span>
                 </div>
-                <div style="flex:1; min-width:0;">
-                    <div style="font-size:14px; font-weight:500; color:#2d3748; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><?= htmlspecialchars($ue['titre']) ?></div>
-                    <div style="font-size:12px; color:#718096;"><i class="far fa-clock"></i> <?= date('H:i', strtotime($ue['date_debut'])) ?><?php if (!empty($ue['lieu'])): ?> · <i class="fas fa-map-marker-alt"></i> <?= htmlspecialchars($ue['lieu']) ?><?php endif; ?></div>
+                <div class="upcoming-item-info">
+                    <div class="upcoming-item-title"><?= htmlspecialchars($ue['titre']) ?></div>
+                    <div class="upcoming-item-meta">
+                        <i class="far fa-clock"></i> <?= date('H:i', strtotime($ue['date_debut'])) ?>
+                        <?php if (!empty($ue['lieu'])): ?> · <i class="fas fa-map-marker-alt"></i> <?= htmlspecialchars($ue['lieu']) ?><?php endif; ?>
+                    </div>
                 </div>
-                <span style="padding:3px 8px; border-radius:10px; font-size:11px; font-weight:500; background:var(--primary-color); color:white; white-space:nowrap;"><?= htmlspecialchars(ucfirst($types_evenements[$ue['type_evenement']] ?? $ue['type_evenement'])) ?></span>
+                <span class="upcoming-type-badge"><?= htmlspecialchars($types_evenements[$ue['type_evenement']] ?? ucfirst($ue['type_evenement'])) ?></span>
             </a>
             <?php endforeach; ?>
         <?php endif; ?>
     </div>
-    <div style="background:white; border-radius:10px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <h3 style="font-size:1em; color:#2d3748; margin-bottom:15px;"><i class="fas fa-history" style="color:#a0aec0; margin-right:6px;"></i>Événements récents</h3>
+    <div class="upcoming-card">
+        <h3 class="upcoming-card-title upcoming-card-title--past"><i class="fas fa-history"></i> Événements récents</h3>
         <?php if (empty($past_recent_events)): ?>
-            <p style="color:#a0aec0; font-size:14px; text-align:center; padding:20px 0;">Aucun événement récent</p>
+            <p class="upcoming-empty">Aucun événement récent</p>
         <?php else: ?>
             <?php foreach ($past_recent_events as $pe): ?>
-            <a href="details_evenement.php?id=<?= $pe['id'] ?>" style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #f1f5f9; text-decoration:none; color:inherit; opacity:0.7;">
-                <div style="min-width:45px; text-align:center;">
-                    <div style="font-size:18px; font-weight:700; color:#2d3748; line-height:1;"><?= date('d', strtotime($pe['date_debut'])) ?></div>
-                    <div style="font-size:11px; color:#a0aec0;"><?= $month_names[(int)date('n', strtotime($pe['date_debut']))] ?></div>
+            <a href="details_evenement.php?id=<?= (int)$pe['id'] ?>" class="upcoming-item upcoming-item--past">
+                <div class="upcoming-item-date">
+                    <span class="upcoming-day"><?= date('d', strtotime($pe['date_debut'])) ?></span>
+                    <span class="upcoming-month"><?= $month_names[(int)date('n', strtotime($pe['date_debut']))] ?></span>
                 </div>
-                <div style="flex:1; min-width:0;">
-                    <div style="font-size:14px; font-weight:500; color:#2d3748; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><?= htmlspecialchars($pe['titre']) ?></div>
-                    <div style="font-size:12px; color:#718096;"><i class="far fa-clock"></i> <?= date('H:i', strtotime($pe['date_debut'])) ?><?php if (!empty($pe['lieu'])): ?> · <i class="fas fa-map-marker-alt"></i> <?= htmlspecialchars($pe['lieu']) ?><?php endif; ?></div>
+                <div class="upcoming-item-info">
+                    <div class="upcoming-item-title"><?= htmlspecialchars($pe['titre']) ?></div>
+                    <div class="upcoming-item-meta">
+                        <i class="far fa-clock"></i> <?= date('H:i', strtotime($pe['date_debut'])) ?>
+                        <?php if (!empty($pe['lieu'])): ?> · <i class="fas fa-map-marker-alt"></i> <?= htmlspecialchars($pe['lieu']) ?><?php endif; ?>
+                    </div>
                 </div>
-                <span style="padding:3px 8px; border-radius:10px; font-size:11px; background:#e2e8f0; color:#718096;">Passé</span>
+                <span class="upcoming-type-badge upcoming-type-badge--past">Passé</span>
             </a>
             <?php endforeach; ?>
         <?php endif; ?>
@@ -528,161 +254,7 @@ foreach ($events as $ev) {
 </div>
 <?php endif; ?>
 
-<script>
-// Fonctions pour la navigation
-function navigateToPrevious() {
-  const view = '<?= $view ?>';
-  let url = '';
-  
-  if (view === 'month') {
-    const month = <?= $month ?>;
-    const year = <?= $year ?>;
-    
-    if (month === 1) {
-      url = `?view=month&month=12&year=${year-1}`;
-    } else {
-      url = `?view=month&month=${month-1}&year=${year}`;
-    }
-  } else if (view === 'day') {
-    const currentDate = new Date('<?= $date ?>');
-    currentDate.setDate(currentDate.getDate() - 1);
-    const newDate = currentDate.toISOString().split('T')[0];
-    url = `?view=day&date=${newDate}`;
-  } else if (view === 'week') {
-    const currentDate = new Date('<?= $date ?>');
-    currentDate.setDate(currentDate.getDate() - 7);
-    const newDate = currentDate.toISOString().split('T')[0];
-    url = `?view=week&date=${newDate}`;
-  }
-  
-  // Ajouter les filtres
-  if (<?= $filters_explicitly_set ? 'true' : 'false' ?>) {
-    url += '&filter_set=1';
-    
-    // Ajouter les filtres par type
-    <?php foreach ($filter_types as $type): ?>
-    url += '&types[]=<?= $type ?>';
-    <?php endforeach; ?>
-    
-    // Ajouter les filtres par classe
-    <?php foreach ($filter_classes as $class): ?>
-    url += '&classes[]=<?= urlencode($class) ?>';
-    <?php endforeach; ?>
-  }
-  
-  window.location.href = url;
-}
-
-function navigateToNext() {
-  const view = '<?= $view ?>';
-  let url = '';
-  
-  if (view === 'month') {
-    const month = <?= $month ?>;
-    const year = <?= $year ?>;
-    
-    if (month === 12) {
-      url = `?view=month&month=1&year=${year+1}`;
-    } else {
-      url = `?view=month&month=${month+1}&year=${year}`;
-    }
-  } else if (view === 'day') {
-    const currentDate = new Date('<?= $date ?>');
-    currentDate.setDate(currentDate.getDate() + 1);
-    const newDate = currentDate.toISOString().split('T')[0];
-    url = `?view=day&date=${newDate}`;
-  } else if (view === 'week') {
-    const currentDate = new Date('<?= $date ?>');
-    currentDate.setDate(currentDate.getDate() + 7);
-    const newDate = currentDate.toISOString().split('T')[0];
-    url = `?view=week&date=${newDate}`;
-  }
-  
-  // Ajouter les filtres
-  if (<?= $filters_explicitly_set ? 'true' : 'false' ?>) {
-    url += '&filter_set=1';
-    
-    // Ajouter les filtres par type
-    <?php foreach ($filter_types as $type): ?>
-    url += '&types[]=<?= $type ?>';
-    <?php endforeach; ?>
-    
-    // Ajouter les filtres par classe
-    <?php foreach ($filter_classes as $class): ?>
-    url += '&classes[]=<?= urlencode($class) ?>';
-    <?php endforeach; ?>
-  }
-  
-  window.location.href = url;
-}
-
-function navigateToToday() {
-  const view = '<?= $view ?>';
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  
-  let url = '';
-  
-  if (view === 'month') {
-    url = `?view=month&month=${today.getMonth() + 1}&year=${today.getFullYear()}`;
-  } else if (view === 'day' || view === 'week') {
-    url = `?view=${view}&date=${todayStr}`;
-  } else {
-    url = `?view=${view}`;
-  }
-  
-  // Ajouter les filtres
-  if (<?= $filters_explicitly_set ? 'true' : 'false' ?>) {
-    url += '&filter_set=1';
-    
-    // Ajouter les filtres par type
-    <?php foreach ($filter_types as $type): ?>
-    url += '&types[]=<?= $type ?>';
-    <?php endforeach; ?>
-    
-    // Ajouter les filtres par classe
-    <?php foreach ($filter_classes as $class): ?>
-    url += '&classes[]=<?= urlencode($class) ?>';
-    <?php endforeach; ?>
-  }
-  
-  window.location.href = url;
-}
-
-// Fonctions pour les événements
-function openDayView(date) {
-  let url = `?view=day&date=${date}`;
-  
-  // Ajouter les filtres
-  if (<?= $filters_explicitly_set ? 'true' : 'false' ?>) {
-    url += '&filter_set=1';
-    
-    // Ajouter les filtres par type
-    <?php foreach ($filter_types as $type): ?>
-    url += '&types[]=<?= $type ?>';
-    <?php endforeach; ?>
-    
-    // Ajouter les filtres par classe
-    <?php foreach ($filter_classes as $class): ?>
-    url += '&classes[]=<?= urlencode($class) ?>';
-    <?php endforeach; ?>
-  }
-  
-  window.location.href = url;
-}
-
-function openEventDetails(eventId, e) {
-  if (e) {
-    e.stopPropagation(); // Empêcher la propagation au jour du calendrier
-  }
-  window.location.href = 'details_evenement.php?id=' + eventId;
-}
-</script>
-
 <?php
-// Inclusion du pied de page
 include 'includes/footer.php';
-
-// Terminer la mise en mémoire tampon et envoyer la sortie
 ob_end_flush();
 ?>

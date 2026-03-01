@@ -7,6 +7,7 @@
 // S'assurer que l'API est chargée
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/EventRepository.php';
 
 // Récupérer les informations utilisateur via l'API
 if (!isset($user_initials)) {
@@ -14,6 +15,11 @@ if (!isset($user_initials)) {
 }
 
 $user_fullname = $user_fullname ?? getUserFullName();
+
+// EventRepository pour le mini-calendrier et les types
+if (!isset($repo)) {
+    $repo = new EventRepository(getPDO());
+}
 
 // Définition des paramètres du module
 $pageTitle = $pageTitle ?? 'Agenda';
@@ -26,9 +32,7 @@ ob_start();
 ?>
       <!-- Mini-calendrier pour la navigation -->
       <div class="mini-calendar">
-        <?php if (function_exists('generateMiniCalendar')): ?>
-          <?= generateMiniCalendar($month ?? date('n'), $year ?? date('Y'), $date ?? date('Y-m-d')) ?>
-        <?php endif; ?>
+        <?= $repo->renderMiniCalendar($month ?? (int)date('n'), $year ?? (int)date('Y'), $date ?? date('Y-m-d')) ?>
       </div>
       
       <?php if (canManageAgendaEvents()): ?>
@@ -36,68 +40,19 @@ ob_start();
         <i class="fas fa-plus"></i> Ajouter un événement
       </a>
       <?php endif; ?>
-      
-      <?php if (isset($available_event_types) && !empty($available_event_types)): ?>
-      <div style="margin-top:10px;">
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.5);font-weight:600;margin-bottom:6px;">Types d'événements</div>
-        <div class="sidebar-nav">
-          <?php foreach ($types_evenements ?? [] as $code => $nom): ?>
-            <?php if (in_array($code, $available_event_types)): ?>
-              <div class="filter-option">
-                <label>
-                  <span class="color-dot color-<?= $code ?>"></span>
-                  <input type="checkbox" class="filter-checkbox" 
-                         data-filter-type="type"
-                         name="types[]" 
-                         value="<?= $code ?>" 
-                         <?= in_array($code, $filter_types ?? []) ? 'checked' : '' ?>>
-                  <?= htmlspecialchars($nom) ?>
-                </label>
-              </div>
-            <?php endif; ?>
-          <?php endforeach; ?>
-        </div>
-      </div>
-      <?php endif; ?>
-
-      <?php if (!empty($classes) && canManageAgendaEvents()): ?>
-      <div style="margin-top:10px;">
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.5);font-weight:600;margin-bottom:6px;">Classes</div>
-        <div class="classes-dropdown">
-          <button class="classes-dropdown-toggle" id="classesDropdownToggle">
-            Filtrer par classe <i class="fas fa-chevron-down"></i>
-          </button>
-          <div class="dropdown-menu" id="classesDropdown">
-            <div class="dropdown-actions">
-              <button class="dropdown-action" id="selectAllClasses">Tout sélectionner</button>
-              <button class="dropdown-action" id="deselectAllClasses">Tout désélectionner</button>
-            </div>
-            <div class="dropdown-search">
-              <input type="text" id="classSearch" placeholder="Rechercher une classe" onkeyup="filterClasses()">
-            </div>
-            <div class="dropdown-options">
-              <?php foreach ($classes as $classe): ?>
-                <div class="dropdown-option">
-                  <label>
-                    <input type="checkbox" class="filter-checkbox" 
-                           data-filter-type="class" 
-                           name="classes[]" 
-                           value="<?= $classe ?>"
-                           <?= in_array($classe, $filter_classes ?? []) ? 'checked' : '' ?>>
-                    <?= htmlspecialchars($classe) ?>
-                  </label>
-                </div>
-              <?php endforeach; ?>
-            </div>
-            <div class="dropdown-footer">
-              <button class="apply-button" id="applyClassesFilter">Appliquer</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <?php endif; ?>
 <?php
 $sidebarExtraContent = ob_get_clean();
+
+// Actions dans le header (bouton ajouter événement)
+ob_start();
+?>
+                <?php if (canManageAgendaEvents()): ?>
+                <a href="ajouter_evenement.php" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> Événement
+                </a>
+                <?php endif; ?>
+<?php
+$headerExtraActions = ob_get_clean();
 
 // Inclusion des templates partagés
 include __DIR__ . '/../../templates/shared_header.php';

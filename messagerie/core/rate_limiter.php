@@ -17,49 +17,56 @@ class RateLimiter {
         'search'          => [20, 60],   // 20 recherches / minute
     ];
 
+    /** @var bool Indique si la table rate_limits existe */
+    private static bool $tableVerified = false;
+
+    /**
+     * Vérifie que la table rate_limits existe (une seule fois par requête).
+     */
+    private static function ensureTable(): bool {
+        if (self::$tableVerified) return true;
+        global $pdo;
+        if (!isset($pdo)) return false;
+        try {
+            $pdo->query("SELECT 1 FROM rate_limits LIMIT 0");
+            self::$tableVerified = true;
+            return true;
+        } catch (PDOException $e) {
+            error_log("RateLimiter: table rate_limits manquante — " . $e->getMessage());
+            return false;
+        }
+    }
+
     /**
      * Vérifie si l'action est autorisée (rate limit non dépassé)
-     *
-     * @param int    $userId     ID utilisateur
-     * @param string $userType   Type utilisateur
-     * @param string $actionType Type d'action (clé de LIMITS)
-     * @return bool  true si l'action est autorisée
      */
     public static function check(int $userId, string $userType, string $actionType): bool {
         global $pdo;
-        if (!isset($pdo)) return true; // Pas de DB = pas de limite
+        if (!isset($pdo) || !self::ensureTable()) return false;
 
         $limits = self::LIMITS[$actionType] ?? [60, 60];
         [$maxAttempts, $windowSeconds] = $limits;
 
         try {
-            // Compter les tentatives récentes
             $stmt = $pdo->prepare("
                 SELECT COUNT(*) FROM rate_limits
                 WHERE user_id = ? AND user_type = ? AND action_type = ?
                 AND attempted_at > DATE_SUB(NOW(), INTERVAL ? SECOND)
             ");
             $stmt->execute([$userId, $userType, $actionType, $windowSeconds]);
-            $count = (int) $stmt->fetchColumn();
-
-            return $count < $maxAttempts;
+            return (int) $stmt->fetchColumn() < $maxAttempts;
         } catch (PDOException $e) {
-            // En cas d'erreur (table manquante, etc.), autoriser l'action
             error_log("RateLimiter check error: " . $e->getMessage());
-            return true;
+            return false;
         }
     }
 
     /**
      * Enregistre une tentative d'action
-     *
-     * @param int    $userId     ID utilisateur
-     * @param string $userType   Type utilisateur
-     * @param string $actionType Type d'action
      */
     public static function hit(int $userId, string $userType, string $actionType): void {
         global $pdo;
-        if (!isset($pdo)) return;
+        if (!isset($pdo) || !self::ensureTable()) return;
 
         try {
             $stmt = $pdo->prepare("
@@ -73,20 +80,50 @@ class RateLimiter {
     }
 
     /**
-     * Vérifie le rate limit et enregistre la tentative en une seule opération.
-     * Retourne false si la limite est dépassée.
+     * Vérifie le rate limit et enregistre la tentative de façon atomique.
+     * INSERT d'abord, puis COUNT dans une transaction pour éviter la race condition.
      *
-     * @param int    $userId     ID utilisateur
-     * @param string $userType   Type utilisateur
-     * @param string $actionType Type d'action
-     * @return bool  true si autorisé
+     * @return bool true si autorisé
      */
     public static function attempt(int $userId, string $userType, string $actionType): bool {
-        if (!self::check($userId, $userType, $actionType)) {
+        global $pdo;
+        if (!isset($pdo) || !self::ensureTable()) return false;
+
+        $limits = self::LIMITS[$actionType] ?? [60, 60];
+        [$maxAttempts, $windowSeconds] = $limits;
+
+        try {
+            $pdo->beginTransaction();
+
+            // 1. Insérer la tentative
+            $ins = $pdo->prepare("
+                INSERT INTO rate_limits (user_id, user_type, action_type, attempted_at)
+                VALUES (?, ?, ?, NOW())
+            ");
+            $ins->execute([$userId, $userType, $actionType]);
+
+            // 2. Compter les tentatives dans la fenêtre (incluant celle-ci)
+            $cnt = $pdo->prepare("
+                SELECT COUNT(*) FROM rate_limits
+                WHERE user_id = ? AND user_type = ? AND action_type = ?
+                AND attempted_at > DATE_SUB(NOW(), INTERVAL ? SECOND)
+            ");
+            $cnt->execute([$userId, $userType, $actionType, $windowSeconds]);
+            $count = (int) $cnt->fetchColumn();
+
+            if ($count > $maxAttempts) {
+                // Limite dépassée → rollback l'INSERT
+                $pdo->rollBack();
+                return false;
+            }
+
+            $pdo->commit();
+            return true;
+        } catch (PDOException $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log("RateLimiter attempt error: " . $e->getMessage());
             return false;
         }
-        self::hit($userId, $userType, $actionType);
-        return true;
     }
 
     /**

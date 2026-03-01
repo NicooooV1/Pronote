@@ -41,9 +41,9 @@ function getClassesList() {
         $classes = $query->fetchAll(PDO::FETCH_COLUMN);
     }
     
-    // Si vide, utiliser des valeurs par défaut
+    // Si vide, journaliser l'erreur (plus de fallback codé en dur)
     if (empty($classes)) {
-        $classes = ['6A', '6B', '5A', '5B', '4A', '4B', '3A', '3B'];
+        error_log('getClassesList: aucune classe trouvée dans la table eleves');
     }
     
     return $classes;

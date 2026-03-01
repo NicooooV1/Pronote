@@ -7,8 +7,8 @@
     </div><!-- Fin content-container -->
             
 <?php
-// JS supplémentaires
-$extraJs = ['assets/js/main.js'];
+// JS supplémentaires (shared.js toujours chargé en premier)
+$extraJs = ['assets/js/shared.js', 'assets/js/inbox.js'];
 
 if (basename($_SERVER['PHP_SELF']) === 'conversation.php') {
     $extraJs[] = 'assets/js/conversation.js';

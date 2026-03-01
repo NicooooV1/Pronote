@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Administration des absences et retards — deux onglets, CRUD, justifier, stats
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -144,14 +143,12 @@ $eleves = $pdo->query("SELECT id, nom, prenom, classe FROM eleves WHERE actif = 
 
 $pageTitle = 'Absences & Retards';
 $currentPage = 'absences';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
 <style>
     .abs-container { max-width: 1200px; margin: 0 auto; }
-    .stats-bar { display: flex; gap: 12px; margin-bottom: 20px; }
-    .stat-card { background: white; border-radius: 8px; padding: 12px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); flex: 1; text-align: center; }
-    .stat-card .val { font-size: 22px; font-weight: 700; } .stat-card .lbl { font-size: 12px; color: #888; }
     .tabs { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 2px solid #eee; }
     .tab-link { padding: 10px 20px; text-decoration: none; font-size: 14px; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; display: flex; align-items: center; gap: 6px; }
     .tab-link.active { color: #0f4c81; border-bottom-color: #0f4c81; }
@@ -163,15 +160,6 @@ ob_start();
     .data-table th { background: #f7fafc; font-weight: 600; color: #4a5568; font-size: 12px; }
     .badge-j { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
     .badge-oui { background: #d1fae5; color: #065f46; } .badge-non { background: #fee2e2; color: #991b1b; }
-    .btn-xs { padding: 3px 7px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-    .btn-xs.success { background: #059669; } .btn-xs.warning { background: #f59e0b; } .btn-xs.danger { background: #dc2626; }
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-    .modal-overlay.active { display: flex; }
-    .modal-box { background: white; border-radius: 12px; padding: 25px; width: 500px; }
-    .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #4a5568; }
-    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
-    .form-row { display: flex; gap: 10px; } .form-row .form-group { flex: 1; }
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();

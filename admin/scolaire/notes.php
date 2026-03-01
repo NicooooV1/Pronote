@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Administration des notes — filtres, vue par élève/classe/matière, CRUD, stats
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -146,6 +145,7 @@ $eleves = $pdo->query("SELECT id, nom, prenom, classe FROM eleves WHERE actif = 
 
 $pageTitle = 'Gestion des notes';
 $currentPage = 'notes';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
@@ -155,29 +155,11 @@ ob_start();
     .filters .fg { display: flex; flex-direction: column; gap: 4px; }
     .filters label { font-size: 12px; font-weight: 600; color: #4a5568; }
     .filters select, .filters input { padding: 7px 10px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 13px; }
-    .stats-bar { display: flex; gap: 12px; margin-bottom: 20px; }
-    .stat-card { background: white; border-radius: 8px; padding: 12px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); flex: 1; text-align: center; }
-    .stat-card .val { font-size: 22px; font-weight: 700; color: #1a202c; }
-    .stat-card .lbl { font-size: 12px; color: #888; }
     .notes-table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .notes-table th, .notes-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
     .notes-table th { background: #f7fafc; font-weight: 600; color: #4a5568; font-size: 12px; }
     .note-val { font-weight: 700; font-size: 14px; }
     .note-high { color: #059669; } .note-mid { color: #f59e0b; } .note-low { color: #dc2626; }
-    .btn-xs { padding: 3px 7px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-    .btn-xs.primary { background: #0f4c81; } .btn-xs.danger { background: #dc2626; } .btn-xs.success { background: #059669; }
-    .pagination { display: flex; gap: 4px; justify-content: center; margin-top: 20px; }
-    .pagination a, .pagination span { padding: 6px 12px; border-radius: 6px; font-size: 13px; text-decoration: none; }
-    .pagination a { background: white; color: #333; border: 1px solid #ddd; } .pagination span.current { background: #0f4c81; color: white; }
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-    .modal-overlay.active { display: flex; }
-    .modal-box { background: white; border-radius: 12px; padding: 25px; width: 500px; max-height: 80vh; overflow-y: auto; }
-    .modal-box h3 { margin: 0 0 15px; font-size: 18px; }
-    .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 600; color: #4a5568; margin-bottom: 4px; }
-    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
-    .form-row { display: flex; gap: 10px; }
-    .form-row .form-group { flex: 1; }
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();

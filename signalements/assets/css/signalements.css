@@ -1,0 +1,82 @@
+/* M45 – Signalements — CSS */
+
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.stat-card.stat-danger .stat-value { color: #ef4444; }
+
+.filter-row { margin-bottom: 1.5rem; }
+.filter-form { display: flex; gap: .75rem; flex-wrap: wrap; }
+
+/* Info banner */
+.info-banner {
+    display: flex; gap: 1rem; padding: 1.2rem;
+    background: #eff6ff; border-radius: 12px;
+    border-left: 4px solid #3b82f6; margin-bottom: 1.5rem;
+    font-size: .9rem; color: #1e40af;
+}
+.info-banner i { font-size: 1.3rem; margin-top: .1rem; flex-shrink: 0; }
+.info-banner p { margin-top: .3rem; font-size: .8rem; opacity: .8; }
+
+/* List */
+.signalement-list { display: flex; flex-direction: column; gap: .5rem; }
+.signalement-item {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 1rem 1.2rem;
+    background: var(--card-bg, #fff); border-radius: 10px;
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-left: 3px solid #6b7280;
+}
+.signalement-item.urgence-haute { border-left-color: #f59e0b; }
+.signalement-item.urgence-critique { border-left-color: #ef4444; background: #fef2f2; }
+
+.sig-info { flex: 1; }
+.sig-header { display: flex; gap: .5rem; align-items: center; margin-bottom: .3rem; flex-wrap: wrap; }
+.sig-header h3 { font-size: .95rem; }
+.sig-desc { font-size: .85rem; color: var(--text-muted, #6b7280); margin-bottom: .3rem; }
+.sig-meta { display: flex; gap: .75rem; font-size: .8rem; color: var(--text-muted, #9ca3af); }
+.sig-anon { color: #8b5cf6; font-weight: 500; }
+.sig-date { font-size: .8rem; color: var(--text-muted, #9ca3af); }
+
+/* Detail */
+.detail-status { display: flex; align-items: center; gap: .75rem; margin-bottom: 1.5rem; }
+.inline-form { display: inline-flex; }
+.detail-cards { display: flex; flex-direction: column; gap: 1rem; }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+.detail-item label { display: block; font-size: .75rem; text-transform: uppercase; color: var(--text-muted, #9ca3af); font-weight: 600; margin-bottom: .1rem; }
+.notes-pre {
+    background: var(--bg-secondary, #f9fafb); padding: 1rem;
+    border-radius: 8px; font-family: inherit; white-space: pre-wrap;
+    font-size: .85rem; margin-bottom: 1rem; line-height: 1.6;
+}
+
+/* Anonyme checkbox */
+.anonyme-section { margin: 1.5rem 0; }
+.checkbox-label {
+    display: flex; gap: .75rem; align-items: flex-start; cursor: pointer;
+    padding: 1rem; border-radius: 10px; border: 2px solid var(--border-color, #e0e0e0);
+    transition: all .2s;
+}
+.checkbox-label:has(input:checked) { border-color: #8b5cf6; background: #f5f3ff; }
+.checkbox-label input { margin-top: .3rem; }
+.checkbox-label strong { display: block; }
+.checkbox-label p { font-size: .8rem; color: var(--text-muted, #6b7280); margin-top: .2rem; }
+
+/* Numbers */
+.help-numbers { margin-top: 2rem; }
+.help-numbers h3 { margin-bottom: .75rem; }
+.numbers-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
+.number-card {
+    text-align: center; padding: 1.2rem;
+    background: var(--card-bg, #fff); border-radius: 10px;
+    border: 1px solid var(--border-color, #e0e0e0);
+}
+.number-card strong { display: block; font-size: 1.5rem; color: var(--primary, #4f46e5); }
+.number-card span { font-size: .8rem; color: var(--text-muted, #6b7280); }
+
+/* Form */
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-actions { margin-top: 1.5rem; display: flex; gap: 1rem; }
+
+@media (max-width: 768px) {
+    .form-grid-2 { grid-template-columns: 1fr; }
+    .signalement-item { flex-direction: column; align-items: flex-start; }
+}

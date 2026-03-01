@@ -45,17 +45,13 @@ $activePage = 'messagerie';
 $isAdmin = isset($user) && ($user['type'] ?? '') === 'administrateur';
 $rootPrefix = '../';
 
-// CSS supplémentaires spécifiques à la messagerie
+// CSS supplémentaires spécifiques à la messagerie (unified styles.css)
 $extraCss = [
-    'assets/css/main.css',
-    'assets/css/theme.css',
+    'assets/css/styles.css',
     'assets/css/sidebar.css',
 ];
 if (in_array($currentPage, ['conversation'])) {
     $extraCss[] = 'assets/css/conversation.css';
-}
-if (in_array($currentPage, ['new_message', 'new_announcement', 'class_message'])) {
-    $extraCss[] = 'assets/css/forms.css';
 }
 
 // Head HTML supplémentaire (CSRF, WebSocket, Dark mode)

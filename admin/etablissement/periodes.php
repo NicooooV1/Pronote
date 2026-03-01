@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Gestion des périodes scolaires (trimestres/semestres)
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -76,12 +75,12 @@ for ($i = 0; $i < count($periodes); $i++) {
 
 $pageTitle = 'Périodes scolaires';
 $currentPage = 'etab_periodes';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
 <style>
     .per-container { max-width: 900px; margin: 0 auto; }
-    .top-bar { display: flex; justify-content: flex-end; margin-bottom: 15px; }
     .alert-warn { background: #fef3cd; border-left: 4px solid #f59e0b; padding: 10px 14px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; }
     .timeline { position: relative; }
     .period-card { background: white; border-radius: 10px; padding: 18px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); display: flex; align-items: center; gap: 15px; border-left: 4px solid #0f4c81; }
@@ -93,15 +92,6 @@ ob_start();
     .date-badge { background: #eff6ff; padding: 4px 10px; border-radius: 6px; color: #1e40af; font-weight: 500; }
     .badge-type { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: #e2e8f0; color: #4a5568; }
     .period-actions { display: flex; gap: 6px; }
-    .btn-xs { padding: 4px 8px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-    .btn-xs.primary { background: #0f4c81; } .btn-xs.danger { background: #dc2626; }
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-    .modal-overlay.active { display: flex; }
-    .modal-box { background: white; border-radius: 12px; padding: 25px; width: 450px; }
-    .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #4a5568; }
-    .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
-    .form-row { display: flex; gap: 10px; } .form-row .form-group { flex: 1; }
     .current-badge { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-left: 6px; }
 </style>
 <?php

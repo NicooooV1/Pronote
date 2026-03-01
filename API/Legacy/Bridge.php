@@ -12,7 +12,7 @@ define('PRONOTE_LEGACY_BRIDGE_LOADED', true);
 // ==================== CONSTANTES GLOBALES ====================
 
 if (!defined('LOGIN_URL')) {
-	define('LOGIN_URL', '../login/public/index.php');
+	define('LOGIN_URL', '../login/index.php');
 }
 
 // ==================== AUTHENTIFICATION ====================
@@ -48,10 +48,7 @@ if (!function_exists('getUserRole')) {
 if (!function_exists('requireLogin')) {
 	function requireLogin() {
 		if (!app('auth')->check()) {
-			$base = env('APP_URL', defined('BASE_URL') ? BASE_URL : '');
-			$login = rtrim((string)$base, '/') . '/login/public/index.php';
-			header('Location: ' . $login);
-			exit;
+			redirect('login/index.php');
 		}
 		return app('auth')->user();
 	}
@@ -102,6 +99,11 @@ if (!function_exists('isStudent')) {
 		return getUserRole() === 'eleve';
 	}
 }
+if (!function_exists('isEleve')) {
+	function isEleve() {
+		return isStudent();
+	}
+}
 if (!function_exists('isParent')) {
 	function isParent() {
 		return getUserRole() === 'parent';
@@ -113,23 +115,98 @@ if (!function_exists('isVieScolaire')) {
 	}
 }
 
-// ==================== PERMISSIONS (simples) ====================
+// ==================== PERMISSIONS (centralisées) ====================
 
-if (!function_exists('canManageNotes')) {
-	function canManageNotes() {
-		return in_array(getUserRole(), ['administrateur', 'professeur', 'vie_scolaire'], true);
+/**
+ * Matrice de permissions centralisée.
+ * Chaque clé d'action → tableau des rôles autorisés.
+ * Point unique de configuration des droits d'accès.
+ */
+if (!defined('PERMISSION_MATRIX')) {
+	define('PERMISSION_MATRIX', [
+		'notes'             => ['administrateur', 'professeur', 'vie_scolaire'],
+		'absences'          => ['administrateur', 'professeur', 'vie_scolaire'],
+		'devoirs'           => ['administrateur', 'professeur'],
+		'edt'               => ['administrateur', 'vie_scolaire'],
+		'appel'             => ['administrateur', 'professeur', 'vie_scolaire'],
+		'discipline'        => ['administrateur', 'vie_scolaire'],
+		'signaler_incident' => ['administrateur', 'professeur', 'vie_scolaire'],
+		'annonces'          => ['administrateur', 'professeur', 'vie_scolaire'],
+		'bulletins'         => ['administrateur', 'professeur', 'vie_scolaire'],
+		'rendus'            => ['administrateur', 'professeur'],
+		'vie_scolaire'      => ['administrateur', 'vie_scolaire'],
+		'documents'         => ['administrateur', 'professeur', 'vie_scolaire'],
+		'competences'       => ['administrateur', 'professeur'],
+		'reporting'         => ['administrateur', 'professeur', 'vie_scolaire'],
+		'reunions'          => ['administrateur', 'vie_scolaire', 'professeur'],
+		'inscriptions'      => ['administrateur', 'vie_scolaire'],
+		'orientation'       => ['administrateur', 'professeur', 'vie_scolaire'],
+		'signalements'      => ['administrateur', 'vie_scolaire'],
+		'bibliotheque'      => ['administrateur', 'vie_scolaire'],
+		'clubs'             => ['administrateur', 'vie_scolaire', 'professeur'],
+		'infirmerie'        => ['administrateur', 'vie_scolaire'],
+		'archives'          => ['administrateur'],
+		'support'           => ['administrateur', 'vie_scolaire'],
+		'examens'           => ['administrateur', 'vie_scolaire'],
+		'besoins'           => ['administrateur', 'vie_scolaire', 'professeur'],
+		'personnel'         => ['administrateur', 'vie_scolaire'],
+		'salles'            => ['administrateur', 'vie_scolaire', 'professeur'],
+		'periscolaire'      => ['administrateur', 'vie_scolaire'],
+		'stages'            => ['administrateur', 'vie_scolaire', 'professeur'],
+		'transports'        => ['administrateur', 'vie_scolaire'],
+		'facturation'       => ['administrateur', 'vie_scolaire'],
+		'ressources'        => ['administrateur', 'professeur'],
+		'diplomes'          => ['administrateur', 'vie_scolaire'],
+	]);
+}
+
+if (!function_exists('hasPermission')) {
+	/**
+	 * Vérifie si l'utilisateur connecté a la permission pour une action donnée.
+	 * @param string $action Clé de PERMISSION_MATRIX
+	 * @return bool
+	 */
+	function hasPermission(string $action): bool {
+		$roles = PERMISSION_MATRIX[$action] ?? [];
+		return in_array(getUserRole(), $roles, true);
 	}
 }
-if (!function_exists('canManageAbsences')) {
-	function canManageAbsences() {
-		return in_array(getUserRole(), ['administrateur', 'professeur', 'vie_scolaire'], true);
-	}
-}
-if (!function_exists('canManageDevoirs')) {
-	function canManageDevoirs() {
-		return in_array(getUserRole(), ['administrateur', 'professeur'], true);
-	}
-}
+
+// Fonctions legacy — délèguent à hasPermission() pour rétro-compatibilité
+if (!function_exists('canManageNotes'))       { function canManageNotes()       { return hasPermission('notes'); } }
+if (!function_exists('canManageAbsences'))    { function canManageAbsences()    { return hasPermission('absences'); } }
+if (!function_exists('canManageDevoirs'))     { function canManageDevoirs()     { return hasPermission('devoirs'); } }
+if (!function_exists('canManageEDT'))         { function canManageEDT()         { return hasPermission('edt'); } }
+if (!function_exists('canManageAppel'))       { function canManageAppel()       { return hasPermission('appel'); } }
+if (!function_exists('canManageDiscipline'))  { function canManageDiscipline()  { return hasPermission('discipline'); } }
+if (!function_exists('canSignalerIncident'))  { function canSignalerIncident()  { return hasPermission('signaler_incident'); } }
+if (!function_exists('canManageAnnonces'))    { function canManageAnnonces()    { return hasPermission('annonces'); } }
+if (!function_exists('canManageBulletins'))   { function canManageBulletins()   { return hasPermission('bulletins'); } }
+if (!function_exists('canManageRendus'))      { function canManageRendus()      { return hasPermission('rendus'); } }
+if (!function_exists('canAccessVieScolaire')) { function canAccessVieScolaire() { return hasPermission('vie_scolaire'); } }
+if (!function_exists('canManageDocuments'))   { function canManageDocuments()   { return hasPermission('documents'); } }
+if (!function_exists('canManageCompetences')) { function canManageCompetences() { return hasPermission('competences'); } }
+if (!function_exists('canAccessReporting'))   { function canAccessReporting()   { return hasPermission('reporting'); } }
+if (!function_exists('canManageReunions'))    { function canManageReunions()    { return hasPermission('reunions'); } }
+if (!function_exists('canManageInscriptions')){ function canManageInscriptions(){ return hasPermission('inscriptions'); } }
+if (!function_exists('canManageOrientation')) { function canManageOrientation() { return hasPermission('orientation'); } }
+if (!function_exists('canManageSignalements')){ function canManageSignalements(){ return hasPermission('signalements'); } }
+if (!function_exists('canManageBibliotheque')){ function canManageBibliotheque(){ return hasPermission('bibliotheque'); } }
+if (!function_exists('canManageClubs'))       { function canManageClubs()       { return hasPermission('clubs'); } }
+if (!function_exists('canAccessInfirmerie'))  { function canAccessInfirmerie()  { return hasPermission('infirmerie'); } }
+if (!function_exists('canManageArchives'))    { function canManageArchives()    { return hasPermission('archives'); } }
+if (!function_exists('canManageSupport'))     { function canManageSupport()     { return hasPermission('support'); } }
+if (!function_exists('canManageExamens'))     { function canManageExamens()     { return hasPermission('examens'); } }
+if (!function_exists('canManageBesoins'))     { function canManageBesoins()     { return hasPermission('besoins'); } }
+if (!function_exists('canManagePersonnel'))   { function canManagePersonnel()   { return hasPermission('personnel'); } }
+if (!function_exists('canManageSalles'))      { function canManageSalles()      { return hasPermission('salles'); } }
+if (!function_exists('canManagePeriscolaire')){ function canManagePeriscolaire(){ return hasPermission('periscolaire'); } }
+if (!function_exists('canManageStages'))      { function canManageStages()      { return hasPermission('stages'); } }
+if (!function_exists('canManageTransports'))  { function canManageTransports()  { return hasPermission('transports'); } }
+if (!function_exists('canManageFacturation')) { function canManageFacturation() { return hasPermission('facturation'); } }
+if (!function_exists('canManageRessources'))  { function canManageRessources()  { return hasPermission('ressources'); } }
+if (!function_exists('canManageDiplomes'))    { function canManageDiplomes()    { return hasPermission('diplomes'); } }
+if (!function_exists('isPersonnelVS'))        { function isPersonnelVS()        { return getUserRole() === 'vie_scolaire'; } }
 
 // ==================== UTILITAIRES UTILISATEUR ====================
 

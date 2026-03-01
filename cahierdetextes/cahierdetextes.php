@@ -1,246 +1,141 @@
 <?php
-// Démarrer la mise en mémoire tampon
+/**
+ * cahierdetextes.php — Page principale du cahier de textes
+ *
+ * Liste paginée (UX-1) + calendrier (REF-3) + recherche + stats SQL (PERF-1)
+ * Badge « Nouveau » (UX-2) + case « devoir fait » (UX-3)
+ * Pièces jointes (PJ-5) affichées dans les cartes
+ */
 ob_start();
 
-// Inclure l'API centralisée
 require_once __DIR__ . '/../API/core.php';
-$pdo = getPDO();
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/DevoirService.php';
+require_once __DIR__ . '/includes/CalendarRenderer.php';
 
-// Vérifier l'authentification
+use API\Services\FileUploadService;
+
+$pdo = getPDO();
 requireAuth();
 
-// Récupérer les informations utilisateur via l'API
-$user = getCurrentUser();
-$user_role = getUserRole();
+$user          = getCurrentUser();
+$user_role     = getUserRole();
 $user_fullname = getUserFullName();
 $user_initials = getUserInitials();
+$service       = new DevoirService($pdo);
 
-// Initialiser les variables pour éviter les notices
-$order = [];
-$order['field'] = isset($_GET['order']) ? $_GET['order'] : 'date_rendu';
-$order['direction'] = isset($_GET['dir']) && $_GET['dir'] === 'asc' ? 'asc' : 'desc';
-$filterClass = isset($_GET['classe']) ? $_GET['classe'] : '';
-$filterMatiere = isset($_GET['matiere']) ? $_GET['matiere'] : '';
-$filterProfesseur = isset($_GET['professeur']) ? $_GET['professeur'] : '';
-$displayMode = isset($_GET['mode']) ? $_GET['mode'] : 'list';
-
-// Date actuelle pour les calculs de délais
-$aujourdhui = new DateTime();
-
-// Charger la liste des devoirs
-try {
-    // Vérifier si la table existe
-    $tableExists = false;
-    // Récupération des devoirs selon le rôle de l'utilisateur
-    if (isStudent()) {
-        $stmt_eleve = $pdo->prepare('SELECT classe FROM eleves WHERE prenom = ? AND nom = ?');
-        $stmt_eleve->execute([$user['prenom'], $user['nom']]);
-        $eleve_data = $stmt_eleve->fetch();
-        $classe_eleve = $eleve_data ? $eleve_data['classe'] : '';
-        
-        if (empty($classe_eleve)) {
-            switch ($order['field']) {
-                case 'nom_matiere':
-                    $sql = 'SELECT * FROM devoirs ORDER BY nom_matiere ' . $order['direction'] . ', date_rendu ASC';
-                    break;
-                case 'date_ajout':
-                    $sql = 'SELECT * FROM devoirs ORDER BY date_ajout ' . $order['direction'];
-                    break;
-                default:
-                    $sql = 'SELECT * FROM devoirs ORDER BY date_rendu ' . $order['direction'];
-            }
-            
-            $stmt = $pdo->query($sql);
-        } else {
-            switch ($order['field']) {
-                case 'nom_matiere':
-                    $sql = 'SELECT * FROM devoirs WHERE classe = ? ORDER BY nom_matiere ' . $order['direction'] . ', date_rendu ASC';
-                    break;
-                case 'date_ajout':
-                    $sql = 'SELECT * FROM devoirs WHERE classe = ? ORDER BY date_ajout ' . $order['direction'];
-                    break;
-                default:
-                    $sql = 'SELECT * FROM devoirs WHERE classe = ? ORDER BY date_rendu ' . $order['direction'];
-            }
-            
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$classe_eleve]);
-        }
-    }
-    elseif (isParent()) {
-        // Future implementation: get children's classes
-        switch ($order['field']) {
-            case 'nom_matiere':
-                $sql = 'SELECT * FROM devoirs ORDER BY nom_matiere ' . $order['direction'] . ', date_rendu ASC';
-                break;
-            case 'classe':
-                $sql = 'SELECT * FROM devoirs ORDER BY classe ' . $order['direction'] . ', date_rendu ASC';
-                break;
-            case 'date_ajout':
-                $sql = 'SELECT * FROM devoirs ORDER BY date_ajout ' . $order['direction'];
-                break;
-            default:
-                $sql = 'SELECT * FROM devoirs ORDER BY date_rendu ' . $order['direction'];
-        }
-        
-        $stmt = $pdo->query($sql);
-    }
-    elseif (isTeacher()) {
-        switch ($order['field']) {
-            case 'nom_matiere':
-                $sql = 'SELECT * FROM devoirs WHERE nom_professeur = ? ORDER BY nom_matiere ' . $order['direction'] . ', date_rendu ASC';
-                break;
-            case 'classe':
-                $sql = 'SELECT * FROM devoirs WHERE nom_professeur = ? ORDER BY classe ' . $order['direction'] . ', date_rendu ASC';
-                break;
-            case 'date_ajout':
-                $sql = 'SELECT * FROM devoirs WHERE nom_professeur = ? ORDER BY date_ajout ' . $order['direction'];
-                break;
-            default:
-                $sql = 'SELECT * FROM devoirs WHERE nom_professeur = ? ORDER BY date_rendu ' . $order['direction'];
-        }
-        
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$user_fullname]);
-    }
-    else {
-        switch ($order['field']) {
-            case 'nom_matiere':
-                $sql = 'SELECT * FROM devoirs ORDER BY nom_matiere ' . $order['direction'] . ', date_rendu ASC';
-                break;
-            case 'classe':
-                $sql = 'SELECT * FROM devoirs ORDER BY classe ' . $order['direction'] . ', date_rendu ASC';
-                break;
-            case 'date_ajout':
-                $sql = 'SELECT * FROM devoirs ORDER BY date_ajout ' . $order['direction'];
-                break;
-            default:
-                $sql = 'SELECT * FROM devoirs ORDER BY date_rendu ' . $order['direction'];
-        }
-        
-        $stmt = $pdo->query($sql);
-    }
-    
-    // Récupérer tous les devoirs pour les statistiques et les filtres
-    $devoirs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Calculer les statistiques
-    $totalDevoirs = count($devoirs);
-    $urgentDevoirs = 0;
-    $soonDevoirs = 0;
-    $expiredDevoirs = 0;
-    
-    // Extraire les valeurs uniques pour les filtres
-    $classes = [];
-    $matieres = [];
-    $professeurs = [];
-    
-    foreach ($devoirs as $devoir) {
-        // Statistiques
-        $date_rendu = new DateTime($devoir['date_rendu']);
-        $diff = $aujourdhui->diff($date_rendu);
-        
-        if ($date_rendu < $aujourdhui) {
-            $expiredDevoirs++;
-        } elseif ($diff->days <= 3) {
-            $urgentDevoirs++;
-        } elseif ($diff->days <= 7) {
-            $soonDevoirs++;
-        }
-        
-        // Valeurs uniques pour filtres
-        if (!in_array($devoir['classe'], $classes)) {
-            $classes[] = $devoir['classe'];
-        }
-        
-        if (!in_array($devoir['nom_matiere'], $matieres)) {
-            $matieres[] = $devoir['nom_matiere'];
-        }
-        
-        if (!in_array($devoir['nom_professeur'], $professeurs)) {
-            $professeurs[] = $devoir['nom_professeur'];
-        }
-    }
-    
-    // Trier les listes
-    sort($classes);
-    sort($matieres);
-    sort($professeurs);
-    
-} catch (PDOException $e) {
-    // Journal d'erreurs
-    error_log("Erreur dans cahierdetextes.php: " . $e->getMessage());
-    $devoirs = [];
-    $totalDevoirs = 0;
-    $urgentDevoirs = 0;
-    $soonDevoirs = 0;
-    $expiredDevoirs = 0;
-    $classes = [];
-    $matieres = [];
-    $professeurs = [];
+// ── AJAX : toggle devoir fait (UX-3) ──
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'toggle_fait' && isStudent()) {
+    header('Content-Type: application/json');
+    $devoirId = intval($_GET['devoir_id'] ?? 0);
+    $newState = $service->toggleDevoirFait($user['id'], $devoirId);
+    echo json_encode(['fait' => $newState]);
+    exit;
 }
 
-// Variables pour le template
-$pageTitle = "Cahier de textes";
-$activePage = 'cahierdetextes';
-$isAdmin = $user_role === 'administrateur';
-$user_fullname = $user_fullname ?? '';
-$extraCss = ['assets/css/cahierdetextes.css'];
+// ── Paramètres ──
+$orderField    = $_GET['order'] ?? 'date_rendu';
+$orderDir      = ($_GET['dir'] ?? '') === 'asc' ? 'asc' : 'desc';
+$displayMode   = $_GET['mode']   ?? 'list';
+$page          = max(1, intval($_GET['page'] ?? 1));
+$perPage       = 20;
+$search        = isset($_GET['q']) && $_GET['q'] !== '' ? trim($_GET['q']) : null;
+$filterClasse  = $_GET['classe']  ?? '';
+$filterMatiere = $_GET['matiere'] ?? '';
 
-// Contenu supplémentaire sidebar : Filtres + Infos
+$filters = [];
+if ($filterClasse)  $filters['classe']  = $filterClasse;
+if ($filterMatiere) $filters['matiere'] = $filterMatiere;
+
+// ── Données ──
+try {
+    $stats        = $service->getStatsSql($user_role, $user['id'], $user_fullname, $filters, $search);
+    $filterOpts   = $service->getFilterOptions($user_role, $user['id'], $user_fullname);
+    $query        = $service->buildQuery($user_role, $user['id'], $user_fullname, $filters, $orderField, $orderDir, $page, $perPage, $search);
+    [$devoirs, $totalDevoirs] = $service->executeQuery($query);
+    $totalPages   = max(1, (int) ceil($totalDevoirs / $perPage));
+
+    // Pour le calendrier, on charge TOUS les devoirs du mois (pas paginé)
+    if ($displayMode === 'calendar') {
+        $allQuery = $service->buildQuery($user_role, $user['id'], $user_fullname, $filters, $orderField, $orderDir, 1, 9999, $search);
+        [$allDevoirs] = $service->executeQuery($allQuery);
+    }
+
+    // IDs devoirs faits (élève)
+    $devoirsFaits = isStudent() ? $service->getDevoirsFaitsIds($user['id']) : [];
+
+} catch (\PDOException $e) {
+    logError("Erreur cahierdetextes.php: " . $e->getMessage());
+    $devoirs = []; $totalDevoirs = 0; $totalPages = 1;
+    $stats = ['total' => 0, 'urgent' => 0, 'soon' => 0, 'expired' => 0];
+    $filterOpts = ['classes' => [], 'matieres' => [], 'professeurs' => []];
+    $devoirsFaits = [];
+}
+
+// ── Variables template ──
+$pageTitle   = "Cahier de textes";
+$activePage  = 'cahierdetextes';
+$isAdmin     = $user_role === 'administrateur';
+$extraCss    = ['assets/css/cahierdetextes.css'];
+$extraJs     = ['assets/js/cahierdetextes.js'];
+
+// Construire query string pour les liens (conserver les filtres)
+$qs = http_build_query(array_filter([
+    'mode' => $displayMode !== 'list' ? $displayMode : null,
+    'q'    => $search,
+    'classe'  => $filterClasse  ?: null,
+    'matiere' => $filterMatiere ?: null,
+]));
+
+// ── Sidebar ──
 ob_start();
 ?>
+        <div class="sidebar-nav">
+            <a href="cahierdetextes.php" class="sidebar-nav-item">
+                <span class="sidebar-nav-icon"><i class="fas fa-list"></i></span>
+                <span>Liste des devoirs</span>
+            </a>
+            <?php if (canManageDevoirs()): ?>
+            <a href="form_devoir.php" class="sidebar-nav-item">
+                <span class="sidebar-nav-icon"><i class="fas fa-plus"></i></span>
+                <span>Ajouter un devoir</span>
+            </a>
+            <?php endif; ?>
+        </div>
         <div class="sidebar-section">
             <div class="sidebar-section-header">Filtres</div>
             <div class="sidebar-nav">
                 <a href="#" class="sidebar-nav-item filter-link" data-filter="urgent">
                     <span class="sidebar-nav-icon"><i class="fas fa-exclamation-circle"></i></span>
-                    <span>Devoirs urgents (&lt; 3 jours)</span>
+                    <span>Urgents (&lt; 3 jours)</span>
                 </a>
                 <a href="#" class="sidebar-nav-item filter-link" data-filter="soon">
                     <span class="sidebar-nav-icon"><i class="fas fa-clock"></i></span>
-                    <span>À rendre cette semaine</span>
+                    <span>Cette semaine</span>
                 </a>
                 <a href="#" class="sidebar-nav-item filter-link" data-filter="all">
                     <span class="sidebar-nav-icon"><i class="fas fa-list"></i></span>
-                    <span>Tous les devoirs</span>
+                    <span>Tous</span>
                 </a>
-            </div>
-        </div>
-        
-        <div class="sidebar-section">
-            <div class="sidebar-section-header">Informations</div>
-            <div class="info-item">
-                <div class="info-label">Date</div>
-                <div class="info-value"><?= date('d/m/Y') ?></div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Utilisateur</div>
-                <div class="info-value"><?= htmlspecialchars($user_fullname) ?></div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Profil</div>
-                <div class="info-value"><?= ucfirst(htmlspecialchars($user_role)) ?></div>
             </div>
         </div>
 <?php
 $sidebarExtraContent = ob_get_clean();
 
-// Actions supplémentaires dans le header
+// Topbar actions
 ob_start();
 ?>
                 <div class="view-toggle" style="display:flex;gap:5px;">
-                    <a href="?mode=list" class="btn btn-sm <?= $displayMode !== 'calendar' ? 'btn-primary' : 'btn-secondary' ?>">
+                    <a href="?mode=list<?= $qs ? '&' . $qs : '' ?>" class="btn btn-sm <?= $displayMode !== 'calendar' ? 'btn-primary' : 'btn-secondary' ?>">
                         <i class="fas fa-list"></i> Liste
                     </a>
-                    <a href="?mode=calendar" class="btn btn-sm <?= $displayMode === 'calendar' ? 'btn-primary' : 'btn-secondary' ?>">
+                    <a href="?mode=calendar<?= $qs ? '&' . $qs : '' ?>" class="btn btn-sm <?= $displayMode === 'calendar' ? 'btn-primary' : 'btn-secondary' ?>">
                         <i class="fas fa-calendar-alt"></i> Calendrier
                     </a>
                 </div>
 <?php
 $headerExtraActions = ob_get_clean();
 
-// Inclusion des templates partagés
 include __DIR__ . '/../templates/shared_header.php';
 include __DIR__ . '/../templates/shared_sidebar.php';
 include __DIR__ . '/../templates/shared_topbar.php';
@@ -252,371 +147,219 @@ include __DIR__ . '/../templates/shared_topbar.php';
                 <h2>Cahier de textes</h2>
                 <p>Consultez et gérez les devoirs à faire</p>
             </div>
-            <div class="welcome-logo">
-                <i class="fas fa-book"></i>
-            </div>
+            <div class="welcome-logo"><i class="fas fa-book"></i></div>
         </div>
-        
-        <!-- Main Dashboard Content -->
+
         <div class="dashboard-content">
-            <!-- Dashboard des devoirs -->
+
+            <!-- Stats (PERF-1 : SQL) -->
             <div class="devoirs-dashboard">
                 <div class="summary-card total-summary">
-                    <div class="summary-icon">
-                        <i class="fas fa-book"></i>
-                    </div>
+                    <div class="summary-icon"><i class="fas fa-book"></i></div>
                     <div class="summary-content">
-                        <div class="summary-value"><?= $totalDevoirs ?></div>
+                        <div class="summary-value"><?= $stats['total'] ?></div>
                         <div class="summary-label">Total des devoirs</div>
                     </div>
                 </div>
-                
                 <div class="summary-card urgent-summary">
-                    <div class="summary-icon">
-                        <i class="fas fa-exclamation-circle"></i>
-                    </div>
+                    <div class="summary-icon"><i class="fas fa-exclamation-circle"></i></div>
                     <div class="summary-content">
-                        <div class="summary-value"><?= $urgentDevoirs ?></div>
-                        <div class="summary-label">Devoirs urgents (< 3 jours)</div>
+                        <div class="summary-value"><?= $stats['urgent'] ?></div>
+                        <div class="summary-label">Urgents (&lt; 3 jours)</div>
                     </div>
                 </div>
-                
                 <div class="summary-card soon-summary">
-                    <div class="summary-icon">
-                        <i class="fas fa-clock"></i>
-                    </div>
+                    <div class="summary-icon"><i class="fas fa-clock"></i></div>
                     <div class="summary-content">
-                        <div class="summary-value"><?= $soonDevoirs ?></div>
-                        <div class="summary-label">À rendre cette semaine</div>
+                        <div class="summary-value"><?= $stats['soon'] ?></div>
+                        <div class="summary-label">Cette semaine</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Barre de filtres -->
+            <!-- Barre recherche + filtres (UX-1) -->
             <div class="filter-toolbar">
-                <div class="filter-buttons">
-                    <a href="?order=date_rendu<?= $displayMode === 'calendar' ? '&mode=calendar' : '' ?>" class="btn <?= (!isset($_GET['order']) || $_GET['order'] == 'date_rendu') ? 'btn-primary' : 'btn-secondary' ?>">
-                        <i class="fas fa-calendar-day"></i> Par date de rendu
-                    </a>
-                    <a href="?order=date_ajout<?= $displayMode === 'calendar' ? '&mode=calendar' : '' ?>" class="btn <?= (isset($_GET['order']) && $_GET['order'] == 'date_ajout') ? 'btn-primary' : 'btn-secondary' ?>">
-                        <i class="fas fa-clock"></i> Par date d'ajout
-                    </a>
-                    <a href="?order=nom_matiere<?= $displayMode === 'calendar' ? '&mode=calendar' : '' ?>" class="btn <?= (isset($_GET['order']) && $_GET['order'] == 'nom_matiere') ? 'btn-primary' : 'btn-secondary' ?>">
-                        <i class="fas fa-book"></i> Par matière
-                    </a>
-                    <?php if (!isStudent() && !isParent()): ?>
-                    <a href="?order=classe<?= $displayMode === 'calendar' ? '&mode=calendar' : '' ?>" class="btn <?= (isset($_GET['order']) && $_GET['order'] == 'classe') ? 'btn-primary' : 'btn-secondary' ?>">
-                        <i class="fas fa-users"></i> Par classe
-                    </a>
+                <form method="get" class="search-bar" style="display:flex;gap:8px;flex:1;max-width:400px;">
+                    <?php if ($displayMode === 'calendar'): ?><input type="hidden" name="mode" value="calendar"><?php endif; ?>
+                    <input type="text" name="q" class="form-control" placeholder="Rechercher un devoir…"
+                           value="<?= htmlspecialchars($search ?? '') ?>">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i></button>
+                    <?php if ($search): ?>
+                        <a href="?<?= $displayMode === 'calendar' ? 'mode=calendar&' : '' ?>order=<?= htmlspecialchars($orderField) ?>"
+                           class="btn btn-secondary" title="Effacer"><i class="fas fa-times"></i></a>
                     <?php endif; ?>
+                </form>
+
+                <div class="filter-buttons">
+                    <?php
+                    $orderLinks = [
+                        'date_rendu'  => ['icon' => 'fa-calendar-day', 'label' => 'Date de rendu'],
+                        'date_ajout'  => ['icon' => 'fa-clock',        'label' => 'Date d\'ajout'],
+                        'nom_matiere' => ['icon' => 'fa-book',         'label' => 'Matière'],
+                    ];
+                    if (!isStudent() && !isParent()) {
+                        $orderLinks['classe'] = ['icon' => 'fa-users', 'label' => 'Classe'];
+                    }
+                    foreach ($orderLinks as $field => $info): ?>
+                        <a href="?order=<?= $field ?><?= $qs ? '&' . $qs : '' ?>"
+                           class="btn <?= $orderField === $field ? 'btn-primary' : 'btn-secondary' ?>">
+                            <i class="fas <?= $info['icon'] ?>"></i> <?= htmlspecialchars($info['label']) ?>
+                        </a>
+                    <?php endforeach; ?>
                 </div>
-                
+
                 <?php if (canManageDevoirs()): ?>
-                <div>
-                    <a href="ajouter_devoir.php" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Ajouter un devoir
-                    </a>
-                </div>
+                <a href="form_devoir.php" class="btn btn-primary"><i class="fas fa-plus"></i> Ajouter</a>
                 <?php endif; ?>
             </div>
 
-            <!-- Messages de succès ou d'erreur -->
+            <!-- Filtres dropdown (classe / matière) -->
+            <?php if (count($filterOpts['classes']) > 1 || count($filterOpts['matieres']) > 1): ?>
+            <div class="filter-toolbar" style="padding:10px 20px;">
+                <form method="get" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <input type="hidden" name="order" value="<?= htmlspecialchars($orderField) ?>">
+                    <?php if ($displayMode === 'calendar'): ?><input type="hidden" name="mode" value="calendar"><?php endif; ?>
+                    <?php if ($search): ?><input type="hidden" name="q" value="<?= htmlspecialchars($search) ?>"><?php endif; ?>
+                    <select name="classe" class="form-select" style="max-width:180px;" onchange="this.form.submit()">
+                        <option value="">Toutes les classes</option>
+                        <?php foreach ($filterOpts['classes'] as $c): ?>
+                            <option value="<?= htmlspecialchars($c, ENT_QUOTES) ?>" <?= $filterClasse === $c ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($c) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select name="matiere" class="form-select" style="max-width:200px;" onchange="this.form.submit()">
+                        <option value="">Toutes les matières</option>
+                        <?php foreach ($filterOpts['matieres'] as $m): ?>
+                            <option value="<?= htmlspecialchars($m, ENT_QUOTES) ?>" <?= $filterMatiere === $m ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($m) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <?php if ($filterClasse || $filterMatiere): ?>
+                        <a href="?order=<?= htmlspecialchars($orderField) ?><?= $displayMode === 'calendar' ? '&mode=calendar' : '' ?>"
+                           class="btn btn-sm btn-secondary">Réinitialiser</a>
+                    <?php endif; ?>
+                </form>
+            </div>
+            <?php endif; ?>
+
+            <!-- Messages flash -->
             <?php if (isset($_SESSION['success_message'])): ?>
-                <div class="alert-banner alert-success">
-                    <i class="fas fa-check-circle"></i>
-                    <div><?= htmlspecialchars($_SESSION['success_message']) ?></div>
-                    <button class="alert-close">&times;</button>
-                </div>
+                <div class="alert-banner alert-success"><i class="fas fa-check-circle"></i><div><?= htmlspecialchars($_SESSION['success_message']) ?></div><button class="alert-close">&times;</button></div>
                 <?php unset($_SESSION['success_message']); ?>
             <?php endif; ?>
-            
             <?php if (isset($_SESSION['error_message'])): ?>
-                <div class="alert-banner alert-error">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <div><?= htmlspecialchars($_SESSION['error_message']) ?></div>
-                    <button class="alert-close">&times;</button>
-                </div>
+                <div class="alert-banner alert-error"><i class="fas fa-exclamation-circle"></i><div><?= htmlspecialchars($_SESSION['error_message']) ?></div><button class="alert-close">&times;</button></div>
                 <?php unset($_SESSION['error_message']); ?>
             <?php endif; ?>
 
-            <!-- Vue en liste -->
+            <!-- ════════ VUE LISTE ════════ -->
             <?php if ($displayMode !== 'calendar'): ?>
                 <?php if (empty($devoirs)): ?>
-                    <div class="alert-banner alert-info">
-                        <i class="fas fa-info-circle"></i>
-                        <div>Aucun devoir n'a été ajouté pour le moment.</div>
-                    </div>
+                    <div class="alert-banner alert-info"><i class="fas fa-info-circle"></i><div>Aucun devoir trouvé.</div></div>
                 <?php else: ?>
                     <div class="devoirs-list">
-                        <?php foreach ($devoirs as $devoir): ?>
-                            <?php
-                            // Calculer le statut du devoir
-                            $date_rendu = new DateTime($devoir['date_rendu']);
-                            $aujourdhui = new DateTime();
-                            $diff = $aujourdhui->diff($date_rendu);
-                            
-                            $statusClass = '';
-                            $statusBadge = '';
-                            $statusIcon = '';
-                            
-                            if ($date_rendu < $aujourdhui) {
-                                $statusClass = 'expired';
-                                $statusBadge = '<span class="badge badge-expired"><i class="fas fa-times-circle"></i>Expiré</span>';
-                                $statusIcon = '<i class="fas fa-history"></i>';
-                            } elseif ($diff->days <= 3) {
-                                $statusClass = 'urgent';
-                                $statusBadge = '<span class="badge badge-urgent"><i class="fas fa-exclamation-circle"></i>Urgent</span>';
-                                $statusIcon = '<i class="fas fa-exclamation-circle"></i>';
-                            } elseif ($diff->days <= 7) {
-                                $statusClass = 'soon';
-                                $statusBadge = '<span class="badge badge-soon"><i class="fas fa-clock"></i>Cette semaine</span>';
-                                $statusIcon = '<i class="fas fa-clock"></i>';
-                            } else {
-                                $statusIcon = '<i class="fas fa-book"></i>';
-                            }
-                            ?>
-                            <div class="devoir-card <?= $statusClass ?>" data-date="<?= $devoir['date_rendu'] ?>">
-                                <div class="card-header">
-                                    <div class="devoir-title">
-                                        <?= $statusIcon ?> <?= htmlspecialchars($devoir['titre']) ?>
-                                    </div>
-                                    <div class="devoir-meta">
-                                        <span>Ajouté le: <?= date('d/m/Y', strtotime($devoir['date_ajout'])) ?></span>
-                                        <?= $statusBadge ?>
-                                    </div>
+                        <?php foreach ($devoirs as $devoir):
+                            $status   = $service->computeStatus($devoir['date_rendu']);
+                            $isNew    = $service->isNew($devoir);
+                            $isFait   = in_array($devoir['id'], $devoirsFaits);
+                            $fichiers = $service->getFichiers($devoir['id']);
+                        ?>
+                        <div class="devoir-card <?= $status['class'] ?> <?= $isFait ? 'devoir-fait' : '' ?>" data-date="<?= $devoir['date_rendu'] ?>">
+                            <div class="card-header">
+                                <div class="devoir-title">
+                                    <i class="fas <?= $status['icon'] ?>"></i>
+                                    <?= htmlspecialchars($devoir['titre']) ?>
+                                    <?php if ($status['class']): ?>
+                                        <span class="badge badge-<?= $status['class'] ?>"><i class="fas <?= $status['icon'] ?>"></i><?= $status['label'] ?></span>
+                                    <?php endif; ?>
+                                    <?php if ($isNew): ?>
+                                        <span class="badge badge-new"><i class="fas fa-sparkles"></i>Nouveau</span>
+                                    <?php endif; ?>
                                 </div>
-                                
-                                <div class="card-body">
-                                    <div class="devoir-info-grid">
-                                        <div class="devoir-info">
-                                            <div class="info-label">Classe:</div>
-                                            <div class="info-value"><?= htmlspecialchars($devoir['classe']) ?></div>
-                                        </div>
-                                        
-                                        <div class="devoir-info">
-                                            <div class="info-label">Matière:</div>
-                                            <div class="info-value"><?= htmlspecialchars($devoir['nom_matiere']) ?></div>
-                                        </div>
-                                        
-                                        <div class="devoir-info">
-                                            <div class="info-label">Professeur:</div>
-                                            <div class="info-value"><?= htmlspecialchars($devoir['nom_professeur']) ?></div>
-                                        </div>
-                                        
-                                        <div class="devoir-info">
-                                            <div class="info-label">À rendre pour le:</div>
-                                            <div class="info-value date-rendu <?= $statusClass ?>">
-                                                <?= date('d/m/Y', strtotime($devoir['date_rendu'])) ?>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="devoir-description">
-                                        <h4>Description:</h4>
-                                        <p><?= nl2br(htmlspecialchars($devoir['description'])) ?></p>
-                                    </div>
-                                    
-                                    <?php if (canManageDevoirs()): ?>
-                                        <!-- Si c'est un professeur, vérifier qu'il est bien l'auteur du devoir -->
-                                        <?php if (!isTeacher() || (isTeacher() && $devoir['nom_professeur'] == $user_fullname)): ?>
-                                            <div class="card-actions">
-                                                <a href="modifier_devoir.php?id=<?= $devoir['id'] ?>" class="btn btn-secondary">
-                                                    <i class="fas fa-edit"></i> Modifier
-                                                </a>
-                                                <a href="supprimer_devoir.php?id=<?= $devoir['id'] ?>" class="btn btn-danger" 
-                                                   onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce devoir ?');">
-                                                    <i class="fas fa-trash"></i> Supprimer
-                                                </a>
-                                            </div>
-                                        <?php endif; ?>
+                                <div class="devoir-meta">
+                                    <span>Ajouté le: <?= date('d/m/Y', strtotime($devoir['date_ajout'])) ?></span>
+                                </div>
+                            </div>
+
+                            <div class="card-body">
+                                <div class="devoir-info-grid">
+                                    <div class="devoir-info"><div class="info-label">Classe:</div><div class="info-value"><?= htmlspecialchars($devoir['classe']) ?></div></div>
+                                    <div class="devoir-info"><div class="info-label">Matière:</div><div class="info-value"><?= htmlspecialchars($devoir['nom_matiere']) ?></div></div>
+                                    <div class="devoir-info"><div class="info-label">Professeur:</div><div class="info-value"><?= htmlspecialchars($devoir['nom_professeur']) ?></div></div>
+                                    <div class="devoir-info"><div class="info-label">À rendre pour le:</div><div class="info-value date-rendu <?= $status['class'] ?>"><?= date('d/m/Y', strtotime($devoir['date_rendu'])) ?></div></div>
+                                </div>
+
+                                <div class="devoir-description">
+                                    <h4>Description:</h4>
+                                    <p><?= nl2br(htmlspecialchars($devoir['description'])) ?></p>
+                                </div>
+
+                                <!-- Pièces jointes (PJ-5) -->
+                                <?php if (!empty($fichiers)): ?>
+                                <div class="fichiers-list">
+                                    <h4><i class="fas fa-paperclip"></i> Pièces jointes</h4>
+                                    <?php foreach ($fichiers as $f): ?>
+                                        <a href="telecharger.php?id=<?= $f['id'] ?>" class="fichier-item">
+                                            <i class="fas fa-<?= FileUploadService::getFileIcon($f['type_mime']) ?>"></i>
+                                            <span><?= htmlspecialchars($f['nom_original']) ?></span>
+                                            <span class="fichier-taille"><?= FileUploadService::formatBytes($f['taille']) ?></span>
+                                        </a>
+                                    <?php endforeach; ?>
+                                </div>
+                                <?php endif; ?>
+
+                                <div class="card-actions">
+                                    <?php if (isStudent()): ?>
+                                        <button class="btn <?= $isFait ? 'btn-success' : 'btn-secondary' ?> devoir-fait-toggle"
+                                                data-devoir-id="<?= $devoir['id'] ?>">
+                                            <i class="<?= $isFait ? 'fas fa-check-circle' : 'far fa-circle' ?>"></i>
+                                            <?= $isFait ? 'Fait' : 'À faire' ?>
+                                        </button>
+                                    <?php endif; ?>
+                                    <?php if (canManageDevoirs() && $service->canUserEdit($devoir, $user_fullname, $user_role)): ?>
+                                        <a href="form_devoir.php?id=<?= $devoir['id'] ?>" class="btn btn-secondary">
+                                            <i class="fas fa-edit"></i> Modifier
+                                        </a>
+                                        <a href="supprimer_devoir.php?id=<?= $devoir['id'] ?>" class="btn btn-danger"
+                                           onclick="return confirm('Supprimer ce devoir ?');">
+                                            <i class="fas fa-trash"></i> Supprimer
+                                        </a>
                                     <?php endif; ?>
                                 </div>
                             </div>
+                        </div>
                         <?php endforeach; ?>
                     </div>
+
+                    <!-- Pagination (UX-1) -->
+                    <?php if ($totalPages > 1): ?>
+                    <div class="pagination">
+                        <?php if ($page > 1): ?>
+                            <a href="?page=<?= $page - 1 ?>&order=<?= htmlspecialchars($orderField) ?><?= $qs ? '&' . $qs : '' ?>" class="btn btn-secondary">&laquo; Précédent</a>
+                        <?php endif; ?>
+                        <span class="pagination-info">Page <?= $page ?> / <?= $totalPages ?> (<?= $totalDevoirs ?> devoirs)</span>
+                        <?php if ($page < $totalPages): ?>
+                            <a href="?page=<?= $page + 1 ?>&order=<?= htmlspecialchars($orderField) ?><?= $qs ? '&' . $qs : '' ?>" class="btn btn-secondary">Suivant &raquo;</a>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
                 <?php endif; ?>
 
-            <!-- Vue en calendrier -->
+            <!-- ════════ VUE CALENDRIER ════════ -->
             <?php else: ?>
                 <?php
-                // Génération du calendrier
-                $current_month = date('n');
-                $current_year = date('Y');
-                
-                if (isset($_GET['month']) && isset($_GET['year'])) {
-                    $month = (int)$_GET['month'];
-                    $year = (int)$_GET['year'];
-                } else {
-                    $month = $current_month;
-                    $year = $current_year;
-                }
-                
-                // Premier jour du mois
-                $first_day = mktime(0, 0, 0, $month, 1, $year);
-                
-                // Nombre de jours dans le mois
-                $num_days = date('t', $first_day);
-                
-                // Jour de la semaine du premier jour (0=dimanche, 6=samedi)
-                $day_of_week = date('w', $first_day);
-                
-                // Ajuster pour commencer par lundi
-                if ($day_of_week == 0) {
-                    $day_of_week = 6;
-                } else {
-                    $day_of_week--;
-                }
-                
-                // Mois et année précédents/suivants
-                $prev_month = $month - 1;
-                $prev_year = $year;
-                if ($prev_month <= 0) {
-                    $prev_month = 12;
-                    $prev_year--;
-                }
-                
-                $next_month = $month + 1;
-                $next_year = $year;
-                if ($next_month > 12) {
-                    $next_month = 1;
-                    $next_year++;
-                }
-                
-                // Noms des mois en français
-                $months = [
-                    1 => 'Janvier', 2 => 'Février', 3 => 'Mars',
-                    4 => 'Avril', 5 => 'Mai', 6 => 'Juin',
-                    7 => 'Juillet', 8 => 'Août', 9 => 'Septembre',
-                    10 => 'Octobre', 11 => 'Novembre', 12 => 'Décembre'
-                ];
-                
-                // Noms des jours en français
-                $days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-                
-                // Organiser les devoirs par date
-                $devoirs_by_date = [];
-                foreach ($devoirs as $devoir) {
-                    $date = $devoir['date_rendu'];
-                    if (!isset($devoirs_by_date[$date])) {
-                        $devoirs_by_date[$date] = [];
-                    }
-                    $devoirs_by_date[$date][] = $devoir;
-                }
+                $calMonth = isset($_GET['month']) ? (int) $_GET['month'] : null;
+                $calYear  = isset($_GET['year'])  ? (int) $_GET['year']  : null;
+                $calendar = new CalendarRenderer($allDevoirs ?? [], $calMonth, $calYear, $orderField);
+                echo $calendar->render([$service, 'computeStatus']);
                 ?>
-                
-                <div class="calendar-container">
-                    <div class="calendar-header">
-                        <div class="calendar-title">
-                            <?= $months[$month] ?> <?= $year ?>
-                        </div>
-                        <div class="calendar-nav">
-                            <a href="?mode=calendar&month=<?= $prev_month ?>&year=<?= $prev_year ?>&order=<?= $order['field'] ?>" class="calendar-nav-btn">
-                                <i class="fas fa-chevron-left"></i>
-                            </a>
-                            <a href="?mode=calendar&month=<?= $current_month ?>&year=<?= $current_year ?>&order=<?= $order['field'] ?>" class="calendar-nav-btn">
-                                <i class="fas fa-circle"></i>
-                            </a>
-                            <a href="?mode=calendar&month=<?= $next_month ?>&year=<?= $next_year ?>&order=<?= $order['field'] ?>" class="calendar-nav-btn">
-                                <i class="fas fa-chevron-right"></i>
-                            </a>
-                        </div>
-                    </div>
-                    
-                    <div class="calendar-grid">
-                        <?php foreach ($days as $day): ?>
-                            <div class="calendar-weekday"><?= $day ?></div>
-                        <?php endforeach; ?>
-                        
-                        <?php
-                        // Cases vides avant le premier jour du mois
-                        for ($i = 0; $i < $day_of_week; $i++) {
-                            echo '<div class="calendar-day other-month"></div>';
-                        }
-                        
-                        // Jours du mois
-                        for ($day = 1; $day <= $num_days; $day++) {
-                            $date = date('Y-m-d', mktime(0, 0, 0, $month, $day, $year));
-                            $is_today = ($day == date('j') && $month == date('n') && $year == date('Y'));
-                            
-                            echo '<div class="calendar-day' . ($is_today ? ' today' : '') . '">';
-                            echo '<div class="calendar-date">' . $day . '</div>';
-                            
-                            // Afficher les devoirs pour cette date
-                            if (isset($devoirs_by_date[$date])) {
-                                foreach ($devoirs_by_date[$date] as $devoir) {
-                                    // Déterminer le statut du devoir
-                                    $date_rendu = new DateTime($devoir['date_rendu']);
-                                    $aujourdhui = new DateTime();
-                                    $diff = $aujourdhui->diff($date_rendu);
-                                    
-                                    $statusClass = '';
-                                    if ($date_rendu < $aujourdhui) {
-                                        $statusClass = 'expired';
-                                    } elseif ($diff->days <= 3) {
-                                        $statusClass = 'urgent';
-                                    } elseif ($diff->days <= 7) {
-                                        $statusClass = 'soon';
-                                    }
-                                    
-                                    echo '<div class="calendar-event ' . $statusClass . '" 
-                                              title="' . htmlspecialchars($devoir['titre'] . ' - ' . $devoir['nom_matiere']) . '">' .
-                                          htmlspecialchars($devoir['titre']) .
-                                         '</div>';
-                                }
-                            }
-                            
-                            echo '</div>';
-                        }
-                        
-                        // Cases vides après le dernier jour du mois
-                        $remaining_days = 7 - (($day_of_week + $num_days) % 7);
-                        if ($remaining_days < 7) {
-                            for ($i = 0; $i < $remaining_days; $i++) {
-                                echo '<div class="calendar-day other-month"></div>';
-                            }
-                        }
-                        ?>
-                    </div>
-                </div>
             <?php endif; ?>
 
-            <!-- Footer -->
-            <div class="footer">
-<?php
-// Script spécifique au cahier de textes
-ob_start();
-?>
-<script>
-// Filtrage des devoirs
-document.addEventListener('DOMContentLoaded', function() {
-    const filterLinks = document.querySelectorAll('.filter-link');
-    const devoirItems = document.querySelectorAll('.devoir-card');
-    
-    filterLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            const filter = this.getAttribute('data-filter');
-            filterLinks.forEach(l => l.classList.remove('active'));
-            this.classList.add('active');
-            devoirItems.forEach(item => {
-                if (filter === 'all') {
-                    item.style.display = '';
-                } else if (filter === 'urgent' && item.classList.contains('urgent')) {
-                    item.style.display = '';
-                } else if (filter === 'soon' && (item.classList.contains('soon') || item.classList.contains('urgent'))) {
-                    item.style.display = '';
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-        });
-    });
-});
-</script>
-<?php
-$extraScriptHtml = ob_get_clean();
+        </div>
 
+<?php
 include __DIR__ . '/../templates/shared_footer.php';
-
 ob_end_flush();
 ?>

@@ -1,0 +1,70 @@
+/* ======= M15 – TROMBINOSCOPE ======= */
+
+.trombi-search { margin-bottom: 1rem; }
+.search-form-trombi { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.search-form-trombi .search-input-wrap { position: relative; flex: 1; min-width: 220px; }
+.search-form-trombi .search-input-wrap i { position: absolute; left: .75rem; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+.search-form-trombi .search-input-wrap .form-control { padding-left: 2.25rem; }
+
+.trombi-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border, #e2e8f0); margin-bottom: 1rem; }
+.trombi-tab {
+    padding: .6rem 1rem;
+    text-decoration: none;
+    color: var(--text-secondary, #64748b);
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all .15s;
+    display: flex; align-items: center; gap: .4rem;
+}
+.trombi-tab:hover { color: var(--primary, #4f46e5); }
+.trombi-tab.active { color: var(--primary, #4f46e5); border-bottom-color: var(--primary, #4f46e5); }
+
+.trombi-filter { margin-bottom: 1rem; display: flex; align-items: center; gap: .5rem; }
+.trombi-filter .form-select { max-width: 300px; }
+.trombi-result-info { font-size: .9rem; color: var(--text-secondary, #64748b); margin-bottom: .75rem; }
+
+.trombi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1rem;
+}
+
+.trombi-card {
+    background: var(--bg-card, #fff);
+    border-radius: 12px;
+    padding: 1.25rem .75rem;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    transition: transform .15s, box-shadow .15s;
+}
+.trombi-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+
+.trombi-avatar {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    margin: 0 auto .75rem;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.2rem;
+    letter-spacing: 1px;
+}
+
+.trombi-name { font-weight: 600; font-size: .95rem; margin-bottom: .25rem; }
+.trombi-detail { margin-bottom: .25rem; }
+.trombi-email { font-size: .75rem; color: var(--text-secondary, #94a3b8); word-break: break-all; }
+.trombi-email i { margin-right: .25rem; }
+
+.empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-secondary, #94a3b8);
+}
+
+@media (max-width: 768px) {
+    .trombi-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .75rem; }
+    .search-form-trombi { flex-direction: column; align-items: stretch; }
+    .trombi-tabs { overflow-x: auto; }
+}

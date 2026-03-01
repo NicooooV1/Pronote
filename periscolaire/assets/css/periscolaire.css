@@ -1,0 +1,49 @@
+/* M16 – Périscolaire — CSS */
+
+.filter-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center; }
+.form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+.form-grid-3 .full-width { grid-column: 1 / -1; }
+.form-inline { display: flex; gap: .5rem; align-items: flex-end; flex-wrap: wrap; }
+
+.info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.info-item { display: flex; align-items: center; gap: .5rem; padding: .75rem; border-radius: 8px; background: var(--bg-secondary, #f9fafb); font-size: .9rem; }
+.info-item i { color: var(--primary, #4f46e5); }
+
+.services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+.service-card { display: flex; gap: 1rem; align-items: center; background: var(--card-bg, #fff); border-radius: 12px; padding: 1.2rem; border: 1px solid var(--border-color, #e0e0e0); }
+.service-icon { width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; color: #fff; }
+.type-cantine .service-icon { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.type-garderie .service-icon { background: linear-gradient(135deg, #10b981, #059669); }
+.type-etude .service-icon { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.type-activite .service-icon { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+.service-info h3 { margin: 0; }
+.service-info h3 a { color: inherit; text-decoration: none; }
+.service-info h3 a:hover { color: var(--primary, #4f46e5); }
+.service-meta { display: flex; gap: .5rem; font-size: .8rem; color: var(--text-muted, #9ca3af); margin-top: .3rem; }
+
+/* Menus semaine */
+.menus-week { display: grid; grid-template-columns: repeat(5, 1fr); gap: .75rem; }
+.menu-day { background: var(--card-bg, #fff); border-radius: 10px; border: 1px solid var(--border-color, #e0e0e0); overflow: hidden; }
+.menu-day.today { border-color: var(--primary, #4f46e5); box-shadow: 0 0 0 2px rgba(99,102,241,.2); }
+.menu-day-header { padding: .75rem; background: var(--bg-secondary, #f9fafb); font-weight: 600; font-size: .85rem; }
+.menu-day-header small { font-weight: 400; color: var(--text-muted, #9ca3af); }
+.menu-content { padding: .5rem .75rem; }
+.menu-course { padding: .3rem 0; font-size: .85rem; }
+.course-label { font-weight: 600; color: var(--primary, #4f46e5); font-size: .75rem; display: block; }
+.menu-allergenes { margin-top: .4rem; padding: .3rem .5rem; background: #fef3c7; border-radius: 4px; font-size: .75rem; color: #92400e; }
+
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { padding: .5rem .6rem; border-bottom: 1px solid var(--border-color, #e5e7eb); text-align: left; font-size: .85rem; }
+.table th { background: var(--bg-secondary, #f9fafb); font-weight: 600; }
+
+.inscriptions-list { display: flex; flex-direction: column; gap: .5rem; }
+.inscription-card { display: flex; gap: 1rem; align-items: center; padding: 1rem; background: var(--card-bg, #fff); border-radius: 10px; border: 1px solid var(--border-color, #e0e0e0); }
+.inscription-icon { width: 42px; height: 42px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; display: flex; align-items: center; justify-content: center; }
+.inscription-info h3 { margin: 0; font-size: .95rem; }
+.inscription-meta { display: flex; gap: .5rem; align-items: center; font-size: .8rem; margin-top: .2rem; }
+
+@media (max-width: 768px) {
+    .menus-week { grid-template-columns: 1fr; }
+    .form-grid-3 { grid-template-columns: 1fr; }
+    .services-grid { grid-template-columns: 1fr; }
+}

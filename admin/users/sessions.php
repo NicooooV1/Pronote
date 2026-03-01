@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Gestion des sessions actives — vue admin des sessions utilisateurs
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -92,12 +91,12 @@ $uniqueUsers = count(array_unique(array_map(fn($s) => $s['user_type'].'_'.$s['us
 
 $pageTitle = 'Sessions actives';
 $currentPage = 'sessions';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
 <style>
     .sessions-container { max-width: 1100px; margin: 0 auto; }
-    .stats-bar { display: flex; gap: 15px; margin-bottom: 20px; }
     .stat-pill { background: white; border-radius: 8px; padding: 12px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); display: flex; align-items: center; gap: 10px; }
     .stat-pill i { font-size: 20px; color: #0f4c81; }
     .stat-pill .val { font-size: 20px; font-weight: 700; color: #1a202c; }
@@ -107,15 +106,6 @@ ob_start();
     .sess-table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .sess-table th, .sess-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
     .sess-table th { background: #f7fafc; font-weight: 600; color: #4a5568; }
-    .badge-profil { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-    .badge-eleve { background: #dbeafe; color: #1e40af; }
-    .badge-parent { background: #d1fae5; color: #065f46; }
-    .badge-prof { background: #ffedd5; color: #c2410c; }
-    .badge-vs { background: #ede9fe; color: #5b21b6; }
-    .badge-admin { background: #fee2e2; color: #991b1b; }
-    .btn-xs { padding: 4px 8px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-    .btn-xs.danger { background: #dc2626; }
-    .btn-xs.warning { background: #f59e0b; }
     .top-actions { display: flex; justify-content: flex-end; margin-bottom: 15px; }
     .ip-mono { font-family: monospace; font-size: 12px; color: #555; }
 </style>

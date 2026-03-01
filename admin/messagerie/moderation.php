@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Modération des messages — recherche FULLTEXT, suppression, édition, pin
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -129,6 +128,7 @@ try {
 
 $pageTitle = 'Modération messagerie';
 $currentPage = 'msg_moderation';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
@@ -145,15 +145,10 @@ ob_start();
     .msg-meta strong { color: #333; }
     .msg-text { font-size: 13px; color: #444; line-height: 1.5; max-height: 60px; overflow: hidden; }
     .msg-actions { display: flex; gap: 4px; flex-wrap: wrap; }
-    .btn-xs { padding: 3px 7px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; color: white; }
-    .btn-xs.primary { background: #0f4c81; } .btn-xs.danger { background: #dc2626; } .btn-xs.warning { background: #f59e0b; } .btn-xs.success { background: #059669; }
     .badge-status { display: inline-block; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600; margin-left: 4px; }
     .bs-normal { background: #e2e8f0; color: #4a5568; } .bs-important { background: #fef3cd; color: #92400e; }
     .bs-urgent { background: #fee2e2; color: #991b1b; } .bs-annonce { background: #dbeafe; color: #1e40af; }
     .report-box { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 12px; margin-bottom: 10px; font-size: 13px; }
-    .pagination { display: flex; gap: 4px; justify-content: center; margin-top: 20px; }
-    .pagination a, .pagination span { padding: 6px 12px; border-radius: 6px; font-size: 13px; text-decoration: none; }
-    .pagination a { background: white; color: #333; border: 1px solid #ddd; } .pagination span.current { background: #0f4c81; color: white; }
     .section-title { font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: #1a202c; }
 </style>
 <?php

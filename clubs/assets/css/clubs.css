@@ -1,0 +1,86 @@
+/* M30 – Clubs & Associations — CSS */
+
+.cat-bar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.5rem; }
+.cat-chip {
+    padding: .4rem .9rem; border-radius: 20px;
+    background: var(--bg-secondary, #f3f4f6); color: var(--text-color, #333);
+    text-decoration: none; font-size: .85rem; transition: all .2s;
+    display: flex; align-items: center; gap: .3rem;
+}
+.cat-chip:hover, .cat-chip.active { background: var(--primary, #4f46e5); color: #fff; }
+
+/* Clubs grid */
+.clubs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+.club-card {
+    background: var(--card-bg, #fff); border-radius: 12px;
+    border: 1px solid var(--border-color, #e0e0e0);
+    padding: 1.5rem; text-align: center;
+    transition: all .2s;
+}
+.club-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); transform: translateY(-2px); }
+.club-icon {
+    width: 60px; height: 60px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; margin-bottom: .75rem;
+    background: #eef2ff; color: var(--primary, #4f46e5);
+}
+.club-icon.cat-sport { background: #fef3c7; color: #f59e0b; }
+.club-icon.cat-science { background: #d1fae5; color: #10b981; }
+.club-icon.cat-art, .club-icon.cat-musique, .club-icon.cat-theatre { background: #fce7f3; color: #ec4899; }
+.club-icon.cat-informatique { background: #e0e7ff; color: #6366f1; }
+.club-icon.cat-environnement { background: #d1fae5; color: #059669; }
+
+.club-icon-lg { width: 80px; height: 80px; font-size: 2rem; }
+
+.club-card h3 { font-size: 1rem; margin-bottom: .25rem; }
+.club-cat { font-size: .75rem; padding: .15em .5em; border-radius: 8px; background: #f3f4f6; color: var(--text-muted, #6b7280); }
+.club-resp { font-size: .8rem; color: var(--text-muted, #6b7280); margin-top: .5rem; }
+.club-meta { margin-top: .5rem; font-size: .8rem; color: var(--text-muted, #9ca3af); display: flex; flex-direction: column; gap: .2rem; }
+.btn-block { display: block; margin-top: .75rem; }
+
+/* Detail */
+.club-detail-header { display: flex; gap: 1.5rem; align-items: flex-start; margin-bottom: 1.5rem; }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.info-item {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .75rem; border-radius: 8px;
+    background: var(--bg-secondary, #f9fafb); font-size: .9rem;
+}
+.info-item i { color: var(--primary, #4f46e5); }
+
+.inscription-action { margin-bottom: 1.5rem; }
+
+/* Members */
+.members-list { display: flex; flex-direction: column; gap: .3rem; }
+.member-item {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .6rem .8rem; border-radius: 8px;
+    background: var(--bg-secondary, #f9fafb);
+}
+.member-avatar {
+    width: 35px; height: 35px; border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: .75rem; flex-shrink: 0;
+}
+.member-info { flex: 1; }
+.member-info span { font-size: .8rem; color: var(--text-muted, #9ca3af); }
+
+/* Mes clubs */
+.mes-clubs-list { display: flex; flex-direction: column; gap: .5rem; }
+.club-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.2rem; background: var(--card-bg, #fff);
+    border-radius: 10px; border: 1px solid var(--border-color, #e0e0e0);
+}
+
+/* Form */
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-grid-2 .full-width { grid-column: 1 / -1; }
+.form-actions { margin-top: 1.5rem; display: flex; gap: 1rem; }
+
+@media (max-width: 768px) {
+    .clubs-grid { grid-template-columns: 1fr; }
+    .form-grid-2 { grid-template-columns: 1fr; }
+    .club-detail-header { flex-direction: column; }
+}

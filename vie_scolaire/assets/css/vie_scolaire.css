@@ -1,0 +1,126 @@
+/* ======= M10 – VIE SCOLAIRE ======= */
+
+.vs-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: .75rem;
+  margin-bottom: 1.5rem;
+}
+.vs-stat-card {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: 1rem;
+  background: var(--bg-card, #fff);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+.vs-stat-icon {
+  width: 48px; height: 48px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem;
+}
+.vs-stat-danger .vs-stat-icon { background: #fee2e2; color: #dc2626; }
+.vs-stat-warning .vs-stat-icon { background: #fef3c7; color: #d97706; }
+.vs-stat-primary .vs-stat-icon { background: #eef2ff; color: var(--primary, #4f46e5); }
+.vs-stat-info .vs-stat-icon { background: #dbeafe; color: #2563eb; }
+.vs-stat-secondary .vs-stat-icon { background: #f1f5f9; color: #64748b; }
+.vs-stat-value { display: block; font-size: 1.5rem; font-weight: 700; line-height: 1; }
+.vs-stat-label { font-size: .8rem; color: var(--text-secondary, #64748b); }
+
+.vs-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Timeline */
+.vs-timeline { max-height: 400px; overflow-y: auto; }
+.vs-timeline-item { display: flex; gap: .75rem; padding: .5rem 0; border-bottom: 1px solid var(--border, #f1f5f9); }
+.vs-timeline-icon { width: 28px; text-align: center; flex-shrink: 0; padding-top: 2px; }
+.vs-timeline-content { font-size: .85rem; line-height: 1.4; }
+.vs-timeline-type { font-weight: 600; margin-right: .25rem; }
+.vs-timeline-date { display: block; font-size: .75rem; color: var(--text-secondary, #94a3b8); margin-top: 2px; }
+
+/* Quick links */
+.vs-quick-links { display: flex; gap: .75rem; flex-wrap: wrap; }
+.vs-quick-link {
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .6rem 1rem;
+  background: var(--bg-card, #fff);
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--text-primary, #334155);
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  transition: all .15s;
+}
+.vs-quick-link:hover { background: var(--primary, #4f46e5); color: #fff; }
+.vs-quick-link i { font-size: 1rem; }
+
+/* Fiche élève */
+.search-bar-vs { margin-bottom: 1.5rem; position: relative; }
+.search-input-wrap { position: relative; max-width: 500px; }
+.search-input-wrap i { position: absolute; left: .75rem; top: 50%; transform: translateY(-50%); color: var(--text-secondary, #94a3b8); }
+.search-input-wrap .form-control { padding-left: 2.25rem; }
+.search-dropdown {
+  position: absolute; top: 100%; left: 0; right: 0;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.1);
+  z-index: 50;
+  display: none;
+  max-height: 300px; overflow-y: auto;
+}
+.search-item { display: block; padding: .5rem .75rem; text-decoration: none; color: var(--text-primary, #334155); border-bottom: 1px solid var(--border, #f1f5f9); }
+.search-item:hover { background: var(--bg-secondary, #f8fafc); }
+
+.fiche-header {
+  display: flex; align-items: center; gap: 1rem;
+  background: var(--bg-card, #fff);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  flex-wrap: wrap;
+}
+.fiche-avatar {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: var(--primary, #4f46e5);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1.2rem;
+  flex-shrink: 0;
+}
+.fiche-info h2 { margin: 0; font-size: 1.25rem; }
+.fiche-counters { display: flex; gap: .75rem; margin-left: auto; flex-wrap: wrap; }
+.fc { text-align: center; padding: .5rem .75rem; border-radius: 8px; background: var(--bg-secondary, #f8fafc); }
+.fc-value { display: block; font-size: 1.2rem; font-weight: 700; }
+.fc-label { font-size: .7rem; color: var(--text-secondary, #64748b); }
+.fc-alert { background: #fee2e2; }
+.fc-alert .fc-value { color: #dc2626; }
+
+/* Tabs */
+.tabs-bar { display: flex; gap: 0; border-bottom: 2px solid var(--border, #e2e8f0); margin-bottom: 1rem; }
+.tab-item { padding: .6rem 1rem; text-decoration: none; color: var(--text-secondary, #64748b); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; }
+.tab-item:hover { color: var(--primary, #4f46e5); }
+.tab-item.active { color: var(--primary, #4f46e5); border-bottom-color: var(--primary, #4f46e5); }
+
+.resume-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+/* Mini bar chart */
+.mini-bar { height: 8px; background: var(--bg-secondary, #e2e8f0); border-radius: 4px; overflow: hidden; min-width: 100px; }
+.mini-bar-fill { height: 100%; border-radius: 4px; transition: width .3s; }
+.bar-success { background: #10b981; }
+.bar-warning { background: #f59e0b; }
+.bar-danger { background: #ef4444; }
+
+@media (max-width: 768px) {
+  .vs-dashboard-grid { grid-template-columns: 1fr; }
+  .resume-grid { grid-template-columns: 1fr; }
+  .fiche-counters { margin-left: 0; }
+}

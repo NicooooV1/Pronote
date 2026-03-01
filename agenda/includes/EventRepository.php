@@ -1,0 +1,510 @@
+<?php
+/**
+ * EventRepository — Service centralisé pour la gestion des événements agenda.
+ *
+ * Remplace : calendar_functions.php, event_helpers.php, models/Evenement.php
+ * Centralise : filtrage par rôle (×1 au lieu de ×6), types, visibilité, CRUD, matières.
+ */
+class EventRepository
+{
+    private PDO $pdo;
+
+    /* ── Constante unique : types d'événements ── */
+    const TYPES = [
+        'cours'   => ['nom' => 'Cours',           'icone' => 'book',      'couleur' => '#007aff'],
+        'devoirs' => ['nom' => 'Devoirs',          'icone' => 'pencil-alt','couleur' => '#34c759'],
+        'reunion' => ['nom' => 'Réunion',          'icone' => 'users',     'couleur' => '#ff9500'],
+        'examen'  => ['nom' => 'Examen',           'icone' => 'file-alt',  'couleur' => '#ff3b30'],
+        'sortie'  => ['nom' => 'Sortie scolaire',  'icone' => 'map-marker-alt', 'couleur' => '#5856d6'],
+        'autre'   => ['nom' => 'Autre',            'icone' => 'calendar',  'couleur' => '#8e8e93'],
+    ];
+
+    const VALID_STATUTS = ['actif', 'annulé', 'reporté'];
+
+    const VALID_VISIBILITES = [
+        'public', 'professeurs', 'eleves', 'administration',
+        'classes_specifiques', 'personnel', 'parents',
+    ];
+
+    /* ── Matières de fallback ── */
+    const MATIERES_FALLBACK = [
+        'Français', 'Mathématiques', 'Histoire-Géographie', 'Anglais',
+        'Espagnol', 'Allemand', 'Physique-Chimie', 'SVT', 'Technologie',
+        'Arts Plastiques', 'Musique', 'EPS', 'EMC', 'SNT', 'NSI',
+        'Philosophie', 'SES', 'LLCE', 'Latin', 'Grec', 'Autre',
+    ];
+
+    /* ── Noms français ── */
+    const MONTH_NAMES = [
+        1 => 'Janvier', 2 => 'Février', 3 => 'Mars', 4 => 'Avril',
+        5 => 'Mai', 6 => 'Juin', 7 => 'Juillet', 8 => 'Août',
+        9 => 'Septembre', 10 => 'Octobre', 11 => 'Novembre', 12 => 'Décembre',
+    ];
+    const DAY_NAMES      = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+    const DAY_NAMES_FULL = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+
+    public function __construct(PDO $pdo)
+    {
+        $this->pdo = $pdo;
+    }
+
+    /* ================================================================
+       QUERIES — filtrage unique par rôle
+       ================================================================ */
+
+    /**
+     * Méthode unique de filtrage par rôle et critères.
+     * Remplace les 6 copies dupliquées du filtrage SQL.
+     *
+     * @param array $options Clés possibles :
+     *   - date_start, date_end  (plage)
+     *   - date                  (jour unique)
+     *   - month, year           (mois)
+     *   - types                 (array de type_evenement)
+     *   - classes               (array de classes)
+     *   - user_role, user_fullname, user_classe  (filtrage rôle)
+     *   - limit                 (int)
+     *   - upcoming              (bool — événements futurs uniquement)
+     *   - recent_days           (int — inclure les N derniers jours)
+     */
+    public function findFiltered(array $options = []): array
+    {
+        $params = [];
+        $where  = [];
+
+        // ── Période ──
+        if (!empty($options['date_start']) && !empty($options['date_end'])) {
+            $where[]  = "DATE(date_debut) BETWEEN ? AND ?";
+            $params[] = $options['date_start'];
+            $params[] = $options['date_end'];
+        } elseif (!empty($options['date'])) {
+            $where[]  = "(DATE(date_debut) = ? OR DATE(date_fin) = ?)";
+            $params[] = $options['date'];
+            $params[] = $options['date'];
+        } elseif (!empty($options['month']) && !empty($options['year'])) {
+            $where[]  = "MONTH(date_debut) = ? AND YEAR(date_debut) = ?";
+            $params[] = (int) $options['month'];
+            $params[] = (int) $options['year'];
+        }
+
+        // ── Filtre par types ──
+        if (!empty($options['types']) && is_array($options['types'])) {
+            $ph = implode(',', array_fill(0, count($options['types']), '?'));
+            $where[] = "type_evenement IN ($ph)";
+            $params  = array_merge($params, $options['types']);
+        }
+
+        // ── Filtre par classes ──
+        if (!empty($options['classes']) && is_array($options['classes'])) {
+            $clauses = [];
+            foreach ($options['classes'] as $class) {
+                $clauses[] = "classes LIKE ?";
+                $params[]  = "%$class%";
+            }
+            $where[] = "(" . implode(" OR ", $clauses) . ")";
+        }
+
+        // ── Upcoming / Recent ──
+        if (!empty($options['upcoming'])) {
+            $where[]  = "date_debut >= NOW()";
+        }
+        if (!empty($options['recent_days'])) {
+            $days     = (int) $options['recent_days'];
+            $where[]  = "(date_debut >= DATE_SUB(NOW(), INTERVAL ? DAY) OR date_fin >= CURDATE())";
+            $params[] = $days;
+        }
+
+        // ── Filtre par rôle utilisateur — LA logique unique ──
+        $role     = $options['user_role']     ?? '';
+        $fullname = $options['user_fullname'] ?? '';
+        $classe   = $options['user_classe']   ?? '';
+
+        if (in_array($role, ['administrateur', 'vie_scolaire'], true)) {
+            // Pas de restriction
+        } elseif ($role === 'professeur') {
+            $where[]  = "(visibilite = 'public'
+                          OR visibilite = 'professeurs'
+                          OR createur = ?
+                          OR personnes_concernees LIKE ?)";
+            $params[] = $fullname;
+            $params[] = "%$fullname%";
+        } elseif ($role === 'eleve') {
+            $where[]  = "(visibilite = 'public'
+                          OR visibilite = 'eleves'
+                          OR classes LIKE ?
+                          OR createur = ?
+                          OR personnes_concernees LIKE ?)";
+            $params[] = "%$classe%";
+            $params[] = $fullname;
+            $params[] = "%$fullname%";
+        } elseif ($role === 'parent') {
+            $where[] = "(visibilite = 'public' OR visibilite = 'parents')";
+        } else {
+            // personnel / administration
+            $where[]  = "(visibilite = 'public'
+                          OR visibilite = 'personnel'
+                          OR visibilite = 'administration'
+                          OR createur = ?
+                          OR personnes_concernees LIKE ?)";
+            $params[] = $fullname;
+            $params[] = "%$fullname%";
+        }
+
+        $sql = "SELECT * FROM evenements";
+        if ($where) {
+            $sql .= " WHERE " . implode(" AND ", $where);
+        }
+        $sql .= " ORDER BY date_debut";
+
+        if (!empty($options['limit'])) {
+            $sql .= " LIMIT " . (int) $options['limit'];
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /* ── Raccourcis ── */
+
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM evenements WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    public function findUpcoming(array $roleOpts, int $limit = 8): array
+    {
+        return $this->findFiltered(array_merge($roleOpts, [
+            'upcoming' => true,
+            'limit'    => $limit,
+        ]));
+    }
+
+    public function findRecentPast(array $roleOpts, int $days = 7, int $limit = 5): array
+    {
+        $events = $this->findFiltered(array_merge($roleOpts, [
+            'date_start' => date('Y-m-d', strtotime("-{$days} days")),
+            'date_end'   => date('Y-m-d', strtotime('-1 day')),
+        ]));
+        return array_slice($events, 0, $limit);
+    }
+
+    /* ================================================================
+       CRUD
+       ================================================================ */
+
+    public function create(array $data): int
+    {
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO evenements
+             (titre, description, date_debut, date_fin, type_evenement, type_personnalise,
+              statut, createur, visibilite, personnes_concernees, lieu, classes, matieres, date_creation)
+             VALUES (?, ?, ?, ?, ?, ?, 'actif', ?, ?, ?, ?, ?, ?, NOW())"
+        );
+        $stmt->execute([
+            $data['titre'],
+            $data['description']            ?? '',
+            $data['date_debut'],
+            $data['date_fin'],
+            $data['type_evenement'],
+            $data['type_personnalise']       ?? '',
+            $data['createur'],
+            $data['visibilite'],
+            $data['personnes_concernees']    ?? '',
+            $data['lieu']                    ?? '',
+            $data['classes']                 ?? '',
+            $data['matieres']               ?? '',
+        ]);
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    public function update(int $id, array $data): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "UPDATE evenements SET
+             titre = ?, description = ?, date_debut = ?, date_fin = ?,
+             type_evenement = ?, statut = ?, lieu = ?, visibilite = ?,
+             classes = ?, matieres = ?, personnes_concernees = ?,
+             date_modification = NOW()
+             WHERE id = ?"
+        );
+        return $stmt->execute([
+            $data['titre'],
+            $data['description']            ?? '',
+            $data['date_debut'],
+            $data['date_fin'],
+            $data['type_evenement'],
+            $data['statut']                 ?? 'actif',
+            $data['lieu']                   ?? '',
+            $data['visibilite'],
+            $data['classes']                ?? '',
+            $data['matieres']               ?? '',
+            $data['personnes_concernees']   ?? '',
+            $id,
+        ]);
+    }
+
+    public function delete(int $id): bool
+    {
+        $stmt = $this->pdo->prepare("DELETE FROM evenements WHERE id = ?");
+        return $stmt->execute([$id]);
+    }
+
+    /* ================================================================
+       Validation
+       ================================================================ */
+
+    /**
+     * Valide les données d'un événement.
+     * @return string[] Tableau d'erreurs (vide = valide)
+     */
+    public function validate(array $data): array
+    {
+        $errors = [];
+
+        if (empty(trim($data['titre'] ?? ''))) {
+            $errors[] = "Le titre est obligatoire.";
+        } elseif (mb_strlen($data['titre']) > 100) {
+            $errors[] = "Le titre ne doit pas dépasser 100 caractères.";
+        }
+
+        if (!empty($data['description']) && mb_strlen($data['description']) > 2000) {
+            $errors[] = "La description ne doit pas dépasser 2000 caractères.";
+        }
+
+        // Type
+        if (!array_key_exists($data['type_evenement'] ?? '', self::TYPES)) {
+            $errors[] = "Type d'événement invalide.";
+        }
+
+        // Statut (pour modification)
+        if (!empty($data['statut']) && !in_array($data['statut'], self::VALID_STATUTS, true)) {
+            $errors[] = "Statut invalide.";
+        }
+
+        // Dates
+        $dateDebut = DateTime::createFromFormat('Y-m-d H:i:s', $data['date_debut'] ?? '');
+        $dateFin   = DateTime::createFromFormat('Y-m-d H:i:s', $data['date_fin']   ?? '');
+        if (!$dateDebut || !$dateFin) {
+            $errors[] = "Format de date/heure invalide.";
+        } elseif ($dateFin <= $dateDebut) {
+            $errors[] = "La date de fin doit être postérieure à la date de début.";
+        }
+
+        // Visibilité
+        $vis = $data['visibilite'] ?? '';
+        if (!in_array($vis, self::VALID_VISIBILITES, true) && strpos($vis, 'classes:') !== 0) {
+            $errors[] = "Visibilité invalide.";
+        }
+
+        return $errors;
+    }
+
+    /* ================================================================
+       Helpers statiques
+       ================================================================ */
+
+    public static function getTypeInfo(string $type): array
+    {
+        return self::TYPES[$type] ?? self::TYPES['autre'];
+    }
+
+    public static function getTypeLabel(string $type): string
+    {
+        return (self::TYPES[$type] ?? self::TYPES['autre'])['nom'];
+    }
+
+    public static function getTypesForRole(string $role): array
+    {
+        if (in_array($role, ['administrateur', 'vie_scolaire'], true)) {
+            return self::TYPES;
+        }
+        if ($role === 'professeur') {
+            return array_intersect_key(self::TYPES,
+                array_flip(['cours', 'devoirs', 'examen', 'autre']));
+        }
+        return ['autre' => self::TYPES['autre']];
+    }
+
+    public static function getTypesSimple(): array
+    {
+        $out = [];
+        foreach (self::TYPES as $code => $info) {
+            $out[$code] = $info['nom'];
+        }
+        return $out;
+    }
+
+    public static function getVisibilityForRole(string $role): array
+    {
+        $all = [
+            'public'              => ['nom' => 'Public (visible par tous)',         'icone' => 'globe'],
+            'professeurs'         => ['nom' => 'Professeurs uniquement',            'icone' => 'user-tie'],
+            'eleves'              => ['nom' => 'Élèves uniquement',                 'icone' => 'user-graduate'],
+            'administration'      => ['nom' => 'Administration uniquement',         'icone' => 'user-shield'],
+            'classes_specifiques' => ['nom' => 'Classes spécifiques',               'icone' => 'users'],
+            'personnel'           => ['nom' => 'Personnel (moi uniquement)',        'icone' => 'user-lock'],
+        ];
+        if (in_array($role, ['administrateur', 'vie_scolaire'], true)) return $all;
+        if ($role === 'professeur') {
+            unset($all['administration']);
+            return $all;
+        }
+        return ['personnel' => $all['personnel']];
+    }
+
+    public static function getVisibilityLabel(string $vis): array
+    {
+        $map = [
+            'public'         => ['label' => 'Public (visible par tous)', 'icone' => 'globe'],
+            'professeurs'    => ['label' => 'Professeurs uniquement',    'icone' => 'user-tie'],
+            'eleves'         => ['label' => 'Élèves uniquement',        'icone' => 'user-graduate'],
+            'administration' => ['label' => 'Administration uniquement', 'icone' => 'user-shield'],
+            'personnel'      => ['label' => 'Personnel',                'icone' => 'user-lock'],
+            'parents'        => ['label' => 'Parents',                  'icone' => 'user-friends'],
+        ];
+        if (strpos($vis, 'classes:') === 0) {
+            return ['label' => 'Classes : ' . substr($vis, 8), 'icone' => 'users'];
+        }
+        return $map[$vis] ?? ['label' => $vis, 'icone' => 'lock'];
+    }
+
+    /**
+     * Retourne les matières depuis la BDD ou le fallback.
+     */
+    public function getMatieres(): array
+    {
+        try {
+            $stmt = $this->pdo->query('SELECT DISTINCT nom FROM matieres ORDER BY nom');
+            $result = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            if (!empty($result)) return $result;
+        } catch (\PDOException $e) {
+            // table doesn't exist
+        }
+        return self::MATIERES_FALLBACK;
+    }
+
+    /* ================================================================
+       Mini-calendrier (HTML helper)
+       ================================================================ */
+
+    /**
+     * Génère le HTML du mini-calendrier sidebar.
+     */
+    public function renderMiniCalendar(int $month, int $year, ?string $selectedDate = null, string $filterParams = ''): string
+    {
+        $numDays   = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+        $firstDay  = (int) date('N', mktime(0, 0, 0, $month, 1, $year));
+        $todayD    = (int) date('j');
+        $todayM    = (int) date('n');
+        $todayY    = (int) date('Y');
+        $selD = $selM = $selY = null;
+        if ($selectedDate) {
+            $selD = (int) date('j', strtotime($selectedDate));
+            $selM = (int) date('n', strtotime($selectedDate));
+            $selY = (int) date('Y', strtotime($selectedDate));
+        }
+
+        $prevM = $month - 1; $prevY = $year;
+        if ($prevM < 1) { $prevM = 12; $prevY--; }
+        $nextM = $month + 1; $nextY = $year;
+        if ($nextM > 12) { $nextM = 1; $nextY++; }
+        $fp = htmlspecialchars($filterParams);
+
+        $h  = '<div class="mini-calendar-header">';
+        $h .= '<span class="mini-calendar-title">' . self::MONTH_NAMES[$month] . ' ' . $year . '</span>';
+        $h .= '<div class="mini-calendar-nav">';
+        $h .= '<button class="mini-calendar-nav-btn" data-month="' . $prevM . '" data-year="' . $prevY . '" data-filters="' . $fp . '" aria-label="Mois précédent">&#9668;</button>';
+        $h .= '<button class="mini-calendar-nav-btn" data-month="' . $nextM . '" data-year="' . $nextY . '" data-filters="' . $fp . '" aria-label="Mois suivant">&#9658;</button>';
+        $h .= '</div></div>';
+
+        $h .= '<div class="mini-calendar-grid">';
+        foreach (self::DAY_NAMES as $d) {
+            $h .= '<div class="mini-calendar-day-name">' . $d . '</div>';
+        }
+
+        // Jours mois précédent
+        $prevMonthDays = cal_days_in_month(CAL_GREGORIAN, $prevM, $prevY);
+        for ($i = 1; $i < $firstDay; $i++) {
+            $h .= '<div class="mini-calendar-day other-month">' . ($prevMonthDays - $firstDay + $i + 1) . '</div>';
+        }
+
+        // Jours courants
+        for ($d = 1; $d <= $numDays; $d++) {
+            $cls = '';
+            if ($d === $todayD && $month === $todayM && $year === $todayY) $cls .= ' today';
+            if ($d === $selD && $month === $selM && $year === $selY) $cls .= ' selected';
+            $dt = sprintf('%04d-%02d-%02d', $year, $month, $d);
+            $h .= '<div class="mini-calendar-day' . $cls . '" data-date="' . $dt . '" role="button" tabindex="0">' . $d . '</div>';
+        }
+
+        // Jours mois suivant
+        $shown = $firstDay - 1 + $numDays;
+        $rem   = 7 - ($shown % 7);
+        if ($rem < 7) {
+            for ($d = 1; $d <= $rem; $d++) {
+                $h .= '<div class="mini-calendar-day other-month">' . $d . '</div>';
+            }
+        }
+
+        $h .= '</div>';
+        return $h;
+    }
+
+    /* ================================================================
+       Helpers utilitaires
+       ================================================================ */
+
+    /**
+     * Organise les événements par jour (clé = int jour du mois).
+     */
+    public static function groupByDay(array $events): array
+    {
+        $byDay = [];
+        foreach ($events as $e) {
+            $day = (int) date('j', strtotime($e['date_debut']));
+            $byDay[$day][] = $e;
+        }
+        return $byDay;
+    }
+
+    /**
+     * Organise les événements par date (clé = Y-m-d).
+     */
+    public static function groupByDate(array $events): array
+    {
+        $byDate = [];
+        foreach ($events as $e) {
+            $d = date('Y-m-d', strtotime($e['date_debut']));
+            $byDate[$d][] = $e;
+        }
+        return $byDate;
+    }
+
+    /**
+     * Comptage par type d'événement.
+     */
+    public static function countByType(array $events): array
+    {
+        $counts = [];
+        foreach ($events as $e) {
+            $t = $e['type_evenement'] ?? 'autre';
+            $counts[$t] = ($counts[$t] ?? 0) + 1;
+        }
+        return $counts;
+    }
+
+    /**
+     * Calcule les options de filtre pour le rôle user.
+     */
+    public function getUserFilterOptions(): array
+    {
+        return [
+            'user_role'     => getUserRole(),
+            'user_fullname' => getUserFullName(),
+            'user_classe'   => getCurrentUser()['classe'] ?? '',
+        ];
+    }
+}

@@ -1,0 +1,58 @@
+/* ======= M22 – REPORTING ======= */
+
+.report-filter { display: flex; align-items: center; gap: .5rem; margin-bottom: 1.25rem; }
+.report-filter .form-select { max-width: 300px; }
+.report-class-title { font-size: 1.15rem; margin-bottom: 1rem; }
+
+.report-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: .75rem;
+    margin-bottom: 1.5rem;
+}
+
+.report-stat-card {
+    background: var(--bg-card, #fff);
+    border-radius: 12px;
+    padding: 1.25rem;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+.report-stat-card i { font-size: 1.5rem; color: var(--text-secondary, #94a3b8); margin-bottom: .5rem; }
+.report-stat-value { font-size: 1.75rem; font-weight: 700; line-height: 1; }
+.report-stat-label { font-size: .8rem; color: var(--text-secondary, #64748b); margin-top: .25rem; }
+
+.report-stat-primary i, .report-stat-primary .report-stat-value { color: var(--primary, #4f46e5); }
+.report-stat-warning i, .report-stat-warning .report-stat-value { color: #d97706; }
+.report-stat-info i, .report-stat-info .report-stat-value { color: #2563eb; }
+.report-stat-danger i, .report-stat-danger .report-stat-value { color: #dc2626; }
+
+.report-export-links { margin-top: 1.5rem; }
+.report-export-links h3 { font-size: 1rem; margin-bottom: .75rem; }
+
+.export-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: .75rem; }
+.export-card {
+    display: flex; flex-direction: column; align-items: center; gap: .5rem;
+    padding: 1.25rem;
+    background: var(--bg-card, #fff);
+    border-radius: 12px;
+    text-decoration: none;
+    color: var(--text-primary, #334155);
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    transition: all .15s;
+    font-weight: 500;
+}
+.export-card:hover { background: var(--primary, #4f46e5); color: #fff; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+.export-card i { font-size: 1.5rem; }
+
+.export-form-wrap { max-width: 600px; }
+
+.form-row { display: flex; gap: 1rem; }
+.form-row .form-group { flex: 1; }
+
+.empty-state { text-align: center; padding: 3rem; color: var(--text-secondary, #94a3b8); }
+
+@media (max-width: 768px) {
+    .report-stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .form-row { flex-direction: column; }
+}

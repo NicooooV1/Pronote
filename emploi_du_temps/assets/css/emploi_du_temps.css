@@ -1,0 +1,244 @@
+/**
+ * Emploi du Temps — Styles spécifiques (M03)
+ */
+
+/* Variables spécifiques au module */
+:root {
+    --edt-cell-min-height: 80px;
+    --edt-border-color: #e0e0e0;
+    --edt-header-bg: var(--sidebar-bg, #2c3e50);
+    --edt-header-color: #fff;
+    --edt-time-bg: #f8f9fa;
+}
+
+/* ======= GRILLE EDT ======= */
+.edt-container {
+    overflow-x: auto;
+    margin-top: 1rem;
+}
+
+.edt-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    min-width: 700px;
+}
+
+.edt-table thead th {
+    background-color: var(--edt-header-bg);
+    color: var(--edt-header-color);
+    padding: 0.75rem 0.5rem;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border: 1px solid var(--edt-border-color);
+}
+
+.edt-time-col {
+    width: 110px;
+}
+
+.edt-table tbody td {
+    border: 1px solid var(--edt-border-color);
+    padding: 0.25rem;
+    vertical-align: top;
+    min-height: var(--edt-cell-min-height);
+    height: var(--edt-cell-min-height);
+}
+
+.edt-time-cell {
+    background-color: var(--edt-time-bg);
+    text-align: center;
+    padding: 0.5rem 0.25rem;
+}
+
+.edt-time-label {
+    display: block;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--text-color, #333);
+}
+
+.edt-time-range {
+    display: block;
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 2px;
+}
+
+/* ======= CELLULE COURS ======= */
+.edt-cours {
+    background: #fff;
+    border-radius: 6px;
+    padding: 0.4rem 0.5rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    transition: box-shadow 0.2s;
+}
+
+.edt-cours:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.edt-cours-matiere {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #2c3e50;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.edt-cours-prof,
+.edt-cours-classe,
+.edt-cours-salle {
+    font-size: 0.75rem;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.edt-cours-prof i,
+.edt-cours-classe i,
+.edt-cours-salle i {
+    width: 14px;
+    text-align: center;
+    margin-right: 3px;
+}
+
+.edt-cours-type {
+    font-size: 0.65rem;
+    align-self: flex-start;
+    margin-top: 2px;
+}
+
+/* ======= FILTRES ======= */
+.filters-bar {
+    background: #fff;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.filters-form {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.filter-group label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.filter-group select {
+    padding: 0.4rem 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    background: #fff;
+}
+
+/* ======= FORMULAIRE GESTION COURS ======= */
+.form-grid .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.form-grid .form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+    font-size: 0.9rem;
+}
+
+.form-grid .form-group .required {
+    color: #e74c3c;
+}
+
+.form-grid .form-group .form-control {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.form-grid .form-group input[type="color"] {
+    height: 38px;
+    padding: 4px;
+    cursor: pointer;
+}
+
+.form-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+}
+
+/* ======= EMPTY STATE ======= */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #888;
+}
+
+.empty-state i {
+    margin-bottom: 1rem;
+    opacity: 0.4;
+}
+
+.empty-state h3 {
+    color: #555;
+    margin-bottom: 0.5rem;
+}
+
+/* ======= RESPONSIVE ======= */
+@media (max-width: 768px) {
+    .edt-table {
+        font-size: 0.8rem;
+    }
+
+    .edt-time-col {
+        width: 80px;
+    }
+
+    .edt-cours {
+        padding: 0.3rem;
+    }
+
+    .edt-cours-matiere {
+        font-size: 0.75rem;
+    }
+
+    .edt-cours-prof,
+    .edt-cours-classe,
+    .edt-cours-salle {
+        font-size: 0.65rem;
+    }
+
+    .form-grid .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .filters-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

@@ -1,0 +1,81 @@
+/* ======= M08 – DEVOIRS EN LIGNE ======= */
+
+.devoirs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+
+.devoir-card {
+  background: var(--bg-card, #fff);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  border-left: 4px solid var(--primary, #4f46e5);
+  display: flex; flex-direction: column;
+  transition: transform .15s, box-shadow .15s;
+}
+.devoir-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.1); }
+.devoir-card.devoir-rendu { border-left-color: #10b981; opacity: .85; }
+.devoir-card.devoir-past { border-left-color: #ef4444; }
+.devoir-card.devoir-urgent { border-left-color: #f59e0b; }
+
+.devoir-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem; }
+.devoir-matiere { font-size: .8rem; font-weight: 600; color: var(--primary, #4f46e5); text-transform: uppercase; letter-spacing: .03em; }
+.devoir-titre { margin: 0 0 .5rem; font-size: 1.05rem; }
+.devoir-desc { margin: 0 0 .75rem; font-size: .85rem; color: var(--text-secondary, #64748b); flex: 1; }
+.devoir-footer { display: flex; justify-content: space-between; align-items: center; padding-top: .5rem; border-top: 1px solid var(--border, #e2e8f0); }
+.devoir-date { font-size: .8rem; color: var(--text-secondary, #64748b); }
+
+.devoir-detail-card {
+  background: var(--bg-card, #fff);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+.devoir-detail-card h2 { margin: 0 0 .5rem; }
+.devoir-meta { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; color: var(--text-secondary, #64748b); font-size: .9rem; }
+.devoir-meta i { margin-right: .25rem; }
+.devoir-description { margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--border, #e2e8f0); }
+
+/* Rendu cards (correction page) */
+.rendu-card {
+  background: var(--bg-card, #fff);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  border-left: 3px solid var(--primary, #4f46e5);
+}
+.rendu-card.rendu-corrige { border-left-color: #10b981; opacity: .9; }
+.rendu-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; flex-wrap: wrap; gap: .5rem; }
+.rendu-eleve strong { margin-right: .5rem; }
+.rendu-meta { display: flex; gap: .5rem; align-items: center; }
+.rendu-contenu { padding: .75rem; background: var(--bg-secondary, #f8fafc); border-radius: 8px; margin-bottom: .75rem; font-size: .9rem; line-height: 1.6; }
+.rendu-fichier { margin-bottom: .75rem; }
+.rendu-fichier a { color: var(--primary, #4f46e5); text-decoration: none; }
+
+.correction-form { border-top: 1px solid var(--border, #e2e8f0); padding-top: .75rem; }
+.correction-grid { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+.note-input { display: flex; align-items: center; gap: .25rem; }
+.note-input input:first-child { width: 80px; }
+.correction-actions { display: flex; gap: .5rem; margin-top: .5rem; }
+
+/* Note display */
+.note-display { text-align: center; margin-bottom: .75rem; }
+.note-value { font-size: 2.5rem; font-weight: 700; color: var(--primary, #4f46e5); }
+.note-sur { font-size: 1.2rem; color: var(--text-secondary, #64748b); }
+.prof-commentaire { padding: .75rem; background: #f0fdf4; border-radius: 8px; border-left: 3px solid #10b981; }
+
+.correction-card { border-left: 3px solid #10b981; }
+
+/* Stats */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .75rem; margin-bottom: 1.25rem; }
+.stat-card { background: var(--bg-card, #fff); border-radius: 10px; padding: .75rem 1rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.stat-card .stat-value { display: block; font-size: 1.3rem; font-weight: 700; }
+.stat-card .stat-label { font-size: .75rem; color: var(--text-secondary, #64748b); }
+.stat-card.primary .stat-value { color: var(--primary, #4f46e5); }
+.stat-card.success .stat-value { color: #059669; }
+.stat-card.info .stat-value { color: #2563eb; }
+
+@media (max-width: 768px) {
+  .devoirs-grid { grid-template-columns: 1fr; }
+  .correction-grid { flex-direction: column; }
+}

@@ -231,11 +231,17 @@ function updateSelectedRecipients() {
         
         const tag = document.createElement('div');
         tag.className = 'recipient-tag';
-        tag.innerHTML = `
-            <span>${text}</span>
-            <span class="remove-tag" onclick="removeRecipient('${value}')">×</span>
-        `;
-        
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = text;
+        tag.appendChild(nameSpan);
+
+        const removeSpan = document.createElement('span');
+        removeSpan.className = 'remove-tag';
+        removeSpan.textContent = '×';
+        removeSpan.addEventListener('click', () => removeRecipient(value));
+        tag.appendChild(removeSpan);
+
         container.appendChild(tag);
     });
     
@@ -401,10 +407,15 @@ function initFileUpload() {
                     
                     const fileInfo = document.createElement('div');
                     fileInfo.className = 'file-info';
-                    fileInfo.innerHTML = `
-                        <i class="fas fa-file"></i>
-                        <span>${file.name} (${fileSize})</span>
-                    `;
+
+                    const icon = document.createElement('i');
+                    icon.className = 'fas fa-file';
+                    fileInfo.appendChild(icon);
+
+                    const span = document.createElement('span');
+                    span.textContent = `${file.name} (${fileSize})`;
+                    fileInfo.appendChild(span);
+
                     fileList.appendChild(fileInfo);
                 }
             }
@@ -412,13 +423,4 @@ function initFileUpload() {
     }
 }
 
-/**
- * Formate la taille d'un fichier
- * @param {number} bytes Taille en octets
- * @returns {string} Taille formatée
- */
-function formatFileSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    else if (bytes < 1048576) return Math.round(bytes / 1024) + ' KB';
-    else return Math.round(bytes / 1048576 * 10) / 10 + ' MB';
-}
+// formatFileSize() centralisée dans shared.js

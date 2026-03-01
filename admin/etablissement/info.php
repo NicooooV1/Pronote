@@ -1,10 +1,9 @@
-<?php
+﻿<?php
 /**
  * Fiche établissement — modifier les informations générales
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
-require_once __DIR__ . '/../../login/src/auth.php';
 
 requireAuth();
 requireRole('administrateur');
@@ -55,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $c
 
 $pageTitle = 'Fiche établissement';
 $currentPage = 'etab_info';
+$extraCss = ['../../assets/css/admin.css'];
 
 ob_start();
 ?>
@@ -62,10 +62,6 @@ ob_start();
     .etab-container { max-width: 800px; margin: 0 auto; }
     .form-card { background: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .form-card h3 { margin: 0 0 20px; font-size: 18px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-    .form-group { margin-bottom: 16px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 600; color: #4a5568; margin-bottom: 5px; }
-    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #d2d6dc; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
-    .form-row { display: flex; gap: 15px; } .form-row .form-group { flex: 1; }
     .section-label { font-size: 14px; font-weight: 600; color: #0f4c81; margin: 20px 0 10px; padding-top: 15px; border-top: 1px solid #eee; }
 </style>
 <?php

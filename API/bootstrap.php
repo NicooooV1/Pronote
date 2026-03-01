@@ -46,8 +46,27 @@ try {
 if (!defined('BASE_URL')) {
 	$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
 	$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-	$path = dirname($_SERVER['SCRIPT_NAME'] ?? '');
-	$baseUrl = $protocol . '://' . $host . rtrim($path, '/');
+
+	// Calculer le chemin web du projet à partir du système de fichiers
+	// __DIR__ = <projet>/API  →  dirname(__DIR__) = racine projet
+	$projectRoot = str_replace('\\', '/', realpath(dirname(__DIR__)));
+	$docRoot     = str_replace('\\', '/', realpath($_SERVER['DOCUMENT_ROOT'] ?? '.'));
+
+	if ($docRoot && strpos($projectRoot, $docRoot) === 0) {
+		$webPath = substr($projectRoot, strlen($docRoot));
+	} else {
+		// Fallback : déduire du SCRIPT_NAME en remontant d'un niveau par segment connu
+		$scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
+		// Remonter autant de niveaux que nécessaire pour atteindre la racine projet
+		$relToRoot = str_replace('\\', '/', substr(realpath(dirname($_SERVER['SCRIPT_FILENAME'] ?? __DIR__)), strlen($projectRoot)));
+		$depth = $relToRoot ? substr_count(ltrim($relToRoot, '/'), '/') + 1 : 0;
+		$webPath = $scriptDir;
+		for ($i = 0; $i < $depth; $i++) {
+			$webPath = dirname($webPath);
+		}
+	}
+
+	$baseUrl = $protocol . '://' . $host . rtrim($webPath, '/');
 	define('BASE_URL', $baseUrl);
 }
 
@@ -62,7 +81,6 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 }
 
 // Créer l'application et enregistrer les providers
-global $app;
 $app = new \API\Core\Application(BASE_PATH);
 
 // Exposer l'env loader dans le container

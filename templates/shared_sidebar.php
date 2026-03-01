@@ -1,9 +1,15 @@
 <?php
-<?php
 /**
  * Sidebar partagée unique — Pronote
  * Inclus sur TOUTES les pages, y compris /admin/
  * Le contenu s'adapte au rôle de l'utilisateur connecté.
+ *
+ * Variables attendues (définies par shared_header.php) :
+ *   $activePage  — string : page active pour le highlight
+ *   $rootPrefix  — string : préfixe relatif vers la racine (ex: '../')
+ *
+ * Variables optionnelles :
+ *   $sidebarExtraContent — string : HTML supplémentaire (actions spécifiques au module)
  */
 
 // L'API doit être chargée avant l'inclusion de ce fichier
@@ -11,116 +17,11 @@ $currentUser = getCurrentUser();
 $userRole = $currentUser['role'] ?? ($currentUser['profil'] ?? '');
 $isAdmin = ($userRole === 'administrateur');
 
-// Déterminer la page active pour le highlight
 $activePage = $activePage ?? '';
-?>
-<div class="sidebar">
-    <!-- Logo -->
-    <a href="/accueil/accueil.php" class="logo-container">
-        <div class="app-logo">P</div>
-        <div class="app-title">PRONOTE</div>
-    </a>
-
-    <!-- ===== SECTION 1 : Navigation principale (tous les rôles) ===== -->
-    <div class="sidebar-section">
-        <div class="sidebar-section-header">NAVIGATION</div>
-        <div class="sidebar-nav">
-            <a href="/accueil/accueil.php" 
-               class="sidebar-nav-item <?= $activePage === 'accueil' ? 'active' : '' ?>">
-                <span class="sidebar-nav-icon"><i class="fas fa-home"></i></span>
-                <span>Accueil</span>
-            </a>
-            <a href="/notes/notes.php" 
-               class="sidebar-nav-item <?= $activePage === 'notes' ? 'active' : '' ?>">
-                <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
-                <span>Notes</span>
-            </a>
-            <a href="/agenda/agenda.php" 
-               class="sidebar-nav-item <?= $activePage === 'agenda' ? 'active' : '' ?>">
-                <span class="sidebar-nav-icon"><i class="fas fa-calendar-alt"></i></span>
-                <span>Agenda</span>
-            </a>
-            <a href="/cahierdetextes/cahierdetextes.php" 
-               class="sidebar-nav-item <?= $activePage === 'cahier' ? 'active' : '' ?>">
-                <span class="sidebar-nav-icon"><i class="fas fa-book"></i></span>
-                <span>Cahier de textes</span>
-            </a>
-            <a href="/messagerie/index.php" 
-               class="sidebar-nav-item <?= $activePage === 'messagerie' ? 'active' : '' ?>">
-                <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
-                <span>Messagerie</span>
-            </a>
-            <a href="/absences/absences.php" 
-               class="sidebar-nav-item <?= $activePage === 'absences' ? 'active' : '' ?>">
-                <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
-                <span>Absences</span>
-            </a>
-        </div>
-    </div>
-
-    <!-- ===== SECTION 2 : Administration (admin seulement) ===== -->
-    <?php if ($isAdmin): ?>
-    <?php
-        // Charger les compteurs de badges pour les alertes admin
-        $adminBadgeCount = 0;
-        try {
-            $pdo = getPDO();
-            $stmt = $pdo->query("SELECT COUNT(*) FROM demandes_reinitialisation WHERE status = 'pending'");
-            $adminBadgeCount += (int)$stmt->fetchColumn();
-            $stmt = $pdo->query("SELECT COUNT(*) FROM justificatifs WHERE traite = 0");
-            $adminBadgeCount += (int)$stmt->fetchColumn();
-        } catch (Exception $e) { /* silently fail */ }
-    ?>
-    <div class="sidebar-section">
-        <div class="sidebar-section-header">ADMINISTRATION</div>
-        <div class="sidebar-nav">
-            <a href="/admin/dashboard.php" 
-               class="sidebar-nav-item <?= $activePage === 'admin' ? 'active' : '' ?>">
-                <span class="sidebar-nav-icon"><i class="fas fa-cogs"></i></span>
-                <span>Panneau d'administration</span>
-                <?php if ($adminBadgeCount > 0): ?>
-                    <span class="sidebar-badge"><?= $adminBadgeCount ?></span>
-                <?php endif; ?>
-            </a>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- ===== SECTION 3 : Contenu spécifique au module (optionnel) ===== -->
-    <?php if (!empty($sidebarExtraContent)): ?>
-        <?= $sidebarExtraContent ?>
-    <?php endif; ?>
-
-    <!-- ===== SECTION 4 : Compte utilisateur ===== -->
-    <div class="sidebar-section" style="margin-top: auto;">
-        <div class="sidebar-section-header">COMPTE</div>
-        <div class="sidebar-nav">
-            <a href="/profil/profil.php" 
-               class="sidebar-nav-item <?= $activePage === 'profil' ? 'active' : '' ?>">
-                <span class="sidebar-nav-icon"><i class="fas fa-user"></i></span>
-                <span>Mon profil</span>
-            </a>
-            <a href="/login/public/logout.php" class="sidebar-nav-item sidebar-nav-item--logout">
-                <span class="sidebar-nav-icon"><i class="fas fa-sign-out-alt"></i></span>
-                <span>Déconnexion</span>
-            </a>
-        </div>
-    </div>
-
-    <!-- Footer sidebar -->
-    <div class="sidebar-footer">
-        <span>© <?= date('Y') ?> Pronote</span>
-    </div>
-</div>
-$user_role = $user_role ?? '';
-$sidebarExtraContent = $sidebarExtraContent ?? '';
-$currentPage = $currentPage ?? '';
-
-// Préfixe racine
 $rootPrefix = $rootPrefix ?? '../';
+$sidebarExtraContent = $sidebarExtraContent ?? '';
 
 // Récupérer les informations contextuelles pour la sidebar
-$_sb_user = getCurrentUser();
 $_sb_etablissement_file = dirname(__DIR__) . '/login/data/etablissement.json';
 $_sb_etablissement_data = file_exists($_sb_etablissement_file) ? json_decode(file_get_contents($_sb_etablissement_file), true) : [];
 $_sb_nom_etablissement = $_sb_etablissement_data['nom'] ?? 'Établissement Scolaire';
@@ -130,10 +31,10 @@ $_sb_user_fullname = getUserFullName();
 $_sb_user_role = getUserRole();
 $_sb_profil_labels = [
     'administrateur' => 'Administrateur',
-    'professeur' => 'Professeur',
-    'eleve' => 'Élève',
-    'parent' => 'Parent',
-    'vie_scolaire' => 'Vie scolaire',
+    'professeur'     => 'Professeur',
+    'eleve'          => 'Élève',
+    'parent'         => 'Parent',
+    'vie_scolaire'   => 'Vie scolaire',
 ];
 $_sb_profil_label = $_sb_profil_labels[$_sb_user_role] ?? ucfirst($_sb_user_role);
 ?>
@@ -145,7 +46,7 @@ $_sb_profil_label = $_sb_profil_labels[$_sb_user_role] ?? ucfirst($_sb_user_role
         <div class="app-title">FRONOTE</div>
     </a>
 
-    <!-- Navigation -->
+    <!-- ===== SECTION 1 : Navigation principale (tous les rôles) ===== -->
     <div class="sidebar-section" data-section="nav">
         <div class="sidebar-section-header sidebar-collapsible" data-target="nav">
             <span>Navigation</span>
@@ -173,18 +74,196 @@ $_sb_profil_label = $_sb_profil_labels[$_sb_user_role] ?? ucfirst($_sb_user_role
                     <span class="sidebar-nav-icon"><i class="fas fa-envelope"></i></span>
                     <span>Messagerie</span>
                 </a>
+                <a href="<?= $rootPrefix ?>annonces/annonces.php" class="sidebar-nav-item <?= $activePage === 'annonces' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-bullhorn"></i></span>
+                    <span>Annonces</span>
+                </a>
+                <a href="<?= $rootPrefix ?>emploi_du_temps/emploi_du_temps.php" class="sidebar-nav-item <?= $activePage === 'emploi_du_temps' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-table"></i></span>
+                    <span>Emploi du temps</span>
+                </a>
+                <?php if (isAdmin() || isVieScolaire() || isTeacher()): ?>
                 <a href="<?= $rootPrefix ?>absences/absences.php" class="sidebar-nav-item <?= $activePage === 'absences' ? 'active' : '' ?>">
                     <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
                     <span>Absences</span>
                 </a>
+                <a href="<?= $rootPrefix ?>appel/appel.php" class="sidebar-nav-item <?= $activePage === 'appel' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-clipboard-check"></i></span>
+                    <span>Appel</span>
+                </a>
+                <a href="<?= $rootPrefix ?>discipline/incidents.php" class="sidebar-nav-item <?= $activePage === 'discipline' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-gavel"></i></span>
+                    <span>Discipline</span>
+                </a>
+                <a href="<?= $rootPrefix ?>vie_scolaire/dashboard.php" class="sidebar-nav-item <?= $activePage === 'vie_scolaire' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-user-shield"></i></span>
+                    <span>Vie scolaire</span>
+                </a>
+                <a href="<?= $rootPrefix ?>reporting/reporting.php" class="sidebar-nav-item <?= $activePage === 'reporting' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-chart-line"></i></span>
+                    <span>Reporting</span>
+                </a>
+                <?php endif; ?>
+                <a href="<?= $rootPrefix ?>bulletins/bulletins.php" class="sidebar-nav-item <?= $activePage === 'bulletins' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-file-alt"></i></span>
+                    <span>Bulletins</span>
+                </a>
+                <a href="<?= $rootPrefix ?>devoirs/mes_devoirs.php" class="sidebar-nav-item <?= $activePage === 'devoirs' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-tasks"></i></span>
+                    <span>Devoirs en ligne</span>
+                </a>
+                <a href="<?= $rootPrefix ?>competences/competences.php" class="sidebar-nav-item <?= $activePage === 'competences' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-clipboard-list"></i></span>
+                    <span>Compétences</span>
+                </a>
+                <a href="<?= $rootPrefix ?>trombinoscope/trombinoscope.php" class="sidebar-nav-item <?= $activePage === 'trombinoscope' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-users"></i></span>
+                    <span>Trombinoscope</span>
+                </a>
+                <a href="<?= $rootPrefix ?>documents/documents.php" class="sidebar-nav-item <?= $activePage === 'documents' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-folder-open"></i></span>
+                    <span>Documents</span>
+                </a>
+                <a href="<?= $rootPrefix ?>notifications/notifications.php" class="sidebar-nav-item <?= $activePage === 'notifications' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-bell"></i></span>
+                    <span>Notifications</span>
+                </a>
+                <a href="<?= $rootPrefix ?>reunions/reunions.php" class="sidebar-nav-item <?= $activePage === 'reunions' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-handshake"></i></span>
+                    <span>Réunions</span>
+                </a>
+                <a href="<?= $rootPrefix ?>bibliotheque/catalogue.php" class="sidebar-nav-item <?= $activePage === 'bibliotheque' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-book-reader"></i></span>
+                    <span>Bibliothèque</span>
+                </a>
+                <a href="<?= $rootPrefix ?>clubs/clubs.php" class="sidebar-nav-item <?= $activePage === 'clubs' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-users"></i></span>
+                    <span>Clubs</span>
+                </a>
+                <a href="<?= $rootPrefix ?>orientation/orientation.php" class="sidebar-nav-item <?= $activePage === 'orientation' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-compass"></i></span>
+                    <span>Orientation</span>
+                </a>
+                <?php if (isParent()): ?>
+                <a href="<?= $rootPrefix ?>inscriptions/inscriptions.php" class="sidebar-nav-item <?= $activePage === 'inscriptions' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-user-plus"></i></span>
+                    <span>Inscriptions</span>
+                </a>
+                <?php endif; ?>
+                <a href="<?= $rootPrefix ?>signalements/signaler.php" class="sidebar-nav-item <?= $activePage === 'signalements' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-shield-alt"></i></span>
+                    <span>Signalements</span>
+                </a>
+                <?php if (isAdmin() || isVieScolaire() || isParent() || isStudent()): ?>
+                <a href="<?= $rootPrefix ?>infirmerie/infirmerie.php" class="sidebar-nav-item <?= $activePage === 'infirmerie' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-heartbeat"></i></span>
+                    <span>Infirmerie</span>
+                </a>
+                <?php endif; ?>
+                <a href="<?= $rootPrefix ?>examens/examens.php" class="sidebar-nav-item <?= $activePage === 'examens' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-file-signature"></i></span>
+                    <span>Examens</span>
+                </a>
+                <a href="<?= $rootPrefix ?>ressources/ressources.php" class="sidebar-nav-item <?= $activePage === 'ressources' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-book-open"></i></span>
+                    <span>Ressources</span>
+                </a>
+                <a href="<?= $rootPrefix ?>diplomes/diplomes.php" class="sidebar-nav-item <?= $activePage === 'diplomes' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-graduation-cap"></i></span>
+                    <span>Diplômes</span>
+                </a>
+                <a href="<?= $rootPrefix ?>periscolaire/services.php" class="sidebar-nav-item <?= $activePage === 'periscolaire' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-utensils"></i></span>
+                    <span>Périscolaire</span>
+                </a>
+                <a href="<?= $rootPrefix ?>stages/stages.php" class="sidebar-nav-item <?= $activePage === 'stages' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-briefcase"></i></span>
+                    <span>Stages</span>
+                </a>
+                <a href="<?= $rootPrefix ?>transports/lignes.php" class="sidebar-nav-item <?= $activePage === 'transports' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-bus"></i></span>
+                    <span>Transports</span>
+                </a>
+                <?php if (isParent() || isAdmin() || isVieScolaire()): ?>
+                <a href="<?= $rootPrefix ?>facturation/factures.php" class="sidebar-nav-item <?= $activePage === 'facturation' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-file-invoice-dollar"></i></span>
+                    <span>Facturation</span>
+                </a>
+                <?php endif; ?>
+                <?php if (isAdmin() || isVieScolaire() || isTeacher()): ?>
+                <a href="<?= $rootPrefix ?>besoins/besoins.php" class="sidebar-nav-item <?= $activePage === 'besoins' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-hand-holding-heart"></i></span>
+                    <span>Besoins particuliers</span>
+                </a>
+                <a href="<?= $rootPrefix ?>salles/reservations.php" class="sidebar-nav-item <?= $activePage === 'salles' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-door-open"></i></span>
+                    <span>Salles & Matériels</span>
+                </a>
+                <?php endif; ?>
+                <?php if (isAdmin() || isVieScolaire()): ?>
+                <a href="<?= $rootPrefix ?>personnel/absences.php" class="sidebar-nav-item <?= $activePage === 'personnel' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-user-tie"></i></span>
+                    <span>Gestion personnel</span>
+                </a>
+                <a href="<?= $rootPrefix ?>rgpd/rgpd.php" class="sidebar-nav-item <?= $activePage === 'rgpd' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-shield-alt"></i></span>
+                    <span>RGPD & Audit</span>
+                </a>
+                <?php endif; ?>
+                <a href="<?= $rootPrefix ?>support/aide.php" class="sidebar-nav-item <?= $activePage === 'support' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-question-circle"></i></span>
+                    <span>Aide</span>
+                </a>
+                <?php if (isAdmin()): ?>
+                <a href="<?= $rootPrefix ?>archivage/archivage.php" class="sidebar-nav-item <?= $activePage === 'archivage' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-archive"></i></span>
+                    <span>Archivage</span>
+                </a>
+                <?php if (isAdmin() || isVieScolaire()): ?>
+                <a href="<?= $rootPrefix ?>inscriptions/inscriptions.php" class="sidebar-nav-item <?= $activePage === 'inscriptions_admin' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-user-plus"></i></span>
+                    <span>Inscriptions</span>
+                </a>
+                <?php endif; ?>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 
+    <!-- ===== SECTION 2 : Administration (admin seulement) ===== -->
+    <?php if ($isAdmin): ?>
     <?php
-    // Module-specific actions (calendrier agenda, ajout de notes, etc.)
-    if (!empty($sidebarExtraContent)):
+        // Charger les compteurs de badges pour les alertes admin
+        $_adminBadgeCount = 0;
+        try {
+            $_admin_pdo = getPDO();
+            $stmt = $_admin_pdo->query("SELECT COUNT(*) FROM demandes_reinitialisation WHERE status = 'pending'");
+            $_adminBadgeCount += (int)$stmt->fetchColumn();
+            $stmt = $_admin_pdo->query("SELECT COUNT(*) FROM justificatifs WHERE traite = 0");
+            $_adminBadgeCount += (int)$stmt->fetchColumn();
+        } catch (Exception $e) { /* silently fail */ }
     ?>
+    <div class="sidebar-section" data-section="admin">
+        <div class="sidebar-section-header sidebar-collapsible" data-target="admin">
+            <span>Administration</span>
+            <i class="fas fa-chevron-down sidebar-chevron"></i>
+        </div>
+        <div class="sidebar-section-body" id="section-admin">
+            <div class="sidebar-nav">
+                <a href="<?= $rootPrefix ?>admin/dashboard.php" class="sidebar-nav-item <?= $activePage === 'admin' ? 'active' : '' ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-cogs"></i></span>
+                    <span>Panneau d'administration</span>
+                    <?php if ($_adminBadgeCount > 0): ?>
+                        <span class="sidebar-badge"><?= $_adminBadgeCount ?></span>
+                    <?php endif; ?>
+                </a>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- ===== SECTION 3 : Contenu spécifique au module (optionnel) ===== -->
+    <?php if (!empty($sidebarExtraContent)): ?>
     <div class="sidebar-section" data-section="module">
         <div class="sidebar-section-header sidebar-collapsible" data-target="module">
             <span>Actions</span>
@@ -196,7 +275,7 @@ $_sb_profil_label = $_sb_profil_labels[$_sb_user_role] ?? ucfirst($_sb_user_role
     </div>
     <?php endif; ?>
 
-    <!-- Informations contextuelles -->
+    <!-- ===== SECTION 4 : Informations contextuelles ===== -->
     <div class="sidebar-section" data-section="info">
         <div class="sidebar-section-header sidebar-collapsible" data-target="info">
             <span>Informations</span>
@@ -230,194 +309,20 @@ $_sb_profil_label = $_sb_profil_labels[$_sb_user_role] ?? ucfirst($_sb_user_role
         </div>
     </div>
 
-    <?php if ($isAdmin): ?>
-    <?php
-    // Compteurs pour les badges admin
-    $_admin_badges = ['passwords' => 0, 'justificatifs' => 0];
-    try {
-        $_admin_pdo = getPDO();
-        $stmt = $_admin_pdo->query("SELECT COUNT(*) FROM demandes_reinitialisation WHERE status = 'pending'");
-        $_admin_badges['passwords'] = (int)$stmt->fetchColumn();
-        $stmt = $_admin_pdo->query("SELECT COUNT(*) FROM justificatifs WHERE traite = 0");
-        $_admin_badges['justificatifs'] = (int)$stmt->fetchColumn();
-    } catch (Exception $e) { /* silently ignore */ }
-    $_adminBase = $rootPrefix . 'admin/';
-    ?>
-
-    <!-- Tableau de bord -->
-    <div class="sidebar-section" data-section="admin-dashboard">
-        <div class="sidebar-section-header sidebar-collapsible" data-target="admin-dashboard">
-            <span>Tableau de bord</span>
-            <i class="fas fa-chevron-down sidebar-chevron"></i>
-        </div>
-        <div class="sidebar-section-body" id="section-admin-dashboard">
-            <div class="sidebar-nav">
-                <a href="<?= $_adminBase ?>dashboard.php" class="sidebar-nav-item <?= $currentPage === 'dashboard' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-tachometer-alt"></i></span>
-                    <span>Vue d'ensemble</span>
-                </a>
-            </div>
+    <!-- ===== SECTION 5 : Compte utilisateur ===== -->
+    <div class="sidebar-section" style="margin-top: auto;">
+        <div class="sidebar-section-header">COMPTE</div>
+        <div class="sidebar-nav">
+            <a href="<?= $rootPrefix ?>parametres/parametres.php" class="sidebar-nav-item <?= $activePage === 'parametres' ? 'active' : '' ?>">
+                <span class="sidebar-nav-icon"><i class="fas fa-cog"></i></span>
+                <span>Paramètres</span>
+            </a>
+            <a href="<?= $rootPrefix ?>login/logout.php" class="sidebar-nav-item sidebar-nav-item--logout">
+                <span class="sidebar-nav-icon"><i class="fas fa-sign-out-alt"></i></span>
+                <span>Déconnexion</span>
+            </a>
         </div>
     </div>
-
-    <!-- Gestion des utilisateurs -->
-    <div class="sidebar-section" data-section="admin-users">
-        <div class="sidebar-section-header sidebar-collapsible" data-target="admin-users">
-            <span>Utilisateurs</span>
-            <i class="fas fa-chevron-down sidebar-chevron"></i>
-        </div>
-        <div class="sidebar-section-body" id="section-admin-users">
-            <div class="sidebar-nav">
-                <a href="<?= $_adminBase ?>users/index.php" class="sidebar-nav-item <?= $currentPage === 'users' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-users"></i></span>
-                    <span>Tous les utilisateurs</span>
-                </a>
-                <a href="<?= $_adminBase ?>users/create.php" class="sidebar-nav-item <?= $currentPage === 'users_create' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-user-plus"></i></span>
-                    <span>Ajouter un utilisateur</span>
-                </a>
-                <a href="<?= $_adminBase ?>users/admins.php" class="sidebar-nav-item <?= $currentPage === 'admins' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-user-shield"></i></span>
-                    <span>Administrateurs</span>
-                </a>
-                <a href="<?= $_adminBase ?>users/passwords.php" class="sidebar-nav-item <?= $currentPage === 'passwords' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-key"></i></span>
-                    <span>Mots de passe</span>
-                    <?php if ($_admin_badges['passwords'] > 0): ?>
-                        <span class="sidebar-badge"><?= $_admin_badges['passwords'] ?></span>
-                    <?php endif; ?>
-                </a>
-                <a href="<?= $_adminBase ?>users/sessions.php" class="sidebar-nav-item <?= $currentPage === 'sessions' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-desktop"></i></span>
-                    <span>Sessions actives</span>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Vie scolaire -->
-    <div class="sidebar-section" data-section="admin-scolaire">
-        <div class="sidebar-section-header sidebar-collapsible" data-target="admin-scolaire">
-            <span>Vie scolaire</span>
-            <i class="fas fa-chevron-down sidebar-chevron"></i>
-        </div>
-        <div class="sidebar-section-body" id="section-admin-scolaire">
-            <div class="sidebar-nav">
-                <a href="<?= $_adminBase ?>scolaire/notes.php" class="sidebar-nav-item <?= $currentPage === 'notes' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-graduation-cap"></i></span>
-                    <span>Notes & Évaluations</span>
-                </a>
-                <a href="<?= $_adminBase ?>scolaire/absences.php" class="sidebar-nav-item <?= $currentPage === 'absences' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar-times"></i></span>
-                    <span>Absences & Retards</span>
-                </a>
-                <a href="<?= $_adminBase ?>scolaire/justificatifs.php" class="sidebar-nav-item <?= $currentPage === 'justificatifs' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-file-medical"></i></span>
-                    <span>Justificatifs</span>
-                    <?php if ($_admin_badges['justificatifs'] > 0): ?>
-                        <span class="sidebar-badge"><?= $_admin_badges['justificatifs'] ?></span>
-                    <?php endif; ?>
-                </a>
-                <a href="<?= $_adminBase ?>scolaire/devoirs.php" class="sidebar-nav-item <?= $currentPage === 'devoirs' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-book"></i></span>
-                    <span>Devoirs</span>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Classes & Enseignement -->
-    <div class="sidebar-section" data-section="admin-classes">
-        <div class="sidebar-section-header sidebar-collapsible" data-target="admin-classes">
-            <span>Classes & Enseignement</span>
-            <i class="fas fa-chevron-down sidebar-chevron"></i>
-        </div>
-        <div class="sidebar-section-body" id="section-admin-classes">
-            <div class="sidebar-nav">
-                <a href="<?= $_adminBase ?>classes/index.php" class="sidebar-nav-item <?= $currentPage === 'classes' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-chalkboard"></i></span>
-                    <span>Gestion des classes</span>
-                </a>
-                <a href="<?= $_adminBase ?>classes/affectations.php" class="sidebar-nav-item <?= $currentPage === 'affectations' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-project-diagram"></i></span>
-                    <span>Affectations professeurs</span>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Messagerie -->
-    <div class="sidebar-section" data-section="admin-messagerie">
-        <div class="sidebar-section-header sidebar-collapsible" data-target="admin-messagerie">
-            <span>Messagerie</span>
-            <i class="fas fa-chevron-down sidebar-chevron"></i>
-        </div>
-        <div class="sidebar-section-body" id="section-admin-messagerie">
-            <div class="sidebar-nav">
-                <a href="<?= $_adminBase ?>messagerie/moderation.php" class="sidebar-nav-item <?= $currentPage === 'moderation' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-shield-alt"></i></span>
-                    <span>Modération</span>
-                </a>
-                <a href="<?= $_adminBase ?>messagerie/conversations.php" class="sidebar-nav-item <?= $currentPage === 'conversations' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-comments"></i></span>
-                    <span>Conversations</span>
-                </a>
-                <a href="<?= $_adminBase ?>messagerie/annonces.php" class="sidebar-nav-item <?= $currentPage === 'annonces' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-bullhorn"></i></span>
-                    <span>Annonces globales</span>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Établissement -->
-    <div class="sidebar-section" data-section="admin-etab">
-        <div class="sidebar-section-header sidebar-collapsible" data-target="admin-etab">
-            <span>Établissement</span>
-            <i class="fas fa-chevron-down sidebar-chevron"></i>
-        </div>
-        <div class="sidebar-section-body" id="section-admin-etab">
-            <div class="sidebar-nav">
-                <a href="<?= $_adminBase ?>etablissement/info.php" class="sidebar-nav-item <?= $currentPage === 'etab_info' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-school"></i></span>
-                    <span>Informations</span>
-                </a>
-                <a href="<?= $_adminBase ?>etablissement/matieres.php" class="sidebar-nav-item <?= $currentPage === 'matieres' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-palette"></i></span>
-                    <span>Matières & Coefficients</span>
-                </a>
-                <a href="<?= $_adminBase ?>etablissement/periodes.php" class="sidebar-nav-item <?= $currentPage === 'periodes' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar-alt"></i></span>
-                    <span>Périodes scolaires</span>
-                </a>
-                <a href="<?= $_adminBase ?>etablissement/evenements.php" class="sidebar-nav-item <?= $currentPage === 'evenements' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-calendar-check"></i></span>
-                    <span>Événements</span>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Système -->
-    <div class="sidebar-section" data-section="admin-systeme">
-        <div class="sidebar-section-header sidebar-collapsible" data-target="admin-systeme">
-            <span>Système</span>
-            <i class="fas fa-chevron-down sidebar-chevron"></i>
-        </div>
-        <div class="sidebar-section-body" id="section-admin-systeme">
-            <div class="sidebar-nav">
-                <a href="<?= $_adminBase ?>systeme/audit.php" class="sidebar-nav-item <?= $currentPage === 'audit' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-history"></i></span>
-                    <span>Journal d'audit</span>
-                </a>
-                <a href="<?= $_adminBase ?>systeme/stats.php" class="sidebar-nav-item <?= $currentPage === 'stats' ? 'active' : '' ?>">
-                    <span class="sidebar-nav-icon"><i class="fas fa-chart-bar"></i></span>
-                    <span>Statistiques</span>
-                </a>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
 
     <div class="sidebar-footer">
         &copy; <?= date('Y') ?> FRONOTE

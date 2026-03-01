@@ -1,0 +1,40 @@
+/* M37 – Besoins particuliers — CSS */
+
+.stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.stat-card { background: var(--card-bg, #fff); border-radius: 10px; padding: 1rem; text-align: center; border: 1px solid var(--border-color, #e0e0e0); }
+.stat-value { font-size: 1.8rem; font-weight: 700; color: var(--primary, #4f46e5); }
+.stat-label { font-size: .75rem; color: var(--text-muted, #9ca3af); text-transform: uppercase; }
+
+.filter-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+
+.plans-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+.plan-card { background: var(--card-bg, #fff); border-radius: 12px; padding: 1.2rem; border: 1px solid var(--border-color, #e0e0e0); border-left: 4px solid #6366f1; }
+.plan-card.type-pap { border-left-color: #3b82f6; }
+.plan-card.type-pps { border-left-color: #f59e0b; }
+.plan-card.type-ppre { border-left-color: #10b981; }
+.plan-card.type-pai { border-left-color: #ef4444; }
+.plan-header { display: flex; gap: .5rem; margin-bottom: .5rem; }
+.plan-card h3 { margin: 0 0 .2rem; }
+.plan-card h3 a { color: inherit; text-decoration: none; }
+.plan-card h3 a:hover { color: var(--primary, #4f46e5); }
+.plan-classe { color: var(--text-muted, #6b7280); font-size: .85rem; margin: 0 0 .5rem; }
+.plan-meta { display: flex; flex-direction: column; gap: .2rem; font-size: .8rem; color: var(--text-muted, #9ca3af); }
+
+.info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.info-item { display: flex; align-items: center; gap: .5rem; padding: .75rem; border-radius: 8px; background: var(--bg-secondary, #f9fafb); font-size: .9rem; }
+.info-item i { color: var(--primary, #4f46e5); }
+
+.suivis-timeline { display: flex; flex-direction: column; gap: .75rem; }
+.suivi-item { padding: .75rem; border-radius: 8px; border: 1px solid var(--border-color, #e5e7eb); border-left: 3px solid var(--primary, #6366f1); }
+.suivi-head { display: flex; gap: .5rem; align-items: center; margin-bottom: .4rem; flex-wrap: wrap; }
+.suivi-date { font-size: .75rem; color: var(--text-muted, #9ca3af); }
+.suivi-item p { margin: 0; font-size: .9rem; }
+
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-grid-2 .full-width { grid-column: 1 / -1; }
+.form-actions { margin-top: 1.5rem; display: flex; gap: 1rem; }
+
+@media (max-width: 768px) {
+    .form-grid-2; { grid-template-columns: 1fr; }
+    .plans-list { grid-template-columns: 1fr; }
+}

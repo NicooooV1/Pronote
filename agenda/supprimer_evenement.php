@@ -1,89 +1,90 @@
 <?php
+/**
+ * Supprimer un événement — Module Agenda
+ * Nettoyé : EventRepository::delete(), canDeleteEvent(), POST uniquement,
+ *           Post-Redirect-Get avec flash messages.
+ */
 ob_start();
 
-// Inclusion de l'API centralisée
 require_once __DIR__ . '/../API/core.php';
 $pdo = getPDO();
 require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/EventRepository.php';
 
-if (!isLoggedIn()) {
-    header('Location: ../login/public/login.php');
-    exit;
-}
+requireAuth();
 
-$user = getCurrentUser();
 $user_fullname = getUserFullName();
-$user_role = getUserRole();
-$user_initials = strtoupper(substr($user['prenom'], 0, 1) . substr($user['nom'], 0, 1));
+$user_role     = getUserRole();
+$user_initials = getUserInitials();
+$repo          = new EventRepository($pdo);
 
-if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+// Accepter l'id depuis POST (modal details) ou GET (lien direct)
+$id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT)
+    ?: filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+
+if (!$id) {
+    setFlashMessage('error', "Identifiant d'événement invalide.");
     header('Location: agenda.php');
     exit;
 }
 
-$id = $_GET['id'];
+// Récupérer l'événement
+$evenement = $repo->findById($id);
+if (!$evenement) {
+    setFlashMessage('error', "L'événement n'existe pas.");
+    header('Location: agenda.php');
+    exit;
+}
 
-try {
-    $stmt = $pdo->prepare('SELECT * FROM evenements WHERE id = ?');
-    $stmt->execute([$id]);
-    $evenement = $stmt->fetch(PDO::FETCH_ASSOC);
+// Permission (canDeleteEvent de auth.php)
+if (!canDeleteEvent($evenement)) {
+    setFlashMessage('error', "Vous n'avez pas les droits pour supprimer cet événement.");
+    header('Location: details_evenement.php?id=' . $id);
+    exit;
+}
 
-    if (!$evenement) {
-        header('Location: agenda.php');
-        exit;
-    }
-
-    $can_delete = false;
-
-    if (isAdmin() || isVieScolaire()) {
-        $can_delete = true;
-    } 
-    elseif (isTeacher() && $evenement['createur'] === $user_fullname) {
-        $can_delete = true;
-    }
-
-    if (!$can_delete) {
+/* ── POST → suppression effective + redirect ── */
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
+        setFlashMessage('error', "Erreur de sécurité. Veuillez réessayer.");
         header('Location: details_evenement.php?id=' . $id);
         exit;
     }
 
-    $date_debut = new DateTime($evenement['date_debut']);
-    $date_fin = new DateTime($evenement['date_fin']);
-    $format_date = 'd/m/Y';
-    $format_heure = 'H:i';
-
-    // Types d'événements
-    $types_evenements = [
-        'cours' => ['nom' => 'Cours', 'icone' => 'book', 'couleur' => '#00843d'],
-        'devoirs' => ['nom' => 'Devoirs', 'icone' => 'pencil', 'couleur' => '#4285f4'],
-        'reunion' => ['nom' => 'Réunion', 'icone' => 'users', 'couleur' => '#ff9800'],
-        'examen' => ['nom' => 'Examen', 'icone' => 'file-text', 'couleur' => '#f44336'],
-        'sortie' => ['nom' => 'Sortie scolaire', 'icone' => 'map-pin', 'couleur' => '#00c853'],
-        'autre' => ['nom' => 'Autre', 'icone' => 'calendar', 'couleur' => '#9e9e9e']
-    ];
-    
-    // Récupérer les informations du type d'événement
-    $type_info = isset($types_evenements[$evenement['type_evenement']]) 
-              ? $types_evenements[$evenement['type_evenement']] 
-              : $types_evenements['autre'];
-              
-} catch (PDOException $e) {
-    error_log("Erreur lors de la récupération de l'événement ID=$id: " . $e->getMessage());
-    $_SESSION['error_message'] = "Une erreur est survenue lors de l'accès à l'événement";
-    header('Location: agenda.php?error=database_error');
-    exit;
+    try {
+        $repo->delete($id);
+        error_log("Événement ID=$id ('{$evenement['titre']}') supprimé par $user_fullname");
+        setFlashMessage('success', "L'événement a été supprimé avec succès.");
+        header('Location: agenda.php');
+        exit;
+    } catch (Exception $e) {
+        error_log("Erreur suppression événement $id: " . $e->getMessage());
+        setFlashMessage('error', "Erreur lors de la suppression.");
+        header('Location: details_evenement.php?id=' . $id);
+        exit;
+    }
 }
+
+/* ── GET → page de confirmation avec formulaire POST ── */
+$type_info   = EventRepository::getTypeInfo($evenement['type_evenement']);
+$csrf_token  = csrf_token();
+
+try {
+    $date_debut = new DateTime($evenement['date_debut']);
+    $date_fin   = new DateTime($evenement['date_fin']);
+} catch (Exception $e) {
+    $date_debut = $date_fin = new DateTime();
+}
+$fmt_d = 'd/m/Y';
+$fmt_h = 'H:i';
 
 $pageTitle = "Supprimer l'événement";
 include 'includes/header.php';
 ?>
 
 <div class="calendar-navigation">
-    <a href="details_evenement.php?id=<?= htmlspecialchars($id) ?>" class="back-button">
-        <span class="back-icon">
-            <i class="fas fa-arrow-left"></i>
-        </span>
-        Retour aux détails
+    <a href="details_evenement.php?id=<?= (int) $id ?>" class="back-button">
+        <i class="fas fa-arrow-left"></i> Retour aux détails
     </a>
 </div>
 
@@ -91,74 +92,46 @@ include 'includes/header.php';
     <div class="event-delete-header">
         <h1>Supprimer l'événement</h1>
     </div>
-    
+
     <div class="event-delete-body">
-        <?php if (!$deleted): ?>
-            <div class="event-summary">
-                <h2><?= htmlspecialchars($evenement['titre']) ?></h2>
-                <div class="event-summary-detail">
-                    <div class="detail-content">
-                        <span class="event-type-badge" style="background-color: <?= $type_info['couleur'] ?>;">
-                            <i class="fas fa-<?= $type_info['icone'] ?>"></i>
-                            <?= $type_info['nom'] ?>
-                        </span>
-                    </div>
-                </div>
-                
-                <div class="event-summary-detail">
-                    <div class="detail-icon">
-                        <i class="far fa-calendar-alt"></i>
-                    </div>
-                    <div class="detail-content">
-                        <?php if ($date_debut->format('Y-m-d') === $date_fin->format('Y-m-d')): ?>
-                            Le <?= $date_debut->format($format_date) ?> de <?= $date_debut->format($format_heure) ?> à <?= $date_fin->format($format_heure) ?>
-                        <?php else: ?>
-                            Du <?= $date_debut->format($format_date) ?> à <?= $date_debut->format($format_heure) ?> 
-                            au <?= $date_fin->format($format_date) ?> à <?= $date_fin->format($format_heure) ?>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                
-                <?php if (!empty($evenement['lieu'])): ?>
-                <div class="event-summary-detail">
-                    <div class="detail-icon">
-                        <i class="fas fa-map-marker-alt"></i>
-                    </div>
-                    <div class="detail-content">
-                        <?= htmlspecialchars($evenement['lieu']) ?>
-                    </div>
-                </div>
+        <div class="event-summary">
+            <h2><?= htmlspecialchars($evenement['titre']) ?></h2>
+            <div class="event-summary-detail">
+                <span class="event-type-badge" style="background-color: <?= htmlspecialchars($type_info['couleur']) ?>">
+                    <i class="fas fa-<?= htmlspecialchars($type_info['icone']) ?>"></i>
+                    <?= htmlspecialchars($type_info['nom']) ?>
+                </span>
+            </div>
+            <div class="event-summary-detail">
+                <i class="far fa-calendar-alt"></i>
+                <?php if ($date_debut->format('Y-m-d') === $date_fin->format('Y-m-d')): ?>
+                    Le <?= $date_debut->format($fmt_d) ?> de <?= $date_debut->format($fmt_h) ?> à <?= $date_fin->format($fmt_h) ?>
+                <?php else: ?>
+                    Du <?= $date_debut->format($fmt_d . ' à ' . $fmt_h) ?>
+                    au <?= $date_fin->format($fmt_d . ' à ' . $fmt_h) ?>
                 <?php endif; ?>
             </div>
-            
-            <div class="event-delete-warning">
-                <i class="fas fa-exclamation-triangle"></i>
-                <p>Attention : cette action est irréversible. L'événement sera définitivement supprimé.</p>
+            <?php if (!empty($evenement['lieu'])): ?>
+            <div class="event-summary-detail">
+                <i class="fas fa-map-marker-alt"></i>
+                <?= htmlspecialchars($evenement['lieu']) ?>
             </div>
-            
-            <?php if ($error): ?>
-                <div class="alert-message alert-error">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <span><?= htmlspecialchars($error) ?></span>
-                </div>
             <?php endif; ?>
-            
-            <form method="post" class="delete-form">
-                <input type="hidden" name="csrf_token" value="<?= $token ?>">
-                <input type="hidden" name="confirmer" value="1">
-                
-                <div class="form-actions">
-                    <a href="details_evenement.php?id=<?= htmlspecialchars($id) ?>" class="btn btn-secondary">Annuler</a>
-                    <button type="submit" class="btn btn-danger">Confirmer la suppression</button>
-                </div>
-            </form>
-        <?php else: ?>
-            <div class="success-message">
-                <i class="fas fa-check-circle"></i>
-                <p>L'événement a été supprimé avec succès.</p>
-                <a href="agenda.php" class="btn btn-primary">Retour à l'agenda</a>
+        </div>
+
+        <div class="event-delete-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <p>Attention : cette action est irréversible. L'événement sera définitivement supprimé.</p>
+        </div>
+
+        <form method="post" class="delete-form">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
+            <input type="hidden" name="id" value="<?= (int) $id ?>">
+            <div class="form-actions">
+                <a href="details_evenement.php?id=<?= (int) $id ?>" class="btn btn-secondary">Annuler</a>
+                <button type="submit" class="btn btn-danger">Confirmer la suppression</button>
             </div>
-        <?php endif; ?>
+        </form>
     </div>
 </div>
 
