@@ -1,231 +1,223 @@
-# Fronote — Système de Gestion Scolaire
+# Fronote — Documentation Développeur
 
 ![PHP 8+](https://img.shields.io/badge/PHP-8%2B-blue) ![MySQL 5.7+](https://img.shields.io/badge/MySQL-5.7%2B-orange) ![Version](https://img.shields.io/badge/version-1.0.0-green) ![Licence](https://img.shields.io/badge/licence-MIT-lightgrey)
 
-Fronote est une application web complète de gestion d'établissement scolaire, développée en **PHP vanilla** (sans framework). Elle couvre 40+ modules (notes, absences, emploi du temps, messagerie, vie scolaire, facturation…) avec une architecture IoC/PSR-4, une API centralisée et 233+ tables SQL.
+> **Deux documents disponibles :**
+> - **README.md** (ce fichier) — Documentation technique pour les développeurs
+> - **[INSTALL.md](INSTALL.md)** — Guide d'installation pour les utilisateurs finaux (établissements scolaires)
+
+Fronote est un système de gestion scolaire en **PHP vanilla** (sans framework) : 40+ modules, 233+ tables SQL, architecture IoC/PSR-4, API centralisée, WebSocket temps réel.
 
 ---
 
 ## Table des matières
 
-- [Quick Start](#quick-start)
-- [Fonctionnalités](#fonctionnalités)
-- [Prérequis](#prérequis)
-- [Installation](#installation)
 - [Architecture](#architecture)
+- [Fonctionnalités — Modules](#fonctionnalités--modules)
+- [Environnement de développement](#environnement-de-développement)
 - [API centralisée](#api-centralisée)
 - [Assets & Templates](#assets--templates)
-- [Guide Développeur — Créer un module](#guide-développeur--créer-un-module)
+- [Guide — Créer un module](#guide--créer-un-module)
 - [Personnalisation](#personnalisation)
 - [Sécurité](#sécurité)
 - [Base de données](#base-de-données)
 - [WebSocket](#websocket)
-- [Configuration](#configuration)
-- [Maintenance](#maintenance)
+- [Configuration .env](#configuration-env)
+- [Déploiement client](#déploiement-client)
+- [Maintenance & Mises à jour](#maintenance--mises-à-jour)
 - [Rôles utilisateurs](#rôles-utilisateurs)
-- [Dépannage](#dépannage)
-- [Licence](#licence)
+- [Dépannage développeur](#dépannage-développeur)
 
 ---
 
-## Quick Start
+## Architecture
 
-```bash
-# 1. Cloner le dépôt
-git clone https://github.com/votre-org/fronote.git /var/www/fronote
-
-# 2. Installer les dépendances PHP
-cd /var/www/fronote
-composer install --no-dev --optimize-autoloader
-
-# 3. Ouvrir le wizard dans le navigateur (réseau local uniquement par défaut)
-http://votre-serveur/fronote/install.php
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Navigateur (client)                   │
+└────────────┬──────────────────────┬─────────────────────┘
+             │ HTTP/HTTPS           │ WebSocket (Socket.IO)
+             ▼                     ▼
+┌────────────────────┐   ┌──────────────────────────┐
+│  Pages PHP (vues)  │   │  websocket-server/        │
+│  + templates/      │   │  server.js (Node.js)      │
+└────────┬───────────┘   └──────────────────────────┘
+         │ require API/bootstrap.php
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│                    API/ (couche métier)                  │
+│                                                         │
+│  ┌──────────┐ ┌────────────┐ ┌────────┐ ┌──────────┐   │
+│  │AuthManager│ │RateLimiter │ │  CSRF  │ │Container │   │
+│  └──────────┘ └────────────┘ └────────┘ └──────────┘   │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │  Services: FileUploadService, ModuleService,     │   │
+│  │  UserService, DashboardService, getPDO()…        │   │
+│  └──────────────────────────────────────────────────┘   │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │  Facades: CSRF::, Auth::, DB::, Log::            │   │
+│  └──────────────────────────────────────────────────┘   │
+└────────────────────────┬────────────────────────────────┘
+                         │ PDO (ERRMODE_EXCEPTION, utf8mb4)
+                         ▼
+                ┌──────────────────┐
+                │   MySQL/MariaDB  │
+                │  (pronote.sql)   │
+                │   233+ tables    │
+                └──────────────────┘
 ```
 
-L'installateur configure automatiquement `.env`, crée la base de données (233+ tables), le compte admin, et verrouille l'accès à l'installateur.
+### Principes
+
+| Principe | Implémentation |
+|----------|---------------|
+| **PHP vanilla** | Aucun framework — PDO, sessions natives, PSR-4 manuel |
+| **IoC Container** | `API/Core/Container.php` — injection de dépendances, providers |
+| **PSR-4 autoloading** | Namespace `API\` chargé via `API/bootstrap.php` |
+| **Facades** | `API/Core/Facades/` — CSRF, Auth, DB, Log |
+| **Templates partagés** | `templates/` — header (nonce CSP, CSRF), sidebar, topbar, footer |
+| **Services centralisés** | Upload, auth, rate limiting, modules, WebSocket |
+
+### Cycle de requête
+
+```
+Requête HTTP
+  → Module PHP (ex: notes/notes.php)
+    → require API/core.php          (charge bootstrap + helpers)
+      → API/bootstrap.php           (autoloader + container IoC + session sécurisée)
+    → requireAuth()                 (vérifie session, redirige si non connecté)
+    → requireRole('professeur')     (optionnel — contrôle du rôle)
+    → [logique métier via services PDO]
+    → include templates/shared_header.php   (génère nonce CSP, token CSRF, thème DB)
+    → include templates/shared_sidebar.php  (modules actifs filtrés par rôle)
+    → include templates/shared_topbar.php   (avatar, notifications)
+    → [HTML spécifique au module]
+    → include templates/shared_footer.php   (scripts JS globaux, fermeture HTML)
+```
 
 ---
 
-## Fonctionnalités
+## Fonctionnalités — Modules
 
-### Navigation (modules système — toujours actifs)
+### Navigation (core — non désactivables)
 
-| Module | Description |
-|--------|-------------|
-| **Accueil** | Tableau de bord personnalisé par rôle |
-| **Messagerie** | Conversations privées, annonces, réactions, temps réel |
-| **Notifications** | Centre de notifications multi-canal |
-| **Paramètres** | Préférences utilisateur (thème, police, avatar, 2FA) |
+| Clé | Label | Description |
+|-----|-------|-------------|
+| `accueil` | Accueil | Tableau de bord personnalisé par rôle |
+| `messagerie` | Messagerie | Conversations, annonces, réactions, WebSocket |
+| `notifications` | Notifications | Centre de notifications multi-canal |
+| `parametres` | Paramètres | Thème, police, avatar, 2FA, widgets |
 
 ### Scolaire
 
-| Module | Description |
-|--------|-------------|
-| **Notes** | Saisie, consultation, moyennes par matière/classe/période, export |
-| **Agenda** | Calendrier jour/semaine/liste, événements récurrents (rrule) |
-| **Cahier de textes** | Devoirs avec pièces jointes, suivi statuts élève |
-| **Emploi du temps** | Grille hebdomadaire, créneaux configurables |
-| **Bulletins** | Bulletins scolaires par période, export PDF |
-| **Compétences** | Évaluation par compétences (socle commun) |
-| **Devoirs en ligne** | Remise de rendus, date limite, suivi |
-| **Examens** | Organisation des épreuves et examens |
+| Clé | Label | Description |
+|-----|-------|-------------|
+| `notes` | Notes | Saisie/consultation, moyennes, export |
+| `agenda` | Agenda | Calendrier, événements récurrents (rrule) |
+| `cahierdetextes` | Cahier de textes | Devoirs, pièces jointes, suivi statuts |
+| `emploi_du_temps` | Emploi du temps | Grille hebdomadaire, créneaux configurables |
+| `bulletins` | Bulletins | Bulletins scolaires, export PDF |
+| `competences` | Compétences | Évaluation par compétences (socle commun) |
+| `devoirs` | Devoirs en ligne | Remise de rendus, date limite, suivi |
+| `examens` | Examens | Organisation des épreuves |
 
 ### Vie scolaire
 
-| Module | Description |
-|--------|-------------|
-| **Absences** | Suivi absences/retards, justificatifs avec pièces jointes |
-| **Appel** | Appel numérique en classe |
-| **Discipline** | Incidents, sanctions, retenues |
-| **Vie scolaire** | Dashboard vie scolaire centralisé |
-| **Reporting** | Rapports et statistiques |
-| **Signalements** | Signalements anonymes (harcèlement…) |
-| **Besoins particuliers** | Suivi PAP, PPS, élèves à besoins spécifiques |
+| Clé | Label | Description |
+|-----|-------|-------------|
+| `absences` | Absences | Suivi absences/retards, justificatifs |
+| `appel` | Appel | Appel numérique en classe |
+| `discipline` | Discipline | Incidents, sanctions, retenues |
+| `vie_scolaire` | Vie scolaire | Dashboard vie scolaire |
+| `reporting` | Reporting | Rapports et statistiques |
+| `signalements` | Signalements | Signalements anonymes (harcèlement…) |
+| `besoins` | Besoins particuliers | Suivi PAP, PPS |
 
 ### Communication
 
-| Module | Description |
-|--------|-------------|
-| **Annonces** | Annonces ciblées et sondages |
-| **Réunions** | Organisation des réunions parents-profs, créneaux |
-| **Documents** | Documents administratifs partagés |
+| Clé | Label | Description |
+|-----|-------|-------------|
+| `annonces` | Annonces | Annonces ciblées et sondages |
+| `reunions` | Réunions | Réunions parents-profs, créneaux |
+| `documents` | Documents | Documents administratifs |
 
 ### Établissement
 
-| Module | Description |
-|--------|-------------|
-| **Trombinoscope** | Annuaire avec photos |
-| **Bibliothèque** | Catalogue et gestion des emprunts |
-| **Clubs** | Clubs et activités parascolaires |
-| **Orientation** | Fiches d'orientation et vœux |
-| **Inscriptions** | Inscriptions et réinscriptions en ligne |
-| **Infirmerie** | Passages et fiches santé |
-| **Ressources** | Ressources pédagogiques partagées |
-| **Diplômes** | Gestion et délivrance |
-| **Vie associative** | Associations de l'établissement (CRUD + export) |
+| Clé | Label | Description |
+|-----|-------|-------------|
+| `trombinoscope` | Trombinoscope | Annuaire avec photos |
+| `bibliotheque` | Bibliothèque | Catalogue et emprunts |
+| `clubs` | Clubs | Clubs et activités parascolaires |
+| `orientation` | Orientation | Fiches d'orientation et vœux |
+| `inscriptions` | Inscriptions | Inscriptions en ligne |
+| `infirmerie` | Infirmerie | Passages et fiches santé |
+| `ressources` | Ressources | Ressources pédagogiques |
+| `diplomes` | Diplômes | Gestion et délivrance |
+| `vie_associative` | Vie associative | Associations (CRUD + export) |
 
 ### Logistique & Services
 
-| Module | Description |
-|--------|-------------|
-| **Périscolaire** | Cantine, garderie, activités |
-| **Cantine** | Menus, réservations, pointage |
-| **Internat** | Chambres, affectations, vie en internat |
-| **Garderie** | Accueil périscolaire matin/soir/mercredi |
-| **Stages** | Conventions de stage (3e, lycée…) |
-| **Transports** | Lignes et inscriptions |
-| **Facturation** | Factures et paiements |
-| **Salles & Matériels** | Réservation de salles, prêt de matériel |
-| **Gestion personnel** | Absences et remplacements |
+| Clé | Label | Description |
+|-----|-------|-------------|
+| `periscolaire` | Périscolaire | Cantine, garderie, activités |
+| `cantine` | Cantine | Menus, réservations, pointage |
+| `internat` | Internat | Chambres, affectations |
+| `garderie` | Garderie | Accueil périscolaire |
+| `stages` | Stages | Conventions de stage |
+| `transports` | Transports | Lignes et inscriptions |
+| `facturation` | Facturation | Factures et paiements |
+| `salles` | Salles & Matériels | Réservation de salles |
+| `personnel` | Gestion personnel | Absences et remplacements |
 
-### Système & Administration
+### Système
 
-| Module | Description |
-|--------|-------------|
-| **Archivage** | Archivage annuel des données |
-| **RGPD & Audit** | Conformité RGPD, journal d'audit |
-| **Aide & Support** | FAQ et tickets de support |
-
----
-
-## Prérequis
-
-| Composant | Version minimale | Notes |
-|-----------|-----------------|-------|
-| PHP | 8.0+ | Extensions : `pdo`, `pdo_mysql`, `json`, `mbstring`, `session`, `fileinfo`, `openssl` |
-| MySQL | 5.7+ | ou MariaDB 10.3+ |
-| Apache | 2.4+ | `mod_rewrite` requis |
-| Composer | 2.x | Pour les dépendances PHP |
-| Node.js | 16+ | *Optionnel*, uniquement pour le serveur WebSocket |
+| Clé | Label | Description |
+|-----|-------|-------------|
+| `archivage` | Archivage | Archivage annuel |
+| `rgpd` | RGPD & Audit | Conformité et journal d'audit |
+| `support` | Aide & Support | FAQ et tickets |
 
 ---
 
-## Installation
+## Environnement de développement
 
-### Cloner & Composer
+### Prérequis
+
+| Outil | Version | Rôle |
+|-------|---------|------|
+| PHP | 8.0+ | Runtime principal |
+| MySQL | 5.7+ / MariaDB 10.3+ | Base de données |
+| Apache | 2.4+ (`mod_rewrite`) | Serveur web |
+| Composer | 2.x | Dépendances PHP |
+| Node.js | 16+ | Serveur WebSocket (optionnel) |
+| Git | 2.x | Contrôle de version |
+
+### Installation locale
 
 ```bash
-git clone https://github.com/votre-org/fronote.git /var/www/fronote
-cd /var/www/fronote
-
-# Définir les permissions
-chown -R www-data:www-data /var/www/fronote
-chmod -R 755 /var/www/fronote
-
-# Installer les dépendances PHP
-composer install --no-dev --optimize-autoloader
+git clone https://github.com/votre-org/fronote.git
+cd fronote
+composer install
+# Créer la base de données MySQL
+mysql -u root -p -e "CREATE DATABASE fronote CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -u root -p fronote < pronote.sql
+# Copier et adapter le .env
+cp .env.example .env
+# Ouvrir http://localhost/fronote/install.php dans le navigateur
 ```
 
-### Wizard en 5 étapes
-
-Ouvrez `http://votre-serveur/fronote/install.php` dans votre navigateur (réseau local uniquement par défaut).
-
-| Étape | Description |
-|-------|-------------|
-| **1. Pré-requis** | Vérification PHP, extensions, répertoires |
-| **2. Base de données** | Test de connexion MySQL avec diagnostic d'erreur |
-| **3. Application** | Configuration (nom, URL, sessions) et établissement |
-| **4. Administrateur** | Création du compte admin avec validation de sécurité |
-| **5. Installation** | Exécution SQL, génération `.env`, tests API, `install.lock` |
-
-L'installateur crée automatiquement :
-- `.env` avec tous les paramètres
-- La base de données complète (233+ tables)
-- Les répertoires `uploads/`, `temp/`, `API/logs/`
-- Les fichiers `.htaccess` de protection
-- `install.lock` (bloque toute réinstallation)
-
-### Checklist post-installation
-
-- [ ] Vérifier que `APP_DEBUG=false` dans `.env`
-- [ ] Configurer HTTPS et forcer `cookie_secure=true`
-- [ ] Restreindre `diagnostic.php` par IP ou le supprimer
-- [ ] Configurer les sauvegardes automatiques (`uploads/` + BDD)
-- [ ] Optionnel : démarrer le serveur WebSocket Node.js
-
-### Configuration Nginx
-
-```nginx
-server {
-    listen 80;
-    server_name mon-ecole.fr;
-    root /var/www/fronote;
-    index index.php;
-
-    # Bloquer fichiers sensibles
-    location ~* \.(env|sql|bak|log)$ { deny all; }
-    location = /install.lock           { deny all; }
-    location = /diagnostic.php         { deny all; }
-
-    # PHP-FPM
-    location ~ \.php$ {
-        fastcgi_pass unix:/run/php/php8.1-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    # API routing (équivalent du RewriteRule .htaccess)
-    location /api/ {
-        try_files $uri $uri/ /API/index.php?$query_string;
-    }
-
-    location / {
-        try_files $uri $uri/ =404;
-    }
-}
-```
-
-### Docker (docker-compose.yml)
+### Docker (développement rapide)
 
 ```yaml
+# docker-compose.yml
 version: '3.9'
 services:
   app:
     image: php:8.2-apache
     volumes:
       - .:/var/www/html
-    environment:
-      - APACHE_DOCUMENT_ROOT=/var/www/html
     ports:
       - "8080:80"
     depends_on:
@@ -254,64 +246,9 @@ volumes:
   db_data:
 ```
 
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Navigateur (client)                   │
-└────────────┬──────────────────────┬─────────────────────┘
-             │ HTTP/HTTPS           │ WebSocket
-             ▼                     ▼
-┌────────────────────┐   ┌──────────────────┐
-│  Pages PHP (vues)  │   │  websocket-server│
-│  + templates/      │   │  (Node.js)       │
-└────────┬───────────┘   └──────────────────┘
-         │ require API/bootstrap.php
-         ▼
-┌─────────────────────────────────────────────────────────┐
-│                    API/ (couche métier)                  │
-│                                                         │
-│  ┌──────────┐ ┌────────────┐ ┌──────────┐ ┌─────────┐  │
-│  │AuthManager│ │RateLimiter │ │   CSRF   │ │Container│  │
-│  └──────────┘ └────────────┘ └──────────┘ └─────────┘  │
-│                                                         │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │  Services: FileUploadService, ModuleService,     │   │
-│  │  UserService, DashboardService, getPDO()…        │   │
-│  └──────────────────────────────────────────────────┘   │
-└────────────────────────┬────────────────────────────────┘
-                         │ PDO (ERRMODE_EXCEPTION)
-                         ▼
-                ┌──────────────────┐
-                │   MySQL/MariaDB  │
-                │  (pronote.sql)   │
-                │   233+ tables    │
-                └──────────────────┘
-```
-
-### Principes
-
-- **PHP vanilla** : aucun framework, PDO pour la base de données
-- **PSR-4 autoloading** : namespace `API\` chargé via `API/bootstrap.php`
-- **IoC Container** : `API/Core/Container.php` avec injection de dépendances
-- **Facades** : `CSRF::generate()`, `Auth::user()`, `DB::query()`, `Log::info()`
-- **Templates partagés** : header, sidebar, topbar, footer dans `templates/`
-- **Services centralisés** : upload, auth, rate limiting, modules
-
-### Cycle de requête
-
-```
-Requête HTTP
-  → Module PHP (ex: notes/notes.php)
-    → require API/bootstrap.php  (autoloader + container + session)
-    → requireAuth()              (vérifie session, redirige si non connecté)
-    → [logique métier via services]
-    → include templates/shared_header.php  (nonce CSP, CSRF, thème)
-    → include templates/shared_sidebar.php (modules actifs par rôle)
-    → [HTML spécifique au module]
-    → include templates/shared_footer.php  (scripts JS, fermeture)
+```bash
+docker compose up -d
+# Accès : http://localhost:8080/install.php
 ```
 
 ---
@@ -321,40 +258,60 @@ Requête HTTP
 ### Bootstrap
 
 ```php
+require_once __DIR__ . '/../API/core.php';
+// ou directement :
 require_once __DIR__ . '/../API/bootstrap.php';
 ```
 
-Charge l'autoloader PSR-4, initialise le conteneur IoC, démarre la session sécurisée, enregistre les providers (Auth, CSRF, RateLimiter, Modules, FileUpload…).
+Charge l'autoloader PSR-4, initialise le conteneur IoC, démarre la session sécurisée, enregistre les providers.
 
 ### Endpoints REST
 
-Tous les points d'entrée AJAX/REST sont dans `API/endpoints/` :
+Tous les points d'entrée AJAX/REST centralisés sont dans `API/endpoints/` :
 
 | Endpoint | Méthodes | Paramètres principaux | Réponse |
 |----------|----------|----------------------|---------|
-| `messagerie.php` | GET/POST/DELETE | `resource`, `action`, `id` | JSON |
+| `messagerie.php` | GET / POST / DELETE | `resource`, `action`, `id` | JSON |
 | `agenda_persons.php` | GET | `visibility` | JSON `[{id, nom, prenom, type}]` |
 | `notes_eleves.php` | GET | `classe` | JSON `[{id, nom, prenom}]` |
+
+### Container IoC & Facades
+
+```php
+// Via container
+$csrf    = app('csrf');      // API\Security\CSRF
+$auth    = app('auth');      // API\Auth\AuthManager
+$modules = app('modules');   // API\Services\ModuleService
+$upload  = app('upload');    // API\Services\FileUploadService
+
+// Via facades statiques
+use API\Core\Facades\CSRF;
+use API\Core\Facades\Auth;
+use API\Core\Facades\DB;
+use API\Core\Facades\Log;
+
+$token = CSRF::generate();
+$user  = Auth::user();
+Log::info('Action effectuée', ['user' => $user['id']]);
+```
 
 ### Services
 
 | Service | Classe | Méthodes clés |
 |---------|--------|---------------|
 | Auth | `API\Auth\AuthManager` | `login()`, `logout()`, `user()`, `check()` |
-| Rate Limiter | `API\Security\RateLimiter` | `hit($key)`, `tooManyAttempts($key)`, `clear($key)` |
-| CSRF | `API\Security\CSRF` | `generate()`, `validate($token)`, `field()` |
-| File Upload | `API\Services\FileUploadService` | `upload()`, `uploadMultiple()`, `serve()`, `delete()` |
-| Modules | `API\Services\ModuleService` | `isEnabled()`, `getForSidebar()`, `updateConfig()` |
+| RateLimiter | `API\Security\RateLimiter` | `hit($key)`, `tooManyAttempts($key)`, `clear($key)` |
+| CSRF | `API\Security\CSRF` | `generate()`, `validate($token)`, `field()`, `meta()` |
+| FileUpload | `API\Services\FileUploadService` | `upload()`, `uploadMultiple()`, `serve()`, `delete()` |
+| ModuleService | `API\Services\ModuleService` | `isEnabled()`, `getForSidebar()`, `updateConfig()`, `updateRolesAutorises()` |
 | Database | `API\Database\Database` | `getConnection()`, `table($name)` |
 
 ### FileUploadService
 
 ```php
-use API\Services\FileUploadService;
+$uploader = new \API\Services\FileUploadService('devoirs');
+// Contextes disponibles : devoirs | messagerie | justificatifs
 
-$uploader = new FileUploadService('devoirs');  // devoirs | messagerie | justificatifs
-
-// Upload multiple
 $results = $uploader->uploadMultiple($_FILES['fichiers']);
 foreach ($results as $r) {
     if ($r['success']) {
@@ -362,33 +319,30 @@ foreach ($results as $r) {
     }
 }
 
-// Servir un fichier de manière sécurisée
-$uploader->serve($relativePath, $originalName);
-
-// Supprimer
+$uploader->serve($relativePath, $originalName);  // Servir sécurisé
 $uploader->delete($relativePath);
 
-// Utilitaires statiques
-FileUploadService::formatBytes(1048576);      // "1.00 MB"
-FileUploadService::getFileIcon('image/png'); // "file-image"
+\API\Services\FileUploadService::formatBytes(1048576); // "1.00 MB"
 ```
 
-| Contexte | Taille max | Fichiers max | Types autorisés |
-|----------|-----------|-------------|-----------------|
+| Contexte | Taille max | Fichiers max | Types |
+|----------|-----------|-------------|-------|
 | `messagerie` | 5 Mo | 10 | images, PDF, documents, archives |
 | `devoirs` | 10 Mo | 5 | images, PDF, documents, archives |
 | `justificatifs` | 5 Mo | 5 | images, PDF, documents |
 
-### AuthManager
+### Helpers globaux
 
 ```php
-// Dans un module après bootstrap
-requireAuth();              // Redirige vers login si non connecté
-requireRole('professeur');  // Redirige si mauvais rôle
+requireAuth();                   // Redirige vers login si non authentifié
+requireRole('professeur');       // Redirige si rôle insuffisant
 
-$userId   = getUserId();    // int
-$userRole = getUserRole();  // string : administrateur|professeur|eleve|parent|personnel
-$userName = getFullName();  // "Prénom Nom"
+$id   = getUserId();             // int — ID de l'utilisateur connecté
+$role = getUserRole();           // 'administrateur'|'professeur'|'eleve'|'parent'|'personnel'
+$name = getFullName();           // "Prénom Nom"
+$pdo  = getPDO();                // \PDO — connexion singleton
+
+logAudit('note.created', 'notes', $noteId, null, ['valeur' => 15]);
 ```
 
 ### ModuleService
@@ -396,77 +350,65 @@ $userName = getFullName();  // "Prénom Nom"
 ```php
 $modules = app('modules');
 
-$modules->isEnabled('notes');                    // bool
-$modules->isVisibleForRole('absences', 'eleve'); // bool
-$modules->getConfig('messagerie');               // array de config_json
+$modules->isEnabled('notes');
+$modules->isVisibleForRole('absences', 'eleve');
+$modules->getConfig('messagerie');           // array depuis config_json
 $modules->updateConfig('notes', ['note_max' => 20]);
 $modules->updateRolesAutorises('discipline', ['administrateur', 'professeur']);
+$modules->getForSidebar('professeur');       // modules groupés par catégorie
 ```
 
 ---
 
 ## Assets & Templates
 
-### Structure globale
+### Structure
 
 ```
-assets/
-├── css/
-│   └── pronote-unified.css   ← CSS global (toute l'appli)
-└── js/
-    ├── ws-global.js          ← Client WebSocket global
-    └── ...
+assets/                          ← CSS/JS globaux (toute l'appli)
+│   css/pronote-unified.css      ← Feuille de style principale unifiée
+│   js/ws-global.js              ← Client WebSocket global
 
-[module]/
-└── assets/
-    ├── css/
-    │   └── module.css        ← CSS spécifique au module
-    └── js/
-        └── module.js         ← JS spécifique au module
+[module]/assets/                 ← CSS/JS spécifiques au module
+    css/module.css
+    js/module.js
 ```
 
-**Règle :** CSS/JS utilisé sur plusieurs modules → `assets/` global. CSS/JS utilisé sur un seul module → `[module]/assets/`.
+**Règle :** si un fichier CSS/JS est utilisé sur plusieurs modules → `assets/` global. Si un seul module → `[module]/assets/`.
 
-### Templates partagés
+### Variables attendues par shared_header.php
 
-| Fichier | Rôle | Variables attendues |
-|---------|------|---------------------|
-| `shared_header.php` | `<head>`, CSS, meta CSRF, nonce CSP, thème | `$pageTitle`, `$extraCss`, `$rootPrefix` |
-| `shared_sidebar.php` | Navigation latérale dynamique (rôle + modules actifs) | `$activePage` |
-| `shared_topbar.php` | Barre supérieure (avatar, notifications) | `$user_initials`, `$user_fullname` |
-| `shared_footer.php` | Fermeture HTML, scripts JS, WebSocket | `$extraJs` |
+| Variable | Type | Obligatoire | Description |
+|----------|------|-------------|-------------|
+| `$pageTitle` | string | Oui | Titre de la page (`<title>`) |
+| `$rootPrefix` | string | Oui | Chemin relatif vers la racine (`'../'`, `'../../'`) |
+| `$activePage` | string | Recommandé | Clé du module actif (colorie la sidebar) |
+| `$extraCss` | array | Non | Chemins CSS supplémentaires |
+| `$extraHeadHtml` | string | Non | HTML injecté dans `<head>` |
+| `$headerExtraActions` | string | Non | Boutons supplémentaires dans la topbar |
+| `$isAdmin` | bool | Non | Active le menu admin dans la sidebar |
 
-### Inclure CSS/JS d'un module
-
-```php
-// Dans le module, avant d'inclure shared_header.php
-$extraCss = ['assets/css/mon-module.css'];
-$extraJs  = ['assets/js/mon-module.js'];
-
-include __DIR__ . '/../templates/shared_header.php';
-```
+Le header génère automatiquement : nonce CSP, token CSRF (via facade), thème depuis `user_settings`, config WebSocket JWT.
 
 ---
 
-## Guide Développeur — Créer un module
+## Guide — Créer un module
 
 ### Structure type
 
 ```
 mon_module/
-├── mon_module.php          ← Page principale
+├── mon_module.php      ← Page principale
 ├── assets/
 │   ├── css/mon_module.css
 │   └── js/mon_module.js
 ├── includes/
-│   └── functions.php       ← Fonctions métier
-└── api/                    ← (optionnel) endpoints AJAX locaux
+│   └── functions.php   ← Logique métier locale
+└── api/                ← (optionnel) endpoints AJAX propres au module
     └── actions.php
 ```
 
-### Étapes de création
-
-**1. Créer le fichier principal :**
+### Page principale minimale
 
 ```php
 <?php
@@ -474,47 +416,87 @@ mon_module/
 require_once __DIR__ . '/../API/core.php';
 
 requireAuth();
-// requireRole('professeur');  // si module réservé
+// requireRole('professeur'); // décommenter si accès restreint
 
 $pdo = getPDO();
-$pageTitle   = 'Mon Module';
-$activePage  = 'mon_module';
-$rootPrefix  = '../';
-$extraCss    = ['assets/css/mon_module.css'];
+
+// ─── Variables du template ────────────────────────────────
+$pageTitle  = 'Mon Module';
+$activePage = 'mon_module';
+$rootPrefix = '../';
+$extraCss   = ['assets/css/mon_module.css'];
 
 include __DIR__ . '/../templates/shared_header.php';
 include __DIR__ . '/../templates/shared_sidebar.php';
 include __DIR__ . '/../templates/shared_topbar.php';
 ?>
-
 <div class="main-content">
     <h1><?= htmlspecialchars($pageTitle) ?></h1>
     <!-- Contenu du module -->
 </div>
-
 <?php include __DIR__ . '/../templates/shared_footer.php'; ?>
 ```
 
-**2. Enregistrer dans `modules_config` (pronote.sql) :**
+### Enregistrer le module
+
+**1. Dans `pronote.sql`** (ou via une requête SQL directe sur la base existante) :
 
 ```sql
-INSERT INTO `modules_config` (`module_key`, `label`, `description`, `icon`, `category`, `enabled`, `sort_order`, `is_core`)
-VALUES ('mon_module', 'Mon Module', 'Description du module', 'fas fa-star', 'scolaire', 1, 99, 0);
+INSERT INTO `modules_config`
+  (`module_key`, `label`, `description`, `icon`, `category`, `enabled`, `sort_order`, `is_core`)
+VALUES
+  ('mon_module', 'Mon Module', 'Description courte', 'fas fa-star', 'scolaire', 1, 99, 0);
 ```
 
-**3. Ajouter la route dans `ModuleService::$routeMap` :**
+**2. Dans `API/Services/ModuleService.php`**, ajouter dans `$routeMap` :
 
 ```php
 'mon_module' => 'mon_module/mon_module.php',
 ```
 
+### Endpoint AJAX interne
+
+```php
+<?php
+// mon_module/api/actions.php
+require_once __DIR__ . '/../../API/core.php';
+requireAuth();
+
+header('Content-Type: application/json');
+
+$action = $_POST['action'] ?? $_GET['action'] ?? '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!\API\Core\Facades\CSRF::validate($_POST['csrf_token'] ?? '')) {
+        http_response_code(403);
+        echo json_encode(['error' => 'CSRF invalide']);
+        exit;
+    }
+}
+
+match ($action) {
+    'liste' => handleListe(),
+    'creer' => handleCreer(),
+    default => http_response_code(400),
+};
+
+function handleListe(): void {
+    $pdo  = getPDO();
+    $rows = $pdo->query("SELECT * FROM ma_table ORDER BY id DESC")->fetchAll();
+    echo json_encode($rows);
+}
+```
+
 ### Bonnes pratiques
 
-- **PDO** : toujours utiliser `getPDO()` + requêtes préparées (`prepare` + `execute`)
-- **CSRF** : `\API\Core\Facades\CSRF::validate($_POST['csrf_token'])` sur tous les POST
-- **Upload** : utiliser `FileUploadService` avec un contexte défini
-- **Rôles** : appeler `requireRole()` en début de page
-- **Sortie HTML** : toujours `htmlspecialchars()` sur les données utilisateur
+| Règle | Pourquoi |
+|-------|---------|
+| Toujours `requireAuth()` en début de page | Aucun module ne doit être accessible sans session |
+| PDO + requêtes préparées uniquement | Prévient l'injection SQL |
+| `htmlspecialchars()` sur toute sortie utilisateur | Prévient le XSS |
+| Valider CSRF sur tous les POST | Prévient le CSRF |
+| Utiliser `FileUploadService` pour tous les uploads | Validation MIME, nommage sécurisé, cohérence |
+| `logAudit()` sur les actions sensibles | Traçabilité RGPD |
 
 ---
 
@@ -522,120 +504,102 @@ VALUES ('mon_module', 'Mon Module', 'Description du module', 'fas fa-star', 'sco
 
 ### Par utilisateur
 
-| Fonctionnalité | Table DB | Comment accéder |
-|---------------|----------|-----------------|
-| Thème clair/sombre/auto | `user_settings.theme` | `parametres/parametres.php?section=preferences` |
+| Fonctionnalité | Table | Accès |
+|---------------|-------|-------|
+| Thème (light/dark/auto) | `user_settings.theme` | `parametres/parametres.php?section=preferences` |
 | Taille de police | `user_settings.taille_police` | idem |
-| Sidebar collapsed | `user_settings.sidebar_collapsed` | bouton sidebar (persisté en DB) |
+| Sidebar réduite | `user_settings.sidebar_collapsed` | bouton sidebar (persisté en DB) |
 | Préférences notifications | `notification_preferences` | `parametres/parametres.php?section=notifications` |
 | Widgets dashboard | `user_settings.accueil_config` | `parametres/parametres.php?section=accueil` |
 | Avatar | `user_settings.avatar_chemin` | `parametres/parametres.php?section=profil` |
 
-Accès direct via `profil/index.php?section=preferences` (redirige vers paramètres).
+`profil/index.php` redirige vers le module paramètres avec la bonne section.
 
-### Par établissement
+### Par établissement (table `etablissement_info`)
 
-La table `etablissement_info` expose :
+| Colonne | Type | Défaut | Usage |
+|---------|------|--------|-------|
+| `couleur_primaire` | varchar(7) | `#003366` | Variable CSS `--color-primary` |
+| `couleur_secondaire` | varchar(7) | `#0066cc` | Variable CSS `--color-secondary` |
+| `css_personnalise` | text | null | CSS injecté en fin de `<head>` |
+| `favicon` | varchar(255) | null | Favicon personnalisé |
+| `pied_de_page` | text | null | Mentions légales du footer |
 
-| Colonne | Défaut | Usage |
-|---------|--------|-------|
-| `nom` | 'Établissement Scolaire' | Affiché en sidebar et PDF |
-| `logo` | null | Logo dans l'en-tête |
-| `couleur_primaire` | `#003366` | Variable CSS `--color-primary` |
-| `couleur_secondaire` | `#0066cc` | Variable CSS `--color-secondary` |
-| `css_personnalise` | null | CSS injecté dans `<head>` |
-| `favicon` | null | Favicon personnalisé |
-| `pied_de_page` | null | Mentions légales en bas de page |
+Ces valeurs sont lues par `shared_header.php` via `EtablissementService`.
 
-**`shared_header.php`** lit ces valeurs via `EtablissementService` et les injecte automatiquement.
+### Visibilité des modules par rôle
 
-### Activer/désactiver des modules
+La colonne `roles_autorises` (JSON) dans `modules_config` est prioritaire sur le tableau hardcodé `$roleVisibility` de `ModuleService`. Elle est éditable via `admin/modules/configure.php` → section "Rôles autorisés" sans redéploiement.
 
-`admin/modules/index.php` → toggle ON/OFF par module.
-
-Les modules `core` (accueil, messagerie, paramètres, notifications) ne peuvent pas être désactivés.
-
-### Configurer un module
-
-`admin/modules/configure.php?module=notes` permet de modifier :
-- Label, description, icône, ordre d'affichage
-- Configuration JSON spécifique (ex: note_max, décimales, notifications)
-- **Rôles autorisés** : restreindre la visibilité du module à certains rôles sans toucher au code
+```php
+// Programmatiquement :
+$modules->updateRolesAutorises('discipline', ['administrateur', 'professeur', 'vie_scolaire']);
+// null = tous les rôles
+$modules->updateRolesAutorises('notes', null);
+```
 
 ---
 
 ## Sécurité
 
-### Authentification & sessions
-
-- Mots de passe hashés **BCRYPT** (cost 12)
-- Sessions : `cookie_httponly`, `cookie_secure`, `SameSite=Lax`
-- `session_regenerate_id()` après authentification
-- Durée de session configurable (défaut : 2h)
-
 ### CSRF
 
-Tokens générés par `API\Security\CSRF` (bucket rotatif, durée 1h, max 10 tokens simultanés). Utilisez toujours la façade :
+Le système utilise un **token bucket rotatif** (`API\Security\CSRF`) stocké dans `$_SESSION['csrf_tokens']` (tableau, max 10 tokens simultanés, durée 1h). À ne pas confondre avec l'ancien `$_SESSION['csrf_token']` (maintenu pour rétrocompatibilité via `shared_header.php`).
 
 ```php
-// Générer (dans le template header, automatique)
+// Générer (automatique dans shared_header.php)
 $token = \API\Core\Facades\CSRF::generate();
 
-// Valider (dans le traitement POST)
-if (!\API\Core\Facades\CSRF::validate($_POST['csrf_token'])) {
+// Valider (traitement POST)
+if (!\API\Core\Facades\CSRF::validate($_POST['csrf_token'] ?? '')) {
     http_response_code(403); exit;
 }
 
-// Champ HTML
-echo \API\Core\Facades\CSRF::field();
+// Champ HTML hidden
+echo \API\Core\Facades\CSRF::field();  // <input type="hidden" name="csrf_token" value="...">
 ```
 
 ### Rate Limiting
 
-`API\Security\RateLimiter` stocke les tentatives en base (`api_rate_limits`). L'IP est détectée via `getClientIp()` : accepte `X-Forwarded-For` **uniquement si `TRUSTED_PROXIES` est défini** dans `.env`.
+`API\Security\RateLimiter` stocke les tentatives dans `api_rate_limits`. L'IP est résolue via `getClientIp()` :
+- Sans `TRUSTED_PROXIES` dans `.env` → `REMOTE_ADDR` uniquement (résistant au spoofing)
+- Avec `TRUSTED_PROXIES=1.2.3.4` → `X-Forwarded-For` accepté **uniquement si la requête vient d'un proxy de confiance**
 
-### Upload de fichiers
+### CSP avec nonce
 
-- Validation MIME réelle via `finfo`
-- Allowlist d'extensions par contexte
-- Nommage aléatoire `random_bytes(16)` en hex
-- Stockage dans `uploads/{contexte}/YYYY/MM/`
-- Servi uniquement via PHP (`.htaccess` Deny from all sur `uploads/`)
+Chaque page génère un nonce unique (`base64_encode(random_bytes(16))`). Les scripts inline du header portent l'attribut `nonce="..."`. Le header CSP utilise `'nonce-{nonce}'` au lieu de `'unsafe-inline'`.
 
-### Headers HTTP (CSP avec nonce)
+### Headers HTTP envoyés
 
 ```
-Content-Security-Policy: default-src 'self';
-  script-src 'self' 'nonce-{nonce}' cdnjs.cloudflare.com ...;
-  style-src 'self' 'unsafe-inline' cdnjs.cloudflare.com;
-  frame-ancestors 'none';
+Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{nonce}' cdnjs.cloudflare.com ...
 X-Frame-Options: DENY
 X-Content-Type-Options: nosniff
 Referrer-Policy: strict-origin-when-cross-origin
 Permissions-Policy: camera=(), microphone=(), geolocation=()
 ```
 
-Le nonce est généré par requête dans `shared_header.php` et appliqué sur les scripts inline.
-
-### Checklist sécurité production
+### Checklist production
 
 - [ ] `APP_DEBUG=false`
-- [ ] HTTPS + `cookie_secure=true`
-- [ ] `pronote.sql` → accès bloqué par `.htaccess`
-- [ ] `diagnostic.php` → bloqué ou supprimé
+- [ ] `APP_ENV=production`
+- [ ] HTTPS + `SESSION_SECURE=true`
 - [ ] `TRUSTED_PROXIES` configuré si derrière un reverse proxy
+- [ ] `pronote.sql` bloqué par `.htaccess` (déjà en place)
+- [ ] `diagnostic.php` bloqué ou supprimé
 - [ ] Backups automatiques (cron)
+- [ ] Logs rotatifs (`logrotate`)
 
 ---
 
 ## Base de données
 
-Le schéma complet est dans `pronote.sql` (233+ tables, 1 vue).
+Schéma complet dans `pronote.sql`. Toujours modifier ce fichier directement (pas de système de migration séparé).
 
-### Tables par groupe
+### Tables par groupe (233+ tables)
 
-| Groupe | Exemples de tables |
-|--------|--------------------|
+| Groupe | Exemples |
+|--------|---------|
 | **Référentielles** | `classes`, `matieres`, `periodes`, `professeur_classes` |
 | **Utilisateurs** | `administrateurs`, `professeurs`, `eleves`, `parents`, `personnel`, `parent_eleve` |
 | **Configuration** | `etablissement_info`, `modules_config`, `smtp_config`, `user_settings` |
@@ -647,12 +611,12 @@ Le schéma complet est dans `pronote.sql` (233+ tables, 1 vue).
 | **Notifications** | `notifications`, `notification_preferences` |
 | **Sécurité** | `api_rate_limits`, `audit_log`, `session_security`, `demandes_reinitialisation` |
 | **Emploi du temps** | `emploi_du_temps`, `creneaux`, `salles` |
-| **Vie scolaire** | `vie_scolaire`, `incidents`, `sanctions` |
+| **Vie scolaire** | `incidents`, `sanctions`, `vie_scolaire` |
 | **Logistique** | `cantine_menus`, `reservations_cantine`, `chambres_internat`, `lignes_transport` |
 | **Facturation** | `factures`, `lignes_facture`, `paiements` |
 | **RGPD** | `rgpd_demandes`, `rgpd_traitements` |
 
-### Vue unifiée
+### Vue unifiée v_users
 
 ```sql
 CREATE VIEW v_users AS
@@ -663,38 +627,102 @@ CREATE VIEW v_users AS
   UNION ALL SELECT id, nom, prenom, identifiant, mot_de_passe, mail, 'personnel', actif FROM personnel;
 ```
 
-Utilisée par `AuthManager` pour résoudre les logins sans connaître le type d'utilisateur à l'avance.
+Utilisée par `AuthManager` pour résoudre les logins sans connaître le type d'utilisateur.
 
 ---
 
 ## WebSocket
 
-**Chemin :** `websocket-server/`
+### Vue d'ensemble
 
-Serveur Node.js pour les notifications temps réel de la messagerie.
+```
+PHP (shared_header.php)
+  → génère un JWT signé (JWT_SECRET) avec userId + userType
+  → injecte window.FRONOTE_WS = { url, token, userId, userType }
+
+Client JS (ws-global.js)
+  → se connecte à Socket.IO avec le JWT
+  → écoute les événements : newMessage, notification, newGrade, newAbsence…
+  → si échec de connexion → bascule sur polling HTTP (fallback transparent)
+
+PHP (API/endpoints/messagerie.php, etc.)
+  → après chaque action → POST http://localhost:3000/notify/message { convId, message, secret: API_SECRET }
+  → le serveur Node diffuse via io.to('conv_42').emit('newMessage', ...)
+```
+
+### Dépendances Node.js
+
+Le serveur utilise trois packages. Comme `websocket-server/` ne contient pas de `package.json` versionné, il faut l'initialiser à chaque nouveau déploiement :
 
 ```bash
 cd websocket-server
-npm install
-node server.js
+npm init -y
+npm install express socket.io jsonwebtoken
 ```
 
-Le client tente une connexion WebSocket au démarrage. En cas d'échec, il bascule automatiquement sur du **polling HTTP** via l'API REST (fallback transparent).
+### Variables d'environnement du serveur Node
 
-Variables `.env` liées :
+| Variable | Description | Défaut |
+|----------|-------------|--------|
+| `PORT` | Port d'écoute | `3000` |
+| `JWT_SECRET` | Même valeur que dans `.env` PHP | *(requis)* |
+| `API_SECRET` | Secret partagé pour les routes `/notify/*` | *(requis)* |
+| `ALLOWED_ORIGINS` | CORS — origines autorisées (virgule-séparé) | `*` |
+| `NODE_ENV` | `production` ou `development` | `development` |
 
-```env
-WEBSOCKET_ENABLED=true
-WEBSOCKET_CLIENT_URL=http://localhost:3000
-WEBSOCKET_SERVER_URL=http://localhost:3000
-JWT_SECRET=votre-secret-jwt-ici
+### Démarrage (développement)
+
+```bash
+cd websocket-server
+JWT_SECRET=xxx API_SECRET=yyy node server.js
 ```
+
+### Démarrage (production avec PM2)
+
+```bash
+npm install -g pm2
+cd websocket-server
+pm2 start server.js --name "fronote-ws" \
+  --env-var JWT_SECRET=xxx \
+  --env-var API_SECRET=yyy \
+  --env-var ALLOWED_ORIGINS=https://mon-ecole.fr \
+  --env-var NODE_ENV=production
+pm2 save && pm2 startup
+```
+
+### Nginx reverse proxy (WebSocket en HTTPS)
+
+```nginx
+location /socket.io/ {
+    proxy_pass         http://localhost:3000;
+    proxy_http_version 1.1;
+    proxy_set_header   Upgrade $http_upgrade;
+    proxy_set_header   Connection "upgrade";
+    proxy_set_header   Host $host;
+    proxy_cache_bypass $http_upgrade;
+}
+```
+
+### Routes HTTP internes (déclenchées par PHP)
+
+Toutes les routes POST nécessitent `"secret": API_SECRET` dans le body JSON.
+
+| Route | Payload | Diffuse vers |
+|-------|---------|-------------|
+| `POST /notify/message` | `{convId, message}` | `conv_{convId}` |
+| `POST /notify/message-edited` | `{convId, messageId, newBody, editedAt}` | `conv_{convId}` |
+| `POST /notify/message-deleted` | `{convId, messageId}` | `conv_{convId}` |
+| `POST /notify/message-read` | `{convId, userId, messageId, readAt}` | `conv_{convId}` |
+| `POST /notify/reaction` | `{convId, messageId, reactions}` | `conv_{convId}` |
+| `POST /notify/notification` | `{userId, data}` | `user_{userId}` |
+| `POST /notify/grade` | `{eleveId, gradeData}` | `user_{eleveId}` |
+| `POST /notify/absence` | `{eleveId, absenceData}` | `user_{eleveId}` |
+| `POST /notify/event` | `{targetType, targetId, eventData}` | `class_{id}` ou `user_{id}` |
+| `GET /health` | — | `{status, connections, uptime}` |
 
 ---
 
-## Configuration
-
-Toute la configuration est dans `.env` à la racine, généré par l'installateur.
+## Configuration .env
 
 ```env
 # ─── Base de données ───────────────────────────────────────
@@ -711,134 +739,235 @@ APP_ENV=production          # production | development | test
 APP_DEBUG=false
 APP_URL=https://mon-ecole.fr/fronote
 BASE_URL=/fronote
+APP_TIMEZONE=Europe/Paris
 
 # ─── Sécurité ──────────────────────────────────────────────
-SESSION_NAME=fronote_session
-SESSION_LIFETIME=7200       # secondes (2h par défaut)
 CSRF_LIFETIME=3600
+CSRF_MAX_TOKENS=10
+SESSION_NAME=fronote_session
+SESSION_LIFETIME=7200
+SESSION_SECURE=false        # true en HTTPS obligatoire
+SESSION_HTTPONLY=true
+SESSION_SAMESITE=Lax
 MAX_LOGIN_ATTEMPTS=5
+LOGIN_LOCKOUT_TIME=900
 RATE_LIMIT_ATTEMPTS=5
-RATE_LIMIT_DECAY=1          # minutes
-TRUSTED_PROXIES=            # IP des reverse proxies de confiance (virgule-séparé)
+RATE_LIMIT_DECAY=1
+TRUSTED_PROXIES=            # IPs des reverse proxies de confiance (virgule-séparé)
+ALLOWED_INSTALL_IP=         # IP externe autorisée pour install.php (vide = réseau local uniquement)
 
-# ─── JWT (WebSocket) ───────────────────────────────────────
+# ─── JWT & WebSocket ───────────────────────────────────────
 JWT_SECRET=changez-ce-secret-en-production
-JWT_LIFETIME=3600
-
-# ─── WebSocket ─────────────────────────────────────────────
 WEBSOCKET_ENABLED=true
+WEBSOCKET_URL=http://localhost:3000
 WEBSOCKET_CLIENT_URL=http://localhost:3000
-WEBSOCKET_SERVER_URL=http://localhost:3000
+WEBSOCKET_API_SECRET=secret-partage-avec-le-serveur-node
+
+# ─── Mises à jour automatiques ────────────────────────────
+GITHUB_REPO=votre-org/fronote
+GITHUB_BRANCH=main
+GITHUB_WEBHOOK_SECRET=     # Unique par client — généré à la création du compte client
+UPDATE_AUTO_CHECK=false
 
 # ─── Chemins ───────────────────────────────────────────────
 UPLOADS_PATH=/var/www/fronote/uploads
 LOGS_PATH=/var/www/fronote/API/logs
 TEMP_PATH=/var/www/fronote/temp
 
-# ─── Mises à jour automatiques ────────────────────────────
-GITHUB_REPO=votre-org/fronote
-GITHUB_BRANCH=main
-GITHUB_WEBHOOK_SECRET=       # Secret du webhook GitHub
+# ─── RGPD ─────────────────────────────────────────────────
+AUDIT_ENABLED=true
+AUDIT_RETENTION_DAYS=180
 
-# ─── SMTP (optionnel) ──────────────────────────────────────
-# Configurable via admin/systeme/smtp.php
+# ─── SMTP (configurable via admin/systeme/smtp.php) ────────
+MAIL_MAILER=smtp
+MAIL_HOST=
+MAIL_PORT=587
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=
+MAIL_FROM_NAME="Fronote"
 ```
 
 ---
 
-## Maintenance
+## Déploiement client
 
-### Diagnostic
+Chaque établissement client reçoit une **installation isolée** de Fronote avec sa propre base de données et sa propre clé webhook.
 
-`diagnostic.php` expose l'état de PHP, des extensions, de la connexion DB et des répertoires. **Accès bloqué par `.htaccess` en production** — accorder temporairement via IP ou supprimer après vérification.
+### Générer une clé webhook pour un nouveau client
+
+```bash
+# Générer une clé aléatoire sécurisée (32 octets = 64 caractères hex)
+php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"
+# ou
+openssl rand -hex 32
+```
+
+Notez cette clé — c'est la valeur à placer dans `GITHUB_WEBHOOK_SECRET` dans le `.env` du client.
+
+### Préparer l'archive de déploiement
+
+L'archive envoyée au client ne doit pas contenir les fichiers de développement :
+
+```bash
+# Depuis la racine du projet
+git archive --format=zip --output=fronote-v1.0.0.zip HEAD
+
+# Ce que l'archive contient (fichiers trackés par git) :
+# API/, templates/, assets/, [modules]/, websocket-server/server.js,
+# .env.example, .htaccess, composer.json, composer.lock,
+# install.php, install_guard.php, pronote.sql, version.json, scripts/
+
+# Ce qu'elle NE contient PAS (géré par .gitignore) :
+# .env, vendor/, uploads/, temp/, API/logs/, install.lock,
+# websocket-server/node_modules/, login/data/etablissement.json
+```
+
+### Configurer le webhook GitHub pour le client
+
+Dans les paramètres GitHub du dépôt (`Settings → Webhooks → Add webhook`) :
+
+| Champ | Valeur |
+|-------|--------|
+| Payload URL | `https://domaine-du-client.fr/fronote/webhook_update.php` |
+| Content type | `application/json` |
+| Secret | La clé générée pour ce client |
+| Events | **Just the push event** |
+
+### Suivi des clients déployés
+
+Tenez un registre (fichier ou base de données interne) :
+
+| Client | Domaine | `GITHUB_WEBHOOK_SECRET` | Version | Date déploiement |
+|--------|---------|------------------------|---------|-----------------|
+| Collège X | `college-x.fr/fronote` | `abc123…` | 1.0.0 | 2026-03-18 |
+| Lycée Y | `lycee-y.fr/fronote` | `def456…` | 1.0.0 | 2026-03-20 |
+
+### Config Nginx (référence)
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name mon-ecole.fr;
+    root /var/www/fronote;
+    index index.php;
+
+    # Bloquer fichiers sensibles
+    location ~* \.(env|sql|bak|log)$ { deny all; }
+    location = /install.lock          { deny all; }
+    location = /diagnostic.php        { deny all; }
+
+    # WebSocket (si activé)
+    location /socket.io/ {
+        proxy_pass         http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host $host;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location / { try_files $uri $uri/ =404; }
+}
+```
+
+---
+
+## Maintenance & Mises à jour
+
+### Processus de mise à jour (côté développeur)
+
+```
+1. Développer + tester en local
+2. git push origin main
+3. GitHub déclenche les webhooks de tous les clients enregistrés
+4. Chaque serveur client reçoit le signal → valide la signature HMAC-SHA256
+   → exécute scripts/update.php (git pull + composer + bootstrap test)
+5. En cas d'échec : .env restauré automatiquement, log disponible dans temp/update.log
+```
+
+### Mise à jour manuelle (SSH sur le serveur client)
+
+```bash
+cd /var/www/fronote
+php scripts/update.php
+```
+
+### Logs
+
+```
+API/logs/          ← Logs applicatifs PHP
+temp/update.log    ← Journal des mises à jour (50 dernières lignes dans l'admin)
+audit_log (table)  ← Toutes les actions sensibles (login, CRUD sensible, etc.)
+```
 
 ### Sauvegarde
 
 ```bash
 # Base de données
-mysqldump -u fronote_user -p fronote > backup_$(date +%Y%m%d).sql
+mysqldump -u fronote_user -p fronote | gzip > /backups/fronote_$(date +%Y%m%d).sql.gz
 
 # Fichiers uploadés
-tar -czf uploads_$(date +%Y%m%d).tar.gz uploads/
+tar -czf /backups/uploads_$(date +%Y%m%d).tar.gz /var/www/fronote/uploads/
 
-# Cron quotidien (crontab)
-0 2 * * * /usr/bin/mysqldump -u fronote_user -pSECRET fronote | gzip > /backups/fronote_$(date +\%Y\%m\%d).sql.gz
-```
-
-### Mise à jour automatique
-
-`admin/systeme/update.php` permet une mise à jour en 1 clic via GitHub. Fonctionne via `git pull` + rechargement de l'autoloader. Un webhook GitHub peut déclencher la mise à jour automatiquement (`scripts/update.php`).
-
-### Logs
-
-- **Logs applicatifs** : `API/logs/` (niveau configurable)
-- **Audit log** : table `audit_log` en base de données (actions sensibles : login, création utilisateur, modification notes, etc.)
-
-### Réinstallation
-
-```bash
-rm install.lock
-# Puis accéder à install.php (la BDD sera recréée)
+# Cron (2h du matin quotidiennement)
+0 2 * * * mysqldump -u fronote_user -pSECRET fronote | gzip > /backups/fronote_$(date +\%Y\%m\%d).sql.gz
 ```
 
 ---
 
 ## Rôles utilisateurs
 
-| Rôle | Accès |
-|------|-------|
-| **Administrateur** | Tout (admin panel, modules, utilisateurs, audit, config) |
-| **Professeur** | Notes (saisie), cahier de textes, agenda, messagerie, absences (saisie), appel |
-| **Élève** | Notes (consultation), devoirs, agenda, messagerie, ressources |
-| **Parent** | Notes enfant(s), absences, messagerie, justificatifs, réunions |
-| **Personnel** | Selon configuration (`roles_autorises` par module) |
-| **Vie scolaire** | Absences, discipline, signalements, reporting, infirmerie, internat |
+| Rôle | Clé session | Accès par défaut |
+|------|-------------|-----------------|
+| **Administrateur** | `administrateur` | Tout — admin panel, modules, utilisateurs, audit |
+| **Professeur** | `professeur` | Notes (saisie), cahier de textes, agenda, messagerie, absences, appel |
+| **Élève** | `eleve` | Notes (consultation), devoirs, agenda, messagerie, ressources |
+| **Parent** | `parent` | Notes enfant(s), absences, messagerie, justificatifs, réunions |
+| **Personnel** | `personnel` | Modules configurés via `roles_autorises` |
+| **Vie scolaire** | `vie_scolaire` | Absences, discipline, reporting, infirmerie, internat |
 
-La visibilité des modules par rôle est configurable depuis `admin/modules/configure.php` sans déploiement.
+La visibilité par rôle est configurable sans code via `admin/modules/configure.php`.
 
 ---
 
-## Dépannage
+## Dépannage développeur
 
-### L'installateur refuse de s'ouvrir
-
-Vérifiez que votre IP est dans le réseau local (127.0.0.1, 192.168.x.x, 10.x.x.x). Pour autoriser une IP externe, ajoutez `ALLOWED_INSTALL_IP=votre.ip` dans un `.env` minimal avant d'ouvrir l'installateur.
-
-### Erreur "Class not found"
+### Class not found
 
 ```bash
 composer dump-autoload --optimize
 ```
 
-### Erreur PDO "Could not find driver"
+### Erreur PDO silencieuse
 
-L'extension `pdo_mysql` n'est pas activée. Sur Debian/Ubuntu :
-```bash
-sudo apt install php8.x-mysql && sudo systemctl restart apache2
-```
+`Database.php` force `ERRMODE_EXCEPTION` — si une requête ne lève pas d'exception, vérifiez que vous passez bien par `getPDO()` ou le container, pas une connexion manuelle sans options.
 
-### La sidebar n'affiche pas certains modules
+### Token CSRF rejeté
 
-1. Vérifiez que le module est activé dans `admin/modules/index.php`
-2. Vérifiez que votre rôle est autorisé (`admin/modules/configure.php` → onglet Rôles)
-3. Vérifiez que `module_key` est dans `ModuleService::$routeMap`
+- Les tokens expirent après 1h (`CSRF_LIFETIME`)
+- Ils sont à **usage unique** (supprimés après `validate()`)
+- Si plusieurs AJAX parallèles utilisent le même token depuis la meta tag → utiliser `check()` (non destructif) à la place de `validate()` pour les tokens non-critiques
 
-### Les notifications WebSocket ne fonctionnent pas
+### Le webhook de mise à jour n'est pas déclenché
 
-Le fallback polling est automatique. Si vous voulez activer WebSocket :
-1. Assurez-vous que Node.js est installé
-2. `cd websocket-server && npm install && node server.js`
-3. Vérifiez `WEBSOCKET_ENABLED=true` et `WEBSOCKET_CLIENT_URL` dans `.env`
+1. Vérifier que l'URL est accessible depuis l'extérieur
+2. Vérifier `GITHUB_WEBHOOK_SECRET` dans `.env` (identique à celui configuré dans GitHub)
+3. Consulter les livraisons du webhook dans GitHub (`Settings → Webhooks → Recent deliveries`)
+4. Vérifier `temp/update.log`
 
-### Erreur CSRF "Token invalide"
+### Module n'apparaît pas en sidebar
 
-Les tokens CSRF expirent après 1h (`CSRF_LIFETIME`) et sont à usage unique. Si plusieurs onglets sont ouverts simultanément ou si la session a expiré, ouvrez une nouvelle page pour obtenir un token frais.
-
-### Upload de fichiers échoue silencieusement
-
-- Vérifiez `upload_max_filesize` et `post_max_size` dans `php.ini`
-- Vérifiez les permissions du répertoire `uploads/` (`chmod 775`)
-- Consultez les logs dans `API/logs/`
+1. `enabled = 1` dans `modules_config`
+2. Clé présente dans `ModuleService::$routeMap`
+3. Rôle autorisé (`roles_autorises` dans DB ou `$roleVisibility` dans le code)
+4. Clé pas dans la liste d'exclusion de `getForSidebar()` (`accueil`, `parametres`)
 
 ---
 
@@ -848,4 +977,4 @@ MIT — voir [LICENSE](LICENSE)
 
 ---
 
-*Fronote v1.0.0 — Développé avec PHP vanilla, PSR-4, IoC Container, 40+ modules, 233+ tables*
+*Fronote v1.0.0 — PHP vanilla · PSR-4 · IoC · 40+ modules · 233+ tables · WebSocket*
