@@ -1,0 +1,10 @@
+vendor/
+.env
+temp/update.lock
+temp/backup.env
+logs/
+uploads/
+install.lock
+*.log
+.DS_Store
+Thumbs.db

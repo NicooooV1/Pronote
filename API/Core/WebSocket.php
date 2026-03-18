@@ -117,27 +117,33 @@ class WebSocket {
     /**
      * Générer un token JWT pour l'authentification WebSocket
      */
-    public static function generateToken($userId, $userType) {
+    public static function generateToken($userId, $userType): ?string
+    {
         $jwtSecret = getenv('JWT_SECRET') ?: getenv('WEBSOCKET_API_SECRET');
-        
+
         if (!$jwtSecret) {
             error_log('WebSocket: JWT_SECRET not configured');
             return null;
         }
-        
+
         $payload = [
-            'userId' => $userId,
+            'iss'      => 'fronote',
+            'sub'      => (int) $userId,
+            'userId'   => (int) $userId,
             'userType' => $userType,
-            'iat' => time(),
-            'exp' => time() + (24 * 3600) // 24h
+            'iat'      => time(),
+            'exp'      => time() + 86400,
         ];
-        
-        // Simple JWT encoding (pour production, utiliser une lib)
-        $header = base64_encode(json_encode(['typ' => 'JWT', 'alg' => 'HS256']));
-        $payload = base64_encode(json_encode($payload));
-        $signature = base64_encode(hash_hmac('sha256', "$header.$payload", $jwtSecret, true));
-        
-        return "$header.$payload.$signature";
+
+        if (class_exists(\Firebase\JWT\JWT::class)) {
+            return \Firebase\JWT\JWT::encode($payload, $jwtSecret, 'HS256');
+        }
+
+        // Fallback manuel (si vendor/ absent — dépréciable après composer install)
+        $header = rtrim(strtr(base64_encode('{"typ":"JWT","alg":"HS256"}'), '+/', '-_'), '=');
+        $body   = rtrim(strtr(base64_encode(json_encode($payload)), '+/', '-_'), '=');
+        $sig    = rtrim(strtr(base64_encode(hash_hmac('sha256', "$header.$body", $jwtSecret, true)), '+/', '-_'), '=');
+        return "$header.$body.$sig";
     }
 }
 

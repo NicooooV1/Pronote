@@ -11,25 +11,22 @@ define('PRONOTE_BOOTSTRAP_LOADED', true);
 define('API_PATH', __DIR__);
 define('BASE_PATH', dirname(__DIR__));
 
-// Autoloader PSR-4 simple pour API\ et Pronote\
-spl_autoload_register(function ($class) {
-	$prefixes = [
-		'API\\' => API_PATH . '/',
-		'Pronote\\' => API_PATH . '/',
-	];
-	foreach ($prefixes as $prefix => $baseDir) {
-		$len = strlen($prefix);
-		if (strncmp($prefix, $class, $len) !== 0) {
-			continue;
+// Priorité 1 : autoloader Composer (si vendor/ disponible)
+$_vendor = dirname(__DIR__) . '/vendor/autoload.php';
+if (file_exists($_vendor)) {
+	require_once $_vendor;
+} else {
+	// Fallback PSR-4 manuel (sans Composer)
+	spl_autoload_register(function ($class) {
+		$prefixes = ['API\\' => API_PATH . '/', 'Pronote\\' => API_PATH . '/'];
+		foreach ($prefixes as $prefix => $baseDir) {
+			if (strncmp($prefix, $class, strlen($prefix)) !== 0) continue;
+			$file = $baseDir . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+			if (file_exists($file)) { require $file; return; }
 		}
-		$relative = substr($class, $len);
-		$file = $baseDir . str_replace('\\', '/', $relative) . '.php';
-		if (file_exists($file)) {
-			require $file;
-			return;
-		}
-	}
-});
+	});
+}
+unset($_vendor);
 
 // Helpers (app(), env(), ...)
 require_once API_PATH . '/Core/helpers.php';
