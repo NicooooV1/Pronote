@@ -18,7 +18,7 @@ if ($user_role === 'eleve') {
     $devoirs = $eleveId ? $service->getDevoirsARendreEleve($eleveId) : [];
 } else {
     // Prof: voir les devoirs créés via cahier de textes avec stats rendus
-    $stmt = $pdo->prepare("SELECT d.*, (SELECT COUNT(*) FROM devoirs_rendus WHERE devoir_id = d.id) AS nb_rendus FROM devoirs WHERE nom_professeur = ? ORDER BY date_rendu DESC");
+    $stmt = $pdo->prepare("SELECT d.*, (SELECT COUNT(*) FROM devoirs_rendus WHERE devoir_id = d.id) AS nb_rendus FROM devoirs d WHERE d.nom_professeur = ? ORDER BY d.date_rendu DESC");
     $stmt->execute([$user_fullname]);
     $devoirs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }

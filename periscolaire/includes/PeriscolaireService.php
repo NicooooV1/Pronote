@@ -153,4 +153,50 @@ class PeriscolaireService
         $m = ['cantine' => 'utensils', 'garderie' => 'child', 'etude' => 'book-reader', 'activite' => 'running'];
         return $m[$t] ?? 'concierge-bell';
     }
+
+    /* ───── EXPORT ───── */
+
+    public function getInscriptionsForExport(?int $serviceId = null): array
+    {
+        if ($serviceId) {
+            $rows = $this->getInscriptions($serviceId);
+        } else {
+            $stmt = $this->pdo->query("
+                SELECT ip.*, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom, cl.nom AS classe_nom,
+                       sp.nom AS service_nom, sp.type AS service_type
+                FROM inscriptions_periscolaire ip
+                JOIN eleves e ON ip.eleve_id = e.id
+                LEFT JOIN classes cl ON e.classe_id = cl.id
+                JOIN services_periscolaires sp ON ip.service_id = sp.id
+                WHERE ip.statut = 'active'
+                ORDER BY sp.nom, e.nom
+            ");
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        $types = self::typesService();
+        return array_map(fn($r) => [
+            $r['eleve_nom'],
+            $r['classe_nom'] ?? '-',
+            $r['service_nom'],
+            $types[$r['service_type']] ?? $r['service_type'],
+            ucfirst($r['jour'] ?? '-'),
+            $r['date_debut'] ?? '-',
+            ucfirst($r['statut']),
+        ], $rows);
+    }
+
+    public function getServicesForExport(?string $type = null): array
+    {
+        $services = $this->getServices($type);
+        $types = self::typesService();
+        return array_map(fn($s) => [
+            $s['nom'],
+            $types[$s['type']] ?? $s['type'],
+            $s['description'] ?? '-',
+            $s['horaires'] ?? '-',
+            number_format($s['tarif'] ?? 0, 2, ',', ' ') . ' €',
+            $s['places_max'] ?? 'Illimité',
+            $s['nb_inscrits'] ?? 0,
+        ], $services);
+    }
 }

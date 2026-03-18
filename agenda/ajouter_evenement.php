@@ -107,6 +107,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 : (filter_input(INPUT_POST, 'matieres', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?? '');
 
             if (!$erreur) {
+                // Construire RRULE si récurrence demandée
+                $rrule = EventRepository::buildRRule($_POST);
+
                 $data = [
                     'titre'                => $titre,
                     'description'          => $description,
@@ -120,20 +123,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'classes'              => $classes_str,
                     'matieres'             => $matieres,
                     'personnes_concernees' => $personnes,
+                    'rrule'                => $rrule,
                 ];
 
                 $errors = $repo->validate($data);
                 if (!empty($errors)) {
                     $erreur = implode(' ', $errors);
                 } else {
-                    try {
-                        $id = $repo->create($data);
-                        setFlashMessage('success', "L'événement a été ajouté avec succès.");
-                        header("Location: details_evenement.php?id=$id&created=1");
-                        exit;
-                    } catch (Exception $e) {
-                        $erreur = "Erreur lors de l'ajout : " . $e->getMessage();
-                        error_log("Erreur ajout événement par $user_fullname: " . $e->getMessage());
+                    // Détection de conflits
+                    $conflicts = $repo->detectConflicts($date_debut_str, $date_fin_str, $lieu, $classes_str);
+                    $forceCreate = isset($_POST['force_create']);
+
+                    if (!empty($conflicts) && !$forceCreate) {
+                        $conflictMsg = count($conflicts) . " conflit(s) détecté(s) : ";
+                        foreach (array_slice($conflicts, 0, 3) as $c) {
+                            $conflictMsg .= '"' . htmlspecialchars($c['titre']) . '" (' . date('d/m H:i', strtotime($c['date_debut'])) . '), ';
+                        }
+                        $erreur = rtrim($conflictMsg, ', ') . '. Cochez "Ignorer les conflits" pour forcer la création.';
+                        $showForceCheckbox = true;
+                    } else {
+                        try {
+                            $id = $repo->create($data);
+                            setFlashMessage('success', "L'événement a été ajouté avec succès." . ($rrule ? " (récurrent: $rrule)" : ''));
+                            header("Location: details_evenement.php?id=$id&created=1");
+                            exit;
+                        } catch (Exception $e) {
+                            $erreur = "Erreur lors de l'ajout : " . $e->getMessage();
+                            error_log("Erreur ajout événement par $user_fullname: " . $e->getMessage());
+                        }
                     }
                 }
             }
@@ -298,6 +315,43 @@ include 'includes/header.php';
                     <textarea name="description" id="description" rows="4" placeholder="Détails de l'événement…" maxlength="2000"></textarea>
                 </div>
 
+                <!-- Récurrence -->
+                <div class="form-group form-full">
+                    <label>Récurrence</label>
+                    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;">
+                        <select name="recurrence_freq" id="recurrence_freq" class="ds-form-control" style="max-width:200px;">
+                            <option value="none">Aucune</option>
+                            <option value="daily">Quotidienne</option>
+                            <option value="weekly">Hebdomadaire</option>
+                            <option value="monthly">Mensuelle</option>
+                        </select>
+                        <div id="recurrence-options" style="display:none;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                            <label style="font-size:0.85rem;">Tous les</label>
+                            <input type="number" name="recurrence_interval" value="1" min="1" max="52" style="width:60px;" class="ds-form-control">
+                            <span id="recurrence-freq-label" style="font-size:0.85rem;">semaine(s)</span>
+                            <div id="recurrence-byday" style="display:none;gap:0.25rem;">
+                                <?php foreach (['MO'=>'L','TU'=>'M','WE'=>'Me','TH'=>'J','FR'=>'V','SA'=>'S','SU'=>'D'] as $code => $label): ?>
+                                <label style="display:inline-flex;gap:2px;font-size:0.8rem;">
+                                    <input type="checkbox" name="recurrence_byday[]" value="<?= $code ?>"> <?= $label ?>
+                                </label>
+                                <?php endforeach; ?>
+                            </div>
+                            <label style="font-size:0.85rem;">Jusqu'au :</label>
+                            <input type="date" name="recurrence_until" class="ds-form-control" style="max-width:180px;">
+                        </div>
+                    </div>
+                </div>
+
+                <?php if (!empty($showForceCheckbox)): ?>
+                <!-- Force : ignorer conflits -->
+                <div class="form-group form-full">
+                    <label style="display:flex;gap:0.5rem;align-items:center;color:var(--ds-warning);">
+                        <input type="checkbox" name="force_create" value="1">
+                        <i class="fas fa-exclamation-triangle"></i> Ignorer les conflits et créer l'événement quand même
+                    </label>
+                </div>
+                <?php endif; ?>
+
                 <!-- Actions -->
                 <div class="form-full">
                     <div class="form-actions">
@@ -311,6 +365,22 @@ include 'includes/header.php';
 </div>
 
 <script src="assets/js/event_form.js"></script>
+<script>
+// Récurrence toggle
+document.getElementById('recurrence_freq').addEventListener('change', function() {
+    const opts = document.getElementById('recurrence-options');
+    const byday = document.getElementById('recurrence-byday');
+    const label = document.getElementById('recurrence-freq-label');
+    if (this.value === 'none') {
+        opts.style.display = 'none';
+    } else {
+        opts.style.display = 'flex';
+        byday.style.display = this.value === 'weekly' ? 'flex' : 'none';
+        const labels = {daily:'jour(s)',weekly:'semaine(s)',monthly:'mois'};
+        label.textContent = labels[this.value] || '';
+    }
+});
+</script>
 
 <?php
 include 'includes/footer.php';

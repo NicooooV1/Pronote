@@ -163,6 +163,95 @@ class BibliothequeService
         return array_merge($livres, $emprunts);
     }
 
+    /* ───────── RETARDS & RELANCES ───────── */
+
+    /**
+     * Liste des emprunts en retard
+     */
+    public function getEmpruntsEnRetard(): array
+    {
+        $stmt = $this->pdo->query("
+            SELECT e.*, l.titre, l.isbn,
+                   DATEDIFF(CURDATE(), e.date_retour_prevue) AS jours_retard,
+                   COALESCE(
+                       (SELECT CONCAT(el.prenom, ' ', el.nom) FROM eleves el WHERE el.id = e.emprunteur_id AND e.emprunteur_type = 'eleve'),
+                       (SELECT CONCAT(p.prenom, ' ', p.nom) FROM professeurs p WHERE p.id = e.emprunteur_id AND e.emprunteur_type = 'professeur')
+                   ) AS emprunteur_nom
+            FROM emprunts e
+            JOIN livres l ON e.livre_id = l.id
+            WHERE e.statut = 'emprunte' AND e.date_retour_prevue < CURDATE()
+            ORDER BY e.date_retour_prevue ASC
+        ");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Envoie des rappels pour les emprunts en retard
+     */
+    public function envoyerRappelsRetard(): int
+    {
+        $retards = $this->getEmpruntsEnRetard();
+        $count = 0;
+        foreach ($retards as $r) {
+            if (!empty($r['rappel_envoye'])) continue;
+            try {
+                if (class_exists('NotificationService')) {
+                    $notifService = new NotificationService($this->pdo);
+                    $notifService->creerNotification(
+                        $r['emprunteur_id'], $r['emprunteur_type'],
+                        "Emprunt en retard : {$r['titre']}",
+                        "Votre emprunt de « {$r['titre']} » devait être retourné le " . date('d/m/Y', strtotime($r['date_retour_prevue'])) . ". Merci de le rapporter.",
+                        'haute', '/bibliotheque/emprunts.php'
+                    );
+                }
+                $stmt = $this->pdo->prepare("UPDATE emprunts SET rappel_envoye = 1 WHERE id = ?");
+                $stmt->execute([$r['id']]);
+                $count++;
+            } catch (\Exception $e) {}
+        }
+        return $count;
+    }
+
+    /* ───────── EXPORT ───────── */
+
+    public function getLivresForExport(array $filters = []): array
+    {
+        $livres = $this->getLivres($filters);
+        $rows = [];
+        $cats = self::categories();
+        foreach ($livres as $l) {
+            $rows[] = [
+                $l['isbn'] ?? '',
+                $l['titre'],
+                $l['auteur'] ?? '',
+                $cats[$l['categorie'] ?? ''] ?? $l['categorie'] ?? '',
+                $l['editeur'] ?? '',
+                $l['annee_publication'] ?? '',
+                $l['exemplaires_total'] ?? 0,
+                $l['exemplaires_disponibles'] ?? 0,
+            ];
+        }
+        return $rows;
+    }
+
+    public function getEmpruntsForExport(array $filters = []): array
+    {
+        $emprunts = $this->getTousEmprunts($filters);
+        $rows = [];
+        foreach ($emprunts as $e) {
+            $rows[] = [
+                $e['livre_titre'] ?? $e['titre'] ?? '',
+                $e['emprunteur_nom'] ?? '',
+                $e['emprunteur_type'] ?? '',
+                $e['date_emprunt'] ?? '',
+                $e['date_retour_prevue'] ?? '',
+                $e['date_retour_effective'] ?? '',
+                $e['statut'] ?? '',
+            ];
+        }
+        return $rows;
+    }
+
     public static function categories(): array
     {
         return [

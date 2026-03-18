@@ -346,6 +346,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'etabNom', 'etabAdresse', 'etabCp', 'etabVille', 'etabTel',
                 'etabEmail', 'etabAcademie', 'etabType', 'periodeSystem', 'periodes'
             );
+
+            // SMTP (optionnel — peut être configuré après l'installation)
+            $smtpEnabled = !empty($_POST['smtp_enabled']);
+            $inst['smtp'] = [
+                'enabled'      => $smtpEnabled,
+                'host'         => trim($_POST['smtp_host'] ?? ''),
+                'port'         => (int)($_POST['smtp_port'] ?? 587),
+                'username'     => trim($_POST['smtp_username'] ?? ''),
+                'password'     => $_POST['smtp_password'] ?? '',
+                'encryption'   => $_POST['smtp_encryption'] ?? 'tls',
+                'from_address' => trim($_POST['smtp_from_address'] ?? $etabEmail),
+                'from_name'    => trim($_POST['smtp_from_name'] ?? $appName),
+            ];
+
             $inst['step'] = 4;
             $currentStep  = 4;
         }
@@ -486,6 +500,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $log[] = ['warn', count($errors) . " requête(s) SQL en erreur (non bloquant)"];
             }
 
+            // 5e-bis — Exécuter les migrations incrémentales
+            try {
+                require_once $installDir . '/API/Database/Migrator.php';
+                $migrator = new \API\Database\Migrator($pdo, $installDir . '/migrations');
+                $migrated = $migrator->run();
+                if ($migrated > 0) {
+                    $log[] = ['ok', "$migrated migration(s) exécutée(s)"];
+                }
+            } catch (Throwable $migErr) {
+                $log[] = ['warn', 'Migrations : ' . $migErr->getMessage()];
+            }
+
             // 5f — Compte administrateur
             $hash = password_hash($adm['pw'], PASSWORD_BCRYPT, ['cost' => 12]);
             $stmt = $pdo->prepare(
@@ -496,66 +522,118 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $adminId = $pdo->lastInsertId();
             $log[] = ['ok', "Administrateur créé (ID {$adminId}) — identifiant : <strong>admin</strong>"];
 
-            // 5f-bis — Fichier etablissement.json
+            // 5f-bis — Établissement en BDD (table etablissement_info)
             $etab = $inst['etab'] ?? [];
             if (!empty($etab)) {
-                // Structure classes selon le type d'établissement
-                $defaultClasses = [];
                 $type = $etab['etabType'] ?? 'college';
+
+                // Mettre à jour la ligne par défaut (id=1) créée par pronote.sql
+                try {
+                    $stmt = $pdo->prepare("
+                        UPDATE etablissement_info SET
+                            nom = ?, adresse = ?, code_postal = ?, ville = ?,
+                            telephone = ?, email = ?, academie = ?, type = ?
+                        WHERE id = 1
+                    ");
+                    $stmt->execute([
+                        $etab['etabNom'], $etab['etabAdresse'], $etab['etabCp'],
+                        $etab['etabVille'], $etab['etabTel'], $etab['etabEmail'],
+                        $etab['etabAcademie'], $type,
+                    ]);
+                    $log[] = ['ok', 'Établissement configuré en BDD — <strong>' . htmlspecialchars($etab['etabNom']) . '</strong>'];
+                } catch (PDOException $e) {
+                    $log[] = ['warn', 'Établissement BDD : ' . $e->getMessage()];
+                }
+
+                // Périodes scolaires
+                try {
+                    $periodeType = $etab['periodeSystem'] ?? 'trimestre';
+                    $periodesData = $etab['periodes'] ?? [];
+                    $stmtP = $pdo->prepare("INSERT INTO periodes (numero, nom, type, date_debut, date_fin) VALUES (?, ?, ?, ?, ?)");
+                    foreach ($periodesData as $idx => $p) {
+                        if (!empty($p['debut']) && !empty($p['fin'])) {
+                            $stmtP->execute([$idx + 1, $p['nom'], $periodeType, $p['debut'], $p['fin']]);
+                        }
+                    }
+                    $log[] = ['ok', 'Périodes scolaires configurées (' . count($periodesData) . ' ' . $periodeType . 's)'];
+                } catch (PDOException $e) {
+                    $log[] = ['warn', 'Périodes : ' . $e->getMessage()];
+                }
+
+                // Classes par défaut selon le type
+                $defaultClasses = [];
                 if (in_array($type, ['primaire', 'tout'])) {
-                    $defaultClasses['primaire'] = [
-                        'CP' => ['CPA','CPB'], 'CE1' => ['CE1A','CE1B'],
-                        'CE2' => ['CE2A','CE2B'], 'CM1' => ['CM1A','CM1B'],
-                        'CM2' => ['CM2A','CM2B'],
-                    ];
+                    $defaultClasses += ['CP' => 'CPA,CPB', 'CE1' => 'CE1A,CE1B', 'CE2' => 'CE2A,CE2B', 'CM1' => 'CM1A,CM1B', 'CM2' => 'CM2A,CM2B'];
                 }
                 if (in_array($type, ['college', 'tout'])) {
-                    $defaultClasses['college'] = [
-                        'sixieme' => ['6A','6B','6C'], 'cinquieme' => ['5A','5B','5C'],
-                        'quatrieme' => ['4A','4B','4C'], 'troisieme' => ['3A','3B','3C'],
-                    ];
+                    $defaultClasses += ['6eme' => '6A,6B,6C', '5eme' => '5A,5B,5C', '4eme' => '4A,4B,4C', '3eme' => '3A,3B,3C'];
                 }
                 if (in_array($type, ['lycee', 'tout'])) {
-                    $defaultClasses['lycee'] = [
-                        'seconde' => ['2A','2B','2C'], 'premiere' => ['1A','1B','1C'],
-                        'terminale' => ['TA','TB','TC'],
-                    ];
+                    $defaultClasses += ['2nde' => '2A,2B,2C', '1ere' => '1A,1B,1C', 'Tle' => 'TA,TB,TC'];
+                }
+                try {
+                    $stmtC = $pdo->prepare("INSERT INTO classes (niveau, nom) VALUES (?, ?)");
+                    $classCount = 0;
+                    foreach ($defaultClasses as $niveau => $noms) {
+                        foreach (explode(',', $noms) as $nom) {
+                            $stmtC->execute([$niveau, trim($nom)]);
+                            $classCount++;
+                        }
+                    }
+                    $log[] = ['ok', "{$classCount} classes créées par défaut"];
+                } catch (PDOException $e) {
+                    $log[] = ['warn', 'Classes : ' . $e->getMessage()];
                 }
 
+                // Matières par défaut
                 $defaultMatieres = [
-                    ['code'=>'FRAN','nom'=>'Français'], ['code'=>'MATH','nom'=>'Mathématiques'],
-                    ['code'=>'HG','nom'=>'Histoire-Géographie'], ['code'=>'ANG','nom'=>'Anglais'],
-                    ['code'=>'ESP','nom'=>'Espagnol'], ['code'=>'PC','nom'=>'Physique-Chimie'],
-                    ['code'=>'SVT','nom'=>'Sciences de la Vie et de la Terre'],
-                    ['code'=>'EPS','nom'=>'Éducation physique et sportive'],
-                    ['code'=>'ART','nom'=>'Arts plastiques'], ['code'=>'MUS','nom'=>'Musique'],
-                    ['code'=>'TECH','nom'=>'Technologie'],
+                    ['FRAN','Français'], ['MATH','Mathématiques'], ['HG','Histoire-Géographie'],
+                    ['ANG','Anglais'], ['ESP','Espagnol'], ['PC','Physique-Chimie'],
+                    ['SVT','SVT'], ['EPS','EPS'], ['ART','Arts plastiques'],
+                    ['MUS','Musique'], ['TECH','Technologie'],
                 ];
+                try {
+                    $stmtM = $pdo->prepare("INSERT INTO matieres (code, nom) VALUES (?, ?)");
+                    foreach ($defaultMatieres as [$code, $nom]) {
+                        $stmtM->execute([$code, $nom]);
+                    }
+                    $log[] = ['ok', count($defaultMatieres) . ' matières créées par défaut'];
+                } catch (PDOException $e) {
+                    $log[] = ['warn', 'Matières : ' . $e->getMessage()];
+                }
 
+                // Écrire aussi le JSON pour rétrocompatibilité
                 $etabJson = [
-                    'nom'         => $etab['etabNom'],
-                    'adresse'     => $etab['etabAdresse'],
-                    'code_postal' => $etab['etabCp'],
-                    'ville'       => $etab['etabVille'],
-                    'telephone'   => $etab['etabTel'],
-                    'email'       => $etab['etabEmail'],
-                    'academie'    => $etab['etabAcademie'],
-                    'type'        => $type,
-                    'classes'     => $defaultClasses,
-                    'matieres'    => $defaultMatieres,
-                    'periodes'    => [
-                        'systeme' => $etab['periodeSystem'],
-                        'liste'   => $etab['periodes'],
-                    ],
+                    'nom' => $etab['etabNom'], 'adresse' => $etab['etabAdresse'],
+                    'code_postal' => $etab['etabCp'], 'ville' => $etab['etabVille'],
+                    'telephone' => $etab['etabTel'], 'email' => $etab['etabEmail'],
+                    'academie' => $etab['etabAcademie'], 'type' => $type,
                 ];
                 $jsonDir = $installDir . '/login/data';
                 if (!is_dir($jsonDir)) @mkdir($jsonDir, 0755, true);
-                $jsonOk = @file_put_contents($jsonDir . '/etablissement.json', json_encode($etabJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
-                if ($jsonOk) {
-                    $log[] = ['ok', 'Fichier etablissement.json créé — <strong>' . htmlspecialchars($etab['etabNom']) . '</strong>'];
-                } else {
-                    $log[] = ['warn', 'Impossible d\'écrire etablissement.json'];
+                @file_put_contents($jsonDir . '/etablissement.json', json_encode($etabJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
+            }
+
+            // 5f-ter — Configuration SMTP
+            $smtp = $inst['smtp'] ?? [];
+            if (!empty($smtp['enabled']) && !empty($smtp['host'])) {
+                try {
+                    $stmt = $pdo->prepare("
+                        UPDATE smtp_config SET
+                            host = ?, port = ?, username = ?, password = ?,
+                            encryption = ?, from_address = ?, from_name = ?, enabled = 1
+                        WHERE id = 1
+                    ");
+                    $stmt->execute([
+                        $smtp['host'], (int)$smtp['port'], $smtp['username'], $smtp['password'],
+                        $smtp['encryption'], $smtp['from_address'], $smtp['from_name'],
+                    ]);
+                    $log[] = ['ok', 'Configuration SMTP enregistrée — <strong>' . htmlspecialchars($smtp['host']) . ':' . $smtp['port'] . '</strong>'];
+                } catch (PDOException $e) {
+                    $log[] = ['warn', 'SMTP : ' . $e->getMessage()];
                 }
+            } else {
+                $log[] = ['warn', 'SMTP non configuré — les emails ne seront pas envoyés (configurable depuis l\'administration)'];
             }
 
             // 5g — Bootstrap API
@@ -1120,7 +1198,61 @@ code{background:#edf2f7;padding:1px 6px;border-radius:3px;font-size:.88em;font-f
         document.getElementById('trimestre-fields').style.display = sys === 'trimestre' ? '' : 'none';
         document.getElementById('semestre-fields').style.display = sys === 'semestre' ? '' : 'none';
     }
+    function toggleSmtp() {
+        var on = document.getElementById('smtpEnabled').checked;
+        document.getElementById('smtp-fields').style.display = on ? '' : 'none';
+    }
     </script>
+
+    <h3 style="margin:24px 0 14px;font-size:1em;color:#4a5568">📧 Serveur SMTP (optionnel)</h3>
+    <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" name="smtp_enabled" id="smtpEnabled" value="1"
+                   onchange="toggleSmtp()"
+                   <?= !empty($inst['smtp']['enabled']) ? 'checked' : '' ?>>
+            Configurer un serveur SMTP pour l'envoi d'emails
+        </label>
+        <div class="help">Si désactivé, les emails seront envoyés via la fonction mail() de PHP (souvent bloquée par les hébergeurs).</div>
+    </div>
+    <div id="smtp-fields" style="<?= empty($inst['smtp']['enabled']) ? 'display:none' : '' ?>">
+        <div class="grid">
+            <div class="form-group">
+                <label>Serveur SMTP</label>
+                <input type="text" name="smtp_host" value="<?= htmlspecialchars($inst['smtp']['host'] ?? '') ?>" placeholder="smtp.gmail.com">
+            </div>
+            <div class="form-group">
+                <label>Port</label>
+                <input type="number" name="smtp_port" value="<?= (int)($inst['smtp']['port'] ?? 587) ?>" placeholder="587">
+                <div class="help">587 (TLS) ou 465 (SSL) ou 25 (non chiffré)</div>
+            </div>
+            <div class="form-group">
+                <label>Utilisateur SMTP</label>
+                <input type="text" name="smtp_username" value="<?= htmlspecialchars($inst['smtp']['username'] ?? '') ?>" placeholder="contact@etablissement.fr">
+            </div>
+            <div class="form-group">
+                <label>Mot de passe SMTP</label>
+                <input type="password" name="smtp_password" value="<?= htmlspecialchars($inst['smtp']['password'] ?? '') ?>">
+            </div>
+            <div class="form-group">
+                <label>Chiffrement</label>
+                <?php $smtpEnc = $inst['smtp']['encryption'] ?? 'tls'; ?>
+                <select name="smtp_encryption">
+                    <option value="tls" <?= $smtpEnc === 'tls' ? 'selected' : '' ?>>STARTTLS (port 587)</option>
+                    <option value="ssl" <?= $smtpEnc === 'ssl' ? 'selected' : '' ?>>SSL/TLS (port 465)</option>
+                    <option value="none" <?= $smtpEnc === 'none' ? 'selected' : '' ?>>Aucun (non recommandé)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Adresse d'expédition</label>
+                <input type="email" name="smtp_from_address" value="<?= htmlspecialchars($inst['smtp']['from_address'] ?? '') ?>" placeholder="noreply@etablissement.fr">
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Nom de l'expéditeur</label>
+                <input type="text" name="smtp_from_name" value="<?= htmlspecialchars($inst['smtp']['from_name'] ?? ($inst['app']['appName'] ?? 'Fronote')) ?>" placeholder="Fronote">
+            </div>
+        </div>
+    </div>
+
     <div class="actions">
         <a href="?step=2" class="btn btn-secondary">← Retour</a>
         <button type="submit" class="btn btn-primary">Continuer →</button>
@@ -1272,6 +1404,15 @@ document.getElementById('pw').addEventListener('input',function(){checkPw(this.v
         <div class="info-box">
             <h4>👤 Administrateur</h4>
             <p style="margin:4px 0"><?= htmlspecialchars($ad['prenom']) ?> <?= htmlspecialchars($ad['nom']) ?> — <?= htmlspecialchars($ad['mail']) ?> — identifiant : <code>admin</code></p>
+        </div>
+        <?php $sm = $inst['smtp'] ?? []; ?>
+        <div class="info-box">
+            <h4>📧 SMTP</h4>
+            <?php if (!empty($sm['enabled']) && !empty($sm['host'])): ?>
+            <p style="margin:4px 0"><code><?= htmlspecialchars($sm['host']) ?>:<?= $sm['port'] ?></code> (<?= htmlspecialchars($sm['encryption']) ?>) — <?= htmlspecialchars($sm['from_address']) ?></p>
+            <?php else: ?>
+            <p style="margin:4px 0;color:#999">Non configuré — configurable depuis l'administration</p>
+            <?php endif; ?>
         </div>
 
         <div class="msg msg-warn">

@@ -514,4 +514,109 @@ class DevoirService
         }
         return "{$col} {$dir}";
     }
+
+    /* ══════════ Export devoirs ══════════ */
+
+    /**
+     * Export des devoirs pour ExportService.
+     */
+    public function getDevoirsForExport(string $role, ?int $userId, ?string $userFullName, array $filters = []): array
+    {
+        $query = $this->buildQuery($role, $userId, $userFullName, $filters, 'date_rendu', 'desc', 1, 9999);
+        [$devoirs] = $this->executeQuery($query);
+
+        $result = [];
+        foreach ($devoirs as $d) {
+            $status = $this->computeStatus($d['date_rendu']);
+            $result[] = [
+                'Matière'     => $d['nom_matiere'] ?? '',
+                'Classe'      => $d['classe'] ?? '',
+                'Titre'       => $d['titre'],
+                'Description' => mb_substr(strip_tags($d['description'] ?? ''), 0, 200),
+                'Date rendu'  => date('d/m/Y', strtotime($d['date_rendu'])),
+                'Statut'      => $status['label'] ?? '',
+                'Professeur'  => $d['professeur'] ?? '',
+                'Type'        => $d['type_devoir'] ?? 'devoir',
+            ];
+        }
+        return $result;
+    }
+
+    /* ══════════ Soumission de travaux (élèves) ══════════ */
+
+    /**
+     * Soumet un fichier de travail pour un devoir.
+     */
+    public function createSubmission(int $devoirId, int $eleveId, string $filePath, string $fileName): int
+    {
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO devoir_submissions (devoir_id, eleve_id, fichier_path, fichier_nom, soumis_at, statut)
+             VALUES (?, ?, ?, ?, NOW(), 'soumis')
+             ON DUPLICATE KEY UPDATE fichier_path = VALUES(fichier_path),
+                fichier_nom = VALUES(fichier_nom), soumis_at = NOW(), statut = 'soumis'"
+        );
+        $stmt->execute([$devoirId, $eleveId, $filePath, $fileName]);
+
+        // Marquer comme fait automatiquement
+        $this->toggleDevoirFaitForce($eleveId, $devoirId, true);
+
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Récupère la soumission d'un élève pour un devoir.
+     */
+    public function getSubmission(int $devoirId, int $eleveId): ?array
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT * FROM devoir_submissions WHERE devoir_id = ? AND eleve_id = ?"
+        );
+        $stmt->execute([$devoirId, $eleveId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /**
+     * Liste toutes les soumissions pour un devoir (vue professeur).
+     */
+    public function getSubmissions(int $devoirId): array
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT ds.*, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom, e.classe
+             FROM devoir_submissions ds
+             JOIN eleves e ON ds.eleve_id = e.id
+             WHERE ds.devoir_id = ?
+             ORDER BY e.nom, e.prenom"
+        );
+        $stmt->execute([$devoirId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Note/évalue une soumission (professeur).
+     */
+    public function gradeSubmission(int $submissionId, ?float $note, ?string $commentaire): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "UPDATE devoir_submissions SET note = ?, commentaire_prof = ?, statut = 'evalue', evalue_at = NOW()
+             WHERE id = ?"
+        );
+        return $stmt->execute([$note, $commentaire, $submissionId]);
+    }
+
+    /**
+     * Force le statut "fait" sans toggle.
+     */
+    private function toggleDevoirFaitForce(int $eleveId, int $devoirId, bool $fait): void
+    {
+        try {
+            $stmt = $this->pdo->prepare(
+                'INSERT INTO devoirs_statuts_eleve (eleve_id, devoir_id, fait, date_marque)
+                 VALUES (:eid, :did, :fait, NOW())
+                 ON DUPLICATE KEY UPDATE fait = :fait2, date_marque = NOW()'
+            );
+            $stmt->execute([':eid' => $eleveId, ':did' => $devoirId, ':fait' => $fait ? 1 : 0, ':fait2' => $fait ? 1 : 0]);
+        } catch (\PDOException $e) {
+            // Ignore
+        }
+    }
 }

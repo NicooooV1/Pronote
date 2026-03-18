@@ -68,6 +68,13 @@ try {
     $totalSessions = (int)$pdo->query("SELECT COUNT(*) FROM session_security WHERE is_active = 1")->fetchColumn();
 } catch (Exception $e) {}
 
+$modulesEnabled = 0;
+$modulesTotal = 0;
+try {
+    $modulesTotal = (int)$pdo->query("SELECT COUNT(*) FROM modules_config")->fetchColumn();
+    $modulesEnabled = (int)$pdo->query("SELECT COUNT(*) FROM modules_config WHERE enabled = 1")->fetchColumn();
+} catch (Exception $e) {}
+
 // --- Dernières connexions ---
 $recentLogins = [];
 try {
@@ -189,6 +196,11 @@ include 'includes/header.php';
                 <div class="admin-card-title">Sessions actives</div>
                 <div class="admin-card-stat"><?= $totalSessions ?> en ligne</div>
             </a>
+            <a href="users/import.php" class="admin-card">
+                <div class="admin-card-icon"><i class="fas fa-file-import"></i></div>
+                <div class="admin-card-title">Import CSV</div>
+                <div class="admin-card-stat">Importer en masse</div>
+            </a>
         </div>
     </div>
 
@@ -301,6 +313,16 @@ include 'includes/header.php';
                 <div class="admin-card-icon"><i class="fas fa-chart-bar"></i></div>
                 <div class="admin-card-title">Statistiques avancées</div>
                 <div class="admin-card-stat">Graphiques & KPI</div>
+            </a>
+            <a href="modules/index.php" class="admin-card">
+                <div class="admin-card-icon"><i class="fas fa-puzzle-piece"></i></div>
+                <div class="admin-card-title">Modules</div>
+                <div class="admin-card-stat"><?= $modulesEnabled ?>/<?= $modulesTotal ?> activés</div>
+            </a>
+            <a href="modules/configure.php?module=smtp" class="admin-card">
+                <div class="admin-card-icon"><i class="fas fa-envelope-open-text"></i></div>
+                <div class="admin-card-title">Configuration SMTP</div>
+                <div class="admin-card-stat">Emails sortants</div>
             </a>
         </div>
     </div>

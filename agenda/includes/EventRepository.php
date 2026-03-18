@@ -162,7 +162,107 @@ class EventRepository
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // ── Expand RRULE recurring events ──
+        $rangeStart = $options['date_start'] ?? $options['date'] ?? null;
+        $rangeEnd   = $options['date_end']   ?? $options['date'] ?? null;
+        if ($rangeStart && $rangeEnd) {
+            $events = $this->expandRecurring($events, $rangeStart, $rangeEnd);
+        }
+
+        return $events;
+    }
+
+    /**
+     * Expand events that have an rrule field into virtual occurrences within the given date range.
+     * Supports FREQ=DAILY|WEEKLY|MONTHLY, INTERVAL, UNTIL, COUNT, BYDAY.
+     */
+    private function expandRecurring(array $events, string $rangeStart, string $rangeEnd): array
+    {
+        $rsTs = strtotime($rangeStart);
+        $reTs = strtotime($rangeEnd . ' 23:59:59');
+        $result = [];
+
+        foreach ($events as $ev) {
+            if (empty($ev['rrule'])) {
+                $result[] = $ev;
+                continue;
+            }
+
+            // Parse RRULE string
+            $rule = $this->parseRRule($ev['rrule']);
+            $freq     = $rule['FREQ'] ?? 'WEEKLY';
+            $interval = (int)($rule['INTERVAL'] ?? 1);
+            $until    = !empty($rule['UNTIL']) ? strtotime($rule['UNTIL']) : null;
+            $count    = !empty($rule['COUNT']) ? (int)$rule['COUNT'] : 365;
+            $byDay    = !empty($rule['BYDAY']) ? explode(',', $rule['BYDAY']) : [];
+
+            $dtStart  = strtotime($ev['date_debut']);
+            $duration = !empty($ev['date_fin']) ? (strtotime($ev['date_fin']) - $dtStart) : 3600;
+
+            $dayMap = ['MO' => 1, 'TU' => 2, 'WE' => 3, 'TH' => 4, 'FR' => 5, 'SA' => 6, 'SU' => 7];
+
+            $occurrences = 0;
+            $current = $dtStart;
+
+            while ($occurrences < $count) {
+                if ($until && $current > $until) break;
+                if ($current > $reTs + 86400 * 365) break; // safety limit
+
+                $inRange = ($current >= $rsTs && $current <= $reTs);
+                $dayOk = true;
+                if (!empty($byDay)) {
+                    $dayOfWeek = (int)date('N', $current);
+                    $dayOk = false;
+                    foreach ($byDay as $d) {
+                        if (isset($dayMap[trim($d)]) && $dayMap[trim($d)] === $dayOfWeek) {
+                            $dayOk = true;
+                            break;
+                        }
+                    }
+                }
+
+                if ($inRange && $dayOk) {
+                    $occurrence = $ev;
+                    $occurrence['date_debut'] = date('Y-m-d H:i:s', $current);
+                    $occurrence['date_fin']   = date('Y-m-d H:i:s', $current + $duration);
+                    $occurrence['is_recurrence'] = true;
+                    $occurrence['recurrence_parent_id'] = $ev['id'];
+                    $result[] = $occurrence;
+                }
+
+                $occurrences++;
+
+                // Advance to next occurrence
+                switch ($freq) {
+                    case 'DAILY':   $current = strtotime("+{$interval} days",   $current); break;
+                    case 'WEEKLY':  $current = strtotime("+{$interval} weeks",  $current); break;
+                    case 'MONTHLY': $current = strtotime("+{$interval} months", $current); break;
+                    case 'YEARLY':  $current = strtotime("+{$interval} years",  $current); break;
+                    default:        $current = strtotime("+{$interval} weeks",  $current); break;
+                }
+            }
+        }
+
+        // Sort by date
+        usort($result, fn($a, $b) => strcmp($a['date_debut'], $b['date_debut']));
+        return $result;
+    }
+
+    /**
+     * Parse an RRULE string like "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20250630T235959Z"
+     */
+    private function parseRRule(string $rrule): array
+    {
+        $parts = [];
+        foreach (explode(';', $rrule) as $segment) {
+            $kv = explode('=', $segment, 2);
+            if (count($kv) === 2) {
+                $parts[strtoupper(trim($kv[0]))] = trim($kv[1]);
+            }
+        }
+        return $parts;
     }
 
     /* ── Raccourcis ── */
@@ -200,8 +300,8 @@ class EventRepository
         $stmt = $this->pdo->prepare(
             "INSERT INTO evenements
              (titre, description, date_debut, date_fin, type_evenement, type_personnalise,
-              statut, createur, visibilite, personnes_concernees, lieu, classes, matieres, date_creation)
-             VALUES (?, ?, ?, ?, ?, ?, 'actif', ?, ?, ?, ?, ?, ?, NOW())"
+              statut, createur, visibilite, personnes_concernees, lieu, classes, matieres, rrule, date_creation)
+             VALUES (?, ?, ?, ?, ?, ?, 'actif', ?, ?, ?, ?, ?, ?, ?, NOW())"
         );
         $stmt->execute([
             $data['titre'],
@@ -216,6 +316,7 @@ class EventRepository
             $data['lieu']                    ?? '',
             $data['classes']                 ?? '',
             $data['matieres']               ?? '',
+            $data['rrule']                  ?? null,
         ]);
         return (int) $this->pdo->lastInsertId();
     }
@@ -226,7 +327,7 @@ class EventRepository
             "UPDATE evenements SET
              titre = ?, description = ?, date_debut = ?, date_fin = ?,
              type_evenement = ?, statut = ?, lieu = ?, visibilite = ?,
-             classes = ?, matieres = ?, personnes_concernees = ?,
+             classes = ?, matieres = ?, personnes_concernees = ?, rrule = ?,
              date_modification = NOW()
              WHERE id = ?"
         );
@@ -242,6 +343,7 @@ class EventRepository
             $data['classes']                ?? '',
             $data['matieres']               ?? '',
             $data['personnes_concernees']   ?? '',
+            $data['rrule']                  ?? null,
             $id,
         ]);
     }
@@ -250,6 +352,97 @@ class EventRepository
     {
         $stmt = $this->pdo->prepare("DELETE FROM evenements WHERE id = ?");
         return $stmt->execute([$id]);
+    }
+
+    /* ================================================================
+       Détection de conflits
+       ================================================================ */
+
+    /**
+     * Détecte les conflits de créneaux pour un lieu ou des classes donnés.
+     * @return array Liste des événements en conflit
+     */
+    public function detectConflicts(string $dateDebut, string $dateFin, ?string $lieu = null, ?string $classes = null, ?int $excludeId = null): array
+    {
+        $where  = ["statut = 'actif'"];
+        $params = [];
+
+        // Chevauchement temporel
+        $where[]  = "(date_debut < ? AND date_fin > ?)";
+        $params[] = $dateFin;
+        $params[] = $dateDebut;
+
+        // Exclure l'événement lui-même en cas de modification
+        if ($excludeId) {
+            $where[]  = "id != ?";
+            $params[] = $excludeId;
+        }
+
+        // Conflit de lieu (même salle)
+        $lieuConflict = false;
+        if (!empty($lieu)) {
+            $lieuConflict = true;
+        }
+
+        // Conflit de classe
+        $classeConflict = false;
+        if (!empty($classes)) {
+            $classeConflict = true;
+        }
+
+        if (!$lieuConflict && !$classeConflict) {
+            return [];
+        }
+
+        $orConditions = [];
+        if ($lieuConflict) {
+            $orConditions[] = "(lieu = ? AND lieu != '')";
+            $params[] = $lieu;
+        }
+        if ($classeConflict) {
+            // Vérifier le chevauchement de classes (stockées en CSV)
+            $classeList = array_map('trim', explode(',', $classes));
+            $likeConditions = [];
+            foreach ($classeList as $cl) {
+                $likeConditions[] = "classes LIKE ?";
+                $params[] = "%$cl%";
+            }
+            $orConditions[] = "(" . implode(' OR ', $likeConditions) . ")";
+        }
+
+        $where[] = "(" . implode(' OR ', $orConditions) . ")";
+
+        $sql = "SELECT * FROM evenements WHERE " . implode(' AND ', $where) . " ORDER BY date_debut";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Builds an RRULE string from form data.
+     */
+    public static function buildRRule(array $data): ?string
+    {
+        $freq = $data['recurrence_freq'] ?? '';
+        if (empty($freq) || $freq === 'none') return null;
+
+        $parts = ['FREQ=' . strtoupper($freq)];
+
+        $interval = (int) ($data['recurrence_interval'] ?? 1);
+        if ($interval > 1) $parts[] = 'INTERVAL=' . $interval;
+
+        if (!empty($data['recurrence_byday'])) {
+            $days = is_array($data['recurrence_byday']) ? implode(',', $data['recurrence_byday']) : $data['recurrence_byday'];
+            $parts[] = 'BYDAY=' . strtoupper($days);
+        }
+
+        if (!empty($data['recurrence_until'])) {
+            $parts[] = 'UNTIL=' . date('Ymd\THis\Z', strtotime($data['recurrence_until']));
+        } elseif (!empty($data['recurrence_count'])) {
+            $parts[] = 'COUNT=' . (int) $data['recurrence_count'];
+        }
+
+        return implode(';', $parts);
     }
 
     /* ================================================================

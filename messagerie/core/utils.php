@@ -13,16 +13,7 @@ function generateRandomId($length = 10) {
     return substr(str_shuffle("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"), 0, $length);
 }
 
-/**
- * Redirige vers une URL
- * @param string $url URL de destination
- */
-if (!function_exists('redirect')) {
-    function redirect($url) {
-        header("Location: $url");
-        exit;
-    }
-}
+// redirect() est défini dans API/Legacy/Bridge.php
 
 /**
  * Tronque un texte à une longueur donnée

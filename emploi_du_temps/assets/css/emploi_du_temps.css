@@ -209,6 +209,49 @@
     margin-bottom: 0.5rem;
 }
 
+/* ======= DRAG-AND-DROP ======= */
+.edt-cours[draggable="true"] {
+    cursor: grab;
+}
+.edt-cours[draggable="true"]:active {
+    cursor: grabbing;
+}
+.edt-dragging {
+    opacity: 0.4;
+    outline: 2px dashed #3498db;
+}
+.edt-drop-target {
+    background-color: rgba(52, 152, 219, 0.12) !important;
+    outline: 2px dashed #3498db;
+    outline-offset: -2px;
+}
+
+/* Toast notifications */
+.edt-toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.9rem;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.3s, transform 0.3s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.edt-toast-show {
+    opacity: 1;
+    transform: translateY(0);
+}
+.edt-toast-success {
+    background-color: #27ae60;
+}
+.edt-toast-error {
+    background-color: #e74c3c;
+}
+
 /* ======= RESPONSIVE ======= */
 @media (max-width: 768px) {
     .edt-table {

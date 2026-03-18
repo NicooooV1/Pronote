@@ -40,6 +40,10 @@ ob_start();
                     <span class="sidebar-nav-icon"><i class="fas fa-edit"></i></span>
                     <span>Gérer les cours</span>
                 </a>
+                <a href="conflits.php" class="sidebar-nav-item <?= isActiveEdtLink('conflits') ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-exclamation-triangle"></i></span>
+                    <span>Conflits</span>
+                </a>
                 <a href="salles.php" class="sidebar-nav-item <?= isActiveEdtLink('salles') ?>">
                     <span class="sidebar-nav-icon"><i class="fas fa-door-open"></i></span>
                     <span>Salles</span>

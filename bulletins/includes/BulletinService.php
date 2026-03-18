@@ -143,6 +143,9 @@ class BulletinService {
         // Générer lignes matières
         $this->genererLignesMatieres($bulletinId, $eleveId, $classeId, $trimestre);
 
+        // Intégrer le bilan de compétences dans le bulletin
+        $this->genererBilanCompetences($bulletinId, $eleveId, $periodeId);
+
         return true;
     }
 
@@ -224,6 +227,45 @@ class BulletinService {
             $u->execute([$rang, $b['id']]);
             $rang++;
         }
+    }
+
+    /**
+     * Génère le bilan de compétences stocké en JSON dans le bulletin.
+     */
+    private function genererBilanCompetences(int $bulletinId, int $eleveId, int $periodeId): void
+    {
+        try {
+            require_once __DIR__ . '/../../competences/includes/CompetenceService.php';
+            $compService = new \CompetenceService($this->pdo);
+            $bilan = $compService->getBilanEleve($eleveId, $periodeId);
+
+            if (!empty($bilan)) {
+                // Stocker le résumé par domaine dans un champ JSON
+                $resume = [];
+                foreach ($bilan as $domaine => $data) {
+                    $resume[] = [
+                        'domaine'       => $domaine,
+                        'niveau_moyen'  => $data['niveau_moyen'] ?? 'non_evalue',
+                        'nb_evaluations' => $data['count'] ?? 0,
+                    ];
+                }
+                $stmt = $this->pdo->prepare("UPDATE bulletins SET competences_bilan = ? WHERE id = ?");
+                $stmt->execute([json_encode($resume, JSON_UNESCAPED_UNICODE), $bulletinId]);
+            }
+        } catch (\Exception $e) {
+            // Non-fatal : le bilan compétences est optionnel
+        }
+    }
+
+    /**
+     * Récupère le bilan de compétences intégré dans un bulletin.
+     */
+    public function getCompetencesBulletin(int $bulletinId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT competences_bilan FROM bulletins WHERE id = ?");
+        $stmt->execute([$bulletinId]);
+        $json = $stmt->fetchColumn();
+        return $json ? json_decode($json, true) : [];
     }
 
     // ─── APPRÉCIATIONS ───

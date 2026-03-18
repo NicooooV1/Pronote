@@ -10,6 +10,11 @@ $filtreStatut = $_GET['statut'] ?? '';
 $filters = [];
 if ($filtreStatut) $filters['statut'] = $filtreStatut;
 
+// Auto-détection des retards & rappels
+if ($isGestionnaire) {
+    $factService->detecterRetards();
+}
+
 if (isParent()) {
     $factures = $factService->getMesFactures(getUserId());
 } else {
@@ -40,6 +45,9 @@ $stats = $isGestionnaire ? $factService->getStats() : null;
         <a href="factures.php?statut=en_attente" class="btn <?= $filtreStatut === 'en_attente' ? 'btn-primary' : 'btn-outline' ?>">En attente</a>
         <a href="factures.php?statut=payee" class="btn <?= $filtreStatut === 'payee' ? 'btn-primary' : 'btn-outline' ?>">Payées</a>
         <a href="factures.php?statut=en_retard" class="btn <?= $filtreStatut === 'en_retard' ? 'btn-primary' : 'btn-outline' ?>">En retard</a>
+        <div class="filter-spacer"></div>
+        <a href="export.php?format=csv&statut=<?= urlencode($filtreStatut) ?>" class="btn btn-outline btn-sm"><i class="fas fa-file-csv"></i> CSV</a>
+        <a href="export.php?format=pdf&statut=<?= urlencode($filtreStatut) ?>" class="btn btn-outline btn-sm"><i class="fas fa-file-pdf"></i> PDF</a>
     </div>
     <?php endif; ?>
 

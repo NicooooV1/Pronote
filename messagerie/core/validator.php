@@ -1,7 +1,16 @@
 <?php
 /**
- * Validation centralisée des entrées utilisateur
+ * Validation centralisée des entrées utilisateur — Messagerie Fronote
+ *
+ * Cette classe fournit des méthodes de sanitization typées (id(), text(), folder(),
+ * reaction()…) spécifiques au domaine messagerie. Elle complète
+ * API\Security\Validator (validation par règles : required|email|min:…).
+ * Aucun conflit de namespace.
  */
+
+if (class_exists('Validator', false)) {
+    return; // Déjà chargée
+}
 
 class Validator {
     

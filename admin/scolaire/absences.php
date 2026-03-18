@@ -168,6 +168,7 @@ include __DIR__ . '/../includes/sub_header.php';
 
 <div class="abs-container">
     <?php if (!empty($message)): ?><div class="alert alert-success"><?= htmlspecialchars($message) ?></div><?php endif; ?>
+    <?php if (!empty($error)): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
 
     <div class="stats-bar">
         <div class="stat-card"><div class="val" style="color:#dc2626"><?= $todayAbsences ?></div><div class="lbl">Absences aujourd'hui</div></div>

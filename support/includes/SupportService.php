@@ -178,4 +178,38 @@ class SupportService
         ];
         return $map[$p] ?? $p;
     }
+
+    /* ───── EXPORT ───── */
+
+    public function getTicketsForExport(array $filters = []): array
+    {
+        $tickets = $this->getTousTickets($filters);
+        $cats = self::categoriesTicket();
+        return array_map(fn($t) => [
+            $t['id'],
+            $t['date_creation'],
+            $t['nom_utilisateur'] ?? '-',
+            $t['user_type'] ?? '-',
+            $t['sujet'],
+            $cats[$t['categorie']] ?? $t['categorie'],
+            ucfirst($t['priorite']),
+            ucfirst($t['statut']),
+            $t['date_reponse'] ?? '-',
+        ], $tickets);
+    }
+
+    public function getFaqForExport(?string $categorie = null): array
+    {
+        $articles = $this->getFaqArticles($categorie);
+        $cats = self::categoriesFaq();
+        return array_map(fn($a) => [
+            $a['id'],
+            $cats[$a['categorie']] ?? $a['categorie'],
+            $a['question'],
+            mb_substr($a['reponse'], 0, 200),
+            $a['vues'] ?? 0,
+            ($a['utile_oui'] ?? 0) . '/' . ($a['utile_non'] ?? 0),
+            $a['ordre'] ?? 0,
+        ], $articles);
+    }
 }

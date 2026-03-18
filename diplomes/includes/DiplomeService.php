@@ -119,4 +119,22 @@ class DiplomeService
         $labels = self::mentions();
         return '<span class="badge badge-' . ($c[$m] ?? 'secondary') . '">' . ($labels[$m] ?? $m) . '</span>';
     }
+
+    /* ───── EXPORT ───── */
+
+    public function getDiplomesForExport(array $filters = []): array
+    {
+        $diplomes = $this->getDiplomes($filters);
+        $types = self::typesDiplome();
+        $mentions = self::mentions();
+        return array_map(fn($d) => [
+            $d['numero'] ?? '-',
+            $d['eleve_nom'],
+            $d['classe_nom'] ?? '-',
+            $d['intitule'],
+            $types[$d['type']] ?? $d['type'],
+            $mentions[$d['mention']] ?? ($d['mention'] ?? '-'),
+            $d['date_obtention'],
+        ], $diplomes);
+    }
 }

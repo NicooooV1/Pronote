@@ -126,4 +126,87 @@ class FacturationService
         $m = ['en_attente' => 'warning', 'payee' => 'success', 'partielle' => 'info', 'en_retard' => 'danger', 'annulee' => 'secondary'];
         return '<span class="badge badge-' . ($m[$s] ?? 'secondary') . '">' . ucfirst(str_replace('_', ' ', $s)) . '</span>';
     }
+
+    /* ───── RAPPELS & RELANCES ───── */
+
+    /**
+     * Détecte et marque les factures en retard (date_echeance dépassée, non payées).
+     * @return int nombre de factures passées en retard
+     */
+    public function detecterRetards(): int
+    {
+        $stmt = $this->pdo->prepare("
+            UPDATE factures SET statut = 'en_retard'
+            WHERE statut = 'en_attente' AND date_echeance < CURDATE()
+        ");
+        $stmt->execute();
+        return $stmt->rowCount();
+    }
+
+    /**
+     * Envoie des rappels pour les factures en retard non encore rappelées.
+     * @return int nombre de rappels envoyés
+     */
+    public function envoyerRappels(): int
+    {
+        $stmt = $this->pdo->query("
+            SELECT f.id, f.numero, f.montant_ttc, f.date_echeance,
+                   p.id AS parent_id, CONCAT(p.prenom, ' ', p.nom) AS parent_nom
+            FROM factures f
+            JOIN parents p ON f.parent_id = p.id
+            WHERE f.statut = 'en_retard' AND f.rappel_envoye = 0
+        ");
+        $retards = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $count = 0;
+        foreach ($retards as $f) {
+            try {
+                if (function_exists('app')) {
+                    $notifService = app()->make('API\Services\NotificationService');
+                    $notifService->create([
+                        'user_id'   => $f['parent_id'],
+                        'user_type' => 'parent',
+                        'type'      => 'facture_rappel',
+                        'titre'     => 'Rappel de paiement',
+                        'message'   => "La facture {$f['numero']} de {$f['montant_ttc']}€ est impayée (échéance : " . date('d/m/Y', strtotime($f['date_echeance'])) . ").",
+                        'lien'      => "facturation/detail.php?id={$f['id']}",
+                        'priorite'  => 'haute',
+                    ]);
+                }
+                $this->pdo->prepare("UPDATE factures SET rappel_envoye = 1, rappel_date = NOW() WHERE id = ?")
+                           ->execute([$f['id']]);
+                $count++;
+            } catch (\Throwable $e) {
+                error_log("Facturation::envoyerRappels error for facture {$f['id']}: " . $e->getMessage());
+            }
+        }
+        return $count;
+    }
+
+    /* ───── EXPORT ───── */
+
+    /**
+     * Export des factures pour ExportService.
+     */
+    public function getFacturesForExport(array $filters = []): array
+    {
+        $factures = $this->getFactures($filters);
+        $result = [];
+        foreach ($factures as $f) {
+            $result[] = [
+                'Numéro'       => $f['numero'],
+                'Parent'       => $f['parent_nom'],
+                'Type'         => self::typesFacture()[$f['type']] ?? $f['type'],
+                'Montant HT'   => number_format($f['montant_ht'], 2, ',', ' '),
+                'TVA'          => number_format($f['montant_tva'], 2, ',', ' '),
+                'Montant TTC'  => number_format($f['montant_ttc'], 2, ',', ' '),
+                'Payé'         => number_format($f['montant_paye'] ?? 0, 2, ',', ' '),
+                'Reste'        => number_format($f['montant_ttc'] - ($f['montant_paye'] ?? 0), 2, ',', ' '),
+                'Statut'       => ucfirst(str_replace('_', ' ', $f['statut'])),
+                'Échéance'     => $f['date_echeance'] ? date('d/m/Y', strtotime($f['date_echeance'])) : '',
+                'Date création'=> $f['created_at'] ? date('d/m/Y', strtotime($f['created_at'])) : '',
+            ];
+        }
+        return $result;
+    }
 }

@@ -2,9 +2,17 @@
 /**
  * Rate Limiting — Messagerie Fronote
  * Limite le nombre d'actions par utilisateur par fenêtre de temps.
+ *
+ * Cette classe est spécifique à la messagerie (user_id + action_type, stockage par ligne).
+ * Elle coexiste avec API\Security\RateLimiter (key+IP based, compteur unique) qui
+ * gère les limites génériques de l'API. Aucun conflit de namespace.
  */
 
 require_once __DIR__ . '/../config/config.php';
+
+if (class_exists('RateLimiter', false)) {
+    return; // Déjà chargée (évite les doublons si inclus plusieurs fois)
+}
 
 class RateLimiter {
 
@@ -103,10 +111,12 @@ class RateLimiter {
             $ins->execute([$userId, $userType, $actionType]);
 
             // 2. Compter les tentatives dans la fenêtre (incluant celle-ci)
+            // FOR UPDATE verrouille les lignes lues pour bloquer les lectures concurrentes
             $cnt = $pdo->prepare("
                 SELECT COUNT(*) FROM rate_limits
                 WHERE user_id = ? AND user_type = ? AND action_type = ?
                 AND attempted_at > DATE_SUB(NOW(), INTERVAL ? SECOND)
+                FOR UPDATE
             ");
             $cnt->execute([$userId, $userType, $actionType, $windowSeconds]);
             $count = (int) $cnt->fetchColumn();

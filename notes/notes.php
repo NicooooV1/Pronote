@@ -134,6 +134,27 @@ include __DIR__ . '/../templates/shared_topbar.php';
                 </div>
                 <?php endif; ?>
 
+                <!-- Export + Verrouillage (prof/admin) -->
+                <?php if (in_array($user_role, ['professeur', 'administrateur'])): ?>
+                <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+                    <a href="export.php?format=csv&trimestre=<?= $selectedTrimestre ?><?= $filterClasse ? '&classe='.urlencode($filterClasse) : '' ?><?= $filterMatiere ? '&matiere='.$filterMatiere : '' ?>" 
+                       class="ds-btn ds-btn-outline ds-btn-sm"><i class="fas fa-file-csv"></i> Export CSV</a>
+                    <a href="export.php?format=pdf&trimestre=<?= $selectedTrimestre ?><?= $filterClasse ? '&classe='.urlencode($filterClasse) : '' ?><?= $filterMatiere ? '&matiere='.$filterMatiere : '' ?>" 
+                       class="ds-btn ds-btn-outline ds-btn-sm"><i class="fas fa-file-pdf"></i> Export PDF</a>
+                    <?php if (isAdmin() && $filterClasse && $filterMatiere): ?>
+                    <form method="POST" action="lock_notes.php" style="margin-left:auto;">
+                        <?= csrfField() ?>
+                        <input type="hidden" name="classe" value="<?= htmlspecialchars($filterClasse) ?>">
+                        <input type="hidden" name="matiere" value="<?= $filterMatiere ?>">
+                        <input type="hidden" name="trimestre" value="<?= $selectedTrimestre ?>">
+                        <button type="submit" class="ds-btn ds-btn-warning ds-btn-sm" onclick="return confirm('Verrouiller toutes les notes de cette classe/matière pour ce trimestre ?')">
+                            <i class="fas fa-lock"></i> Verrouiller les notes
+                        </button>
+                    </form>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+
                 <!-- Sélecteur de trimestre -->
                 <div class="trimestre-selector">
                     <span class="trimestre-label">Période :</span>

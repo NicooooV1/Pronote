@@ -9,6 +9,14 @@ if (defined('PRONOTE_LEGACY_BRIDGE_LOADED')) {
 }
 define('PRONOTE_LEGACY_BRIDGE_LOADED', true);
 
+// Ensure bootstrap (app(), helpers, autoloader) is loaded first
+if (!defined('PRONOTE_BOOTSTRAP_LOADED')) {
+	require_once __DIR__ . '/../bootstrap.php';
+}
+
+// Charger la classe User legacy (utilisée par les pages admin)
+require_once __DIR__ . '/User.php';
+
 // ==================== CONSTANTES GLOBALES ====================
 
 if (!defined('LOGIN_URL')) {
@@ -74,6 +82,16 @@ if (!function_exists('login')) {
 			'login' => $identifiant,
 			'password' => $password
 		]);
+	}
+}
+
+if (!function_exists('loginUser')) {
+	/**
+	 * Crée la session pour un utilisateur déjà validé (après 2FA ou login unifié).
+	 * @param array $user Tableau utilisateur avec au moins 'id' et 'type'
+	 */
+	function loginUser(array $user): void {
+		app('auth')->loginUser($user);
 	}
 }
 
@@ -207,6 +225,66 @@ if (!function_exists('canManageFacturation')) { function canManageFacturation() 
 if (!function_exists('canManageRessources'))  { function canManageRessources()  { return hasPermission('ressources'); } }
 if (!function_exists('canManageDiplomes'))    { function canManageDiplomes()    { return hasPermission('diplomes'); } }
 if (!function_exists('isPersonnelVS'))        { function isPersonnelVS()        { return getUserRole() === 'vie_scolaire'; } }
+
+// ==================== RBAC ====================
+
+if (!function_exists('requireRole')) {
+	/**
+	 * Bloque l'accès si le rôle courant n'est pas dans la liste
+	 * @param string ...$roles Rôles autorisés
+	 */
+	function requireRole(string ...$roles) {
+		$userRole = getUserRole();
+		if (!in_array($userRole, $roles, true)) {
+			$_SESSION['error_message'] = 'Vous n\'avez pas les droits nécessaires.';
+			$base = defined('BASE_URL') ? BASE_URL : '';
+			header('Location: ' . $base . '/accueil/accueil.php');
+			exit;
+		}
+	}
+}
+
+if (!function_exists('can')) {
+	/**
+	 * Vérifie une permission RBAC
+	 */
+	function can(string $permission): bool {
+		try {
+			return app('rbac')->can($permission);
+		} catch (\Throwable $e) {
+			// Fallback sur PERMISSION_MATRIX legacy
+			$action = explode('.', $permission)[0] ?? '';
+			return hasPermission($action);
+		}
+	}
+}
+
+if (!function_exists('authorize')) {
+	/**
+	 * Vérifie une permission RBAC — bloque si refusée
+	 */
+	function authorize(string $permission): void {
+		try {
+			app('rbac')->authorize($permission);
+		} catch (\Throwable $e) {
+			if (!hasPermission(explode('.', $permission)[0] ?? '')) {
+				$_SESSION['error_message'] = 'Accès refusé.';
+				$base = defined('BASE_URL') ? BASE_URL : '';
+				header('Location: ' . $base . '/accueil/accueil.php');
+				exit;
+			}
+		}
+	}
+}
+
+if (!function_exists('requireAdmin')) {
+	/**
+	 * Bloque l'accès au back-office si non-admin
+	 */
+	function requireAdmin(): void {
+		requireRole('administrateur');
+	}
+}
 
 // ==================== UTILITAIRES UTILISATEUR ====================
 

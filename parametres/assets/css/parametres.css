@@ -100,4 +100,44 @@ hr { border: none; border-top: 1px solid var(--border, #e2e8f0); margin: 1.5rem 
     .settings-nav { flex-direction: row; overflow-x: auto; position: static; }
     .theme-selector { flex-wrap: wrap; }
     .profile-header-settings { flex-direction: column; text-align: center; }
+    .twofa-step { flex-direction: column; align-items: center; text-align: center; }
+}
+
+/* ─── Enhancements for v2 sections ─── */
+
+/* Settings nav extra spacing */
+.settings-nav-item .fas { font-size: .9em; }
+
+/* Profile info improvements */
+.profile-info-lg .badge { font-size: .8em; }
+
+/* Dark mode overrides specific to parametres */
+[data-theme="dark"] .settings-layout .settings-nav {
+    background: #1e293b;
+    box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+[data-theme="dark"] .settings-nav-item.active {
+    background: #2563eb;
+    color: #fff;
+}
+[data-theme="dark"] .profile-avatar-lg {
+    background: #2563eb;
+}
+[data-theme="dark"] .switch .slider {
+    background: #334155;
+}
+[data-theme="dark"] .switch input:checked + .slider {
+    background: #2563eb;
+}
+[data-theme="dark"] .notif-option {
+    border-color: #334155;
+}
+[data-theme="dark"] .theme-option {
+    border-color: #334155;
+    color: #e2e8f0;
+}
+[data-theme="dark"] .theme-option.selected,
+[data-theme="dark"] .theme-option:has(input:checked) {
+    border-color: #3b82f6;
+    background: rgba(37, 99, 235, .15);
 }

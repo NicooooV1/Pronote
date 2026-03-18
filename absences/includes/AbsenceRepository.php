@@ -259,7 +259,52 @@ class AbsenceRepository
             $data['commentaire'] ?? null,
             $data['signale_par']
         ]);
-        return $success ? (int) $this->pdo->lastInsertId() : false;
+        $absenceId = $success ? (int) $this->pdo->lastInsertId() : false;
+
+        // --- Notification auto-trigger ---
+        if ($absenceId) {
+            $this->notifyAbsence((int)$data['id_eleve'], $data, $absenceId);
+        }
+
+        return $absenceId;
+    }
+
+    /**
+     * Envoie une notification à l'élève et à ses parents lors de la création d'une absence.
+     */
+    private function notifyAbsence(int $eleveId, array $data, int $absenceId): void
+    {
+        try {
+            require_once __DIR__ . '/../../notifications/includes/NotificationService.php';
+            $notifService = new \NotificationService($this->pdo);
+
+            $dateDebut = date('d/m/Y', strtotime($data['date_debut']));
+            $type = $data['type_absence'] ?? 'absence';
+            $titre = "Nouvelle $type signalée";
+            $contenu = "Une $type a été enregistrée à partir du $dateDebut.";
+            $lien = '/absences/details_absence.php?id=' . $absenceId;
+
+            // Notifier l'élève
+            $notifService->creer($eleveId, 'eleve', 'absence', $titre, $contenu, $lien, 'importante', 'absence', $absenceId);
+
+            // Notifier le(s) parent(s)
+            $parents = $this->pdo->prepare("SELECT id_parent FROM eleve_parent WHERE id_eleve = ?");
+            $parents->execute([$eleveId]);
+            while ($pid = $parents->fetchColumn()) {
+                $notifService->creer((int)$pid, 'parent', 'absence', $titre, $contenu, $lien, 'importante', 'absence', $absenceId);
+            }
+
+            // Optional: push via WebSocket
+            $wsUrl = 'http://localhost:3001/notify/absence';
+            $ctx = stream_context_create(['http' => [
+                'method' => 'POST', 'header' => 'Content-Type: application/json',
+                'content' => json_encode(['eleve_id' => $eleveId, 'absence_id' => $absenceId]),
+                'timeout' => 2,
+            ]]);
+            @file_get_contents($wsUrl, false, $ctx);
+        } catch (\Exception $e) {
+            // Notification failures must not break the main flow
+        }
     }
 
     public function update(int $id, array $data): bool
@@ -583,6 +628,143 @@ class AbsenceRepository
             'classes_stats'  => $classesStats,
             'eleves_stats'   => $elevesStats
         ];
+    }
+
+    /* ================================================================
+     *  WORKFLOW DE VALIDATION (signalée → validée / refusée)
+     * ================================================================ */
+
+    /**
+     * Valide une absence (statut → validee).
+     */
+    public function validateAbsence(int $id, int $validatorId, string $comment = ''): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "UPDATE absences SET statut = 'validee', validated_by = ?, validated_at = NOW(), validation_comment = ?
+             WHERE id = ? AND (statut IS NULL OR statut IN ('signalee', 'en_attente'))"
+        );
+        $success = $stmt->execute([$validatorId, $comment, $id]);
+        if ($success && $stmt->rowCount() > 0) {
+            $this->logValidation($id, $validatorId, 'validee', $comment);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Refuse une absence (statut → refusee).
+     */
+    public function rejectAbsence(int $id, int $validatorId, string $comment = ''): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "UPDATE absences SET statut = 'refusee', validated_by = ?, validated_at = NOW(), validation_comment = ?
+             WHERE id = ? AND (statut IS NULL OR statut IN ('signalee', 'en_attente'))"
+        );
+        $success = $stmt->execute([$validatorId, $comment, $id]);
+        if ($success && $stmt->rowCount() > 0) {
+            $this->logValidation($id, $validatorId, 'refusee', $comment);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Remet une absence en attente.
+     */
+    public function resetAbsenceStatus(int $id): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "UPDATE absences SET statut = 'en_attente', validated_by = NULL, validated_at = NULL, validation_comment = NULL
+             WHERE id = ?"
+        );
+        return $stmt->execute([$id]) && $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Récupère les absences en attente de validation.
+     */
+    public function getPendingValidation(array $filters = []): array
+    {
+        $classe = $filters['classe'] ?? '';
+        $sql = "SELECT a.*, e.nom, e.prenom, e.classe 
+                FROM absences a 
+                JOIN eleves e ON a.id_eleve = e.id 
+                WHERE (a.statut IS NULL OR a.statut IN ('signalee', 'en_attente'))";
+        $params = [];
+
+        if (!empty($classe)) {
+            $sql .= " AND e.classe = ?";
+            $params[] = $classe;
+        }
+        $sql .= " ORDER BY a.date_debut DESC";
+        return $this->executeQuery($sql, $params);
+    }
+
+    /**
+     * Compte les absences par statut.
+     */
+    public function countByStatus(): array
+    {
+        $sql = "SELECT 
+                    COALESCE(statut, 'signalee') AS statut, 
+                    COUNT(*) AS nb 
+                FROM absences 
+                GROUP BY COALESCE(statut, 'signalee')";
+        $rows = $this->executeQuery($sql);
+        $result = ['signalee' => 0, 'en_attente' => 0, 'validee' => 0, 'refusee' => 0];
+        foreach ($rows as $row) {
+            $result[$row['statut']] = (int) $row['nb'];
+        }
+        return $result;
+    }
+
+    /**
+     * Validation en lot.
+     */
+    public function bulkValidate(array $ids, int $validatorId, string $comment = ''): int
+    {
+        $count = 0;
+        foreach ($ids as $id) {
+            if ($this->validateAbsence((int) $id, $validatorId, $comment)) {
+                $count++;
+            }
+        }
+        return $count;
+    }
+
+    /**
+     * Refus en lot.
+     */
+    public function bulkReject(array $ids, int $validatorId, string $comment = ''): int
+    {
+        $count = 0;
+        foreach ($ids as $id) {
+            if ($this->rejectAbsence((int) $id, $validatorId, $comment)) {
+                $count++;
+            }
+        }
+        return $count;
+    }
+
+    /**
+     * Log d'une action de validation dans l'audit_log.
+     */
+    private function logValidation(int $absenceId, int $validatorId, string $action, string $comment): void
+    {
+        try {
+            $stmt = $this->pdo->prepare(
+                "INSERT INTO audit_log (action, user_type, user_id, details, ip_address, created_at)
+                 VALUES (?, 'vie_scolaire', ?, ?, ?, NOW())"
+            );
+            $stmt->execute([
+                "absence.$action",
+                $validatorId,
+                json_encode(['absence_id' => $absenceId, 'comment' => $comment]),
+                $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'
+            ]);
+        } catch (\PDOException $e) {
+            // Audit failures must not break the main flow
+        }
     }
 
     /* ================================================================

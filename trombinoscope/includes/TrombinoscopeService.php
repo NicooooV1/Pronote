@@ -112,4 +112,42 @@ class TrombinoscopeService {
         $colors = ['#4f46e5','#0891b2','#059669','#d97706','#dc2626','#7c3aed','#db2777','#2563eb','#0d9488','#ca8a04'];
         return $colors[crc32($nom) % count($colors)];
     }
+
+    /* ==================== EXPORT ==================== */
+
+    public function getElevesForExport(?int $classeId = null): array
+    {
+        if ($classeId) {
+            $rows = $this->getElevesClasse($classeId);
+        } else {
+            $rows = $this->pdo->query("
+                SELECT e.id, e.nom, e.prenom, e.date_naissance, e.email, e.genre,
+                       c.nom AS classe_nom, c.niveau AS classe_niveau
+                FROM eleves e
+                LEFT JOIN classes c ON e.classe_id = c.id
+                ORDER BY c.nom, e.nom, e.prenom
+            ")->fetchAll(PDO::FETCH_ASSOC);
+        }
+        return array_map(fn($e) => [
+            $e['nom'],
+            $e['prenom'],
+            $e['classe_nom'] ?? '-',
+            $e['classe_niveau'] ?? '-',
+            $e['date_naissance'] ?? '-',
+            $e['email'] ?? '-',
+            ucfirst($e['genre'] ?? '-'),
+        ], $rows);
+    }
+
+    public function getProfesseursForExport(?int $matiereId = null): array
+    {
+        $profs = $this->getProfesseurs($matiereId);
+        return array_map(fn($p) => [
+            $p['nom'],
+            $p['prenom'],
+            $p['email'] ?? '-',
+            $p['specialite'] ?? '-',
+            $p['matiere_nom'] ?? '-',
+        ], $profs);
+    }
 }

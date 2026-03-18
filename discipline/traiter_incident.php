@@ -41,13 +41,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Session expirée.';
     } else {
         try {
+            $newStatut = $_POST['statut'] ?? $incident['statut'];
+            $oldStatut = $incident['statut'] ?? 'signale';
+
+            // Utiliser la machine à états si le statut change
+            if ($newStatut !== $oldStatut) {
+                $user = getCurrentUser();
+                $commentaire = trim($_POST['commentaire_traitement'] ?? '');
+                if (!$service->transitionIncident($id, $newStatut, $user['id'], $commentaire)) {
+                    throw new Exception("Transition de statut invalide : $oldStatut → $newStatut");
+                }
+            }
+
             $service->updateIncident($id, [
                 'type_incident' => $_POST['type_incident'],
                 'gravite'       => $_POST['gravite'],
                 'description'   => $_POST['description'],
                 'lieu'          => $_POST['lieu'] ?? null,
                 'temoins'       => $_POST['temoins'] ?? null,
-                'statut'        => $_POST['statut'],
+                'statut'        => $newStatut,
             ]);
             $success = 'Incident mis à jour.';
             $incident = $service->getIncident($id);
@@ -111,6 +123,11 @@ $gravites = DisciplineService::getGravites();
         <div class="form-group">
             <label for="description">Description</label>
             <textarea name="description" id="description" class="form-control" rows="5" required><?= htmlspecialchars($incident['description']) ?></textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="commentaire_traitement">Commentaire de traitement</label>
+            <textarea name="commentaire_traitement" id="commentaire_traitement" class="form-control" rows="3" placeholder="Observations, décisions prises..."><?= htmlspecialchars($incident['commentaire_traitement'] ?? '') ?></textarea>
         </div>
 
         <div class="form-row">

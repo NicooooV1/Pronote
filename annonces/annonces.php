@@ -52,6 +52,11 @@ $types = AnnonceService::getTypes();
 
 <h1 class="page-title"><i class="fas fa-bullhorn"></i> Annonces</h1>
 
+<?php
+// Publier les annonces programmées et notifier
+$service->publishScheduled();
+?>
+
 <?php if (isAdmin()): ?>
 <!-- Filtres (admin) -->
 <div class="filter-bar card">
@@ -68,6 +73,8 @@ $types = AnnonceService::getTypes();
         <div class="filter-actions">
             <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Filtrer</button>
             <a href="annonces.php" class="btn btn-secondary">Réinitialiser</a>
+            <a href="export.php?format=csv<?= !empty($filtreType) ? '&type=' . urlencode($filtreType) : '' ?>" class="btn btn-outline" title="Export CSV"><i class="fas fa-file-csv"></i> CSV</a>
+            <a href="export.php?format=pdf<?= !empty($filtreType) ? '&type=' . urlencode($filtreType) : '' ?>" class="btn btn-outline" title="Export PDF"><i class="fas fa-file-pdf"></i> PDF</a>
         </div>
     </form>
 </div>

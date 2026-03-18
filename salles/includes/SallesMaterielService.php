@@ -150,4 +150,82 @@ class SallesMaterielService
         $m = ['neuf' => 'success', 'bon' => 'info', 'usage' => 'warning', 'hors_service' => 'danger'];
         return '<span class="badge badge-' . ($m[$e] ?? 'secondary') . '">' . ucfirst(str_replace('_', ' ', $e)) . '</span>';
     }
+
+    /* ───────── EXPORT ───────── */
+
+    public function getReservationsForExport(array $filters = []): array
+    {
+        $reservations = $this->getReservations($filters);
+        $rows = [];
+        foreach ($reservations as $r) {
+            $rows[] = [
+                $r['salle_nom'] ?? '',
+                $r['date_reservation'] ?? '',
+                $r['heure_debut'] ?? '',
+                $r['heure_fin'] ?? '',
+                $r['motif'] ?? '',
+                $r['demandeur_nom'] ?? '',
+                $r['statut'] ?? '',
+            ];
+        }
+        return $rows;
+    }
+
+    public function getMaterielsForExport(array $filters = []): array
+    {
+        $materiels = $this->getMateriels($filters);
+        $cats = self::categoriesMateriels();
+        $etats = self::etatsMateriels();
+        $rows = [];
+        foreach ($materiels as $m) {
+            $rows[] = [
+                $m['nom'] ?? '',
+                $m['reference'] ?? '',
+                $cats[$m['categorie'] ?? ''] ?? $m['categorie'] ?? '',
+                $etats[$m['etat'] ?? ''] ?? $m['etat'] ?? '',
+                $m['quantite'] ?? 0,
+                $m['localisation'] ?? '',
+            ];
+        }
+        return $rows;
+    }
+
+    /**
+     * Planning d'occupation d'une salle pour une semaine
+     */
+    public function getPlanningOccupation(int $salleId, string $dateDebut, string $dateFin): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT * FROM reservations_salles 
+            WHERE salle_id = ? AND date_reservation BETWEEN ? AND ? AND statut != 'annulee'
+            ORDER BY date_reservation, heure_debut
+        ");
+        $stmt->execute([$salleId, $dateDebut, $dateFin]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Taux d'occupation des salles sur une période
+     */
+    public function getTauxOccupation(string $dateDebut, string $dateFin): array
+    {
+        $salles = $this->getSalles();
+        $result = [];
+        foreach ($salles as $s) {
+            $stmt = $this->pdo->prepare("
+                SELECT COUNT(*) as nb_reservations,
+                       SUM(TIMESTAMPDIFF(MINUTE, heure_debut, heure_fin)) as minutes_occupees
+                FROM reservations_salles 
+                WHERE salle_id = ? AND date_reservation BETWEEN ? AND ? AND statut != 'annulee'
+            ");
+            $stmt->execute([$s['id'], $dateDebut, $dateFin]);
+            $data = $stmt->fetch(PDO::FETCH_ASSOC);
+            $result[] = [
+                'salle' => $s['nom'] ?? $s['numero'] ?? "Salle #{$s['id']}",
+                'reservations' => (int)$data['nb_reservations'],
+                'heures' => round(($data['minutes_occupees'] ?? 0) / 60, 1),
+            ];
+        }
+        return $result;
+    }
 }

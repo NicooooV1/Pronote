@@ -43,6 +43,19 @@ $types     = DisciplineService::getTypesIncident();
 
 <h1 class="page-title"><i class="fas fa-exclamation-triangle"></i> Incidents disciplinaires</h1>
 
+<!-- Actions -->
+<div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+    <a href="signaler.php" class="ds-btn ds-btn-primary"><i class="fas fa-plus"></i> Signaler un incident</a>
+    <?php if (isAdmin() || isVieScolaire()): ?>
+    <a href="export.php?type=incidents&format=csv<?= $filtreStatut ? '&statut='.$filtreStatut : '' ?><?= $filtreClasse ? '&classe='.urlencode($filtreClasse) : '' ?>" class="ds-btn ds-btn-outline ds-btn-sm" style="margin-left:auto;">
+        <i class="fas fa-file-csv"></i> CSV
+    </a>
+    <a href="export.php?type=incidents&format=pdf<?= $filtreStatut ? '&statut='.$filtreStatut : '' ?><?= $filtreClasse ? '&classe='.urlencode($filtreClasse) : '' ?>" class="ds-btn ds-btn-outline ds-btn-sm">
+        <i class="fas fa-file-pdf"></i> PDF
+    </a>
+    <?php endif; ?>
+</div>
+
 <!-- Filtres -->
 <div class="filter-bar card">
     <form method="GET" class="filter-form">

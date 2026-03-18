@@ -167,7 +167,16 @@ class UserService
      */
     public function changePassword($userId, $newPassword, ?string $userType = null)
     {
-        $hash = password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 12]);
+        // Validation via PasswordPolicy si disponible
+        if (class_exists('\API\Security\PasswordPolicy')) {
+            $policy = new \API\Security\PasswordPolicy();
+            $policyResult = $policy->validate($newPassword);
+            if (!$policyResult['valid']) {
+                return ['success' => false, 'message' => implode(' ', $policyResult['errors'])];
+            }
+        }
+
+        $hash = \API\Security\PasswordPolicy::hash($newPassword);
 
         $tables = ($userType && isset($this->tableMap[$userType]))
             ? [$userType => $this->tableMap[$userType]]
@@ -178,7 +187,11 @@ class UserService
                 $stmt = $this->pdo->prepare("SELECT id FROM `{$table}` WHERE id = ? LIMIT 1");
                 $stmt->execute([$userId]);
                 if ($stmt->fetch()) {
-                    $stmt2 = $this->pdo->prepare("UPDATE `{$table}` SET mot_de_passe = ? WHERE id = ?");
+                    $stmt2 = $this->pdo->prepare("
+                        UPDATE `{$table}` 
+                        SET mot_de_passe = ?, password_changed_at = NOW() 
+                        WHERE id = ?
+                    ");
                     $stmt2->execute([$hash, $userId]);
                     return ['success' => true, 'message' => 'Mot de passe changé avec succès.'];
                 }
@@ -365,34 +378,49 @@ class UserService
      * ================================================================ */
 
     /**
-     * Vérifie le rate limiting pour les tentatives de connexion.
-     * Retourne le nombre de minutes restantes, ou 0 si OK.
+     * Vérifie le rate limiting pour les tentatives de connexion (lockout progressif).
+     * Retourne le nombre de minutes restantes avant déblocage, ou 0 si autorisé.
+     *
+     * Seuils :  5 tentatives → 15 min
+     *          10 tentatives →  1 h
+     *          20 tentatives → 24 h
      */
     public function checkLoginRateLimit(string $ip): int
     {
-        try {
-            $stmt = $this->pdo->prepare(
-                "SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND attempted_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)"
-            );
-            $stmt->execute([$ip]);
-            $attempts = (int) $stmt->fetchColumn();
+        // Paliers décroissants : vérifié du plus restrictif au moins restrictif
+        $tiers = [
+            ['threshold' => 20, 'window_min' => 24 * 60, 'lock_min' => 24 * 60],
+            ['threshold' => 10, 'window_min' => 60,       'lock_min' => 60],
+            ['threshold' => 5,  'window_min' => 15,       'lock_min' => 15],
+        ];
 
-            if ($attempts >= 5) {
-                $stmt2 = $this->pdo->prepare(
-                    "SELECT MIN(attempted_at) as first_attempt FROM login_attempts WHERE ip = ? AND attempted_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)"
+        try {
+            foreach ($tiers as $tier) {
+                $stmt = $this->pdo->prepare(
+                    "SELECT COUNT(*) FROM login_attempts
+                     WHERE ip = ? AND attempted_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)"
                 );
-                $stmt2->execute([$ip]);
-                $row = $stmt2->fetch(PDO::FETCH_ASSOC);
-                if ($row && $row['first_attempt']) {
-                    $firstAttempt = strtotime($row['first_attempt']);
-                    $unlocksAt    = $firstAttempt + 15 * 60;
-                    return max(1, (int) ceil(($unlocksAt - time()) / 60));
+                $stmt->execute([$ip, $tier['window_min']]);
+                $attempts = (int) $stmt->fetchColumn();
+
+                if ($attempts >= $tier['threshold']) {
+                    $stmt2 = $this->pdo->prepare(
+                        "SELECT MIN(attempted_at) FROM login_attempts
+                         WHERE ip = ? AND attempted_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)"
+                    );
+                    $stmt2->execute([$ip, $tier['window_min']]);
+                    $first = $stmt2->fetchColumn();
+
+                    if ($first) {
+                        $unlocksAt = strtotime($first) + $tier['lock_min'] * 60;
+                        return max(1, (int) ceil(($unlocksAt - time()) / 60));
+                    }
+                    return $tier['lock_min'];
                 }
-                return 15;
             }
             return 0;
         } catch (\Throwable $e) {
-            return 0; // Ne pas bloquer en cas d'erreur
+            return 0; // Ne pas bloquer en cas d'erreur DB
         }
     }
 

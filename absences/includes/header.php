@@ -59,6 +59,10 @@ ob_start();
                     <span class="sidebar-nav-icon"><i class="fas fa-file-alt"></i></span>
                     <span>Justificatifs</span>
                 </a>
+                <a href="valider_absence.php" class="sidebar-nav-item <?= isActiveLink('validation') ?>">
+                    <span class="sidebar-nav-icon"><i class="fas fa-clipboard-check"></i></span>
+                    <span>Validation</span>
+                </a>
                 <?php endif; ?>
 
                 <?php if (isStudent() || isParent()): ?>

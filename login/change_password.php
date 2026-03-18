@@ -18,6 +18,10 @@ if (!isset($_SESSION['reset_user_id']) || !isset($_SESSION['reset_code'])) {
 $error   = '';
 $success = false;
 
+// Charger la politique de mot de passe
+$passwordPolicy = new \API\Security\PasswordPolicy();
+$passwordRules  = $passwordPolicy->getRules();
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     // Vérification CSRF
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
@@ -30,17 +34,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
             $error = 'Veuillez remplir tous les champs.';
         } elseif ($password !== $confirmPassword) {
             $error = 'Les mots de passe ne correspondent pas.';
-        } elseif (strlen($password) < 8) {
-            $error = 'Le mot de passe doit contenir au moins 8 caractères.';
         } else {
-            $changeResult = changePassword($_SESSION['reset_user_id'], $password);
-
-            if ($changeResult['success']) {
-                $success = true;
-                unset($_SESSION['reset_user_id'], $_SESSION['reset_code'], $_SESSION['reset_username']);
-                $_SESSION['success_message'] = 'Votre mot de passe a été réinitialisé avec succès. Connectez-vous avec votre nouveau mot de passe.';
+            // Validation via PasswordPolicy centralisée
+            $policyResult = $passwordPolicy->validate($password);
+            if (!$policyResult['valid']) {
+                $error = implode('<br>', $policyResult['errors']);
             } else {
-                $error = $changeResult['message'];
+                $changeResult = changePassword($_SESSION['reset_user_id'], $password);
+
+                if ($changeResult['success']) {
+                    $success = true;
+                    unset($_SESSION['reset_user_id'], $_SESSION['reset_code'], $_SESSION['reset_username']);
+                    $_SESSION['success_message'] = 'Votre mot de passe a été réinitialisé avec succès. Connectez-vous avec votre nouveau mot de passe.';
+                } else {
+                    $error = $changeResult['message'];
+                }
             }
         }
     }
@@ -104,6 +112,11 @@ $username  = $_SESSION['reset_username'] ?? '';
                     <i class="fas fa-info-circle" aria-hidden="true"></i>
                     <div>
                         <p>Définissez un nouveau mot de passe pour le compte <strong><?= htmlspecialchars($username) ?></strong>.</p>
+                        <ul style="margin: 8px 0 0 16px; font-size: 0.9em;">
+                            <?php foreach ($passwordRules as $rule): ?>
+                                <li><?= htmlspecialchars($rule) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
                     </div>
                 </div>
 

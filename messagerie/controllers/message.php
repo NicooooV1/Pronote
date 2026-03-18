@@ -86,6 +86,25 @@ function handleSendMessage($convId, $user, $contenu, $importance = 'normal', $pa
             $pdo->commit();
             
             logUpload("Message #{$messageId} envoyé avec succès");
+
+            // --- Push temps réel via WebSocket ---
+            try {
+                $wsPayload = json_encode([
+                    'conversation_id' => $convId,
+                    'message_id'      => $messageId,
+                    'sender_id'       => $user['id'],
+                    'sender_type'     => $user['type'],
+                    'content'         => mb_strimwidth($contenu, 0, 200, '…'),
+                ]);
+                $ctx = stream_context_create(['http' => [
+                    'method'  => 'POST',
+                    'header'  => 'Content-Type: application/json',
+                    'content' => $wsPayload,
+                    'timeout' => 2,
+                ]]);
+                @file_get_contents('http://localhost:3001/notify/message', false, $ctx);
+            } catch (\Exception $wsE) { /* WebSocket push is best-effort */ }
+
             return [
                 'success' => true,
                 'message' => "Message envoyé avec succès",

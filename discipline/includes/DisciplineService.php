@@ -100,6 +100,128 @@ class DisciplineService
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // ─── Workflow transitions ─────────────────────────────────
+
+    /**
+     * Machine à états : signale → en_cours → traite → classe
+     */
+    private const VALID_TRANSITIONS = [
+        'signale'  => ['en_cours', 'traite', 'classe'],
+        'en_cours' => ['traite', 'classe', 'signale'],
+        'traite'   => ['classe', 'en_cours'],
+        'classe'   => [],  // terminal
+    ];
+
+    /**
+     * Transition de statut d'un incident.
+     */
+    public function transitionIncident(int $id, string $newStatut, int $userId, string $comment = ''): bool
+    {
+        $incident = $this->getIncident($id);
+        if (!$incident) return false;
+
+        $current = $incident['statut'] ?? 'signale';
+        if (!isset(self::VALID_TRANSITIONS[$current]) 
+            || !in_array($newStatut, self::VALID_TRANSITIONS[$current])) {
+            return false;
+        }
+
+        $stmt = $this->pdo->prepare(
+            "UPDATE incidents SET statut = ?, traite_par_id = ?, traite_at = NOW(), commentaire_traitement = ?
+             WHERE id = ?"
+        );
+        $success = $stmt->execute([$newStatut, $userId, $comment, $id]);
+        
+        if ($success) {
+            $this->logAction("incident.$newStatut", $id, $userId, $comment);
+            // Notifier l'élève si traité
+            if ($newStatut === 'traite') {
+                $this->notifyIncidentTraite($incident);
+            }
+        }
+        return $success;
+    }
+
+    /**
+     * Notification élève/parents quand incident est traité.
+     */
+    private function notifyIncidentTraite(array $incident): void
+    {
+        try {
+            require_once __DIR__ . '/../../notifications/includes/NotificationService.php';
+            $notif = new \NotificationService($this->pdo);
+            $titre = 'Incident disciplinaire traité';
+            $contenu = 'Un incident du ' . date('d/m/Y', strtotime($incident['date_incident'])) . ' a été traité.';
+            $lien = '/discipline/detail_incident.php?id=' . $incident['id'];
+
+            $notif->creer($incident['eleve_id'], 'eleve', 'discipline', $titre, $contenu, $lien, 'importante', 'incident', $incident['id']);
+
+            $parents = $this->pdo->prepare("SELECT id_parent FROM eleve_parent WHERE id_eleve = ?");
+            $parents->execute([$incident['eleve_id']]);
+            while ($pid = $parents->fetchColumn()) {
+                $notif->creer((int)$pid, 'parent', 'discipline', $titre, $contenu, $lien, 'importante', 'incident', $incident['id']);
+            }
+        } catch (\Exception $e) {}
+    }
+
+    /**
+     * Log d'une action disciplinaire dans l'audit_log.
+     */
+    private function logAction(string $action, int $targetId, int $userId, string $comment = ''): void
+    {
+        try {
+            $stmt = $this->pdo->prepare(
+                "INSERT INTO audit_log (action, user_type, user_id, details, ip_address, created_at)
+                 VALUES (?, 'vie_scolaire', ?, ?, ?, NOW())"
+            );
+            $stmt->execute([$action, $userId, json_encode(['target_id' => $targetId, 'comment' => $comment]), $_SERVER['REMOTE_ADDR'] ?? '']);
+        } catch (\PDOException $e) {}
+    }
+
+    // ─── Export ──────────────────────────────────────────────────
+
+    /**
+     * Exporte les incidents au format adapté au ExportService.
+     */
+    public function getIncidentsForExport(array $filters = []): array
+    {
+        $data = $this->getIncidents($filters);
+        $gravites = self::getGravites();
+        $types = self::getTypesIncident();
+
+        return array_map(function($row) use ($gravites, $types) {
+            return [
+                'date'     => date('d/m/Y H:i', strtotime($row['date_incident'])),
+                'eleve'    => ($row['eleve_prenom'] ?? '') . ' ' . ($row['eleve_nom'] ?? ''),
+                'classe'   => $row['eleve_classe'] ?? '',
+                'type'     => $types[$row['type_incident']] ?? $row['type_incident'],
+                'gravite'  => $gravites[$row['gravite']] ?? $row['gravite'],
+                'statut'   => ucfirst($row['statut'] ?? 'signalé'),
+                'lieu'     => $row['lieu'] ?? '',
+            ];
+        }, $data);
+    }
+
+    /**
+     * Exporte les sanctions au format adapté au ExportService.
+     */
+    public function getSanctionsForExport(array $filters = []): array
+    {
+        $data = $this->getSanctions($filters);
+        $typesSanction = self::getTypesSanction();
+
+        return array_map(function($row) use ($typesSanction) {
+            return [
+                'date'     => date('d/m/Y', strtotime($row['date_sanction'])),
+                'eleve'    => ($row['eleve_prenom'] ?? '') . ' ' . ($row['eleve_nom'] ?? ''),
+                'classe'   => $row['eleve_classe'] ?? '',
+                'type'     => $typesSanction[$row['type_sanction']] ?? $row['type_sanction'],
+                'motif'    => $row['motif'] ?? '',
+                'duree'    => $row['duree'] ?? '',
+            ];
+        }, $data);
+    }
+
     // ─── Sanctions ───────────────────────────────────────────────
 
     public function createSanction(array $data): int

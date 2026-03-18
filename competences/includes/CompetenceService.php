@@ -280,4 +280,59 @@ class CompetenceService {
         $color = $colors[$niveau] ?? '#94a3b8';
         return "<span class=\"comp-dot\" style=\"background:{$color}\" title=\"" . htmlspecialchars(self::niveauxLabels()[$niveau] ?? '') . "\"></span>";
     }
+
+    /* ==================== EXPORT ==================== */
+
+    public function getEvaluationsForExport(int $classeId, ?int $periodeId = null): array
+    {
+        $sql = "
+            SELECT e.nom AS eleve_nom, e.prenom AS eleve_prenom, c.code, c.nom AS competence_nom,
+                   c.domaine, ce.niveau_acquis, ce.date_evaluation,
+                   CONCAT(p.prenom, ' ', p.nom) AS prof_nom, m.nom AS matiere_nom
+            FROM competence_evaluations ce
+            JOIN eleves e ON ce.eleve_id = e.id
+            JOIN competences c ON ce.competence_id = c.id
+            LEFT JOIN professeurs p ON ce.professeur_id = p.id
+            LEFT JOIN matieres m ON ce.matiere_id = m.id
+            WHERE e.classe_id = ?
+        ";
+        $params = [$classeId];
+        if ($periodeId) { $sql .= ' AND ce.periode_id = ?'; $params[] = $periodeId; }
+        $sql .= ' ORDER BY e.nom, c.domaine, c.ordre';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $labels = self::niveauxLabels();
+        return array_map(fn($r) => [
+            $r['eleve_nom'],
+            $r['eleve_prenom'],
+            $r['domaine'] ?? '-',
+            $r['code'],
+            $r['competence_nom'],
+            $labels[$r['niveau_acquis']] ?? $r['niveau_acquis'],
+            $r['matiere_nom'] ?? '-',
+            $r['prof_nom'] ?? '-',
+            $r['date_evaluation'],
+        ], $rows);
+    }
+
+    public function getBilanForExport(int $classeId, ?int $periodeId = null): array
+    {
+        $eleves = $this->getElevesClasse($classeId);
+        $labels = self::niveauxLabels();
+        $rows = [];
+        foreach ($eleves as $e) {
+            $bilan = $this->getBilanEleve($e['id'], $periodeId);
+            foreach ($bilan as $d) {
+                $rows[] = [
+                    $e['nom'],
+                    $e['prenom'],
+                    $d['domaine'],
+                    $labels[$d['niveau_moyen']] ?? $d['niveau_moyen'],
+                    $d['count'],
+                ];
+            }
+        }
+        return $rows;
+    }
 }

@@ -51,6 +51,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCSRFToken() && $isGestionna
         <a href="inscriptions.php?statut=en_revision" class="filter-btn <?= ($filtreStatut ?? '') === 'en_revision' ? 'active' : '' ?>">En révision</a>
         <a href="inscriptions.php?statut=acceptee" class="filter-btn <?= ($filtreStatut ?? '') === 'acceptee' ? 'active' : '' ?>">Acceptées</a>
         <a href="inscriptions.php?statut=refusee" class="filter-btn <?= ($filtreStatut ?? '') === 'refusee' ? 'active' : '' ?>">Refusées</a>
+        <a href="inscriptions.php?statut=liste_attente" class="filter-btn <?= ($filtreStatut ?? '') === 'liste_attente' ? 'active' : '' ?>">Liste d'attente</a>
+        <span style="margin-left:auto;">
+            <a href="export.php?format=csv<?= $filtreStatut ? '&statut=' . urlencode($filtreStatut) : '' ?>" class="btn btn-sm btn-outline"><i class="fas fa-file-csv"></i> CSV</a>
+            <a href="export.php?format=pdf<?= $filtreStatut ? '&statut=' . urlencode($filtreStatut) : '' ?>" class="btn btn-sm btn-outline"><i class="fas fa-file-pdf"></i> PDF</a>
+        </span>
     </div>
     <?php endif; ?>
 

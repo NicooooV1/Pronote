@@ -1,0 +1,6 @@
+/* ===== Parcours Éducatifs (M42) ===== */
+.parcours-type-card{background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;padding:1rem;transition:box-shadow .2s}
+.parcours-type-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.06)}
+.parcours-badge{color:#fff;padding:2px 10px;border-radius:4px;font-size:.72rem;font-weight:600;white-space:nowrap}
+.modele-link{color:#6366f1;text-decoration:none}
+.modele-link:hover{text-decoration:underline}

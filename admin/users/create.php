@@ -67,6 +67,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['csrf_token']) && $_PO
         $data['est_CPE'] = $_POST['est_CPE'] ?? 'non';
         $data['est_infirmerie'] = $_POST['est_infirmerie'] ?? 'non';
     }
+    // Administrateur : pas de champs spécifiques supplémentaires,
+    // les champs communs (nom, prenom, mail) suffisent.
 
     if (empty($data['nom']) || empty($data['prenom']) || empty($data['mail'])) {
         $error = "Le nom, le prénom et l'email sont obligatoires.";
@@ -206,6 +208,12 @@ include __DIR__ . '/../includes/sub_header.php';
                 <div class="form-group"><label>CPE</label><select name="est_CPE"><option value="non">Non</option><option value="oui">Oui</option></select></div>
                 <div class="form-group"><label>Infirmerie</label><select name="est_infirmerie"><option value="non">Non</option><option value="oui">Oui</option></select></div>
             </div>
+        </div>
+
+        <!-- Champs administrateur -->
+        <div class="dynamic-fields" id="fields-administrateur">
+            <h3><i class="fas fa-user-shield"></i> Administrateur</h3>
+            <p style="font-size:13px;color:#718096;">Aucun champ spécifique requis. L'utilisateur aura un accès complet au panneau d'administration.</p>
         </div>
 
         <div style="margin-top: 20px;">

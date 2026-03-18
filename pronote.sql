@@ -26,6 +26,11 @@ SET SESSION FOREIGN_KEY_CHECKS = 0;
 -- ============================================================
 DROP VIEW  IF EXISTS `v_users`;
 
+-- Système : modules, SMTP, PDF templates
+DROP TABLE IF EXISTS `pdf_templates`;
+DROP TABLE IF EXISTS `modules_config`;
+DROP TABLE IF EXISTS `smtp_config`;
+
 -- M44 Diplômes
 DROP TABLE IF EXISTS `diplomes`;
 -- M36 Ressources pédagogiques
@@ -261,6 +266,8 @@ CREATE TABLE `eleves` (
   `identifiant` varchar(50) NOT NULL,
   `mot_de_passe` varchar(255) NOT NULL,
   `actif` tinyint(1) NOT NULL DEFAULT 1,
+  `two_factor_enabled` tinyint(1) NOT NULL DEFAULT 0,
+  `two_factor_secret` varchar(64) DEFAULT NULL,
   `date_creation` datetime DEFAULT CURRENT_TIMESTAMP,
   `last_login` datetime NULL DEFAULT NULL,
   `failed_login_attempts` int(3) DEFAULT 0,
@@ -284,6 +291,8 @@ CREATE TABLE `professeurs` (
   `professeur_principal` varchar(50) NOT NULL DEFAULT 'non',
   `matiere` varchar(100) NOT NULL,
   `actif` tinyint(1) NOT NULL DEFAULT 1,
+  `two_factor_enabled` tinyint(1) NOT NULL DEFAULT 0,
+  `two_factor_secret` varchar(64) DEFAULT NULL,
   `date_creation` datetime DEFAULT CURRENT_TIMESTAMP,
   `last_login` datetime NULL DEFAULT NULL,
   `failed_login_attempts` int(3) DEFAULT 0,
@@ -307,6 +316,8 @@ CREATE TABLE `parents` (
   `mot_de_passe` varchar(255) NOT NULL,
   `est_parent_eleve` enum('oui','non') NOT NULL DEFAULT 'non',
   `actif` tinyint(1) NOT NULL DEFAULT 1,
+  `two_factor_enabled` tinyint(1) NOT NULL DEFAULT 0,
+  `two_factor_secret` varchar(64) DEFAULT NULL,
   `date_creation` datetime DEFAULT CURRENT_TIMESTAMP,
   `last_login` datetime NULL DEFAULT NULL,
   `failed_login_attempts` int(3) DEFAULT 0,
@@ -328,6 +339,8 @@ CREATE TABLE `vie_scolaire` (
   `est_CPE` enum('oui','non') NOT NULL DEFAULT 'non',
   `est_infirmerie` enum('oui','non') NOT NULL DEFAULT 'non',
   `actif` tinyint(1) NOT NULL DEFAULT 1,
+  `two_factor_enabled` tinyint(1) NOT NULL DEFAULT 0,
+  `two_factor_secret` varchar(64) DEFAULT NULL,
   `date_creation` datetime DEFAULT CURRENT_TIMESTAMP,
   `last_login` datetime NULL DEFAULT NULL,
   `failed_login_attempts` int(3) DEFAULT 0,
@@ -1080,6 +1093,7 @@ CREATE TABLE `bulletins` (
   `nb_absences` int(11) DEFAULT 0,
   `nb_retards` int(11) DEFAULT 0,
   `statut` enum('brouillon','valide','publie','archive') NOT NULL DEFAULT 'brouillon',
+  `competences_bilan` json DEFAULT NULL,
   `valide_par` int(11) DEFAULT NULL,
   `date_validation` datetime DEFAULT NULL,
   `date_publication` datetime DEFAULT NULL,
@@ -1222,6 +1236,7 @@ CREATE TABLE `user_settings` (
   `sidebar_collapsed` tinyint(1) NOT NULL DEFAULT 0,
   `avatar_chemin` varchar(255) DEFAULT NULL,
   `bio` text DEFAULT NULL,
+  `accueil_config` text DEFAULT NULL,
   `date_modification` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_user_settings` (`user_id`, `user_type`)
@@ -2105,6 +2120,142 @@ CREATE TABLE `diplomes` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- 38. CONFIGURATION SYSTÈME (SMTP, MODULES, PDF)
+-- ============================================================
+
+CREATE TABLE `smtp_config` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `host` varchar(255) NOT NULL DEFAULT '',
+  `port` int(11) NOT NULL DEFAULT 587,
+  `username` varchar(255) NOT NULL DEFAULT '',
+  `password` varchar(500) NOT NULL DEFAULT '',
+  `encryption` enum('tls','ssl','none') NOT NULL DEFAULT 'tls',
+  `from_address` varchar(255) NOT NULL DEFAULT '',
+  `from_name` varchar(255) NOT NULL DEFAULT '',
+  `reply_to` varchar(255) DEFAULT NULL,
+  `enabled` tinyint(1) NOT NULL DEFAULT 0,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `smtp_config` (`id`, `enabled`) VALUES (1, 0);
+
+CREATE TABLE `modules_config` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `module_key` varchar(50) NOT NULL,
+  `label` varchar(100) NOT NULL,
+  `description` text DEFAULT NULL,
+  `icon` varchar(50) NOT NULL DEFAULT 'fas fa-puzzle-piece',
+  `category` varchar(50) NOT NULL DEFAULT 'general',
+  `enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `config_json` text DEFAULT NULL,
+  `sort_order` int(11) NOT NULL DEFAULT 100,
+  `is_core` tinyint(1) NOT NULL DEFAULT 0,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_module_key` (`module_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Modules système (ne peuvent pas être désactivés)
+INSERT INTO `modules_config` (`module_key`, `label`, `description`, `icon`, `category`, `enabled`, `sort_order`, `is_core`) VALUES
+('accueil',         'Accueil',                'Page d''accueil et tableau de bord',                 'fas fa-home',               'navigation', 1, 1,  1),
+('messagerie',      'Messagerie',             'Messagerie interne entre utilisateurs',              'fas fa-envelope',           'navigation', 1, 2,  1),
+('parametres',      'Paramètres',             'Paramètres du compte utilisateur',                   'fas fa-cog',                'navigation', 1, 3,  1),
+('notifications',   'Notifications',          'Centre de notifications',                            'fas fa-bell',               'navigation', 1, 4,  1);
+
+-- Modules scolaires
+INSERT INTO `modules_config` (`module_key`, `label`, `description`, `icon`, `category`, `enabled`, `sort_order`, `is_core`) VALUES
+('notes',           'Notes',                  'Gestion des notes et évaluations',                   'fas fa-chart-bar',          'scolaire', 1, 10, 0),
+('agenda',          'Agenda',                 'Agenda et événements scolaires',                     'fas fa-calendar',           'scolaire', 1, 11, 0),
+('cahierdetextes',  'Cahier de textes',       'Cahier de textes numérique',                         'fas fa-book',               'scolaire', 1, 12, 0),
+('emploi_du_temps', 'Emploi du temps',        'Emploi du temps et modifications',                   'fas fa-table',              'scolaire', 1, 13, 0),
+('bulletins',       'Bulletins',              'Bulletins scolaires par période',                     'fas fa-file-alt',           'scolaire', 1, 14, 0),
+('competences',     'Compétences',            'Évaluation par compétences (socle commun)',           'fas fa-clipboard-list',     'scolaire', 1, 15, 0),
+('devoirs',         'Devoirs en ligne',       'Remise de devoirs en ligne',                         'fas fa-tasks',              'scolaire', 1, 16, 0),
+('examens',         'Examens',                'Organisation des examens et épreuves',                'fas fa-file-signature',     'scolaire', 1, 17, 0);
+
+-- Modules vie scolaire
+INSERT INTO `modules_config` (`module_key`, `label`, `description`, `icon`, `category`, `enabled`, `sort_order`, `is_core`) VALUES
+('absences',        'Absences',               'Suivi des absences et justificatifs',                'fas fa-calendar-times',     'vie_scolaire', 1, 20, 0),
+('appel',           'Appel',                  'Faire l''appel en classe',                           'fas fa-clipboard-check',    'vie_scolaire', 1, 21, 0),
+('discipline',      'Discipline',             'Incidents, sanctions et retenues',                   'fas fa-gavel',              'vie_scolaire', 1, 22, 0),
+('vie_scolaire',    'Vie scolaire',           'Tableau de bord vie scolaire',                       'fas fa-user-shield',        'vie_scolaire', 1, 23, 0),
+('reporting',       'Reporting',              'Rapports et statistiques',                           'fas fa-chart-line',         'vie_scolaire', 1, 24, 0),
+('signalements',    'Signalements',           'Signalements anonymes (harcèlement...)',             'fas fa-shield-alt',         'vie_scolaire', 1, 25, 0),
+('besoins',         'Besoins particuliers',   'Suivi des élèves à besoins spécifiques (PAP, PPS)', 'fas fa-hand-holding-heart', 'vie_scolaire', 1, 26, 0);
+
+-- Modules communication
+INSERT INTO `modules_config` (`module_key`, `label`, `description`, `icon`, `category`, `enabled`, `sort_order`, `is_core`) VALUES
+('annonces',        'Annonces',               'Annonces et sondages',                              'fas fa-bullhorn',           'communication', 1, 30, 0),
+('reunions',        'Réunions',               'Organisation des réunions parents-profs',            'fas fa-handshake',          'communication', 1, 31, 0),
+('documents',       'Documents',              'Documents administratifs',                           'fas fa-folder-open',        'communication', 1, 32, 0);
+
+-- Modules établissement
+INSERT INTO `modules_config` (`module_key`, `label`, `description`, `icon`, `category`, `enabled`, `sort_order`, `is_core`) VALUES
+('trombinoscope',   'Trombinoscope',          'Annuaire avec photos',                              'fas fa-users',              'etablissement', 1, 40, 0),
+('bibliotheque',    'Bibliothèque',           'Catalogue et gestion des emprunts',                 'fas fa-book-reader',        'etablissement', 1, 41, 0),
+('clubs',           'Clubs',                  'Clubs et activités parascolaires',                  'fas fa-users',              'etablissement', 1, 42, 0),
+('orientation',     'Orientation',            'Fiches d''orientation et vœux',                     'fas fa-compass',            'etablissement', 1, 43, 0),
+('inscriptions',    'Inscriptions',           'Inscriptions et réinscriptions en ligne',           'fas fa-user-plus',          'etablissement', 1, 44, 0),
+('infirmerie',      'Infirmerie',             'Passages infirmerie et fiches santé',               'fas fa-heartbeat',          'etablissement', 1, 45, 0),
+('ressources',      'Ressources',             'Ressources pédagogiques partagées',                 'fas fa-book-open',          'etablissement', 1, 46, 0),
+('diplomes',        'Diplômes',               'Gestion et délivrance des diplômes',                'fas fa-graduation-cap',     'etablissement', 1, 47, 0);
+
+-- Modules logistique
+INSERT INTO `modules_config` (`module_key`, `label`, `description`, `icon`, `category`, `enabled`, `sort_order`, `is_core`) VALUES
+('periscolaire',    'Périscolaire',           'Cantine, garderie, activités périscolaires',        'fas fa-utensils',           'logistique', 1, 50, 0),
+('stages',          'Stages',                 'Conventions de stage (3e, lycée...)',                'fas fa-briefcase',          'logistique', 1, 51, 0),
+('transports',      'Transports',             'Lignes de transport et inscriptions',               'fas fa-bus',                'logistique', 1, 52, 0),
+('facturation',     'Facturation',            'Factures et paiements en ligne',                    'fas fa-file-invoice-dollar','logistique', 1, 53, 0),
+('salles',          'Salles & Matériels',     'Réservation de salles et prêt de matériel',         'fas fa-door-open',          'logistique', 1, 54, 0),
+('personnel',       'Gestion personnel',      'Absences et remplacements du personnel',            'fas fa-user-tie',           'logistique', 1, 55, 0);
+
+-- Modules système
+INSERT INTO `modules_config` (`module_key`, `label`, `description`, `icon`, `category`, `enabled`, `sort_order`, `is_core`) VALUES
+('archivage',       'Archivage',              'Archivage annuel des données',                      'fas fa-archive',            'systeme', 1, 60, 0),
+('rgpd',            'RGPD & Audit',           'Conformité RGPD et journal d''audit',               'fas fa-shield-alt',         'systeme', 1, 61, 0),
+('support',         'Aide & Support',         'FAQ et tickets de support',                         'fas fa-question-circle',    'systeme', 1, 62, 0);
+
+CREATE TABLE `pdf_templates` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `type` varchar(50) NOT NULL COMMENT 'bulletin, convocation, convention, attestation, diplome, generic',
+  `description` text DEFAULT NULL,
+  `header_html` text DEFAULT NULL,
+  `footer_html` text DEFAULT NULL,
+  `body_css` text DEFAULT NULL,
+  `page_format` varchar(10) NOT NULL DEFAULT 'A4',
+  `orientation` enum('portrait','landscape') NOT NULL DEFAULT 'portrait',
+  `margins_json` varchar(200) NOT NULL DEFAULT '{"top":15,"right":10,"bottom":15,"left":10}',
+  `show_logo` tinyint(1) NOT NULL DEFAULT 1,
+  `show_etablissement` tinyint(1) NOT NULL DEFAULT 1,
+  `is_default` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_type` (`type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Templates PDF par défaut
+INSERT INTO `pdf_templates` (`name`, `type`, `description`, `is_default`, `header_html`, `footer_html`, `body_css`) VALUES
+('Bulletin standard', 'bulletin', 'Template par défaut pour les bulletins scolaires', 1,
+ '<div style="text-align:center;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:15px"><h2 style="margin:0">{{etablissement_nom}}</h2><p style="margin:2px 0;font-size:11px">{{etablissement_adresse}} {{etablissement_cp}} {{etablissement_ville}}</p><p style="margin:2px 0;font-size:11px">Tél: {{etablissement_tel}} — {{etablissement_email}}</p></div>',
+ '<div style="text-align:center;border-top:1px solid #ccc;padding-top:8px;font-size:9px;color:#666">{{etablissement_nom}} — Bulletin généré le {{date}} — Page {{page}}/{{pages}}</div>',
+ 'body{font-family:Arial,sans-serif;font-size:12px;color:#333} table{width:100%;border-collapse:collapse;margin:10px 0} th,td{border:1px solid #ddd;padding:6px 8px;text-align:left} th{background:#f5f5f5;font-weight:bold} .moyenne{font-weight:bold;color:#2563eb}'),
+('Convocation standard', 'convocation', 'Template pour les convocations aux réunions et examens', 1,
+ '<div style="text-align:right;margin-bottom:20px"><strong>{{etablissement_nom}}</strong><br>{{etablissement_adresse}}<br>{{etablissement_cp}} {{etablissement_ville}}</div>',
+ '<div style="text-align:center;font-size:9px;color:#666;border-top:1px solid #ccc;padding-top:8px">Document officiel — {{etablissement_nom}} — {{date}}</div>',
+ 'body{font-family:Arial,sans-serif;font-size:12px;color:#333;line-height:1.6}'),
+('Attestation standard', 'attestation', 'Template pour les attestations et certificats', 1,
+ '<div style="text-align:center;margin-bottom:30px"><h1 style="margin:0;color:#1a365d">{{etablissement_nom}}</h1><p style="color:#666">Académie de {{etablissement_academie}}</p></div>',
+ '<div style="text-align:center;font-size:9px;color:#666;margin-top:30px">{{etablissement_nom}} — {{etablissement_adresse}} {{etablissement_cp}} {{etablissement_ville}}</div>',
+ 'body{font-family:Georgia,serif;font-size:13px;color:#333;line-height:1.8}'),
+('Export générique', 'generic', 'Template générique pour les exports de données (listes, tableaux)', 1,
+ '<div style="border-bottom:1px solid #333;padding-bottom:8px;margin-bottom:15px"><strong>{{etablissement_nom}}</strong> — {{title}}</div>',
+ '<div style="text-align:right;font-size:9px;color:#999;border-top:1px solid #eee;padding-top:5px">Généré le {{date}} — Page {{page}}/{{pages}}</div>',
+ 'body{font-family:Arial,sans-serif;font-size:11px;color:#333} table{width:100%;border-collapse:collapse} th,td{border:1px solid #ddd;padding:4px 6px} th{background:#f0f0f0;font-size:10px}');
+
+-- ============================================================
 -- DONNÉES PAR DÉFAUT
 -- ============================================================
 
@@ -2158,6 +2309,285 @@ INSERT INTO `faq_articles` (`question`, `reponse`, `categorie`, `ordre`) VALUES
 ('Comment rendre un devoir en ligne ?', 'Allez dans "Devoirs en ligne", trouvez le devoir concerné et cliquez sur "Rendre". Vous pouvez déposer un fichier ou saisir du texte.', 'devoirs', 6),
 ('Comment consulter le bulletin ?', 'Les bulletins sont accessibles dans la section "Bulletins" une fois publiés par l''administration à la fin de chaque période.', 'bulletins', 7),
 ('Que faire si je ne peux pas me connecter ?', 'Vérifiez votre identifiant et mot de passe. Si le problème persiste, utilisez "Mot de passe oublié" ou contactez l''administration.', 'compte', 8);
+
+-- ============================================================
+-- MODULE CANTINE (M18) — Restauration scolaire dédiée
+-- ============================================================
+
+CREATE TABLE `cantine_reservations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `eleve_id` int(11) NOT NULL,
+  `date_repas` date NOT NULL,
+  `type_repas` enum('dejeuner','gouter') NOT NULL DEFAULT 'dejeuner',
+  `regime` varchar(50) DEFAULT NULL COMMENT 'normal, végétarien, sans porc, sans gluten, halal',
+  `allergenes_declares` text DEFAULT NULL,
+  `statut` enum('reserve','annule','consomme') NOT NULL DEFAULT 'reserve',
+  `reserve_par` varchar(50) DEFAULT NULL COMMENT 'eleve, parent, admin',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_eleve_date_type` (`eleve_id`, `date_repas`, `type_repas`),
+  KEY `idx_date` (`date_repas`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `cantine_pointage` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `reservation_id` int(11) NOT NULL,
+  `heure_passage` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `pointe_par` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_reservation` (`reservation_id`),
+  CONSTRAINT `fk_cantpoint_reserv` FOREIGN KEY (`reservation_id`) REFERENCES `cantine_reservations` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `cantine_tarifs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tranche` varchar(100) NOT NULL COMMENT 'Tranche QF ou catégorie',
+  `tarif_repas` decimal(6,2) NOT NULL,
+  `type_repas` enum('dejeuner','gouter') NOT NULL DEFAULT 'dejeuner',
+  `annee_scolaire` varchar(9) NOT NULL,
+  `actif` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- MODULE INTERNAT (M19)
+-- ============================================================
+
+CREATE TABLE `internat_reglement` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `eleve_id` int(11) NOT NULL,
+  `chambre_id` int(11) NOT NULL,
+  `type` enum('entree','sortie','absence','retard') NOT NULL,
+  `date_heure` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `motif` varchar(255) DEFAULT NULL,
+  `signale_par` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_eleve` (`eleve_id`),
+  KEY `idx_chambre` (`chambre_id`),
+  CONSTRAINT `fk_intreg_chambre` FOREIGN KEY (`chambre_id`) REFERENCES `internat_chambres` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `internat_incidents` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `chambre_id` int(11) DEFAULT NULL,
+  `eleve_id` int(11) DEFAULT NULL,
+  `type` enum('bruit','degradation','absence','conflit','autre') NOT NULL DEFAULT 'autre',
+  `description` text NOT NULL,
+  `gravite` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=mineur, 2=moyen, 3=grave',
+  `date_incident` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `traite` tinyint(1) NOT NULL DEFAULT 0,
+  `traite_par` int(11) DEFAULT NULL,
+  `suite_donnee` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_chambre` (`chambre_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- MODULE GARDERIE (M20)
+-- ============================================================
+
+CREATE TABLE `garderie_creneaux` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `nom` varchar(100) NOT NULL COMMENT 'Ex: Garderie matin, Garderie soir, Étude surveillée',
+  `type` enum('matin','soir','mercredi','vacances') NOT NULL,
+  `heure_debut` time NOT NULL,
+  `heure_fin` time NOT NULL,
+  `places_max` int(11) DEFAULT NULL,
+  `tarif` decimal(6,2) DEFAULT NULL,
+  `actif` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `garderie_inscriptions` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `creneau_id` int(11) NOT NULL,
+  `eleve_id` int(11) NOT NULL,
+  `jour` enum('lundi','mardi','mercredi','jeudi','vendredi') NOT NULL,
+  `date_debut` date NOT NULL,
+  `date_fin` date DEFAULT NULL,
+  `inscrit_par` varchar(50) DEFAULT NULL COMMENT 'parent, admin',
+  `statut` enum('actif','annule') NOT NULL DEFAULT 'actif',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_creneau_eleve_jour` (`creneau_id`, `eleve_id`, `jour`),
+  CONSTRAINT `fk_gardeinsc_creneau` FOREIGN KEY (`creneau_id`) REFERENCES `garderie_creneaux` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `garderie_presences` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `inscription_id` int(11) NOT NULL,
+  `date_presence` date NOT NULL,
+  `heure_arrivee` time DEFAULT NULL,
+  `heure_depart` time DEFAULT NULL,
+  `present` tinyint(1) NOT NULL DEFAULT 1,
+  `remarques` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_insc_date` (`inscription_id`, `date_presence`),
+  CONSTRAINT `fk_gardepres_insc` FOREIGN KEY (`inscription_id`) REFERENCES `garderie_inscriptions` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- MODULE PROJETS PÉDAGOGIQUES (M41)
+-- ============================================================
+
+CREATE TABLE `projets_pedagogiques` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `titre` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `objectifs` text DEFAULT NULL,
+  `type` enum('EPI','projet_classe','sortie','voyage','autre') NOT NULL DEFAULT 'projet_classe',
+  `responsable_id` int(11) NOT NULL COMMENT 'professeur responsable',
+  `classes` varchar(500) DEFAULT NULL COMMENT 'classes concernées, CSV',
+  `matieres` varchar(500) DEFAULT NULL COMMENT 'matières impliquées, CSV',
+  `date_debut` date NOT NULL,
+  `date_fin` date DEFAULT NULL,
+  `budget` decimal(10,2) DEFAULT NULL,
+  `statut` enum('brouillon','soumis','valide','en_cours','termine','annule') NOT NULL DEFAULT 'brouillon',
+  `pieces_jointes` text DEFAULT NULL COMMENT 'JSON array de fichiers',
+  `bilan` text DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_responsable` (`responsable_id`),
+  KEY `idx_statut` (`statut`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `projets_pedagogiques_participants` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `projet_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `user_type` enum('professeur','eleve') NOT NULL,
+  `role_projet` varchar(100) DEFAULT NULL COMMENT 'Ex: co-responsable, participant',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_projet_user` (`projet_id`, `user_id`, `user_type`),
+  CONSTRAINT `fk_projpart_projet` FOREIGN KEY (`projet_id`) REFERENCES `projets_pedagogiques` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `projets_pedagogiques_etapes` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `projet_id` int(11) NOT NULL,
+  `titre` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `date_echeance` date DEFAULT NULL,
+  `statut` enum('a_faire','en_cours','termine') NOT NULL DEFAULT 'a_faire',
+  `ordre` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_projetape_projet` FOREIGN KEY (`projet_id`) REFERENCES `projets_pedagogiques` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- MODULE PARCOURS ÉDUCATIFS (M42)
+-- ============================================================
+
+CREATE TABLE `parcours_educatifs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `eleve_id` int(11) NOT NULL,
+  `type_parcours` enum('avenir','sante','citoyen','PEAC') NOT NULL,
+  `titre` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `date_activite` date NOT NULL,
+  `competences_visees` text DEFAULT NULL,
+  `validation` enum('non_valide','en_cours','valide') NOT NULL DEFAULT 'non_valide',
+  `valide_par` int(11) DEFAULT NULL,
+  `pieces_jointes` text DEFAULT NULL COMMENT 'JSON array de fichiers',
+  `annee_scolaire` varchar(9) NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_eleve` (`eleve_id`),
+  KEY `idx_type` (`type_parcours`),
+  KEY `idx_annee` (`annee_scolaire`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `parcours_educatifs_modeles` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `type_parcours` enum('avenir','sante','citoyen','PEAC') NOT NULL,
+  `titre` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `niveau` varchar(50) DEFAULT NULL COMMENT 'niveau scolaire cible',
+  `competences` text DEFAULT NULL,
+  `actif` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- MODULE VIE ASSOCIATIVE / MDL (M43)
+-- ============================================================
+
+CREATE TABLE `associations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `nom` varchar(255) NOT NULL,
+  `type` enum('MDL','FSE','association','autre') NOT NULL DEFAULT 'MDL',
+  `description` text DEFAULT NULL,
+  `president_eleve_id` int(11) DEFAULT NULL,
+  `referent_adulte_id` int(11) DEFAULT NULL,
+  `budget_annuel` decimal(10,2) DEFAULT NULL,
+  `statut` enum('active','inactive','en_creation') NOT NULL DEFAULT 'active',
+  `logo_path` varchar(500) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `association_membres` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `association_id` int(11) NOT NULL,
+  `eleve_id` int(11) NOT NULL,
+  `role_membre` enum('president','vice_president','tresorier','secretaire','membre') NOT NULL DEFAULT 'membre',
+  `date_adhesion` date NOT NULL,
+  `cotisation_payee` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_asso_eleve` (`association_id`, `eleve_id`),
+  CONSTRAINT `fk_assomembre_asso` FOREIGN KEY (`association_id`) REFERENCES `associations` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `association_activites` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `association_id` int(11) NOT NULL,
+  `titre` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `date_activite` datetime NOT NULL,
+  `lieu` varchar(255) DEFAULT NULL,
+  `budget_alloue` decimal(10,2) DEFAULT NULL,
+  `budget_depense` decimal(10,2) DEFAULT NULL,
+  `nb_participants` int(11) DEFAULT NULL,
+  `statut` enum('planifie','en_cours','termine','annule') NOT NULL DEFAULT 'planifie',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_assoact_asso` FOREIGN KEY (`association_id`) REFERENCES `associations` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `association_tresorerie` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `association_id` int(11) NOT NULL,
+  `type` enum('recette','depense') NOT NULL,
+  `montant` decimal(10,2) NOT NULL,
+  `libelle` varchar(255) NOT NULL,
+  `categorie` varchar(100) DEFAULT NULL COMMENT 'cotisations, vente, achat, etc.',
+  `date_operation` date NOT NULL,
+  `justificatif_path` varchar(500) DEFAULT NULL,
+  `saisi_par` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_assotres_asso` FOREIGN KEY (`association_id`) REFERENCES `associations` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- AGENDA : champ récurrence (Priorité 3)
+-- ============================================================
+
+ALTER TABLE `evenements` ADD COLUMN `rrule` varchar(500) DEFAULT NULL COMMENT 'RFC5545 RRULE ex: FREQ=WEEKLY;BYDAY=MO,WE;UNTIL=20260630' AFTER `date_fin`;
+ALTER TABLE `evenements` ADD COLUMN `recurrence_parent_id` int(11) DEFAULT NULL COMMENT 'ID événement parent si occurrence' AFTER `rrule`;
+
+-- ============================================================
+-- 6 nouveaux modules dans modules_config
+-- ============================================================
+
+INSERT INTO `modules_config` (`module_key`, `label`, `description`, `icon`, `category`, `enabled`, `sort_order`, `is_core`) VALUES
+('cantine',              'Cantine',               'Restauration scolaire : menus, réservations, pointage',     'fas fa-utensils',           'logistique', 1, 56, 0),
+('internat',             'Internat',              'Gestion de l''internat : chambres, affectations, vie',      'fas fa-bed',                'logistique', 1, 57, 0),
+('garderie',             'Garderie',              'Accueil périscolaire : matin, soir, mercredi',              'fas fa-child',              'logistique', 1, 58, 0),
+('projets_pedagogiques', 'Projets pédagogiques',  'EPI, projets de classe, sorties et voyages',                'fas fa-project-diagram',    'scolaire',   1, 18, 0),
+('parcours_educatifs',   'Parcours éducatifs',    'Parcours Avenir, Santé, Citoyen, PEAC',                     'fas fa-route',              'scolaire',   1, 19, 0),
+('vie_associative',      'Vie associative',       'MDL, FSE, associations et trésorerie',                      'fas fa-hands-helping',      'etablissement', 1, 48, 0);
 
 -- ============================================================
 -- VUE UNIFIÉE DES UTILISATEURS

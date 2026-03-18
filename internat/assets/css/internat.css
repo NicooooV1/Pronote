@@ -1,0 +1,16 @@
+/* M19 — Internat */
+.chambres-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-top: 20px; }
+.chambre-card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.chambre-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.chambre-numero { font-size: 18px; font-weight: 700; color: #1e293b; }
+.chambre-info { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-size: 13px; color: #64748b; }
+.chambre-info span { display: flex; align-items: center; gap: 6px; }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; margin: 20px 0; }
+.stat-card { background: #fff; border-radius: 10px; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.stat-card .stat-value { font-size: 28px; font-weight: 700; color: #1e293b; }
+.stat-card .stat-label { font-size: 12px; color: #64748b; margin-top: 4px; }
+.stat-card.stat-success .stat-value { color: #10b981; }
+.stat-card.stat-info .stat-value { color: #3b82f6; }
+.form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.form-row .form-group { flex: 1; min-width: 150px; }
+.inline-form { display: inline-flex; gap: 8px; align-items: center; }

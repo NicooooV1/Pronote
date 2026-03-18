@@ -89,6 +89,44 @@ class UserProvider
     }
 
     /**
+     * Recherche un utilisateur dans TOUTES les tables par login/email.
+     * Retourne un tableau de candidats (peut en avoir plusieurs si même identifiant dans tables différentes).
+     * Chaque entrée contient mot_de_passe pour validation.
+     */
+    public function findByLoginAllTypes(string $login): array
+    {
+        $types = [
+            'administrateur' => 'administrateurs',
+            'vie_scolaire'   => 'vie_scolaire',
+            'professeur'     => 'professeurs',
+            'eleve'          => 'eleves',
+            'parent'         => 'parents',
+        ];
+
+        $found = [];
+        foreach ($types as $type => $table) {
+            try {
+                $stmt = $this->pdo->prepare("
+                    SELECT id, nom, prenom, mail AS email, mot_de_passe, identifiant
+                    FROM `{$table}`
+                    WHERE mail = ? OR identifiant = ?
+                    LIMIT 1
+                ");
+                $stmt->execute([$login, $login]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($user) {
+                    $user['type'] = $type;
+                    $found[] = $user;
+                }
+            } catch (\PDOException $e) {
+                continue;
+            }
+        }
+
+        return $found;
+    }
+
+    /**
      * Retourne la table correspondant au type d'utilisateur
      */
     protected function getTableForUserType($userType)

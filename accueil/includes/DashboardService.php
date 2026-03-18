@@ -324,9 +324,9 @@ class DashboardService
     /**
      * Retourne la liste des widgets à afficher pour un rôle.
      */
-    public function getWidgetsForRole(string $role): array
+    public function getWidgetsForRole(string $role, ?array $userPrefs = null): array
     {
-        return match ($role) {
+        $defaults = match ($role) {
             'eleve'         => ['evenements', 'devoirs', 'notes'],
             'parent'        => ['enfants', 'evenements', 'devoirs'],
             'professeur'    => ['notes', 'devoirs', 'evenements'],
@@ -334,6 +334,13 @@ class DashboardService
             'administrateur'=> ['evenements', 'devoirs', 'notes'],
             default         => ['evenements', 'devoirs', 'notes'],
         };
+
+        // If user has custom prefs, intersect with role defaults
+        if (is_array($userPrefs) && !empty($userPrefs)) {
+            return array_values(array_intersect($userPrefs, $defaults));
+        }
+
+        return $defaults;
     }
 
     // ─── Modules par rôle (FEAT-3 + UX-1) ───────────────────────────

@@ -79,8 +79,10 @@ if (!function_exists('csrf_validate')) {
             return false;
         }
 
-        // 1) Vérification session-unique (implémentation messagerie)
+        // 1) Vérification session-unique (implémentation messagerie) — rotation après usage
         if (!empty($_SESSION['_csrf_token']) && hash_equals($_SESSION['_csrf_token'], $token)) {
+            // Rotation immédiate : invalide le token usagé et en génère un nouveau
+            $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
             return true;
         }
 

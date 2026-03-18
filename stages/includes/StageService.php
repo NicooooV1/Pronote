@@ -127,4 +127,24 @@ class StageService
         $m = ['en_recherche' => 'warning', 'convention_envoyee' => 'info', 'en_cours' => 'success', 'termine' => 'secondary', 'annule' => 'danger'];
         return '<span class="badge badge-' . ($m[$s] ?? 'secondary') . '">' . ucfirst(str_replace('_', ' ', $s)) . '</span>';
     }
+
+    /* ───── EXPORT ───── */
+
+    public function getStagesForExport(array $filters = []): array
+    {
+        $stages = $this->getStages($filters);
+        $types = self::typesStage();
+        $statuts = self::statutsStage();
+        return array_map(fn($s) => [
+            $s['eleve_nom'],
+            $s['classe_nom'] ?? '-',
+            $types[$s['type']] ?? $s['type'],
+            $s['entreprise_nom'] ?? '-',
+            $s['tuteur_nom'] ?? '-',
+            $s['prof_nom'] ?? '-',
+            $s['date_debut'],
+            $s['date_fin'],
+            $statuts[$s['statut']] ?? $s['statut'],
+        ], $stages);
+    }
 }

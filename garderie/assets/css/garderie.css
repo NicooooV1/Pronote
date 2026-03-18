@@ -1,0 +1,19 @@
+/* M20 — Garderie */
+.creneaux-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-top: 20px; }
+.creneau-card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.creneau-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.creneau-header h3 { margin: 0; font-size: 15px; color: #1e293b; }
+.creneau-info { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-size: 13px; color: #64748b; }
+.creneau-info span { display: flex; align-items: center; gap: 6px; }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; margin: 20px 0; }
+.stat-card { background: #fff; border-radius: 10px; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.stat-card .stat-value { font-size: 28px; font-weight: 700; color: #1e293b; }
+.stat-card .stat-label { font-size: 12px; color: #64748b; margin-top: 4px; }
+.stat-card.stat-info .stat-value { color: #3b82f6; }
+.stat-card.stat-success .stat-value { color: #10b981; }
+.checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0; }
+.checkbox-label { display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: #f8fafc; border-radius: 8px; cursor: pointer; }
+.form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.form-row .form-group { flex: 1; min-width: 150px; }
+.filter-form { margin-bottom: 20px; }
+.inline-form { display: inline-flex; gap: 8px; align-items: center; }

@@ -126,4 +126,32 @@ class TransportInternatService
     {
         return ['simple' => 'Simple', 'double' => 'Double', 'triple' => 'Triple', 'dortoir' => 'Dortoir'];
     }
+
+    /* ───── EXPORT ───── */
+
+    public function getLignesForExport(?string $type = null): array
+    {
+        $lignes = $this->getLignes($type);
+        $types = self::typesTransport();
+        return array_map(fn($l) => [
+            $l['nom'],
+            $types[$l['type']] ?? $l['type'],
+            $l['itineraire'] ?? '-',
+            $l['horaires'] ?? '-',
+            $l['capacite'] ?? '-',
+            $l['nb_inscrits'] ?? 0,
+        ], $lignes);
+    }
+
+    public function getInscritsForExport(int $ligneId): array
+    {
+        $inscrits = $this->getInscritsLigne($ligneId);
+        $ligne = $this->getLigne($ligneId);
+        return array_map(fn($i) => [
+            $ligne['nom'] ?? '',
+            $i['eleve_nom'],
+            $i['classe_nom'] ?? '-',
+            $i['arret'] ?? '-',
+        ], $inscrits);
+    }
 }

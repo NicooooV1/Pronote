@@ -151,7 +151,28 @@ if (!$selectedPeriode && !empty($periodes)) {
     <?php
     $classes = $service->getClasses();
     $filterClasse = (int)($_GET['classe'] ?? ($classes[0]['id'] ?? 0));
-    $bulletins = $filterClasse ? $service->getBulletinsClasse($filterClasse, $selectedPeriode) : [];
+
+    // DataTable paginé pour la vue admin
+    $dt = new \API\Core\DataTable($pdo, 'bulletins');
+    $dt->setSelect('bulletins.*, e.nom AS eleve_nom, e.prenom AS eleve_prenom');
+    $dt->setColumns(['statut', 'avis_conseil']);
+    $dt->setSearchable(['e.nom', 'e.prenom']);
+    $dt->setSortable(['eleve_nom', 'moyenne_generale', 'rang', 'nb_absences', 'statut']);
+    $dt->setJoins('JOIN eleves e ON bulletins.eleve_id = e.id');
+    if ($filterClasse) {
+        $dt->addWhere('bulletins.classe_id = ?', [$filterClasse]);
+    }
+    if ($selectedPeriode) {
+        $dt->addWhere('bulletins.periode_id = ?', [$selectedPeriode]);
+    }
+    // Filtre statut optionnel
+    $filterStatut = $_GET['statut'] ?? '';
+    if ($filterStatut && in_array($filterStatut, ['brouillon', 'valide', 'publie'])) {
+        $dt->addWhere('bulletins.statut = ?', [$filterStatut]);
+    }
+    $dt->setDefaultPerPage(30);
+    $dtResult = $dt->fetch($_GET);
+    $bulletins = $dtResult['data'];
     $stats = $filterClasse ? $service->getStatsClasse($filterClasse, $selectedPeriode) : [];
     ?>
     <div class="filter-bar">
@@ -159,6 +180,12 @@ if (!$selectedPeriode && !empty($periodes)) {
             <?php foreach ($classes as $c): ?>
                 <option value="<?= $c['id'] ?>" <?= $filterClasse == $c['id'] ? 'selected' : '' ?>><?= htmlspecialchars($c['nom']) ?></option>
             <?php endforeach; ?>
+        </select>
+        <select onchange="window.location='?periode=<?= $selectedPeriode ?>&classe=<?= $filterClasse ?>&statut='+this.value" class="form-select" style="width:auto;">
+            <option value="">Tous statuts</option>
+            <option value="brouillon" <?= $filterStatut === 'brouillon' ? 'selected' : '' ?>>Brouillons</option>
+            <option value="valide" <?= $filterStatut === 'valide' ? 'selected' : '' ?>>Validés</option>
+            <option value="publie" <?= $filterStatut === 'publie' ? 'selected' : '' ?>>Publiés</option>
         </select>
         <?php if (isAdmin() || isVieScolaire()): ?>
         <a href="generer.php?classe=<?= $filterClasse ?>&periode=<?= $selectedPeriode ?>" class="btn btn-primary"><i class="fas fa-sync"></i> Générer</a>
@@ -175,15 +202,19 @@ if (!$selectedPeriode && !empty($periodes)) {
     <?php endif; ?>
 
     <div class="data-table-container">
+        <div class="dt-toolbar">
+            <?= \API\Core\DataTable::renderSearchBar($dtResult, 'Rechercher un élève…') ?>
+            <?= \API\Core\DataTable::renderPerPageSelector($dtResult, [20, 30, 50]) ?>
+        </div>
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Élève</th>
-                    <th class="text-center">Moyenne</th>
-                    <th class="text-center">Rang</th>
-                    <th class="text-center">Absences</th>
+                    <th><?= \API\Core\DataTable::renderSortHeader('Élève', 'eleve_nom', $dtResult) ?></th>
+                    <th class="text-center"><?= \API\Core\DataTable::renderSortHeader('Moyenne', 'moyenne_generale', $dtResult) ?></th>
+                    <th class="text-center"><?= \API\Core\DataTable::renderSortHeader('Rang', 'rang', $dtResult) ?></th>
+                    <th class="text-center"><?= \API\Core\DataTable::renderSortHeader('Absences', 'nb_absences', $dtResult) ?></th>
                     <th class="text-center">Avis</th>
-                    <th class="text-center">Statut</th>
+                    <th class="text-center"><?= \API\Core\DataTable::renderSortHeader('Statut', 'statut', $dtResult) ?></th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -208,6 +239,7 @@ if (!$selectedPeriode && !empty($periodes)) {
                 <?php endif; ?>
             </tbody>
         </table>
+        <?= \API\Core\DataTable::renderPagination($dtResult) ?>
     </div>
 <?php endif; ?>
 

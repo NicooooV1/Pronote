@@ -143,7 +143,7 @@ include __DIR__ . '/../includes/sub_header.php';
                 <td style="font-size:13px;color:#718096;"><?= !empty($a['last_login']) ? date('d/m/Y H:i', strtotime($a['last_login'])) : '<em>Jamais</em>' ?></td>
                 <td>
                     <div class="actions-cell">
-                        <button class="btn-xs primary" onclick="openEdit(<?= htmlspecialchars(json_encode($a)) ?>)" title="Modifier"><i class="fas fa-edit"></i></button>
+                        <button class="btn-xs primary" onclick='openEdit(<?= json_encode($a, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>)' title="Modifier"><i class="fas fa-edit"></i></button>
                         <button class="btn-xs primary" onclick="openPwd(<?= $a['id'] ?>)" title="Mot de passe"><i class="fas fa-key"></i></button>
                         <form method="post" style="display:inline"><input type="hidden" name="csrf_token" value="<?= $csrf_token ?>"><input type="hidden" name="action" value="toggle_2fa"><input type="hidden" name="admin_id" value="<?= $a['id'] ?>"><button class="btn-xs <?= ($a['two_factor_enabled'] ?? 0) ? 'warning' : 'success' ?>" title="Basculer 2FA"><i class="fas fa-shield-alt"></i></button></form>
                         <?php if (!empty($a['locked_until']) && strtotime($a['locked_until']) > time()): ?>

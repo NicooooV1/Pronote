@@ -173,4 +173,36 @@ class ClubService
         ];
         return $map[$cat] ?? 'users';
     }
+
+    /* ───────── EXPORT ───────── */
+
+    public function getClubsForExport(?string $categorie = null): array
+    {
+        $clubs = $this->getClubs($categorie);
+        return array_map(fn($c) => [
+            $c['nom'],
+            self::categories()[$c['categorie']] ?? $c['categorie'],
+            $c['responsable_nom'] ?? '-',
+            $c['horaires'] ?? '-',
+            $c['lieu'] ?? '-',
+            $c['places_max'] ?? 'Illimité',
+            $c['nb_inscrits'],
+            $c['date_debut'] ?? '-',
+            $c['date_fin'] ?? '-',
+        ], $clubs);
+    }
+
+    public function getMembresForExport(int $clubId): array
+    {
+        $membres = $this->getMembres($clubId);
+        $club = $this->getClub($clubId);
+        return array_map(fn($m) => [
+            $club['nom'] ?? '',
+            $m['prenom'],
+            $m['eleve_nom'],
+            $m['classe_nom'] ?? '-',
+            $m['date_inscription'] ?? '-',
+            ucfirst($m['statut']),
+        ], $membres);
+    }
 }

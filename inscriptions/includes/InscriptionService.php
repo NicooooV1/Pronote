@@ -6,6 +6,18 @@ class InscriptionService
 {
     private PDO $pdo;
 
+    /** Transitions de workflow valides */
+    const WORKFLOW_TRANSITIONS = [
+        'brouillon'       => ['soumise'],
+        'soumise'         => ['en_revision', 'acceptee', 'refusee', 'liste_attente'],
+        'en_revision'     => ['soumise', 'acceptee', 'refusee', 'liste_attente', 'documents_requis'],
+        'documents_requis'=> ['en_revision', 'soumise'],
+        'liste_attente'   => ['acceptee', 'refusee'],
+        'acceptee'        => ['annulee'],
+        'refusee'         => ['soumise'],    // Ré-examen possible
+        'annulee'         => [],             // Terminal
+    ];
+
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
@@ -79,18 +91,60 @@ class InscriptionService
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function changerStatut(int $id, string $statut, int $traitePar = null): void
+    /**
+     * Change le statut d'une inscription avec validation du workflow.
+     */
+    public function changerStatut(int $id, string $newStatut, int $traitePar = null, ?string $commentaire = null): void
     {
+        // Récupérer le statut actuel
+        $stmt = $this->pdo->prepare('SELECT statut FROM inscriptions WHERE id = ?');
+        $stmt->execute([$id]);
+        $currentStatut = $stmt->fetchColumn();
+
+        if (!$currentStatut) {
+            throw new \RuntimeException("Inscription introuvable");
+        }
+
+        // Valider la transition
+        $allowed = self::WORKFLOW_TRANSITIONS[$currentStatut] ?? [];
+        if (!in_array($newStatut, $allowed, true)) {
+            throw new \RuntimeException("Transition invalide : {$currentStatut} → {$newStatut}");
+        }
+
         $sql = 'UPDATE inscriptions SET statut = ?, date_traitement = NOW()';
-        $params = [$statut];
+        $params = [$newStatut];
         if ($traitePar) {
             $sql .= ', traite_par = ?';
             $params[] = $traitePar;
+        }
+        if ($commentaire !== null) {
+            // Use workflow_statut + commentaire if columns exist
+            $sql .= ', commentaire_traitement = ?';
+            $params[] = $commentaire;
         }
         $sql .= ' WHERE id = ?';
         $params[] = $id;
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
+
+        // Log audit
+        $this->logAction($id, 'changement_statut', $traitePar, "{$currentStatut} → {$newStatut}" . ($commentaire ? " | {$commentaire}" : ''));
+    }
+
+    /**
+     * Log une action sur une inscription.
+     */
+    private function logAction(int $inscriptionId, string $action, ?int $userId, string $details): void
+    {
+        try {
+            $stmt = $this->pdo->prepare(
+                "INSERT INTO audit_log (action, table_name, record_id, user_id, user_type, details, created_at)
+                 VALUES (?, 'inscriptions', ?, ?, 'administrateur', ?, NOW())"
+            );
+            $stmt->execute([$action, $inscriptionId, $userId, $details]);
+        } catch (\PDOException $e) {
+            error_log("InscriptionService::logAction error: " . $e->getMessage());
+        }
     }
 
     /* ───────── DOCUMENTS ───────── */
@@ -150,13 +204,16 @@ class InscriptionService
     public static function statutBadge(string $statut): string
     {
         $map = [
-            'soumise' => '<span class="badge badge-info">Soumise</span>',
-            'en_revision' => '<span class="badge badge-warning">En révision</span>',
-            'acceptee' => '<span class="badge badge-success">Acceptée</span>',
-            'refusee' => '<span class="badge badge-danger">Refusée</span>',
-            'liste_attente' => '<span class="badge badge-secondary">Liste d\'attente</span>',
+            'brouillon'        => '<span class="badge badge-secondary">Brouillon</span>',
+            'soumise'          => '<span class="badge badge-info">Soumise</span>',
+            'en_revision'      => '<span class="badge badge-warning">En révision</span>',
+            'documents_requis' => '<span class="badge badge-warning">Documents requis</span>',
+            'acceptee'         => '<span class="badge badge-success">Acceptée</span>',
+            'refusee'          => '<span class="badge badge-danger">Refusée</span>',
+            'liste_attente'    => '<span class="badge badge-secondary">Liste d\'attente</span>',
+            'annulee'          => '<span class="badge badge-danger">Annulée</span>',
         ];
-        return $map[$statut] ?? '<span class="badge">' . $statut . '</span>';
+        return $map[$statut] ?? '<span class="badge">' . htmlspecialchars($statut) . '</span>';
     }
 
     public static function typesDocument(): array
@@ -170,6 +227,55 @@ class InscriptionService
             'bulletins' => 'Bulletins scolaires',
             'certificat_medical' => 'Certificat médical',
             'autre' => 'Autre',
+        ];
+    }
+
+    /**
+     * Export des inscriptions pour ExportService.
+     */
+    public function getInscriptionsForExport(array $filters = []): array
+    {
+        $inscriptions = $this->getToutesInscriptions($filters);
+        $result = [];
+        foreach ($inscriptions as $i) {
+            $result[] = [
+                'ID'                => $i['id'],
+                'Nom'               => $i['nom_eleve'],
+                'Prénom'            => $i['prenom_eleve'],
+                'Date naissance'    => $i['date_naissance'] ? date('d/m/Y', strtotime($i['date_naissance'])) : '',
+                'Sexe'              => $i['sexe'] ?? '',
+                'Classe demandée'   => $i['classe_nom'] ?? '',
+                'Statut'            => $i['statut'],
+                'Date soumission'   => $i['date_soumission'] ? date('d/m/Y H:i', strtotime($i['date_soumission'])) : '',
+                'Email contact'     => $i['email_contact'] ?? '',
+                'Téléphone'         => $i['telephone'] ?? '',
+            ];
+        }
+        return $result;
+    }
+
+    /**
+     * Retourne les transitions possibles pour un statut donné.
+     */
+    public static function getTransitionsPossibles(string $statut): array
+    {
+        return self::WORKFLOW_TRANSITIONS[$statut] ?? [];
+    }
+
+    /**
+     * Labels pour les statuts.
+     */
+    public static function statutLabels(): array
+    {
+        return [
+            'brouillon'        => 'Brouillon',
+            'soumise'          => 'Soumise',
+            'en_revision'      => 'En révision',
+            'documents_requis' => 'Documents requis',
+            'acceptee'         => 'Acceptée',
+            'refusee'          => 'Refusée',
+            'liste_attente'    => 'Liste d\'attente',
+            'annulee'          => 'Annulée',
         ];
     }
 }

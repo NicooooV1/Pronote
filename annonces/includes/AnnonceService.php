@@ -17,6 +17,7 @@ class AnnonceService
 
     /**
      * Crée une annonce. Retourne l'ID.
+     * Si publiée immédiatement, déclenche les notifications.
      */
     public function createAnnonce(array $data): int
     {
@@ -40,7 +41,16 @@ class AnnonceService
             $data['date_publication'] ?? date('Y-m-d H:i:s'),
             $data['date_expiration'] ?? null,
         ]);
-        return (int)$this->pdo->lastInsertId();
+        $annonceId = (int)$this->pdo->lastInsertId();
+
+        // Envoyer les notifications si publication immédiate
+        $publie = $data['publie'] ?? 1;
+        $datePub = $data['date_publication'] ?? date('Y-m-d H:i:s');
+        if ($publie && strtotime($datePub) <= time()) {
+            $this->notifyRecipients($annonceId, $data['titre'], $data['type'] ?? 'info');
+        }
+
+        return $annonceId;
     }
 
     /**
@@ -335,5 +345,140 @@ class AnnonceService
             'evenement' => 'badge-event',
             'sondage'   => 'badge-poll',
         ][$type] ?? 'badge-info';
+    }
+
+    // ─── Notifications & Publication programmée ──────────────────
+
+    /**
+     * Publie les annonces programmées dont la date de publication est passée.
+     * À appeler depuis un cron ou dans un hook de page.
+     * @return int nombre d'annonces publiées
+     */
+    public function publishScheduled(): int
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT id, titre, type FROM annonces
+            WHERE publie = 0 AND date_publication <= NOW()
+              AND (date_expiration IS NULL OR date_expiration > NOW())
+              AND notified = 0
+        ");
+        $stmt->execute();
+        $pending = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $count = 0;
+        foreach ($pending as $a) {
+            $this->pdo->prepare("UPDATE annonces SET publie = 1, notified = 1 WHERE id = ?")
+                      ->execute([$a['id']]);
+            $this->notifyRecipients($a['id'], $a['titre'], $a['type']);
+            $count++;
+        }
+        return $count;
+    }
+
+    /**
+     * Envoie les notifications aux destinataires ciblés de l'annonce.
+     */
+    protected function notifyRecipients(int $annonceId, string $titre, string $type): void
+    {
+        if (!function_exists('app')) return;
+
+        try {
+            $notifService = app()->make('API\Services\NotificationService');
+        } catch (\Throwable $e) {
+            error_log("AnnonceService::notifyRecipients — NotificationService unavailable: " . $e->getMessage());
+            return;
+        }
+
+        $annonce = $this->getAnnonce($annonceId);
+        if (!$annonce) return;
+
+        $cibleRoles   = $annonce['cible_roles'] ?? [];
+        $cibleClasses = $annonce['cible_classes'] ?? [];
+
+        // Déterminer les types de tables à notifier
+        $roleTableMap = [
+            'eleve'          => 'eleves',
+            'parent'         => 'parents',
+            'professeur'     => 'professeurs',
+            'vie_scolaire'   => 'vie_scolaire',
+            'administrateur' => 'administrateurs',
+        ];
+
+        $rolesToNotify = !empty($cibleRoles) ? $cibleRoles : array_keys($roleTableMap);
+
+        $priorite = ($type === 'urgent') ? 'haute' : 'normale';
+        $message  = "Nouvelle annonce : " . $titre;
+
+        foreach ($rolesToNotify as $role) {
+            if (!isset($roleTableMap[$role])) continue;
+            $table = $roleTableMap[$role];
+
+            try {
+                $query = "SELECT id FROM `{$table}` WHERE actif = 1";
+                $params = [];
+
+                // Filtrer par classe si ciblage
+                if (!empty($cibleClasses) && in_array($role, ['eleve', 'parent'])) {
+                    // Pour les élèves : filtrer par classe_id
+                    if ($role === 'eleve') {
+                        $placeholders = implode(',', array_fill(0, count($cibleClasses), '?'));
+                        $query = "SELECT id FROM eleves WHERE actif = 1 AND classe IN (
+                            SELECT nom FROM classes WHERE id IN ({$placeholders})
+                        )";
+                        $params = $cibleClasses;
+                    }
+                }
+
+                $stmt = $this->pdo->prepare($query);
+                $stmt->execute($params);
+                $userIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+
+                foreach ($userIds as $uid) {
+                    try {
+                        $notifService->create([
+                            'user_id'   => $uid,
+                            'user_type' => $role,
+                            'type'      => 'annonce',
+                            'titre'     => 'Nouvelle annonce',
+                            'message'   => $message,
+                            'lien'      => "annonces/detail_annonce.php?id={$annonceId}",
+                            'priorite'  => $priorite,
+                        ]);
+                    } catch (\Throwable $e) {
+                        // Skip individual notification failures
+                        continue;
+                    }
+                }
+            } catch (\Throwable $e) {
+                error_log("AnnonceService::notifyRecipients — Error for role {$role}: " . $e->getMessage());
+                continue;
+            }
+        }
+
+        // Marquer comme notifié
+        $this->pdo->prepare("UPDATE annonces SET notified = 1 WHERE id = ?")->execute([$annonceId]);
+    }
+
+    /**
+     * Export des annonces pour ExportService.
+     */
+    public function getAnnoncesForExport(array $filters = []): array
+    {
+        $annonces = $this->getAllAnnonces($filters);
+        $result = [];
+        foreach ($annonces as $a) {
+            $result[] = [
+                'ID'               => $a['id'],
+                'Titre'            => $a['titre'],
+                'Type'             => self::getTypes()[$a['type']] ?? $a['type'],
+                'Publie'           => $a['publie'] ? 'Oui' : 'Non',
+                'Epingle'          => $a['epingle'] ? 'Oui' : 'Non',
+                'Date publication' => $a['date_publication'] ?? '',
+                'Date expiration'  => $a['date_expiration'] ?? '-',
+                'Nb lectures'      => $a['nb_lues'] ?? 0,
+                'Rôles ciblés'     => is_array($a['cible_roles']) ? implode(', ', $a['cible_roles']) : '-',
+            ];
+        }
+        return $result;
     }
 }

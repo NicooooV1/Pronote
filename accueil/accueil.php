@@ -41,7 +41,21 @@ $unreadCount = $dashboard->getUnreadMessageCount($user['id'] ?? 0, $user_role);
 $resume = $dashboard->getResume($user);
 
 // Widgets dynamiques (FEAT-1)
-$widgetList = $dashboard->getWidgetsForRole($user_role);
+// Read user's widget preferences from user_settings
+$_accueilUserPrefs = null;
+try {
+    $stmt = $pdo->prepare("SELECT accueil_config FROM user_settings WHERE user_id = ? AND user_type = ?");
+    $stmt->execute([$user['id'] ?? 0, $user_role]);
+    $_accueilJson = $stmt->fetchColumn();
+    if ($_accueilJson) {
+        $_decoded = json_decode($_accueilJson, true);
+        if (is_array($_decoded)) {
+            $_accueilUserPrefs = $_decoded;
+        }
+    }
+} catch (Exception $e) { /* accueil_config column may not exist yet */ }
+
+$widgetList = $dashboard->getWidgetsForRole($user_role, $_accueilUserPrefs);
 
 $prochains_evenements = $dashboard->getProchainEvenements($user, 3);
 $devoirs_a_faire      = $dashboard->getDevoirsAFaire($user, 3);

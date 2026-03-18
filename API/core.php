@@ -1,104 +1,12 @@
 <?php
 /**
  * Point d'entrée principal de l'API Fronote
+ * Les helpers d'auth/redirect/CSRF sont définis dans API/Legacy/Bridge.php
+ * (chargé automatiquement par bootstrap.php).
  */
 
-// Charger le bootstrap
+// Charger le bootstrap (charge aussi Bridge.php)
 require_once __DIR__ . '/bootstrap.php';
-
-// Démarrer l'application
-$app->boot();
-
-/**
- * Fonction helper pour vérifier si un utilisateur est connecté
- */
-if (!function_exists('isLoggedIn')) {
-    function isLoggedIn() {
-        return app('auth')->check();
-    }
-}
-
-/**
- * Fonction helper pour récupérer l'utilisateur actuel
- */
-if (!function_exists('getCurrentUser')) {
-    function getCurrentUser() {
-        return app('auth')->user();
-    }
-}
-
-/**
- * Fonction helper pour vérifier l'authentification
- */
-if (!function_exists('requireAuth')) {
-    function requireAuth() {
-        $user = getCurrentUser();
-        
-        if (!$user) {
-            redirect('login/index.php');
-        }
-        
-        return $user;
-    }
-}
-
-/**
- * Fonction helper pour vérifier un rôle spécifique
- */
-if (!function_exists('requireRole')) {
-    function requireRole($role) {
-        $user = requireAuth();
-        
-        if ($user['type'] !== $role) {
-            http_response_code(403);
-            die("Accès refusé. Vous n'avez pas les permissions nécessaires.");
-        }
-        
-        return $user;
-    }
-}
-
-/**
- * Fonction helper pour rediriger
- * Calcule la base de l'URL à partir du chemin physique du projet (fiable).
- */
-if (!function_exists('redirect')) {
-    function redirect($path) {
-        $path = ltrim($path, '/');
-
-        // 1) Si APP_URL est configurée, l'utiliser directement
-        $appUrl = env('APP_URL', '');
-        if (!empty($appUrl) && strpos($appUrl, 'http') === 0) {
-            $fullUrl = rtrim($appUrl, '/') . '/' . $path;
-            header('Location: ' . $fullUrl);
-            exit;
-        }
-
-        // 2) Détection automatique fiable :
-        //    On compare le DOCUMENT_ROOT au répertoire racine du projet (parent de API/)
-        //    pour extraire le chemin relatif qui sert de base URL.
-        $protocol   = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $host       = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $docRoot    = realpath($_SERVER['DOCUMENT_ROOT'] ?? '/');
-        $projectDir = realpath(__DIR__ . '/..');            // API/core.php → parent = racine projet
-
-        // Normaliser les séparateurs (Windows vs Linux)
-        $docRoot    = str_replace('\\', '/', $docRoot);
-        $projectDir = str_replace('\\', '/', $projectDir);
-
-        // Extraire le chemin relatif du projet par rapport au docroot
-        $basePath = '';
-        if ($docRoot && $projectDir && strpos($projectDir, $docRoot) === 0) {
-            $basePath = substr($projectDir, strlen($docRoot));
-        }
-        $basePath = rtrim($basePath, '/');
-
-        $fullUrl = $protocol . '://' . $host . $basePath . '/' . $path;
-
-        header('Location: ' . $fullUrl);
-        exit;
-    }
-}
 
 /**
  * Fonction helper pour authentifier un utilisateur
@@ -274,14 +182,7 @@ if (!function_exists('getDatabaseConnection')) {
     }
 }
 
-/**
- * Fonction helper pour logger des erreurs
- */
-if (!function_exists('logError')) {
-    function logError($message, $context = []) {
-        error_log($message . (!empty($context) ? ' ' . json_encode($context) : ''));
-    }
-}
+// logError() est défini dans Bridge.php
 
 /**
  * Fonction helper pour valider des données

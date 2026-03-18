@@ -114,6 +114,7 @@ function getAdminBreadcrumb($currentPage, $pageTitle = '') {
         'admins'           => ['label' => 'Administrateurs',           'parent' => 'Utilisateurs'],
         'passwords'        => ['label' => 'Mots de passe',            'parent' => 'Utilisateurs'],
         'sessions'         => ['label' => 'Sessions actives',         'parent' => 'Utilisateurs'],
+        'users_import'     => ['label' => 'Import CSV',               'parent' => 'Utilisateurs'],
         'notes'            => ['label' => 'Notes & Évaluations',      'parent' => 'Vie scolaire'],
         'absences'         => ['label' => 'Absences & Retards',       'parent' => 'Vie scolaire'],
         'justificatifs'    => ['label' => 'Justificatifs',            'parent' => 'Vie scolaire'],
@@ -129,6 +130,7 @@ function getAdminBreadcrumb($currentPage, $pageTitle = '') {
         'etab_evenements'  => ['label' => 'Événements',              'parent' => 'Établissement'],
         'audit'            => ['label' => 'Journal d\'audit',        'parent' => 'Système'],
         'stats'            => ['label' => 'Statistiques',            'parent' => 'Système'],
+        'modules'          => ['label' => 'Gestion des modules',     'parent' => 'Système'],
     ];
     return $sections[$currentPage] ?? ['label' => $pageTitle, 'parent' => null];
 }

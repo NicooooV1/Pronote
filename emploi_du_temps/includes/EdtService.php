@@ -292,6 +292,98 @@ class EdtService
         return $conflits;
     }
 
+    /**
+     * Analyse globale de tous les conflits dans l'emploi du temps.
+     * Retourne les paires de cours en conflit.
+     */
+    public function scanAllConflits(): array
+    {
+        $conflits = [];
+
+        // Conflits professeur : même professeur, même jour, même créneau
+        $sql = "SELECT e1.id AS cours1_id, e2.id AS cours2_id,
+                       e1.jour, c.label AS creneau,
+                       CONCAT(p.prenom, ' ', p.nom) AS professeur,
+                       cl1.nom AS classe1, cl2.nom AS classe2,
+                       m1.nom AS matiere1, m2.nom AS matiere2
+                FROM emploi_du_temps e1
+                JOIN emploi_du_temps e2 ON e1.professeur_id = e2.professeur_id
+                    AND e1.jour = e2.jour AND e1.creneau_id = e2.creneau_id
+                    AND e1.id < e2.id AND e2.actif = 1
+                JOIN professeurs p ON e1.professeur_id = p.id
+                JOIN classes cl1 ON e1.classe_id = cl1.id
+                JOIN classes cl2 ON e2.classe_id = cl2.id
+                JOIN matieres m1 ON e1.matiere_id = m1.id
+                JOIN matieres m2 ON e2.matiere_id = m2.id
+                JOIN creneaux_horaires c ON e1.creneau_id = c.id
+                WHERE e1.actif = 1";
+        foreach ($this->pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $row['type'] = 'professeur';
+            $row['description'] = "{$row['professeur']} : {$row['classe1']} ({$row['matiere1']}) vs {$row['classe2']} ({$row['matiere2']}) — {$row['jour']} {$row['creneau']}";
+            $conflits[] = $row;
+        }
+
+        // Conflits salle : même salle, même jour, même créneau
+        $sql = "SELECT e1.id AS cours1_id, e2.id AS cours2_id,
+                       e1.jour, c.label AS creneau,
+                       s.nom AS salle,
+                       cl1.nom AS classe1, cl2.nom AS classe2,
+                       m1.nom AS matiere1, m2.nom AS matiere2
+                FROM emploi_du_temps e1
+                JOIN emploi_du_temps e2 ON e1.salle_id = e2.salle_id
+                    AND e1.jour = e2.jour AND e1.creneau_id = e2.creneau_id
+                    AND e1.id < e2.id AND e2.actif = 1
+                JOIN salles s ON e1.salle_id = s.id
+                JOIN classes cl1 ON e1.classe_id = cl1.id
+                JOIN classes cl2 ON e2.classe_id = cl2.id
+                JOIN matieres m1 ON e1.matiere_id = m1.id
+                JOIN matieres m2 ON e2.matiere_id = m2.id
+                JOIN creneaux_horaires c ON e1.creneau_id = c.id
+                WHERE e1.actif = 1 AND e1.salle_id IS NOT NULL";
+        foreach ($this->pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $row['type'] = 'salle';
+            $row['description'] = "Salle {$row['salle']} : {$row['classe1']} ({$row['matiere1']}) vs {$row['classe2']} ({$row['matiere2']}) — {$row['jour']} {$row['creneau']}";
+            $conflits[] = $row;
+        }
+
+        return $conflits;
+    }
+
+    /**
+     * Retourne le nombre de conflits actifs.
+     */
+    public function countConflits(): int
+    {
+        return count($this->scanAllConflits());
+    }
+
+    /**
+     * Export de l'EDT d'une classe pour ExportService.
+     */
+    public function getEdtForExport(int $classeId): array
+    {
+        $cours = $this->getEdtClasse($classeId);
+        $jours = ['lundi' => 1, 'mardi' => 2, 'mercredi' => 3, 'jeudi' => 4, 'vendredi' => 5, 'samedi' => 6];
+        
+        usort($cours, function($a, $b) use ($jours) {
+            $dj = ($jours[$a['jour']] ?? 9) - ($jours[$b['jour']] ?? 9);
+            return $dj !== 0 ? $dj : strcmp($a['creneau_heure_debut'] ?? '', $b['creneau_heure_debut'] ?? '');
+        });
+
+        $result = [];
+        foreach ($cours as $c) {
+            $result[] = [
+                'Jour'       => ucfirst($c['jour']),
+                'Créneau'    => $c['creneau_label'] ?? ($c['creneau_heure_debut'] . '-' . $c['creneau_heure_fin']),
+                'Matière'    => $c['matiere_nom'],
+                'Professeur' => $c['professeur_nom'],
+                'Salle'      => $c['salle_nom'] ?? '-',
+                'Type'       => ucfirst($c['type_cours'] ?? 'cours'),
+            ];
+        }
+        return $result;
+    }
+
     // ─── Modifications ponctuelles ───────────────────────────────
 
     /**

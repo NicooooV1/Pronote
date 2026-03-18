@@ -1,0 +1,29 @@
+/* ===== Projets Pédagogiques (M41) ===== */
+.projets-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.2rem}
+.projet-card{background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;padding:1.2rem;display:flex;flex-direction:column;transition:box-shadow .2s}
+.projet-card:hover{box-shadow:0 4px 15px rgba(0,0,0,.08)}
+.projet-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem}
+.projet-titre{font-size:1.05rem;margin-bottom:.3rem}
+.badge-type-EPI{background:#6366f1;color:#fff;padding:2px 8px;border-radius:4px;font-size:.75rem}
+.badge-type-projet_classe{background:#0ea5e9;color:#fff;padding:2px 8px;border-radius:4px;font-size:.75rem}
+.badge-type-sortie{background:#f59e0b;color:#fff;padding:2px 8px;border-radius:4px;font-size:.75rem}
+.badge-type-voyage{background:#10b981;color:#fff;padding:2px 8px;border-radius:4px;font-size:.75rem}
+.badge-type-autre{background:#6b7280;color:#fff;padding:2px 8px;border-radius:4px;font-size:.75rem}
+.stat-card{text-align:center;padding:1.2rem;border-radius:.75rem}
+.stat-card .stat-value{font-size:1.8rem;font-weight:700}
+.stat-card .stat-label{font-size:.85rem;color:#64748b}
+.bg-primary-light{background:#eff6ff}
+.bg-warning-light{background:#fffbeb}
+.bg-success-light{background:#f0fdf4}
+.etapes-timeline{position:relative;padding-left:1.5rem;border-left:3px solid #e2e8f0}
+.etape-item{position:relative;padding:.8rem 1rem;margin-bottom:.5rem;border-radius:.5rem;background:#f8fafc}
+.etape-item::before{content:'';position:absolute;left:-1.75rem;top:1rem;width:12px;height:12px;border-radius:50%;border:2px solid #cbd5e1;background:#fff}
+.etape-a_faire::before{border-color:#94a3b8}
+.etape-en_cours::before{border-color:#f59e0b;background:#fef3c7}
+.etape-termine::before{border-color:#10b981;background:#d1fae5}
+.badge-secondary{background:#94a3b8;color:#fff;padding:2px 8px;border-radius:.25rem;font-size:.75rem}
+.badge-info{background:#38bdf8;color:#fff;padding:2px 8px;border-radius:.25rem;font-size:.75rem}
+.badge-primary{background:#6366f1;color:#fff;padding:2px 8px;border-radius:.25rem;font-size:.75rem}
+.badge-warning{background:#f59e0b;color:#fff;padding:2px 8px;border-radius:.25rem;font-size:.75rem}
+.badge-success{background:#10b981;color:#fff;padding:2px 8px;border-radius:.25rem;font-size:.75rem}
+.badge-danger{background:#ef4444;color:#fff;padding:2px 8px;border-radius:.25rem;font-size:.75rem}

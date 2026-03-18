@@ -140,10 +140,10 @@ include 'includes/header.php';
                         </span>
                     </td>
                     <?php foreach ($jours as $jour): ?>
-                        <td class="edt-cell">
+                        <td class="edt-cell" data-jour="<?= $jour ?>" data-creneau-id="<?= $creneau['id'] ?>">
                             <?php if (isset($grille[$creneau['id']][$jour])): ?>
                                 <?php $c = $grille[$creneau['id']][$jour]; ?>
-                                <div class="edt-cours" style="background-color: <?= htmlspecialchars($c['matiere_couleur'] ?? '#3498db') ?>20; border-left: 3px solid <?= htmlspecialchars($c['matiere_couleur'] ?? '#3498db') ?>">
+                                <div class="edt-cours" <?php if (isAdmin() || isVieScolaire()): ?>draggable="true" data-cours-id="<?= $c['id'] ?>"<?php endif; ?> style="background-color: <?= htmlspecialchars($c['matiere_couleur'] ?? '#3498db') ?>20; border-left: 3px solid <?= htmlspecialchars($c['matiere_couleur'] ?? '#3498db') ?>">
                                     <div class="edt-cours-matiere"><?= htmlspecialchars($c['matiere_nom']) ?></div>
                                     <?php if (isAdmin() || isVieScolaire() || isStudent() || isParent()): ?>
                                         <div class="edt-cours-prof"><i class="fas fa-user"></i> <?= htmlspecialchars($c['professeur_nom']) ?></div>
@@ -182,6 +182,10 @@ include 'includes/header.php';
     <a href="gerer_cours.php" class="btn btn-primary"><i class="fas fa-plus"></i> Ajouter un cours</a>
     <?php endif; ?>
 </div>
+<?php endif; ?>
+
+<?php if (isAdmin() || isVieScolaire()): ?>
+<script src="assets/js/dragdrop.js"></script>
 <?php endif; ?>
 
 <?php include 'includes/footer.php'; ?>

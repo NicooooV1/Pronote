@@ -130,4 +130,23 @@ class SignalementService
         ];
         return $map[$urgence] ?? '<span class="badge">' . $urgence . '</span>';
     }
+
+    /* ───── EXPORT ───── */
+
+    public function getSignalementsForExport(array $filters = []): array
+    {
+        $signalements = $this->getTousSignalements($filters);
+        $types = self::typesSignalement();
+        return array_map(fn($s) => [
+            $s['id'],
+            $s['date_signalement'],
+            $types[$s['type']] ?? $s['type'],
+            ucfirst($s['urgence']),
+            ucfirst($s['statut']),
+            $s['anonyme'] ? 'Oui' : 'Non',
+            $s['lieu'] ?? '-',
+            mb_substr($s['description'] ?? '', 0, 120),
+            $s['date_traitement'] ?? '-',
+        ], $signalements);
+    }
 }

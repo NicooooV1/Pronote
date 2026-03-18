@@ -201,4 +201,72 @@ class ExamenService
         $map = ['planifie' => 'info', 'en_cours' => 'warning', 'termine' => 'success', 'annule' => 'danger'];
         return '<span class="badge badge-' . ($map[$s] ?? 'secondary') . '">' . ucfirst(str_replace('_', ' ', $s)) . '</span>';
     }
+
+    /* ───────── STATISTIQUES RÉSULTATS ───────── */
+
+    /**
+     * Résultats synthétiques d'un examen
+     */
+    public function getResultatsExamen(int $examenId): array
+    {
+        $epreuves = $this->getEpreuves($examenId);
+        $results = [];
+        foreach ($epreuves as $ep) {
+            $stmt = $this->pdo->prepare("
+                SELECT COUNT(*) AS total,
+                       SUM(CASE WHEN present = 1 THEN 1 ELSE 0 END) AS presents,
+                       AVG(CASE WHEN note IS NOT NULL THEN note END) AS moyenne,
+                       MIN(CASE WHEN note IS NOT NULL THEN note END) AS note_min,
+                       MAX(CASE WHEN note IS NOT NULL THEN note END) AS note_max
+                FROM examen_convocations WHERE epreuve_id = ?
+            ");
+            $stmt->execute([$ep['id']]);
+            $data = $stmt->fetch(PDO::FETCH_ASSOC);
+            $results[] = array_merge($ep, [
+                'total_convoques' => (int)$data['total'],
+                'presents' => (int)$data['presents'],
+                'moyenne' => $data['moyenne'] ? round($data['moyenne'], 2) : null,
+                'note_min' => $data['note_min'],
+                'note_max' => $data['note_max'],
+            ]);
+        }
+        return $results;
+    }
+
+    /* ───────── EXPORT ───────── */
+
+    public function getExamensForExport(?string $statut = null): array
+    {
+        $examens = $this->getExamens($statut);
+        $types = self::typesExamen();
+        $rows = [];
+        foreach ($examens as $e) {
+            $rows[] = [
+                $e['nom'] ?? $e['titre'] ?? '',
+                $types[$e['type'] ?? ''] ?? $e['type'] ?? '',
+                $e['date_debut'] ?? '',
+                $e['date_fin'] ?? '',
+                $e['statut'] ?? '',
+                $e['nb_epreuves'] ?? 0,
+            ];
+        }
+        return $rows;
+    }
+
+    public function getConvocationsForExport(int $epreuveId): array
+    {
+        $convocations = $this->getConvocations($epreuveId);
+        $rows = [];
+        foreach ($convocations as $c) {
+            $rows[] = [
+                $c['eleve_nom'] ?? ($c['nom'] ?? ''),
+                $c['eleve_prenom'] ?? ($c['prenom'] ?? ''),
+                $c['classe_nom'] ?? '',
+                $c['place'] ?? '',
+                isset($c['present']) ? ($c['present'] ? 'Oui' : 'Non') : '',
+                $c['note'] ?? '',
+            ];
+        }
+        return $rows;
+    }
 }

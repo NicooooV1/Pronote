@@ -184,4 +184,43 @@ class OrientationService
         ];
         return $map[$statut] ?? '<span class="badge">' . $statut . '</span>';
     }
+
+    /* ───────── EXPORT ───────── */
+
+    public function getFichesForExport(array $filters = []): array
+    {
+        $fiches = $this->getFiches($filters);
+        return array_map(fn($f) => [
+            $f['eleve_nom'] ?? '-',
+            $f['prenom'] ?? '-',
+            $f['classe_nom'] ?? '-',
+            $f['annee_scolaire'] ?? '-',
+            $f['projet_professionnel'] ?? '-',
+            ucfirst($f['statut']),
+            $f['avis_pp'] ?? '-',
+            $f['avis_conseil'] ?? '-',
+        ], $fiches);
+    }
+
+    public function getVoeuxForExport(array $filters = []): array
+    {
+        $fiches = $this->getFiches($filters);
+        $rows = [];
+        foreach ($fiches as $f) {
+            $voeux = $this->getVoeux($f['id']);
+            foreach ($voeux as $v) {
+                $rows[] = [
+                    $f['eleve_nom'] ?? '-',
+                    $f['prenom'] ?? '-',
+                    $f['classe_nom'] ?? '-',
+                    $v['rang'],
+                    $v['formation'],
+                    $v['etablissement_vise'] ?? '-',
+                    $v['avis_pp'] ?? '-',
+                    $v['avis_conseil'] ?? '-',
+                ];
+            }
+        }
+        return $rows;
+    }
 }

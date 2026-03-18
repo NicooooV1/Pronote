@@ -85,6 +85,12 @@ class SettingsService {
      * Modifier le mot de passe
      */
     public function changerMotDePasse(int $userId, string $userType, string $ancien, string $nouveau): bool {
+        // Password policy enforcement
+        if (strlen($nouveau) < 8 || !preg_match('/[A-Z]/', $nouveau) || !preg_match('/[a-z]/', $nouveau)
+            || !preg_match('/[0-9]/', $nouveau) || !preg_match('/[^A-Za-z0-9]/', $nouveau)) {
+            return false;
+        }
+
         $tables = [
             'administrateur' => 'administrateurs',
             'professeur' => 'professeurs',
@@ -144,6 +150,46 @@ class SettingsService {
             'bio' => '',
         ];
     }
+
+    // ─── Accueil config ──────────────────────────────────────────────
+
+    /**
+     * Récupère la configuration du tableau de bord de l'utilisateur.
+     * @return array|null — List of widget keys, or null (=use defaults)
+     */
+    public function getAccueilConfig(int $userId, string $userType): ?array {
+        try {
+            $stmt = $this->pdo->prepare("SELECT accueil_config FROM user_settings WHERE user_id = ? AND user_type = ?");
+            $stmt->execute([$userId, $userType]);
+            $json = $stmt->fetchColumn();
+            if ($json) {
+                $decoded = json_decode($json, true);
+                return is_array($decoded) ? $decoded : null;
+            }
+        } catch (\PDOException $e) { /* accueil_config column may not exist yet */ }
+        return null;
+    }
+
+    /**
+     * Sauvegarde la configuration du tableau de bord.
+     * @param array $widgets — List of widget keys e.g. ['evenements','devoirs']
+     */
+    public function saveAccueilConfig(int $userId, string $userType, array $widgets): bool {
+        $json = json_encode(array_values($widgets), JSON_UNESCAPED_UNICODE);
+        try {
+            $stmt = $this->pdo->prepare("
+                INSERT INTO user_settings (user_id, user_type, accueil_config, date_modification)
+                VALUES (?, ?, ?, NOW())
+                ON DUPLICATE KEY UPDATE accueil_config = VALUES(accueil_config), date_modification = NOW()
+            ");
+            return $stmt->execute([$userId, $userType, $json]);
+        } catch (\PDOException $e) {
+            error_log("SettingsService::saveAccueilConfig error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    // ─── Static enums ────────────────────────────────────────────────
 
     public static function themes(): array {
         return ['light' => 'Clair', 'dark' => 'Sombre', 'auto' => 'Automatique'];

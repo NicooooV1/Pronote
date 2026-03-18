@@ -212,4 +212,56 @@ class InfirmerieService
     {
         return ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
     }
+
+    /* ───────── STATISTIQUES MENSUELLES ───────── */
+
+    /**
+     * Stats passages par mois (12 derniers mois)
+     */
+    public function getStatsMensuelles(): array
+    {
+        $result = [];
+        for ($i = 11; $i >= 0; $i--) {
+            $month = date('Y-m', strtotime("-{$i} months"));
+            $label = date('M Y', strtotime($month . '-01'));
+            $count = (int)$this->pdo->query("SELECT COUNT(*) FROM passages_infirmerie WHERE date_passage LIKE '$month%'")->fetchColumn();
+            $result[] = ['mois' => $label, 'passages' => $count];
+        }
+        return $result;
+    }
+
+    /**
+     * Répartition par orientation
+     */
+    public function getRepartitionOrientations(): array
+    {
+        return $this->pdo->query("
+            SELECT orientation, COUNT(*) AS total 
+            FROM passages_infirmerie 
+            WHERE date_passage >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+            GROUP BY orientation ORDER BY total DESC
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /* ───────── EXPORT ───────── */
+
+    public function getPassagesForExport(array $filtres = []): array
+    {
+        $passages = $this->getPassages($filtres);
+        $orientations = self::orientations();
+        $rows = [];
+        foreach ($passages as $p) {
+            $rows[] = [
+                $p['eleve_nom'] ?? '',
+                $p['classe_nom'] ?? '',
+                $p['date_passage'] ?? '',
+                $p['motif'] ?? '',
+                $p['symptomes'] ?? '',
+                $p['soins'] ?? '',
+                $orientations[$p['orientation'] ?? ''] ?? $p['orientation'] ?? '',
+                $p['commentaire'] ?? '',
+            ];
+        }
+        return $rows;
+    }
 }

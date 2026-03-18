@@ -30,8 +30,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $c
         // Justifier l'absence correspondante
         $j = $pdo->prepare("SELECT id_eleve, date_debut_absence, date_fin_absence FROM justificatifs WHERE id = ?"); $j->execute([$jid]); $jd = $j->fetch(PDO::FETCH_ASSOC);
         if ($jd) {
-            $pdo->prepare("UPDATE absences SET justifie = 1 WHERE id_eleve = ? AND DATE(date_debut) >= ? AND DATE(date_fin) <= ?")
-                 ->execute([$jd['id_eleve'], $jd['date_debut_absence'], $jd['date_fin_absence']]);
+            // Justifier toutes les absences qui chevauchent la période du justificatif
+            $pdo->prepare("UPDATE absences SET justifie = 1 WHERE id_eleve = ? AND DATE(date_debut) <= ? AND DATE(date_fin) >= ?")
+                 ->execute([$jd['id_eleve'], $jd['date_fin_absence'], $jd['date_debut_absence']]);
         }
         logAudit('justificatif_approved', 'justificatifs', $jid);
         $message = "Justificatif approuvé et absences justifiées.";
