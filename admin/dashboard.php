@@ -324,6 +324,11 @@ include 'includes/header.php';
                 <div class="admin-card-title">Configuration SMTP</div>
                 <div class="admin-card-stat">Emails sortants</div>
             </a>
+            <a href="systeme/update.php" class="admin-card">
+                <div class="admin-card-icon"><i class="fas fa-sync-alt"></i></div>
+                <div class="admin-card-title">Mises à jour</div>
+                <div class="admin-card-stat">Statut &amp; configuration</div>
+            </a>
         </div>
     </div>
 
@@ -354,7 +359,7 @@ include 'includes/header.php';
                 <div class="admin-activity-item">
                     <span class="admin-activity-time"><?= date('H:i', strtotime($msg['created_at'])) ?></span>
                     <span><span class="activity-type"><?= htmlspecialchars(getProfilLabel($msg['sender_type'])) ?></span></span>
-                    <span class="msg-preview" style="margin-left:8px"><?= htmlspecialchars(mb_substr(strip_tags($msg['body']), 0, 60)) ?>…</span>
+                    <span class="msg-preview" style="margin-left:8px"><?= htmlspecialchars(mb_strimwidth(strip_tags($msg['body']), 0, 60, '', 'UTF-8')) ?>…</span>
                     <span style="margin-left:auto;font-size:12px;color:#999"><?= date('d/m', strtotime($msg['created_at'])) ?></span>
                 </div>
                 <?php endforeach; ?>

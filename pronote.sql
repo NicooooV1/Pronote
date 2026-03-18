@@ -187,6 +187,11 @@ CREATE TABLE `etablissement_info` (
   `type` varchar(30) DEFAULT 'college',
   `annee_scolaire` varchar(10) DEFAULT '2025-2026',
   `logo` varchar(255) DEFAULT NULL,
+  `couleur_primaire` varchar(7) DEFAULT '#003366' COMMENT 'Couleur principale de l''établissement (hex)',
+  `couleur_secondaire` varchar(7) DEFAULT '#0066cc' COMMENT 'Couleur d''accent (hex)',
+  `css_personnalise` text DEFAULT NULL COMMENT 'CSS custom injecté en fin de <head>',
+  `favicon` varchar(255) DEFAULT NULL COMMENT 'Chemin vers le favicon personnalisé',
+  `pied_de_page` text DEFAULT NULL COMMENT 'Texte du footer (mentions légales)',
   `date_creation` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -2149,6 +2154,7 @@ CREATE TABLE `modules_config` (
   `category` varchar(50) NOT NULL DEFAULT 'general',
   `enabled` tinyint(1) NOT NULL DEFAULT 1,
   `config_json` text DEFAULT NULL,
+  `roles_autorises` json DEFAULT NULL COMMENT 'Rôles autorisés à voir ce module (null = tous)',
   `sort_order` int(11) NOT NULL DEFAULT 100,
   `is_core` tinyint(1) NOT NULL DEFAULT 0,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

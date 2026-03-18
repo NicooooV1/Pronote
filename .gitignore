@@ -1,10 +1,13 @@
 vendor/
 .env
-temp/update.lock
-temp/backup.env
+temp/
 logs/
+API/logs/
 uploads/
 install.lock
 *.log
+*.bak
 .DS_Store
 Thumbs.db
+websocket-server/node_modules/
+login/data/etablissement.json

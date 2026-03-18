@@ -11,10 +11,9 @@
  *   3. Sauvegarder .env → temp/backup.env
  *   4. git pull origin main
  *   5. Restaurer .env si disparu
- *   6. Exécuter les migrations en attente (migrate.php run)
- *   7. Tester le bootstrap PHP
- *   8. Logger la nouvelle version
- *   9. Supprimer update.lock (finally)
+ *   6. Tester le bootstrap PHP
+ *   7. Logger la nouvelle version
+ *   8. Supprimer update.lock (finally)
  */
 declare(strict_types=1);
 
@@ -84,22 +83,13 @@ try {
         ulog('Restauré .env depuis backup (git pull l\'avait supprimé)');
     }
 
-    // 4bis. Composer install --no-dev (si dispo)
+    // 4. Composer install --no-dev (si dispo)
     $composerBin = trim((string)(shell_exec('which composer 2>/dev/null') ?: shell_exec('where composer 2>NUL') ?: ''));
     if (!empty($composerBin) && file_exists($projectRoot . '/composer.json')) {
         $compOut = urun($composerBin . ' install --no-dev --optimize-autoloader -d ' . escapeshellarg($projectRoot), $compCode);
         ulog('Composer: ' . ($compOut ?: '(ok)'));
     } else {
         ulog('Composer non disponible — étape ignorée');
-    }
-
-    // 4. Migrations en attente
-    $migrateScript = $projectRoot . '/migrate.php';
-    if (file_exists($migrateScript)) {
-        $migrOut = urun($phpBin . ' ' . escapeshellarg($migrateScript) . ' run', $migrCode);
-        ulog('Migrations: ' . ($migrOut ?: '(aucune sortie)'));
-    } else {
-        ulog('migrate.php introuvable — étape migrations ignorée');
     }
 
     // 5. Test du bootstrap

@@ -36,6 +36,7 @@ class ModuleService
                 $this->cache = [];
                 foreach ($rows as $row) {
                     $row['config'] = !empty($row['config_json']) ? json_decode($row['config_json'], true) : [];
+                    $row['roles_autorises'] = !empty($row['roles_autorises']) ? json_decode($row['roles_autorises'], true) : null;
                     $this->cache[$row['module_key']] = $row;
                 }
             } catch (\PDOException $e) {
@@ -169,6 +170,24 @@ class ModuleService
     }
 
     /**
+     * Met à jour les rôles autorisés à voir un module.
+     * Passer un tableau vide ou null pour revenir au comportement par défaut (tous les rôles).
+     */
+    public function updateRolesAutorises(string $key, ?array $roles): bool
+    {
+        try {
+            $value = ($roles !== null && count($roles) > 0) ? json_encode(array_values($roles)) : null;
+            $stmt = $this->pdo->prepare("UPDATE modules_config SET roles_autorises = ? WHERE module_key = ?");
+            $result = $stmt->execute([$value, $key]);
+            $this->cache = null;
+            return $result;
+        } catch (\PDOException $e) {
+            error_log("ModuleService::updateRolesAutorises error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Met à jour le label et la description d'un module
      */
     public function updateInfo(string $key, array $data): bool
@@ -271,6 +290,7 @@ class ModuleService
         'parcours_educatifs'   => 'parcours_educatifs/parcours.php',
         'vie_associative'      => 'vie_associative/associations.php',
         'parametres'           => 'parametres/parametres.php',
+        'profil'               => 'profil/index.php',
     ];
 
     /**
@@ -319,13 +339,29 @@ class ModuleService
 
     /**
      * Check if a module should be visible for a given role.
+     * Prioritises roles_autorises from DB (editable via admin UI);
+     * falls back to the hardcoded $roleVisibility map for modules that
+     * have not yet been configured in the DB.
      */
     public function isVisibleForRole(string $moduleKey, string $role): bool
     {
+        $module = $this->get($moduleKey);
+
+        // DB column takes priority when present
+        if ($module !== null && isset($module['roles_autorises'])) {
+            $rolesDb = is_array($module['roles_autorises'])
+                ? $module['roles_autorises']
+                : json_decode($module['roles_autorises'], true);
+            if (is_array($rolesDb) && count($rolesDb) > 0) {
+                return in_array($role, $rolesDb, true);
+            }
+        }
+
+        // Fallback to hardcoded map
         if (!isset(self::$roleVisibility[$moduleKey])) {
             return true;
         }
-        return in_array($role, self::$roleVisibility[$moduleKey]);
+        return in_array($role, self::$roleVisibility[$moduleKey], true);
     }
 
     /**

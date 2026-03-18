@@ -45,6 +45,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === ($
         $module = $moduleService->get($moduleKey); // Refresh
     }
 
+    if ($action === 'update_roles') {
+        $allRoles = ['administrateur', 'professeur', 'eleve', 'parent', 'personnel', 'vie_scolaire'];
+        $selectedRoles = [];
+        foreach ($allRoles as $r) {
+            if (!empty($_POST['role_' . $r])) {
+                $selectedRoles[] = $r;
+            }
+        }
+        // null = tous les rôles (pas de restriction)
+        $moduleService->updateRolesAutorises($moduleKey, count($selectedRoles) ? $selectedRoles : null);
+        logAudit('module.roles_updated', 'modules_config', $module['id'], null, ['module' => $moduleKey, 'roles' => $selectedRoles]);
+        $message = 'Rôles autorisés mis à jour.';
+        $messageType = 'success';
+        $module = $moduleService->get($moduleKey);
+    }
+
     if ($action === 'update_config') {
         $config = [];
         foreach ($configFields as $field) {
@@ -205,6 +221,46 @@ include __DIR__ . '/../includes/sub_header.php';
             </div>
         </form>
     <?php endif; ?>
+</div>
+
+<!-- Rôles autorisés -->
+<div class="config-card">
+    <h3><i class="fas fa-users-cog"></i> Visibilité par rôle</h3>
+    <p style="font-size:.88em;color:#718096;margin:0 0 16px">
+        Définissez quels rôles peuvent voir ce module dans la sidebar. Laissez tout décoché pour autoriser tous les rôles (comportement par défaut).
+    </p>
+    <form method="post">
+        <input type="hidden" name="action" value="update_roles">
+        <input type="hidden" name="csrf_token" value="<?= $csrf_token ?>">
+        <?php
+        $allRoles = [
+            'administrateur' => 'Administrateur',
+            'professeur'     => 'Professeur',
+            'eleve'          => 'Élève',
+            'parent'         => 'Parent',
+            'personnel'      => 'Personnel',
+            'vie_scolaire'   => 'Vie scolaire',
+        ];
+        $currentRoles = $module['roles_autorises'] ?? null;
+        ?>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+        <?php foreach ($allRoles as $roleKey => $roleLabel): ?>
+            <label style="display:flex;align-items:center;gap:6px;font-size:.92em;cursor:pointer;padding:8px 14px;border:1px solid #e2e8f0;border-radius:6px;background:#f8f9fa">
+                <input type="checkbox" name="role_<?= $roleKey ?>" value="1"
+                    <?= (is_array($currentRoles) && in_array($roleKey, $currentRoles)) ? 'checked' : '' ?>>
+                <?= htmlspecialchars($roleLabel) ?>
+            </label>
+        <?php endforeach; ?>
+        </div>
+        <?php if (empty($currentRoles)): ?>
+            <p style="font-size:.82em;color:#48bb78;margin:0 0 12px"><i class="fas fa-check-circle"></i> Actuellement visible par tous les rôles.</p>
+        <?php else: ?>
+            <p style="font-size:.82em;color:#ed8936;margin:0 0 12px"><i class="fas fa-filter"></i> Restreint aux rôles cochés.</p>
+        <?php endif; ?>
+        <div class="btn-bar">
+            <button type="submit" class="btn-save"><i class="fas fa-save"></i> Enregistrer les rôles</button>
+        </div>
+    </form>
 </div>
 
 <div class="btn-bar" style="margin-top:20px">

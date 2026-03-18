@@ -141,11 +141,53 @@ class RateLimiter
     }
 
     /**
+     * Retourne l'IP cliente, en tenant compte des proxies de confiance.
+     * Si APP_ENV=production et TRUSTED_PROXIES est défini dans .env,
+     * les headers X-Forwarded-For / X-Real-IP sont acceptés.
+     * Sinon, seul REMOTE_ADDR est utilisé pour éviter le header spoofing.
+     */
+    protected function getClientIp(): string
+    {
+        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+
+        // N'accepter les headers proxy que si des proxies de confiance sont configurés
+        $trustedProxies = function_exists('env') ? env('TRUSTED_PROXIES', '') : ($_ENV['TRUSTED_PROXIES'] ?? '');
+
+        if (empty($trustedProxies)) {
+            return $remoteAddr;
+        }
+
+        // Vérifier que REMOTE_ADDR est bien un proxy de confiance
+        $trusted = array_map('trim', explode(',', $trustedProxies));
+        if (!in_array($remoteAddr, $trusted, true)) {
+            return $remoteAddr;
+        }
+
+        // Le proxy est de confiance : lire X-Forwarded-For
+        if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $ips = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
+            $clientIp = $ips[0]; // Première IP = client originel
+            if (filter_var($clientIp, FILTER_VALIDATE_IP)) {
+                return $clientIp;
+            }
+        }
+
+        if (!empty($_SERVER['HTTP_X_REAL_IP'])) {
+            $realIp = trim($_SERVER['HTTP_X_REAL_IP']);
+            if (filter_var($realIp, FILTER_VALIDATE_IP)) {
+                return $realIp;
+            }
+        }
+
+        return $remoteAddr;
+    }
+
+    /**
      * Génère un identifiant unique basé sur l'IP et la clé
      */
     protected function getIdentifier($key)
     {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $ip = $this->getClientIp();
         return hash('sha256', $key . '|' . $ip);
     }
 

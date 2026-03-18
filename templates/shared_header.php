@@ -47,10 +47,22 @@ if ($_hdr_theme === 'auto') {
     $_hdr_effective_theme = 'light'; // JS will override based on prefers-color-scheme
 }
 
-// CSRF meta tag for AJAX theme switching
-if (!isset($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+// ─── CSRF token ──────────────────────────────────────────────────────────────
+// Utilise la facade CSRF (token bucket avec rotation) pour éviter deux systèmes parallèles.
+// Stocke également dans $_SESSION['csrf_token'] pour rétrocompatibilité avec les formulaires.
+try {
+    $_hdr_csrf_token = \API\Core\Facades\CSRF::generate();
+} catch (\Throwable $_hdr_csrf_err) {
+    // Fallback si le container n'est pas encore initialisé
+    if (!isset($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    $_hdr_csrf_token = $_SESSION['csrf_token'];
 }
+$_SESSION['csrf_token'] = $_hdr_csrf_token;
+
+// ─── Nonce CSP ───────────────────────────────────────────────────────────────
+$_hdr_nonce = base64_encode(random_bytes(16));
 
 // ─── WebSocket global config ─────────────────────────────────────────────────
 // Génère le JWT pour le client WS et injecte window.FRONOTE_WS dans le <head>.
@@ -76,7 +88,7 @@ try {
 
 // ─── Security headers ────────────────────────────────────────────────────────
 if (!headers_sent()) {
-    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdnjs.cloudflare.com cdn.socket.io code.jquery.com; style-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; font-src cdnjs.cloudflare.com data:; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'none';");
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$_hdr_nonce}' cdnjs.cloudflare.com cdn.socket.io code.jquery.com; style-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; font-src cdnjs.cloudflare.com data:; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'none';");
     header("X-Frame-Options: DENY");
     header("X-Content-Type-Options: nosniff");
     header("Referrer-Policy: strict-origin-when-cross-origin");
@@ -88,7 +100,7 @@ if (!headers_sent()) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+    <meta name="csrf-token" content="<?= htmlspecialchars($_hdr_csrf_token) ?>">
     <title><?= htmlspecialchars($pageTitle) ?> - FRONOTE</title>
     <!-- CSS unifié pour toute l'application -->
     <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/pronote-unified.css">
@@ -98,10 +110,10 @@ if (!headers_sent()) {
     <?php endforeach; ?>
     <?= $extraHeadHtml ?>
     <!-- WebSocket global -->
-    <script>window.FRONOTE_WS = <?= $_hdr_ws_config ?>;</script>
+    <script nonce="<?= $_hdr_nonce ?>">window.FRONOTE_WS = <?= $_hdr_ws_config ?>;</script>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
     <script src="<?= $rootPrefix ?>assets/js/ws-global.js" defer></script>
-    <script>
+    <script nonce="<?= $_hdr_nonce ?>">
     // Instant theme application to prevent flash of wrong theme
     (function() {
         var pref = document.documentElement.getAttribute('data-theme-pref') || 'light';
