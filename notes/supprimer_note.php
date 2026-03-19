@@ -22,8 +22,9 @@ $user_role     = getUserRole();
 $pdo           = getPDO();
 $noteService   = new NoteService($pdo);
 
-// Validation de l'ID
-$id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+// Validation de l'ID (POST prioritaire pour suppression directe, GET pour affichage confirmation)
+$id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT)
+    ?: filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 if (!$id || $id <= 0) {
     setFlashMessage('error', "Identifiant de note invalide.");
     header('Location: notes.php');
@@ -40,9 +41,13 @@ if (!$note) {
     exit;
 }
 
-// Traitement de la suppression
+// Traitement de la suppression (POST uniquement)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    validateCSRFToken($_POST['csrf_token'] ?? '');
+    if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
+        setFlashMessage('error', 'Jeton de sécurité invalide. Veuillez recharger la page.');
+        header('Location: notes.php');
+        exit;
+    }
 
     try {
         $noteService->deleteNote($id);

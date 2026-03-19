@@ -14,6 +14,7 @@ $router->get('/messages',       fn($p) => require __DIR__ . '/endpoints/messager
 $router->post('/messages',      fn($p) => require __DIR__ . '/endpoints/messagerie.php');
 $router->get('/agenda/persons', fn($p) => require __DIR__ . '/endpoints/agenda_persons.php');
 $router->get('/notes/eleves',   fn($p) => require __DIR__ . '/endpoints/notes_eleves.php');
+$router->get('/health',         fn($p) => require __DIR__ . '/endpoints/health.php');
 
 // Construire l'URI relative (retirer le préfixe /api ou /sous-dossier/api)
 $uri    = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';

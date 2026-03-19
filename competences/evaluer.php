@@ -26,7 +26,9 @@ $error = '';
 
 // Traitement évaluation en lot
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    validateCSRFToken();
+    if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
+        $error = 'Jeton de sécurité invalide. Veuillez recharger la page.';
+    } else {
     $compId = (int)$_POST['competence_id'];
     $evals = $_POST['niveaux'] ?? [];
     $profId = getUserId();
@@ -41,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $count = $compService->evaluerLot($compId, $profId, $matiereId, $periodeId ?: null, $evals);
     $success = "$count évaluation(s) enregistrée(s).";
+    }
 }
 ?>
 

@@ -32,8 +32,11 @@ $total = $pdo->prepare("SELECT COUNT(*) FROM audit_log a $whereSQL"); $total->ex
 $totalLogs = $total->fetchColumn();
 $totalPages = max(1, ceil($totalLogs / $perPage));
 
-$sql = "SELECT a.* FROM audit_log a $whereSQL ORDER BY a.created_at DESC LIMIT $perPage OFFSET $offset";
-$stmt = $pdo->prepare($sql); $stmt->execute($params);
+$perPage = (int)$perPage;
+$offset = (int)$offset;
+$sql = "SELECT a.* FROM audit_log a $whereSQL ORDER BY a.created_at DESC LIMIT ? OFFSET ?";
+$stmtParams = array_merge($params, [$perPage, $offset]);
+$stmt = $pdo->prepare($sql); $stmt->execute($stmtParams);
 $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Listes pour filtres

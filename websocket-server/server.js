@@ -24,8 +24,19 @@ const io = socketio(server, {
 // Middleware pour parser JSON
 app.use(express.json());
 
-// Secret JWT (à configurer via variable d'environnement)
-const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret_in_production';
+// Secret JWT — DOIT être configuré via variable d'environnement
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('FATAL: JWT_SECRET non défini. Configurez la variable d\'environnement JWT_SECRET.');
+    process.exit(1);
+}
+
+// Secret API pour les routes HTTP internes
+const API_SECRET = process.env.API_SECRET;
+if (!API_SECRET) {
+    console.error('FATAL: API_SECRET non défini. Configurez la variable d\'environnement API_SECRET.');
+    process.exit(1);
+}
 
 // Stockage des connexions actives par utilisateur
 const activeConnections = new Map();
@@ -128,7 +139,7 @@ app.post('/notify/message', (req, res) => {
     const { convId, message, secret } = req.body;
     
     // Vérification du secret partagé
-    if (secret !== process.env.API_SECRET) {
+    if (secret !== API_SECRET) {
         return res.status(403).json({ error: 'Unauthorized' });
     }
     
@@ -149,7 +160,7 @@ app.post('/notify/message', (req, res) => {
 app.post('/notify/notification', (req, res) => {
     const { userId, data, secret } = req.body;
     
-    if (secret !== process.env.API_SECRET) {
+    if (secret !== API_SECRET) {
         return res.status(403).json({ error: 'Unauthorized' });
     }
     
@@ -170,7 +181,7 @@ app.post('/notify/notification', (req, res) => {
 app.post('/notify/grade', (req, res) => {
     const { eleveId, gradeData, secret } = req.body;
     
-    if (secret !== process.env.API_SECRET) {
+    if (secret !== API_SECRET) {
         return res.status(403).json({ error: 'Unauthorized' });
     }
     
@@ -186,7 +197,7 @@ app.post('/notify/grade', (req, res) => {
 app.post('/notify/absence', (req, res) => {
     const { eleveId, absenceData, secret } = req.body;
     
-    if (secret !== process.env.API_SECRET) {
+    if (secret !== API_SECRET) {
         return res.status(403).json({ error: 'Unauthorized' });
     }
     
@@ -202,7 +213,7 @@ app.post('/notify/absence', (req, res) => {
 app.post('/notify/event', (req, res) => {
     const { targetType, targetId, eventData, secret } = req.body;
     
-    if (secret !== process.env.API_SECRET) {
+    if (secret !== API_SECRET) {
         return res.status(403).json({ error: 'Unauthorized' });
     }
     
@@ -231,7 +242,7 @@ app.get('/health', (req, res) => {
  */
 app.post('/notify/message-edited', (req, res) => {
     const { convId, messageId, newBody, editedAt, secret } = req.body;
-    if (secret !== process.env.API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
+    if (secret !== API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
     if (!convId || !messageId) return res.status(400).json({ error: 'Missing convId or messageId' });
 
     io.to(`conv_${convId}`).emit('messageEdited', { messageId, newBody, editedAt });
@@ -243,7 +254,7 @@ app.post('/notify/message-edited', (req, res) => {
  */
 app.post('/notify/message-deleted', (req, res) => {
     const { convId, messageId, secret } = req.body;
-    if (secret !== process.env.API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
+    if (secret !== API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
     if (!convId || !messageId) return res.status(400).json({ error: 'Missing convId or messageId' });
 
     io.to(`conv_${convId}`).emit('messageDeleted', { messageId });
@@ -255,7 +266,7 @@ app.post('/notify/message-deleted', (req, res) => {
  */
 app.post('/notify/message-pinned', (req, res) => {
     const { convId, messageId, isPinned, pinnedBy, secret } = req.body;
-    if (secret !== process.env.API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
+    if (secret !== API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
     if (!convId || !messageId) return res.status(400).json({ error: 'Missing convId or messageId' });
 
     io.to(`conv_${convId}`).emit('messagePinned', { messageId, isPinned, pinnedBy });
@@ -267,7 +278,7 @@ app.post('/notify/message-pinned', (req, res) => {
  */
 app.post('/notify/reaction', (req, res) => {
     const { convId, messageId, reactions, secret } = req.body;
-    if (secret !== process.env.API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
+    if (secret !== API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
     if (!convId || !messageId) return res.status(400).json({ error: 'Missing convId or messageId' });
 
     io.to(`conv_${convId}`).emit('reactionUpdated', { messageId, reactions });
@@ -279,7 +290,7 @@ app.post('/notify/reaction', (req, res) => {
  */
 app.post('/notify/message-read', (req, res) => {
     const { convId, userId, userType, messageId, readAt, secret } = req.body;
-    if (secret !== process.env.API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
+    if (secret !== API_SECRET) return res.status(403).json({ error: 'Unauthorized' });
     if (!convId || !userId) return res.status(400).json({ error: 'Missing convId or userId' });
 
     io.to(`conv_${convId}`).emit('messageRead', { userId, userType, messageId, readAt });

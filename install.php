@@ -460,14 +460,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $log[] = ['ok', 'Connexion MySQL établie'];
 
-            // 5d — Créer / recréer la base
+            // 5d — Créer / recréer la base (avec protection si existante)
             $dbNameSafe = preg_replace('/[^a-zA-Z0-9_]/', '', $db['dbName']);
             $stmt = $pdo->prepare("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?");
             $stmt->execute([$db['dbName']]);
-            if ($stmt->fetch()) {
+            $dbExists = (bool) $stmt->fetch();
+
+            if ($dbExists) {
+                // Vérifier si l'utilisateur a confirmé l'écrasement
+                $confirmOverwrite = !empty($_POST['confirm_overwrite']);
+                if (!$confirmOverwrite) {
+                    // Compter les tables existantes pour informer l'utilisateur
+                    $pdo->exec("USE `{$dbNameSafe}`");
+                    $tableCount = $pdo->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{$dbNameSafe}'")->fetchColumn();
+                    $inst['db_exists'] = true;
+                    $inst['db_table_count'] = (int)$tableCount;
+                    $inst['step'] = 5; // Rester sur l'étape 5
+                    throw new RuntimeException(
+                        "⚠️ La base de données <strong>{$dbNameSafe}</strong> existe déjà et contient <strong>{$tableCount} table(s)</strong>.\n\n"
+                        . "Cochez la case de confirmation ci-dessous pour écraser les données existantes, ou changez le nom de la base à l'étape 2."
+                    );
+                }
+                // Confirmation reçue → supprimer et recréer
                 $pdo->exec("DROP DATABASE `{$dbNameSafe}`");
-                $log[] = ['ok', 'Ancienne base supprimée'];
+                $log[] = ['warn', 'Base existante écrasée (confirmation reçue)'];
             }
+
             $pdo->exec("CREATE DATABASE `{$dbNameSafe}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             $pdo->exec("USE `{$dbNameSafe}`");
             $log[] = ['ok', "Base de données <code>{$dbNameSafe}</code> créée"];
@@ -1415,18 +1433,42 @@ document.getElementById('pw').addEventListener('input',function(){checkPw(this.v
             <?php endif; ?>
         </div>
 
-        <div class="msg msg-warn">
-            ⚠️ L'installation va <strong>supprimer et recréer</strong> la base <code><?= htmlspecialchars($db['dbName']) ?></code> si elle existe déjà.
+        <?php if (!empty($inst['db_exists'])): ?>
+        <div class="msg msg-error" style="background:#fff3cd;border-color:#ffc107;color:#856404">
+            ⚠️ <strong>Base de données existante détectée !</strong><br>
+            La base <code><?= htmlspecialchars($db['dbName']) ?></code> existe déjà et contient <strong><?= (int)($inst['db_table_count'] ?? 0) ?> table(s)</strong>.<br>
+            L'installation va <strong>supprimer toutes les données existantes</strong>. Cette action est irréversible.
         </div>
+        <?php else: ?>
+        <div class="msg msg-warn">
+            ⚠️ L'installation va créer la base <code><?= htmlspecialchars($db['dbName']) ?></code>. Si elle existe déjà, une confirmation sera demandée.
+        </div>
+        <?php endif; ?>
 
         <form method="post" id="execForm">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrfToken) ?>">
             <input type="hidden" name="step" value="5">
+            <?php if (!empty($inst['db_exists'])): ?>
+            <div style="background:#fff3cd;border:2px solid #ffc107;border-radius:8px;padding:16px;margin-bottom:16px">
+                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-weight:600;color:#856404">
+                    <input type="checkbox" name="confirm_overwrite" value="1" id="confirmOverwrite" style="margin-top:3px;width:18px;height:18px" required>
+                    <span>Je confirme vouloir écraser la base de données existante <code><?= htmlspecialchars($db['dbName']) ?></code> et toutes ses données. Je comprends que cette action est irréversible.</span>
+                </label>
+            </div>
+            <?php endif; ?>
             <div class="actions">
                 <a href="?step=4" class="btn btn-secondary">← Retour</a>
-                <button type="submit" class="btn btn-primary" id="btnInstall">🚀 Lancer l'installation</button>
+                <a href="?step=2" class="btn btn-secondary">← Changer la base</a>
+                <button type="submit" class="btn btn-primary" id="btnInstall" <?= !empty($inst['db_exists']) ? 'disabled' : '' ?>>🚀 Lancer l'installation</button>
             </div>
         </form>
+        <?php if (!empty($inst['db_exists'])): ?>
+        <script>
+        document.getElementById('confirmOverwrite').addEventListener('change',function(){
+            document.getElementById('btnInstall').disabled = !this.checked;
+        });
+        </script>
+        <?php endif; ?>
         <script>
         document.getElementById('execForm').addEventListener('submit',function(){
             var b=document.getElementById('btnInstall');

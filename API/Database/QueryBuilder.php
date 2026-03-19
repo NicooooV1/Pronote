@@ -17,10 +17,27 @@ class QueryBuilder
     protected $limit;
     protected $offset;
 
+    /** Regex pour valider les noms de colonnes/tables (lettres, chiffres, underscores, points pour alias) */
+    private const IDENTIFIER_PATTERN = '/^[a-zA-Z_][a-zA-Z0-9_.]*$/';
+
     public function __construct(PDO $pdo, $table)
     {
+        $this->assertValidIdentifier($table);
         $this->pdo = $pdo;
         $this->table = $table;
+    }
+
+    /**
+     * Valide qu'un identifiant SQL (colonne, table) est sûr.
+     * Empêche l'injection SQL via les noms de colonnes.
+     */
+    private function assertValidIdentifier(string $identifier): void
+    {
+        if (!preg_match(self::IDENTIFIER_PATTERN, $identifier)) {
+            throw new \InvalidArgumentException(
+                "Identifiant SQL invalide : " . substr($identifier, 0, 50)
+            );
+        }
     }
 
     /**
@@ -28,18 +45,30 @@ class QueryBuilder
      */
     public function select($columns = ['*'])
     {
-        $this->selects = is_array($columns) ? $columns : func_get_args();
+        $cols = is_array($columns) ? $columns : func_get_args();
+        foreach ($cols as $col) {
+            if ($col !== '*') {
+                $this->assertValidIdentifier($col);
+            }
+        }
+        $this->selects = $cols;
         return $this;
     }
 
     /**
      * Ajoute une clause WHERE
      */
+    private const VALID_OPERATORS = ['=', '!=', '<', '>', '<=', '>=', '<>', 'LIKE', 'NOT LIKE', 'IS', 'IS NOT'];
+
     public function where($column, $operator, $value = null)
     {
+        $this->assertValidIdentifier($column);
         if (is_null($value)) {
             $value = $operator;
             $operator = '=';
+        }
+        if (!in_array(strtoupper($operator), self::VALID_OPERATORS, true)) {
+            throw new \InvalidArgumentException("Opérateur SQL invalide : " . $operator);
         }
 
         $this->wheres[] = [
@@ -60,6 +89,7 @@ class QueryBuilder
      */
     public function whereIn($column, array $values)
     {
+        $this->assertValidIdentifier($column);
         if (empty($values)) {
             return $this;
         }
@@ -81,6 +111,7 @@ class QueryBuilder
      */
     public function whereNull($column)
     {
+        $this->assertValidIdentifier($column);
         $this->wheres[] = [
             'type' => 'null',
             'column' => $column,
@@ -95,6 +126,7 @@ class QueryBuilder
      */
     public function whereNotNull($column)
     {
+        $this->assertValidIdentifier($column);
         $this->wheres[] = [
             'type' => 'not_null',
             'column' => $column,
@@ -109,7 +141,12 @@ class QueryBuilder
      */
     public function orderBy($column, $direction = 'asc')
     {
-        $this->orders[] = ['column' => $column, 'direction' => $direction];
+        $this->assertValidIdentifier($column);
+        $dir = strtoupper($direction);
+        if (!in_array($dir, ['ASC', 'DESC'], true)) {
+            throw new \InvalidArgumentException("Direction de tri invalide : " . $direction);
+        }
+        $this->orders[] = ['column' => $column, 'direction' => $dir];
         return $this;
     }
 
@@ -237,6 +274,9 @@ class QueryBuilder
      */
     public function insert(array $data)
     {
+        foreach (array_keys($data) as $col) {
+            $this->assertValidIdentifier($col);
+        }
         $columns = array_map(fn($c) => "`$c`", array_keys($data));
         $placeholders = array_fill(0, count($data), '?');
 
@@ -260,6 +300,7 @@ class QueryBuilder
         $bindings = [];
 
         foreach ($data as $column => $value) {
+            $this->assertValidIdentifier($column);
             $sets[] = "`$column` = ?";
             $bindings[] = $value;
         }

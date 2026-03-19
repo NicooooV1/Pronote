@@ -90,18 +90,9 @@ $app->register(new \API\Providers\AuthServiceProvider($app));
 $app->register(new \API\Providers\SecurityServiceProvider($app));
 $app->register(new \API\Providers\EtablissementServiceProvider($app));
 
-// Bind a minimal PSR-like logger (fallback to error_log)
+// Logger structuré avec rotation de fichiers
 $app->singleton('log', function($app) {
-	return new class {
-		private function format($level, $message, array $context = []) {
-			$ctx = $context ? ' ' . json_encode($context) : '';
-			return sprintf('[%s] %s%s', strtoupper($level), $message, $ctx);
-		}
-		public function debug($message, array $context = []) { error_log($this->format('debug', $message, $context)); }
-		public function info($message, array $context = [])  { error_log($this->format('info',  $message, $context)); }
-		public function warning($message, array $context = []) { error_log($this->format('warning', $message, $context)); }
-		public function error($message, array $context = [])  { error_log($this->format('error', $message, $context)); }
-	};
+	return new \API\Core\Logger(BASE_PATH . '/logs', 'app', 30);
 });
 
 // Bind audit service (uses existing Pronote\Services\AuditService)

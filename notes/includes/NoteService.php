@@ -53,10 +53,35 @@ class NoteService
     }
 
     /**
-     * Récupère toutes les notes d'un trimestre (admin / vie scolaire).
+     * Récupère toutes les notes d'un trimestre (admin / vie scolaire) avec filtres SQL et pagination.
+     *
+     * @param int    $trimestre  Numéro du trimestre (1-3)
+     * @param string $classe     Filtre par classe (vide = toutes)
+     * @param int    $matiereId  Filtre par matière (0 = toutes)
+     * @param int    $limit      Nombre de résultats par page
+     * @param int    $offset     Décalage pour la pagination
+     * @return array ['notes' => [...], 'total' => int]
      */
-    public function getAllNotes(int $trimestre, int $limit = 200): array
+    public function getAllNotes(int $trimestre, int $limit = 50, int $offset = 0, string $classe = '', int $matiereId = 0): array
     {
+        $where = "n.trimestre = ?";
+        $params = [$trimestre];
+
+        if ($classe !== '') {
+            $where .= " AND e.classe = ?";
+            $params[] = $classe;
+        }
+        if ($matiereId > 0) {
+            $where .= " AND n.id_matiere = ?";
+            $params[] = $matiereId;
+        }
+
+        // Count total
+        $countStmt = $this->pdo->prepare("SELECT COUNT(*) FROM notes n LEFT JOIN eleves e ON n.id_eleve = e.id WHERE {$where}");
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        // Fetch page
         $stmt = $this->pdo->prepare("
             SELECT n.*, m.nom AS matiere_nom, m.couleur AS matiere_couleur,
                    CONCAT(e.prenom, ' ', e.nom) AS eleve_nom, e.classe,
@@ -65,12 +90,16 @@ class NoteService
             LEFT JOIN matieres m ON n.id_matiere = m.id
             LEFT JOIN eleves e ON n.id_eleve = e.id
             LEFT JOIN professeurs p ON n.id_professeur = p.id
-            WHERE n.trimestre = ?
+            WHERE {$where}
             ORDER BY n.date_note DESC
-            LIMIT " . (int) $limit . "
+            LIMIT " . (int) $limit . " OFFSET " . (int) $offset . "
         ");
-        $stmt->execute([$trimestre]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->execute($params);
+
+        return [
+            'notes' => $stmt->fetchAll(PDO::FETCH_ASSOC),
+            'total' => $total,
+        ];
     }
 
     // ─── Moyennes ────────────────────────────────────────────────────

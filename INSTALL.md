@@ -93,6 +93,8 @@ L'assistant vous guide en **5 étapes** :
 | **4. Administrateur** | Créer le premier compte administrateur |
 | **5. Finalisation** | Création de la base de données, génération du fichier de configuration, tests |
 
+> **Protection contre l'écrasement** : si la base de données existe déjà et contient des tables, l'assistant affiche un avertissement avec le nombre de tables détectées. Vous devrez cocher explicitement une case de confirmation avant de procéder, ou revenir en arrière pour choisir un autre nom de base.
+
 À la fin de l'assistant, un fichier `install.lock` est créé automatiquement — il **bloque** toute réinstallation accidentelle.
 
 ---
@@ -215,10 +217,15 @@ curl http://localhost:3000/health
 - [ ] Connexion administrateur fonctionnelle
 - [ ] Création des comptes enseignants, élèves et parents (Administration → Utilisateurs)
 - [ ] Configuration de l'établissement (Administration → Établissement)
+- [ ] Configuration des **permissions par module** (Administration → Modules → Permissions)
+- [ ] Activation de la **messagerie** si souhaitée (désactivée par défaut pour des raisons de sécurité)
+- [ ] Personnalisation des **widgets du tableau de bord** (page d'accueil → Personnaliser)
 - [ ] Clé webhook saisie et URL transmise au support
 - [ ] `APP_DEBUG=false` dans la configuration (vérifiable dans Administration → Système)
 - [ ] HTTPS configuré si accès depuis Internet
 - [ ] Sauvegardes automatiques planifiées (voir ci-dessous)
+
+> **Import d'utilisateurs** : vous pouvez importer des listes d'élèves, professeurs et parents depuis des fichiers CSV via **Administration → Système → Import/Export**.
 
 ---
 

@@ -1,7 +1,7 @@
 <?php
 /**
  * Sidebar partagée — FRONOTE
- * Version 2 : data-driven depuis modules_config
+ * Version 3 : Collapsible categories, search, sidebar collapse, scalable for 50+ modules
  *
  * Variables attendues (définies par shared_header.php) :
  *   $activePage  — page active pour le highlight
@@ -43,6 +43,17 @@ try {
     $_sb_sidebarModules = $_sb_ms->getForSidebar($userRole);
 } catch (Exception $e) {
     // modules_config not ready — sidebar shows nothing dynamic
+}
+
+// ─── Determine which category contains the active page ──────────
+$_sb_activeCategoryKey = '';
+foreach ($_sb_sidebarModules as $catKey => $_sb_catMods) {
+    foreach ($_sb_catMods as $mod) {
+        if (($mod['module_key'] ?? '') === $activePage) {
+            $_sb_activeCategoryKey = $catKey;
+            break 2;
+        }
+    }
 }
 
 // ─── User info ───────────────────────────────────────────────────
@@ -90,38 +101,67 @@ try {
 <div class="sidebar" id="mainSidebar">
 
     <!-- Logo + établissement -->
-    <a href="<?= $rootPrefix ?>accueil/accueil.php" class="sidebar-brand">
-        <div class="sidebar-brand-logo">F</div>
-        <div class="sidebar-brand-text">
-            <span class="sidebar-brand-name">FRONOTE</span>
-            <span class="sidebar-brand-sub"><?= htmlspecialchars(mb_strimwidth($_sb_nom_etablissement, 0, 30, '…')) ?></span>
-        </div>
-    </a>
+    <div class="sidebar-brand-row">
+        <a href="<?= $rootPrefix ?>accueil/accueil.php" class="sidebar-brand">
+            <div class="sidebar-brand-logo">F</div>
+            <div class="sidebar-brand-text">
+                <span class="sidebar-brand-name">FRONOTE</span>
+                <span class="sidebar-brand-sub"><?= htmlspecialchars(mb_strimwidth($_sb_nom_etablissement, 0, 30, '…')) ?></span>
+            </div>
+        </a>
+        <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" type="button" title="Réduire le menu">
+            <i class="fas fa-angles-left" id="sidebarCollapseIcon"></i>
+        </button>
+    </div>
 
     <!-- Search -->
-    <div class="sidebar-search">
+    <div class="sidebar-search" id="sidebarSearchWrap">
         <i class="fas fa-search sidebar-search-icon"></i>
-        <input type="text" id="sidebarSearch" placeholder="Rechercher un module..." autocomplete="off">
+        <input type="text" id="sidebarSearch" placeholder="Rechercher..." autocomplete="off">
         <kbd class="sidebar-search-kbd">Ctrl+K</kbd>
     </div>
 
     <!-- Scrollable nav area -->
     <nav class="sidebar-nav-scroll" id="sidebarNavScroll">
 
-        <!-- Accueil (always visible) -->
-        <a href="<?= $rootPrefix ?>accueil/accueil.php" class="sidebar-link <?= $activePage === 'accueil' ? 'active' : '' ?>" data-search="accueil tableau de bord dashboard">
-            <span class="sidebar-link-icon"><i class="fas fa-home"></i></span>
-            <span class="sidebar-link-text">Accueil</span>
-        </a>
+        <!-- Accueil category (always visible, static) -->
+        <div class="sidebar-category" data-category="accueil">
+            <button class="sidebar-category-header" data-target="sbcat-accueil" data-has-active="<?= in_array($activePage, ['accueil', 'profil']) ? '1' : '0' ?>" type="button" title="Accueil">
+                <span class="sidebar-category-icon"><i class="fas fa-home"></i></span>
+                <span class="sidebar-category-label">Accueil</span>
+                <span class="sidebar-category-count">2</span>
+                <i class="fas fa-chevron-down sidebar-category-chevron"></i>
+            </button>
+            <div class="sidebar-category-body" id="sbcat-accueil">
+                <a href="<?= $rootPrefix ?>accueil/accueil.php"
+                   class="sidebar-link <?= $activePage === 'accueil' ? 'active' : '' ?>"
+                   data-search="accueil tableau de bord dashboard"
+                   data-module="accueil"
+                   title="Tableau de bord">
+                    <span class="sidebar-link-icon"><i class="fas fa-tachometer-alt"></i></span>
+                    <span class="sidebar-link-text">Tableau de bord</span>
+                </a>
+                <a href="<?= $rootPrefix ?>profil/index.php"
+                   class="sidebar-link <?= $activePage === 'profil' ? 'active' : '' ?>"
+                   data-search="profil mon compte informations personnelles"
+                   data-module="profil"
+                   title="Mon profil">
+                    <span class="sidebar-link-icon"><i class="fas fa-user-circle"></i></span>
+                    <span class="sidebar-link-text">Mon profil</span>
+                </a>
+            </div>
+        </div>
 
         <!-- Dynamic module categories -->
         <?php foreach ($_sb_sidebarModules as $catKey => $_sb_catMods): ?>
         <?php
             $catMeta = $_sb_categoryMeta[$catKey] ?? ['label' => ucfirst($catKey), 'icon' => 'fas fa-folder', 'order' => 99];
             $catId = 'sbcat-' . $catKey;
+            // Mark category that contains the active page
+            $catHasActive = ($catKey === $_sb_activeCategoryKey);
         ?>
         <div class="sidebar-category" data-category="<?= $catKey ?>">
-            <button class="sidebar-category-header" data-target="<?= $catId ?>" type="button">
+            <button class="sidebar-category-header" data-target="<?= $catId ?>" data-has-active="<?= $catHasActive ? '1' : '0' ?>" type="button" title="<?= htmlspecialchars($catMeta['label']) ?>">
                 <span class="sidebar-category-icon"><i class="<?= $catMeta['icon'] ?>"></i></span>
                 <span class="sidebar-category-label"><?= htmlspecialchars($catMeta['label']) ?></span>
                 <span class="sidebar-category-count"><?= count($_sb_catMods) ?></span>
@@ -154,7 +194,8 @@ try {
                 ?>
                 <a href="<?= $rootPrefix . htmlspecialchars($mod['route']) ?>"
                    class="sidebar-link <?= $isActive ? 'active' : '' ?>"
-                   data-search="<?= htmlspecialchars(strtolower($mod['label'] . ' ' . ($mod['description'] ?? ''))) ?>"
+                   data-search="<?= htmlspecialchars(strtolower($mod['label'] . ' ' . ($mod['description'] ?? '') . ' ' . ($catMeta['label'] ?? ''))) ?>"
+                   data-module="<?= htmlspecialchars($modKey) ?>"
                    title="<?= htmlspecialchars($mod['description'] ?? $mod['label']) ?>">
                     <span class="sidebar-link-icon"><i class="<?= htmlspecialchars($mod['icon']) ?>"></i></span>
                     <span class="sidebar-link-text"><?= htmlspecialchars($mod['label']) ?></span>
@@ -168,7 +209,7 @@ try {
         <!-- Module-specific extra content -->
         <?php if (!empty($sidebarExtraContent)): ?>
         <div class="sidebar-category">
-            <button class="sidebar-category-header" data-target="sbcat-extra" type="button">
+            <button class="sidebar-category-header" data-target="sbcat-extra" type="button" title="Actions">
                 <span class="sidebar-category-icon"><i class="fas fa-bolt"></i></span>
                 <span class="sidebar-category-label">Actions</span>
                 <i class="fas fa-chevron-down sidebar-category-chevron"></i>
@@ -191,7 +232,7 @@ try {
     <div class="sidebar-bottom">
         <!-- Admin link -->
         <?php if ($isAdmin): ?>
-        <a href="<?= $rootPrefix ?>admin/dashboard.php" class="sidebar-link sidebar-link--admin <?= $activePage === 'admin' ? 'active' : '' ?>">
+        <a href="<?= $rootPrefix ?>admin/dashboard.php" class="sidebar-link sidebar-link--admin <?= $activePage === 'admin' ? 'active' : '' ?>" title="Administration">
             <span class="sidebar-link-icon"><i class="fas fa-shield-alt"></i></span>
             <span class="sidebar-link-text">Administration</span>
             <?php if ($_sb_admin_badge > 0): ?>
@@ -227,8 +268,48 @@ try {
 
 <script>
 (function() {
+    'use strict';
+
+    var sidebar = document.getElementById('mainSidebar');
+    if (!sidebar) return;
+
+    // ─── Sidebar collapse (icons-only mode) ─────────────────────
+    var COLLAPSE_KEY = 'fronote_sidebar_collapsed';
+    var collapseBtn = document.getElementById('sidebarCollapseBtn');
+    var collapseIcon = document.getElementById('sidebarCollapseIcon');
+
+    function isSidebarCollapsed() {
+        return sidebar.classList.contains('sidebar--collapsed');
+    }
+
+    function setSidebarCollapsed(collapsed) {
+        sidebar.classList.toggle('sidebar--collapsed', collapsed);
+        if (collapseIcon) {
+            collapseIcon.className = collapsed ? 'fas fa-angles-right' : 'fas fa-angles-left';
+        }
+        // Adjust main content margin
+        var main = document.querySelector('.main-content');
+        if (main) {
+            main.style.marginLeft = collapsed ? '68px' : '';
+        }
+        try { localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch(e) {}
+    }
+
+    // Restore collapsed state
+    try {
+        if (localStorage.getItem(COLLAPSE_KEY) === '1') {
+            setSidebarCollapsed(true);
+        }
+    } catch(e) {}
+
+    if (collapseBtn) {
+        collapseBtn.addEventListener('click', function() {
+            setSidebarCollapsed(!isSidebarCollapsed());
+        });
+    }
+
     // ─── Collapsible categories ─────────────────────────────────
-    const STORAGE_KEY = 'fronote_sidebar_cats';
+    var STORAGE_KEY = 'fronote_sidebar_cats_v3';
 
     function getSaved() {
         try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch(e) { return {}; }
@@ -237,65 +318,146 @@ try {
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch(e) {}
     }
 
-    const catState = getSaved();
+    var catState = getSaved();
 
     document.querySelectorAll('.sidebar-category-header').forEach(function(btn) {
-        const targetId = btn.getAttribute('data-target');
-        const body = document.getElementById(targetId);
+        var targetId = btn.getAttribute('data-target');
+        var body = document.getElementById(targetId);
         if (!body) return;
 
-        // Restore saved state (default: expanded)
-        if (catState[targetId] === false) {
+        var hasActive = btn.getAttribute('data-has-active') === '1';
+
+        // Determine initial state:
+        // 1. If this category has the active page, always expand it
+        // 2. Otherwise restore saved state (default: expanded)
+        var shouldCollapse = false;
+        if (hasActive) {
+            shouldCollapse = false;
+            catState[targetId] = true; // Mark as open
+            saveCats(catState);
+        } else if (catState[targetId] === false) {
+            shouldCollapse = true;
+        }
+
+        if (shouldCollapse) {
             body.classList.add('collapsed');
             btn.classList.add('collapsed');
         }
 
         btn.addEventListener('click', function() {
-            const isCollapsed = body.classList.toggle('collapsed');
+            // Don't toggle categories when sidebar is collapsed (icons only)
+            if (isSidebarCollapsed()) return;
+
+            var isCollapsed = body.classList.toggle('collapsed');
             btn.classList.toggle('collapsed', isCollapsed);
             catState[targetId] = !isCollapsed;
             saveCats(catState);
         });
     });
 
-    // ─── Sidebar search ─────────────────────────────────────────
-    const searchInput = document.getElementById('sidebarSearch');
-    const navScroll = document.getElementById('sidebarNavScroll');
-    const noResults = document.getElementById('sidebarNoResults');
+    // ─── Sidebar search / filter ────────────────────────────────
+    var searchInput = document.getElementById('sidebarSearch');
+    var navScroll = document.getElementById('sidebarNavScroll');
+    var noResults = document.getElementById('sidebarNoResults');
 
     if (searchInput) {
+        var debounceTimer = null;
+
         searchInput.addEventListener('input', function() {
-            const q = this.value.toLowerCase().trim();
-            let anyVisible = false;
+            clearTimeout(debounceTimer);
+            var input = this;
+            debounceTimer = setTimeout(function() {
+                filterSidebar(input.value);
+            }, 80);
+        });
+
+        function filterSidebar(rawQuery) {
+            var q = rawQuery.toLowerCase().trim();
+            // Normalize accented chars for search
+            var qNorm = q.normalize ? q.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : q;
+            var anyVisible = false;
 
             // Filter individual links
             navScroll.querySelectorAll('.sidebar-link').forEach(function(link) {
-                const searchData = (link.getAttribute('data-search') || '') + ' ' + link.textContent.toLowerCase();
-                const match = !q || searchData.includes(q);
+                var searchData = (link.getAttribute('data-search') || '') + ' ' + link.textContent.toLowerCase();
+                var searchNorm = searchData.normalize ? searchData.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : searchData;
+                var match = !q || searchNorm.indexOf(qNorm) !== -1;
                 link.style.display = match ? '' : 'none';
                 if (match) anyVisible = true;
             });
 
             // Show/hide categories based on whether they have visible children
             navScroll.querySelectorAll('.sidebar-category').forEach(function(cat) {
-                const links = cat.querySelectorAll('.sidebar-link');
-                let catVisible = false;
+                var links = cat.querySelectorAll('.sidebar-link');
+                var catVisible = false;
                 links.forEach(function(l) { if (l.style.display !== 'none') catVisible = true; });
                 cat.style.display = catVisible ? '' : 'none';
-                // Auto-expand when searching
+                // Auto-expand when searching, restore when cleared
                 if (q && catVisible) {
-                    cat.querySelector('.sidebar-category-body')?.classList.remove('collapsed');
-                    cat.querySelector('.sidebar-category-header')?.classList.remove('collapsed');
+                    var catBody = cat.querySelector('.sidebar-category-body');
+                    var catBtn = cat.querySelector('.sidebar-category-header');
+                    if (catBody) catBody.classList.remove('collapsed');
+                    if (catBtn) catBtn.classList.remove('collapsed');
                 }
             });
 
+            // Restore collapsed states when search is cleared
+            if (!q) {
+                document.querySelectorAll('.sidebar-category-header').forEach(function(btn) {
+                    var targetId = btn.getAttribute('data-target');
+                    var body = document.getElementById(targetId);
+                    if (!body) return;
+                    if (catState[targetId] === false) {
+                        body.classList.add('collapsed');
+                        btn.classList.add('collapsed');
+                    }
+                });
+                // Re-show all links
+                navScroll.querySelectorAll('.sidebar-link').forEach(function(link) {
+                    link.style.display = '';
+                });
+                navScroll.querySelectorAll('.sidebar-category').forEach(function(cat) {
+                    cat.style.display = '';
+                });
+            }
+
             noResults.style.display = (!anyVisible && q) ? '' : 'none';
-        });
+
+            // Highlight matching text
+            navScroll.querySelectorAll('.sidebar-link-text').forEach(function(span) {
+                // Remove previous highlights
+                if (span.querySelector('.sidebar-highlight')) {
+                    span.textContent = span.textContent;
+                }
+                if (!q) return;
+                var text = span.textContent;
+                var textNorm = text.normalize ? text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() : text.toLowerCase();
+                var idx = textNorm.indexOf(qNorm);
+                if (idx !== -1) {
+                    var before = text.substring(0, idx);
+                    var matched = text.substring(idx, idx + q.length);
+                    var after = text.substring(idx + q.length);
+                    span.innerHTML = escapeHtml(before)
+                        + '<span class="sidebar-highlight">' + escapeHtml(matched) + '</span>'
+                        + escapeHtml(after);
+                }
+            });
+        }
+
+        function escapeHtml(s) {
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(s));
+            return div.innerHTML;
+        }
 
         // Ctrl+K shortcut
         document.addEventListener('keydown', function(e) {
             if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
                 e.preventDefault();
+                // Expand sidebar if collapsed
+                if (isSidebarCollapsed()) {
+                    setSidebarCollapsed(false);
+                }
                 searchInput.focus();
                 searchInput.select();
             }
@@ -308,13 +470,13 @@ try {
     }
 
     // ─── Theme toggle ───────────────────────────────────────────
-    const themeToggle = document.getElementById('sidebarThemeToggle');
+    var themeToggle = document.getElementById('sidebarThemeToggle');
     if (themeToggle) {
         themeToggle.addEventListener('click', function() {
-            const html = document.documentElement;
-            const current = html.getAttribute('data-theme') || 'light';
-            const cycle = { light: 'dark', dark: 'auto', auto: 'light' };
-            const next = cycle[current] || 'light';
+            var html = document.documentElement;
+            var current = html.getAttribute('data-theme') || 'light';
+            var cycle = { light: 'dark', dark: 'auto', auto: 'light' };
+            var next = cycle[current] || 'light';
 
             applyTheme(next);
 
@@ -328,14 +490,14 @@ try {
     }
 
     function applyTheme(theme) {
-        const html = document.documentElement;
-        const iconDark = document.getElementById('themeIconDark');
-        const iconLight = document.getElementById('themeIconLight');
-        const iconAuto = document.getElementById('themeIconAuto');
-        const label = document.getElementById('themeLabel');
+        var html = document.documentElement;
+        var iconDark = document.getElementById('themeIconDark');
+        var iconLight = document.getElementById('themeIconLight');
+        var iconAuto = document.getElementById('themeIconAuto');
+        var label = document.getElementById('themeLabel');
 
         if (theme === 'auto') {
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             html.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
         } else {
             html.setAttribute('data-theme', theme);
@@ -352,8 +514,16 @@ try {
 
     // Listen for OS theme changes when in auto mode
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
-        const pref = document.documentElement.getAttribute('data-theme-pref');
+        var pref = document.documentElement.getAttribute('data-theme-pref');
         if (pref === 'auto') applyTheme('auto');
     });
+
+    // ─── Scroll active link into view on load ───────────────────
+    var activeLink = navScroll.querySelector('.sidebar-link.active');
+    if (activeLink) {
+        setTimeout(function() {
+            activeLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }, 150);
+    }
 })();
 </script>

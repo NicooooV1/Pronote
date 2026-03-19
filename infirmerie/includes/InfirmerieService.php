@@ -158,12 +158,19 @@ class InfirmerieService
     public function getStats(): array
     {
         $today = date('Y-m-d');
-        $month = date('Y-m');
+        $month = date('Y-m') . '%';
+
+        $stmtJour = $this->pdo->prepare("SELECT COUNT(*) FROM passages_infirmerie WHERE DATE(date_passage) = ?");
+        $stmtJour->execute([$today]);
+
+        $stmtMois = $this->pdo->prepare("SELECT COUNT(*) FROM passages_infirmerie WHERE date_passage LIKE ?");
+        $stmtMois->execute([$month]);
+
         return [
-            'fiches' => $this->pdo->query("SELECT COUNT(*) FROM fiches_sante")->fetchColumn(),
-            'passages_jour' => $this->pdo->prepare("SELECT COUNT(*) FROM passages_infirmerie WHERE DATE(date_passage) = ?")->execute([$today]) ? $this->pdo->prepare("SELECT COUNT(*) FROM passages_infirmerie WHERE DATE(date_passage) = ?")->execute([$today]) : 0,
-            'passages_mois' => $this->pdo->query("SELECT COUNT(*) FROM passages_infirmerie WHERE date_passage LIKE '$month%'")->fetchColumn(),
-            'pai_actifs' => $this->pdo->query("SELECT COUNT(*) FROM fiches_sante WHERE pai IS NOT NULL AND pai != ''")->fetchColumn(),
+            'fiches' => (int)$this->pdo->query("SELECT COUNT(*) FROM fiches_sante")->fetchColumn(),
+            'passages_jour' => (int)$stmtJour->fetchColumn(),
+            'passages_mois' => (int)$stmtMois->fetchColumn(),
+            'pai_actifs' => (int)$this->pdo->query("SELECT COUNT(*) FROM fiches_sante WHERE pai IS NOT NULL AND pai != ''")->fetchColumn(),
         ];
     }
 
@@ -175,8 +182,10 @@ class InfirmerieService
         $stmt->execute([$today]);
         $jour = $stmt->fetchColumn();
 
-        $month = date('Y-m');
-        $mois = $this->pdo->query("SELECT COUNT(*) FROM passages_infirmerie WHERE date_passage LIKE '$month%'")->fetchColumn();
+        $month = date('Y-m') . '%';
+        $stmtMois = $this->pdo->prepare("SELECT COUNT(*) FROM passages_infirmerie WHERE date_passage LIKE ?");
+        $stmtMois->execute([$month]);
+        $mois = $stmtMois->fetchColumn();
 
         $envois = $this->pdo->query("SELECT COUNT(*) FROM passages_infirmerie WHERE orientation = 'renvoye_domicile'")->fetchColumn();
         $urgences = $this->pdo->query("SELECT COUNT(*) FROM passages_infirmerie WHERE orientation = 'urgences'")->fetchColumn();
@@ -224,7 +233,9 @@ class InfirmerieService
         for ($i = 11; $i >= 0; $i--) {
             $month = date('Y-m', strtotime("-{$i} months"));
             $label = date('M Y', strtotime($month . '-01'));
-            $count = (int)$this->pdo->query("SELECT COUNT(*) FROM passages_infirmerie WHERE date_passage LIKE '$month%'")->fetchColumn();
+            $stmtM = $this->pdo->prepare("SELECT COUNT(*) FROM passages_infirmerie WHERE date_passage LIKE ?");
+            $stmtM->execute([$month . '%']);
+            $count = (int)$stmtM->fetchColumn();
             $result[] = ['mois' => $label, 'passages' => $count];
         }
         return $result;

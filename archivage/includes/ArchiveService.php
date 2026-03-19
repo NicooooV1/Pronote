@@ -76,10 +76,10 @@ class ArchiveService
      */
     public function archiverBulletins(string $annee): int
     {
-        $tables = ['bulletins', 'bulletin_matieres'];
+        $allowedTables = ['bulletins', 'bulletin_matieres'];
         $data = [];
-        foreach ($tables as $table) {
-            $stmt = $this->pdo->query("SELECT * FROM $table");
+        foreach ($allowedTables as $table) {
+            $stmt = $this->pdo->query("SELECT * FROM `{$table}`");
             $data[$table] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
         return $this->sauvegarderArchive($annee, 'bulletins', $data);

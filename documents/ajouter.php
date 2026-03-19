@@ -13,9 +13,9 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    validateCSRFToken();
-
-    if (empty($_FILES['fichier']['name'])) {
+    if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
+        $error = 'Jeton de sécurité invalide. Veuillez recharger la page.';
+    } elseif (empty($_FILES['fichier']['name'])) {
         $error = 'Veuillez sélectionner un fichier.';
     } elseif (empty($_POST['titre'])) {
         $error = 'Le titre est obligatoire.';

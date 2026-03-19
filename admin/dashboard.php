@@ -75,6 +75,49 @@ try {
     $modulesEnabled = (int)$pdo->query("SELECT COUNT(*) FROM modules_config WHERE enabled = 1")->fetchColumn();
 } catch (Exception $e) {}
 
+// --- KPIs avancés ---
+$kpi = ['taux_absenteisme' => null, 'moyenne_generale' => null, 'taux_remplissage_notes' => null, 'ws_status' => 'disabled'];
+
+// Taux d'absentéisme (30 derniers jours)
+try {
+    $totalEleves = max($counts['eleves'], 1);
+    $joursOuvres = 20; // approximation mois
+    $absences30j = (int)$pdo->query("SELECT COUNT(DISTINCT id_eleve) FROM absences WHERE date_debut >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)")->fetchColumn();
+    $kpi['taux_absenteisme'] = round(($absences30j / $totalEleves) * 100, 1);
+} catch (Exception $e) {}
+
+// Moyenne générale de l'établissement (trimestre courant)
+try {
+    $mois = (int)date('n');
+    $trimestre = ($mois >= 9 && $mois <= 12) ? 1 : (($mois >= 1 && $mois <= 3) ? 2 : 3);
+    $stmt = $pdo->prepare("SELECT ROUND(AVG(note / note_sur * 20), 2) FROM notes WHERE trimestre = ?");
+    $stmt->execute([$trimestre]);
+    $kpi['moyenne_generale'] = $stmt->fetchColumn() ?: null;
+} catch (Exception $e) {}
+
+// Taux de remplissage des notes (nb profs ayant saisi au moins 1 note / nb profs total)
+try {
+    $stmtProfs = $pdo->prepare("SELECT COUNT(DISTINCT id_professeur) FROM notes WHERE trimestre = ?");
+    $stmtProfs->execute([$trimestre]);
+    $profsAvecNotes = (int)$stmtProfs->fetchColumn();
+    $profsTotal = max($counts['professeurs'], 1);
+    $kpi['taux_remplissage_notes'] = round(($profsAvecNotes / $profsTotal) * 100, 1);
+} catch (Exception $e) {}
+
+// WebSocket status
+try {
+    $wsUrl = function_exists('env') ? env('WEBSOCKET_CLIENT_URL', '') : '';
+    if ($wsUrl) {
+        $ctx = stream_context_create(['http' => ['timeout' => 2, 'method' => 'GET']]);
+        $wsHealth = @file_get_contents(rtrim($wsUrl, '/') . '/health', false, $ctx);
+        $kpi['ws_status'] = $wsHealth !== false ? 'ok' : 'down';
+        if ($wsHealth) {
+            $wsData = json_decode($wsHealth, true);
+            $kpi['ws_connections'] = $wsData['connections'] ?? 0;
+        }
+    }
+} catch (Exception $e) { $kpi['ws_status'] = 'error'; }
+
 // --- Dernières connexions ---
 $recentLogins = [];
 try {
@@ -161,6 +204,38 @@ include 'includes/header.php';
         <div class="admin-stat-card">
             <div class="admin-stat-value" style="color:#dc2626"><?= $counts['absences_today'] ?></div>
             <div class="admin-stat-label">Absences aujourd'hui</div>
+        </div>
+    </div>
+
+    <!-- KPIs avancés -->
+    <div class="admin-stats-row">
+        <?php if ($kpi['moyenne_generale'] !== null): ?>
+        <div class="admin-stat-card">
+            <div class="admin-stat-value" style="color:#059669"><?= $kpi['moyenne_generale'] ?></div>
+            <div class="admin-stat-label">Moyenne /20 (trimestre)</div>
+        </div>
+        <?php endif; ?>
+        <?php if ($kpi['taux_absenteisme'] !== null): ?>
+        <div class="admin-stat-card">
+            <div class="admin-stat-value" style="color:<?= $kpi['taux_absenteisme'] > 15 ? '#dc2626' : '#b45309' ?>"><?= $kpi['taux_absenteisme'] ?>%</div>
+            <div class="admin-stat-label">Absentéisme (30j)</div>
+        </div>
+        <?php endif; ?>
+        <?php if ($kpi['taux_remplissage_notes'] !== null): ?>
+        <div class="admin-stat-card">
+            <div class="admin-stat-value" style="color:<?= $kpi['taux_remplissage_notes'] < 50 ? '#dc2626' : '#059669' ?>"><?= $kpi['taux_remplissage_notes'] ?>%</div>
+            <div class="admin-stat-label">Notes saisies (profs)</div>
+        </div>
+        <?php endif; ?>
+        <div class="admin-stat-card">
+            <div class="admin-stat-value" style="color:<?= $kpi['ws_status'] === 'ok' ? '#059669' : ($kpi['ws_status'] === 'disabled' ? '#9ca3af' : '#dc2626') ?>">
+                <?= $kpi['ws_status'] === 'ok' ? 'En ligne' : ($kpi['ws_status'] === 'disabled' ? 'Désactivé' : 'Hors ligne') ?>
+            </div>
+            <div class="admin-stat-label">WebSocket <?= isset($kpi['ws_connections']) ? '(' . $kpi['ws_connections'] . ' conn.)' : '' ?></div>
+        </div>
+        <div class="admin-stat-card">
+            <div class="admin-stat-value" style="color:#0f4c81"><?= $totalSessions ?></div>
+            <div class="admin-stat-label">Sessions actives</div>
         </div>
     </div>
 

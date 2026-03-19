@@ -16,7 +16,7 @@ if (!isset($user_initials)) {
 
 $user_fullname = $user_fullname ?? getUserFullName();
 
-// EventRepository pour le mini-calendrier et les types
+// EventRepository pour les types
 if (!isset($repo)) {
     $repo = new EventRepository(getPDO());
 }
@@ -27,21 +27,8 @@ $activePage = 'agenda';
 $isAdmin = isAdmin();
 $extraCss = array_merge(['assets/css/agenda.css'], $extraCss ?? []);
 
-// Construction du contenu sidebar spécifique à l'agenda
-ob_start();
-?>
-      <!-- Mini-calendrier pour la navigation -->
-      <div class="mini-calendar">
-        <?= $repo->renderMiniCalendar($month ?? (int)date('n'), $year ?? (int)date('Y'), $date ?? date('Y-m-d')) ?>
-      </div>
-      
-      <?php if (canManageAgendaEvents()): ?>
-      <a href="ajouter_evenement.php" class="sidebar-action-btn">
-        <i class="fas fa-plus"></i> Ajouter un événement
-      </a>
-      <?php endif; ?>
-<?php
-$sidebarExtraContent = ob_get_clean();
+// Sidebar simplifié — plus de mini-calendrier redondant
+$sidebarExtraContent = '';
 
 // Actions dans le header (bouton ajouter événement)
 ob_start();

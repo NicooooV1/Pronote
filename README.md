@@ -6,7 +6,7 @@
 > - **README.md** (ce fichier) — Documentation technique pour les développeurs
 > - **[INSTALL.md](INSTALL.md)** — Guide d'installation pour les utilisateurs finaux (établissements scolaires)
 
-Fronote est un système de gestion scolaire en **PHP vanilla** (sans framework) : 40+ modules, 233+ tables SQL, architecture IoC/PSR-4, API centralisée, WebSocket temps réel.
+Fronote est un système de gestion scolaire en **PHP vanilla** (sans framework) : 50+ modules, 240+ tables SQL, architecture IoC/PSR-4, API centralisée, WebSocket temps réel, design liquid glass.
 
 ---
 
@@ -26,6 +26,10 @@ Fronote est un système de gestion scolaire en **PHP vanilla** (sans framework) 
 - [Déploiement client](#déploiement-client)
 - [Maintenance & Mises à jour](#maintenance--mises-à-jour)
 - [Rôles utilisateurs](#rôles-utilisateurs)
+- [Permissions par module](#permissions-par-module)
+- [Accès technicien](#accès-technicien)
+- [Import / Export](#import--export)
+- [Design System — Liquid Glass](#design-system--liquid-glass)
 - [Dépannage développeur](#dépannage-développeur)
 
 ---
@@ -65,7 +69,7 @@ Fronote est un système de gestion scolaire en **PHP vanilla** (sans framework) 
                 ┌──────────────────┐
                 │   MySQL/MariaDB  │
                 │  (pronote.sql)   │
-                │   233+ tables    │
+                │   240+ tables    │
                 └──────────────────┘
 ```
 
@@ -105,10 +109,15 @@ Requête HTTP
 
 | Clé | Label | Description |
 |-----|-------|-------------|
-| `accueil` | Accueil | Tableau de bord personnalisé par rôle |
-| `messagerie` | Messagerie | Conversations, annonces, réactions, WebSocket |
+| `accueil` | Accueil | Tableau de bord avec widgets personnalisables (drag & drop) |
 | `notifications` | Notifications | Centre de notifications multi-canal |
-| `parametres` | Paramètres | Thème, police, avatar, 2FA, widgets |
+| `parametres` | Paramètres | Thème, police, avatar, bannière, citation, réseaux sociaux |
+
+### Communication (désactivable — messagerie off par défaut)
+
+| Clé | Label | Description |
+|-----|-------|-------------|
+| `messagerie` | Messagerie | Conversations, annonces, réactions, WebSocket — **désactivée par défaut**, activable par l'administrateur |
 
 ### Scolaire
 
@@ -300,10 +309,13 @@ Log::info('Action effectuée', ['user' => $user['id']]);
 | Service | Classe | Méthodes clés |
 |---------|--------|---------------|
 | Auth | `API\Auth\AuthManager` | `login()`, `logout()`, `user()`, `check()` |
+| RBAC | `API\Security\RBAC` | `can()`, `canModule()`, `getModulePermissions()`, `setModulePermission()` |
 | RateLimiter | `API\Security\RateLimiter` | `hit($key)`, `tooManyAttempts($key)`, `clear($key)` |
 | CSRF | `API\Security\CSRF` | `generate()`, `validate($token)`, `field()`, `meta()` |
 | FileUpload | `API\Services\FileUploadService` | `upload()`, `uploadMultiple()`, `serve()`, `delete()` |
 | ModuleService | `API\Services\ModuleService` | `isEnabled()`, `getForSidebar()`, `updateConfig()`, `updateRolesAutorises()` |
+| ProfileService | `API\Services\ProfileService` | `getProfile()`, `saveProfile()`, `uploadAvatar()`, `uploadBanner()` |
+| ImportExportService | `ImportExportService` | `exportUsers()`, `importUsers()`, `exportConfig()`, `importConfig()` |
 | Database | `API\Database\Database` | `getConnection()`, `table($name)` |
 
 ### FileUploadService
@@ -596,7 +608,7 @@ Permissions-Policy: camera=(), microphone=(), geolocation=()
 
 Schéma complet dans `pronote.sql`. Toujours modifier ce fichier directement (pas de système de migration séparé).
 
-### Tables par groupe (233+ tables)
+### Tables par groupe (240+ tables)
 
 | Groupe | Exemples |
 |--------|---------|
@@ -932,8 +944,95 @@ tar -czf /backups/uploads_$(date +%Y%m%d).tar.gz /var/www/fronote/uploads/
 | **Parent** | `parent` | Notes enfant(s), absences, messagerie, justificatifs, réunions |
 | **Personnel** | `personnel` | Modules configurés via `roles_autorises` |
 | **Vie scolaire** | `vie_scolaire` | Absences, discipline, reporting, infirmerie, internat |
+| **Technicien** | `technicien` | Accès temporaire limité, configurable par l'administrateur |
 
 La visibilité par rôle est configurable sans code via `admin/modules/configure.php`.
+
+---
+
+## Permissions par module
+
+Le système RBAC supporte des permissions granulaires par module et par rôle, stockées dans `module_permissions`.
+
+### Actions standard
+
+| Action | Colonne | Description |
+|--------|---------|-------------|
+| `view` | `can_view` | Voir le module |
+| `create` | `can_create` | Créer des entrées |
+| `edit` | `can_edit` | Modifier |
+| `delete` | `can_delete` | Supprimer |
+| `export` | `can_export` | Exporter les données |
+| `import` | `can_import` | Importer des données |
+
+### Permissions personnalisées
+
+Le champ `custom_permissions` (JSON) permet des actions spécifiques par module. Exemple pour la messagerie :
+
+```json
+{"send": true, "moderate": false, "broadcast": false}
+```
+
+### API
+
+```php
+// Vérifier une permission
+canModule('messagerie', 'send');    // bool — via helper global
+$rbac->canModule('notes', 'edit');  // via RBAC directement
+
+// Configurer via l'admin
+// admin/modules/permissions.php — interface matrice rôle × module × actions
+```
+
+---
+
+## Accès technicien
+
+Le système d'accès technicien permet de créer des comptes temporaires à durée limitée pour la maintenance.
+
+| Fonctionnalité | Détails |
+|---------------|---------|
+| **Création** | Via `admin/systeme/technicien.php` |
+| **Authentification** | Login `tech_XXXX` + mot de passe unique affiché une seule fois |
+| **Expiration** | 1h à 7 jours (configurable) |
+| **Restrictions** | Whitelist IP, modules restreints, niveau de permission (readonly/standard/full) |
+| **Audit** | Toutes les actions logées dans `technicien_audit_log` |
+| **Révocation** | Révocation manuelle immédiate possible |
+
+Tables : `technicien_access`, `technicien_audit_log`.
+
+---
+
+## Import / Export
+
+Le système d'import/export (accessible via `admin/systeme/import_export.php`) permet :
+
+| Fonctionnalité | Format | Description |
+|---------------|--------|-------------|
+| Export utilisateurs | CSV | Par type (élèves, professeurs, parents…) |
+| Export configuration | JSON | modules_config, module_permissions, settings |
+| Import utilisateurs | CSV | Validation, détection de doublons par email |
+| Import configuration | JSON | Restauration de configuration |
+| Historique | — | Journal de tous les imports/exports avec statut |
+
+---
+
+## Design System — Liquid Glass
+
+Fronote utilise un design system "liquid glass" inspiré d'Apple, défini dans `assets/css/liquid-glass.css`.
+
+### Caractéristiques
+
+- **Glass morphism** : `backdrop-filter: blur(20px) saturate(180%)`, backgrounds semi-transparents
+- **Palette** : Primary `#007AFF`, Success `#34C759`, Warning `#FF9500`, Danger `#FF3B30`
+- **Dark mode** : Support natif via `prefers-color-scheme` + classe `.dark-mode`
+- **Animations** : Transitions smooth, hover lift, scale on press, fade-in
+- **Typography** : `-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI'`
+- **CSS variables** : Toutes les couleurs et dimensions dans `:root` pour theming facile
+
+### Composants
+
+Cards, boutons pill, inputs glass, modals, tables transparentes, badges, alerts, tabs, pagination, tooltips, dropdowns — tous définis avec l'effet glass morphism.
 
 ---
 
@@ -977,4 +1076,4 @@ MIT — voir [LICENSE](LICENSE)
 
 ---
 
-*Fronote v1.0.0 — PHP vanilla · PSR-4 · IoC · 40+ modules · 233+ tables · WebSocket*
+*Fronote v1.1.0 — PHP vanilla · PSR-4 · IoC · 50+ modules · 240+ tables · WebSocket · Liquid Glass UI*

@@ -62,7 +62,8 @@ if ($view === 'month') {
     $filterArgs['date_end']   = $endOfWeek->format('Y-m-d');
 }
 
-$events = $repo->findFiltered($filterArgs);
+// Requête combinée : événements agenda + réunions
+$events = $repo->findAllWithReunions($filterArgs);
 
 // Organiser par jour pour la vue mois
 $events_by_day = ($view === 'month') ? EventRepository::groupByDay($events) : [];
@@ -70,9 +71,12 @@ $events_by_day = ($view === 'month') ? EventRepository::groupByDay($events) : []
 // Stats rapides
 $type_counts = EventRepository::countByType($events);
 
-// Prochains & récents (avec filtrage rôle)
-$upcoming_events    = $repo->findUpcoming($roleOpts, 8);
-$past_recent_events = $repo->findRecentPast($roleOpts, 7, 5);
+// Prochains & récents (avec filtrage rôle, incluant réunions)
+$upcoming_events    = $repo->findAllWithReunions(array_merge($roleOpts, ['upcoming' => true, 'limit' => 8]));
+$past_recent_events = array_slice($repo->findAllWithReunions(array_merge($roleOpts, [
+    'date_start' => date('Y-m-d', strtotime('-7 days')),
+    'date_end'   => date('Y-m-d', strtotime('-1 day')),
+])), 0, 5);
 
 // ── Titre de page ──
 $types_evenements = EventRepository::getTypesSimple();
@@ -174,7 +178,13 @@ include 'includes/header.php';
                     $eCls  = 'event-' . strtolower($ev['type_evenement']);
                     if ($ev['statut'] === 'annulé')  $eCls .= ' event-cancelled';
                     elseif ($ev['statut'] === 'reporté') $eCls .= ' event-postponed';
-                    echo '<div class="calendar-event ' . $eCls . '" data-event-id="' . (int)$ev['id'] . '">';
+                    $evId = is_int($ev['id']) ? $ev['id'] : 0;
+                    $isReunion = !empty($ev['is_reunion']);
+                    $dataAttr = $isReunion
+                        ? 'data-reunion-id="' . (int)$ev['reunion_id'] . '"'
+                        : 'data-event-id="' . $evId . '"';
+                    echo '<div class="calendar-event ' . $eCls . '" ' . $dataAttr . '>';
+                    if ($isReunion) echo '<i class="fas fa-users" style="font-size:9px;margin-right:3px"></i>';
                     echo '<span class="event-time">' . $eTime . '</span> ' . htmlspecialchars($ev['titre']);
                     echo '</div>';
                 }
@@ -210,20 +220,25 @@ include 'includes/header.php';
         <?php if (empty($upcoming_events)): ?>
             <p class="upcoming-empty">Aucun événement à venir</p>
         <?php else: ?>
-            <?php foreach ($upcoming_events as $ue): ?>
-            <a href="details_evenement.php?id=<?= (int)$ue['id'] ?>" class="upcoming-item">
+            <?php foreach ($upcoming_events as $ue):
+                $isReunion = !empty($ue['is_reunion']);
+                $detailUrl = $isReunion
+                    ? '../reunions/detail.php?id=' . (int)$ue['reunion_id']
+                    : 'details_evenement.php?id=' . (int)$ue['id'];
+            ?>
+            <a href="<?= $detailUrl ?>" class="upcoming-item">
                 <div class="upcoming-item-date">
                     <span class="upcoming-day"><?= date('d', strtotime($ue['date_debut'])) ?></span>
                     <span class="upcoming-month"><?= $month_names[(int)date('n', strtotime($ue['date_debut']))] ?></span>
                 </div>
                 <div class="upcoming-item-info">
-                    <div class="upcoming-item-title"><?= htmlspecialchars($ue['titre']) ?></div>
+                    <div class="upcoming-item-title"><?php if ($isReunion): ?><i class="fas fa-users" style="font-size:11px;margin-right:4px;color:#ff9500"></i><?php endif; ?><?= htmlspecialchars($ue['titre']) ?></div>
                     <div class="upcoming-item-meta">
                         <i class="far fa-clock"></i> <?= date('H:i', strtotime($ue['date_debut'])) ?>
                         <?php if (!empty($ue['lieu'])): ?> · <i class="fas fa-map-marker-alt"></i> <?= htmlspecialchars($ue['lieu']) ?><?php endif; ?>
                     </div>
                 </div>
-                <span class="upcoming-type-badge"><?= htmlspecialchars($types_evenements[$ue['type_evenement']] ?? ucfirst($ue['type_evenement'])) ?></span>
+                <span class="upcoming-type-badge"><?= htmlspecialchars($isReunion ? ($ue['type_personnalise'] ?? 'Réunion') : ($types_evenements[$ue['type_evenement']] ?? ucfirst($ue['type_evenement']))) ?></span>
             </a>
             <?php endforeach; ?>
         <?php endif; ?>
@@ -233,14 +248,19 @@ include 'includes/header.php';
         <?php if (empty($past_recent_events)): ?>
             <p class="upcoming-empty">Aucun événement récent</p>
         <?php else: ?>
-            <?php foreach ($past_recent_events as $pe): ?>
-            <a href="details_evenement.php?id=<?= (int)$pe['id'] ?>" class="upcoming-item upcoming-item--past">
+            <?php foreach ($past_recent_events as $pe):
+                $isReunion = !empty($pe['is_reunion']);
+                $detailUrl = $isReunion
+                    ? '../reunions/detail.php?id=' . (int)$pe['reunion_id']
+                    : 'details_evenement.php?id=' . (int)$pe['id'];
+            ?>
+            <a href="<?= $detailUrl ?>" class="upcoming-item upcoming-item--past">
                 <div class="upcoming-item-date">
                     <span class="upcoming-day"><?= date('d', strtotime($pe['date_debut'])) ?></span>
                     <span class="upcoming-month"><?= $month_names[(int)date('n', strtotime($pe['date_debut']))] ?></span>
                 </div>
                 <div class="upcoming-item-info">
-                    <div class="upcoming-item-title"><?= htmlspecialchars($pe['titre']) ?></div>
+                    <div class="upcoming-item-title"><?php if ($isReunion): ?><i class="fas fa-users" style="font-size:11px;margin-right:4px;color:#ff9500"></i><?php endif; ?><?= htmlspecialchars($pe['titre']) ?></div>
                     <div class="upcoming-item-meta">
                         <i class="far fa-clock"></i> <?= date('H:i', strtotime($pe['date_debut'])) ?>
                         <?php if (!empty($pe['lieu'])): ?> · <i class="fas fa-map-marker-alt"></i> <?= htmlspecialchars($pe['lieu']) ?><?php endif; ?>

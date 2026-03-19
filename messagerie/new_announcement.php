@@ -74,26 +74,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         switch ($cible) {
             case 'tous':
                 // Tous les utilisateurs
-                $tables = ['eleves', 'parents', 'professeurs', 'vie_scolaire', 'administrateurs'];
-                foreach ($tables as $table) {
-                    $type = rtrim($table, 's'); // Enlever le 's' final pour obtenir le type
-                    
-                    $query = $pdo->query("SELECT id FROM $table");
+                $allowedTables = ['eleves', 'parents', 'professeurs', 'vie_scolaire', 'administrateurs'];
+                foreach ($allowedTables as $table) {
+                    $type = rtrim($table, 's');
+
+                    $query = $pdo->query("SELECT id FROM `" . $table . "`");
                     $users = $query->fetchAll(PDO::FETCH_COLUMN);
-                    
+
                     foreach ($users as $userId) {
                         $participants[] = ['id' => $userId, 'type' => $type];
                     }
                 }
                 break;
-                
+
             case 'personnel':
                 // Uniquement le personnel (professeurs, vie scolaire, administrateurs)
-                $tables = ['professeurs', 'vie_scolaire', 'administrateurs'];
-                foreach ($tables as $table) {
+                $allowedTables = ['professeurs', 'vie_scolaire', 'administrateurs'];
+                foreach ($allowedTables as $table) {
                     $type = rtrim($table, 's');
-                    
-                    $query = $pdo->query("SELECT id FROM $table");
+
+                    $query = $pdo->query("SELECT id FROM `" . $table . "`");
                     $users = $query->fetchAll(PDO::FETCH_COLUMN);
                     
                     foreach ($users as $userId) {

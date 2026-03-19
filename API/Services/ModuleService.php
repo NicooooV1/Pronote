@@ -96,13 +96,15 @@ class ModuleService
     public static function categoryLabels(): array
     {
         return [
-            'navigation'    => 'Navigation (système)',
-            'scolaire'      => 'Scolaire',
+            'navigation'    => 'Accueil',
+            'scolaire'      => 'Pédagogie',
             'vie_scolaire'  => 'Vie scolaire',
             'communication' => 'Communication',
+            'sante'         => 'Santé',
             'etablissement' => 'Établissement',
-            'logistique'    => 'Logistique & Services',
-            'systeme'       => 'Système & Administration',
+            'logistique'    => 'Outils',
+            'systeme'       => 'Outils',
+            'administration'=> 'Administration',
         ];
     }
 
@@ -315,17 +317,37 @@ class ModuleService
 
     /**
      * Category display order + icons for sidebar headings.
+     * Includes both new sidebar categories and legacy DB category keys.
      */
     public static function categoryMeta(): array
     {
         return [
-            'scolaire'      => ['label' => 'Scolaire',                'icon' => 'fas fa-graduation-cap', 'order' => 1],
-            'vie_scolaire'  => ['label' => 'Vie scolaire',            'icon' => 'fas fa-school',         'order' => 2],
-            'communication' => ['label' => 'Communication',           'icon' => 'fas fa-comments',       'order' => 3],
-            'etablissement' => ['label' => 'Établissement',           'icon' => 'fas fa-building',       'order' => 4],
-            'logistique'    => ['label' => 'Logistique & Services',   'icon' => 'fas fa-cogs',           'order' => 5],
-            'systeme'       => ['label' => 'Système',                 'icon' => 'fas fa-shield-alt',     'order' => 6],
-            'navigation'    => ['label' => 'Général',                 'icon' => 'fas fa-th-large',       'order' => 0],
+            'navigation'    => ['label' => 'Accueil',              'icon' => 'fas fa-home',           'order' => 0],
+            'scolaire'      => ['label' => 'Pédagogie',           'icon' => 'fas fa-graduation-cap', 'order' => 1],
+            'vie_scolaire'  => ['label' => 'Vie scolaire',        'icon' => 'fas fa-school',         'order' => 2],
+            'communication' => ['label' => 'Communication',       'icon' => 'fas fa-comments',       'order' => 3],
+            'sante'         => ['label' => 'Santé',               'icon' => 'fas fa-heartbeat',      'order' => 4],
+            'etablissement' => ['label' => 'Établissement',       'icon' => 'fas fa-building',       'order' => 5],
+            'logistique'    => ['label' => 'Logistique',          'icon' => 'fas fa-cogs',           'order' => 6],
+            'systeme'       => ['label' => 'Outils',              'icon' => 'fas fa-tools',          'order' => 7],
+        ];
+    }
+
+    /**
+     * Remap legacy DB category keys to new sidebar categories.
+     * Modules whose module_key matches a key here get moved to the specified category.
+     * This lets us reorganise the sidebar without changing the DB.
+     */
+    public static function sidebarCategoryOverrides(): array
+    {
+        return [
+            // Move messagerie & notifications from navigation -> communication
+            'messagerie'      => 'communication',
+            'notifications'   => 'communication',
+            // Move infirmerie from etablissement -> sante
+            'infirmerie'      => 'sante',
+            // Move vie_associative from etablissement -> systeme (outils)
+            'vie_associative' => 'systeme',
         ];
     }
 
@@ -376,13 +398,15 @@ class ModuleService
         $all = $this->getAll();
         $grouped = [];
         $categoryMeta = self::categoryMeta();
+        $catOverrides = self::sidebarCategoryOverrides();
 
         foreach ($all as $key => $mod) {
             if (empty($mod['enabled'])) continue;
             if (!$this->isVisibleForRole($key, $role)) continue;
             if (in_array($key, ['accueil', 'parametres'])) continue;
 
-            $cat = $mod['category'] ?? 'general';
+            // Apply sidebar category override if defined, otherwise use DB category
+            $cat = $catOverrides[$key] ?? ($mod['category'] ?? 'general');
             $mod['route'] = self::getRoute($key);
             $mod['module_key'] = $key;
             $grouped[$cat][] = $mod;

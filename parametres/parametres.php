@@ -34,7 +34,9 @@ $section = $_GET['section'] ?? 'profil';
 
 // ─── Traitement POST ─────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    validateCSRFToken();
+    if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
+        $error = 'Jeton de sécurité invalide. Veuillez recharger la page.';
+    } else {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'preferences') {
@@ -91,6 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $widgetConfig = $_POST['widgets'] ?? [];
         $settingsService->saveAccueilConfig($userId, $userType, $widgetConfig);
         $success = 'Configuration du tableau de bord enregistrée.';
+    }
     }
 }
 

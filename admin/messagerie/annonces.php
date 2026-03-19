@@ -51,16 +51,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $c
                 $recipients = [];
                 $tables = ['eleve' => 'eleves', 'professeur' => 'professeurs', 'parent' => 'parents', 'vie_scolaire' => 'vie_scolaire'];
 
+                $allowedTables = ['eleve' => 'eleves', 'professeur' => 'professeurs', 'parent' => 'parents', 'vie_scolaire' => 'vie_scolaire'];
                 if ($target === 'all') {
-                    foreach ($tables as $type => $table) {
-                        $stmt = $pdo->query("SELECT id FROM $table WHERE actif = 1");
+                    foreach ($allowedTables as $type => $tbl) {
+                        $stmt = $pdo->query("SELECT id FROM `{$tbl}` WHERE actif = 1");
                         while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                             $recipients[] = ['id' => $r['id'], 'type' => $type];
                         }
                     }
                 } elseif ($target === 'eleves') {
-                    $sql = "SELECT id FROM eleves WHERE actif = 1" . (!empty($targetClasse) ? " AND classe = " . $pdo->quote($targetClasse) : "");
-                    $stmt = $pdo->query($sql);
+                    if (!empty($targetClasse)) {
+                        $stmt = $pdo->prepare("SELECT id FROM eleves WHERE actif = 1 AND classe = ?");
+                        $stmt->execute([$targetClasse]);
+                    } else {
+                        $stmt = $pdo->query("SELECT id FROM eleves WHERE actif = 1");
+                    }
                     while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
                         $recipients[] = ['id' => $r['id'], 'type' => 'eleve'];
                     }

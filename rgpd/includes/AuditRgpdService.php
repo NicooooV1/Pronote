@@ -45,7 +45,11 @@ class AuditRgpdService
         return [
             'total' => (int)$this->pdo->query("SELECT COUNT(*) FROM audit_log")->fetchColumn(),
             'today' => $todayCount,
-            'month' => (int)$this->pdo->query("SELECT COUNT(*) FROM audit_log WHERE created_at LIKE '$month%'")->fetchColumn(),
+            'month' => (int)(function() use ($month) {
+                $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE created_at LIKE ?");
+                $stmt->execute([$month . '%']);
+                return $stmt->fetchColumn();
+            })(),
         ];
     }
 

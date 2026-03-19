@@ -133,60 +133,28 @@ if (!function_exists('isVieScolaire')) {
 	}
 }
 
-// ==================== PERMISSIONS (centralisées) ====================
-
-/**
- * Matrice de permissions centralisée.
- * Chaque clé d'action → tableau des rôles autorisés.
- * Point unique de configuration des droits d'accès.
- */
-if (!defined('PERMISSION_MATRIX')) {
-	define('PERMISSION_MATRIX', [
-		'notes'             => ['administrateur', 'professeur', 'vie_scolaire'],
-		'absences'          => ['administrateur', 'professeur', 'vie_scolaire'],
-		'devoirs'           => ['administrateur', 'professeur'],
-		'edt'               => ['administrateur', 'vie_scolaire'],
-		'appel'             => ['administrateur', 'professeur', 'vie_scolaire'],
-		'discipline'        => ['administrateur', 'vie_scolaire'],
-		'signaler_incident' => ['administrateur', 'professeur', 'vie_scolaire'],
-		'annonces'          => ['administrateur', 'professeur', 'vie_scolaire'],
-		'bulletins'         => ['administrateur', 'professeur', 'vie_scolaire'],
-		'rendus'            => ['administrateur', 'professeur'],
-		'vie_scolaire'      => ['administrateur', 'vie_scolaire'],
-		'documents'         => ['administrateur', 'professeur', 'vie_scolaire'],
-		'competences'       => ['administrateur', 'professeur'],
-		'reporting'         => ['administrateur', 'professeur', 'vie_scolaire'],
-		'reunions'          => ['administrateur', 'vie_scolaire', 'professeur'],
-		'inscriptions'      => ['administrateur', 'vie_scolaire'],
-		'orientation'       => ['administrateur', 'professeur', 'vie_scolaire'],
-		'signalements'      => ['administrateur', 'vie_scolaire'],
-		'bibliotheque'      => ['administrateur', 'vie_scolaire'],
-		'clubs'             => ['administrateur', 'vie_scolaire', 'professeur'],
-		'infirmerie'        => ['administrateur', 'vie_scolaire'],
-		'archives'          => ['administrateur'],
-		'support'           => ['administrateur', 'vie_scolaire'],
-		'examens'           => ['administrateur', 'vie_scolaire'],
-		'besoins'           => ['administrateur', 'vie_scolaire', 'professeur'],
-		'personnel'         => ['administrateur', 'vie_scolaire'],
-		'salles'            => ['administrateur', 'vie_scolaire', 'professeur'],
-		'periscolaire'      => ['administrateur', 'vie_scolaire'],
-		'stages'            => ['administrateur', 'vie_scolaire', 'professeur'],
-		'transports'        => ['administrateur', 'vie_scolaire'],
-		'facturation'       => ['administrateur', 'vie_scolaire'],
-		'ressources'        => ['administrateur', 'professeur'],
-		'diplomes'          => ['administrateur', 'vie_scolaire'],
-	]);
-}
+// ==================== PERMISSIONS (centralisées via RBAC) ====================
 
 if (!function_exists('hasPermission')) {
 	/**
 	 * Vérifie si l'utilisateur connecté a la permission pour une action donnée.
-	 * @param string $action Clé de PERMISSION_MATRIX
+	 * Délègue au système RBAC centralisé (API\Security\RBAC).
+	 * Accepte les formats legacy "notes" et RBAC "notes.manage".
+	 * @param string $action Clé de permission
 	 * @return bool
 	 */
 	function hasPermission(string $action): bool {
-		$roles = PERMISSION_MATRIX[$action] ?? [];
-		return in_array(getUserRole(), $roles, true);
+		try {
+			$rbac = app('rbac');
+			// Si la permission est déjà au format RBAC (contient un point), vérifier directement
+			if (str_contains($action, '.')) {
+				return $rbac->can($action);
+			}
+			// Format legacy "notes" → vérifier "notes.manage" (gestion)
+			return $rbac->can($action . '.manage');
+		} catch (\Throwable $e) {
+			return false;
+		}
 	}
 }
 
@@ -252,9 +220,7 @@ if (!function_exists('can')) {
 		try {
 			return app('rbac')->can($permission);
 		} catch (\Throwable $e) {
-			// Fallback sur PERMISSION_MATRIX legacy
-			$action = explode('.', $permission)[0] ?? '';
-			return hasPermission($action);
+			return false;
 		}
 	}
 }
@@ -267,22 +233,61 @@ if (!function_exists('authorize')) {
 		try {
 			app('rbac')->authorize($permission);
 		} catch (\Throwable $e) {
-			if (!hasPermission(explode('.', $permission)[0] ?? '')) {
-				$_SESSION['error_message'] = 'Accès refusé.';
-				$base = defined('BASE_URL') ? BASE_URL : '';
-				header('Location: ' . $base . '/accueil/accueil.php');
-				exit;
-			}
+			$_SESSION['error_message'] = 'Accès refusé.';
+			$base = defined('BASE_URL') ? BASE_URL : '';
+			header('Location: ' . $base . '/accueil/accueil.php');
+			exit;
+		}
+	}
+}
+
+if (!function_exists('canModule')) {
+	/**
+	 * Vérifie une permission CRUD sur un module.
+	 * Ex: canModule('messagerie', 'send'), canModule('notes', 'create')
+	 */
+	function canModule(string $moduleKey, string $action = 'view'): bool {
+		try {
+			return app('rbac')->canModule($moduleKey, $action);
+		} catch (\Throwable $e) {
+			return false;
 		}
 	}
 }
 
 if (!function_exists('requireAdmin')) {
 	/**
-	 * Bloque l'accès au back-office si non-admin
+	 * Bloque l'accès au back-office si non-admin ou technicien
 	 */
 	function requireAdmin(): void {
+		$role = getUserRole();
+		if ($role === 'technicien') {
+			// Technicien has limited admin access, verify it's still valid
+			if (!isTechnicienValid()) {
+				$_SESSION['error_message'] = 'Accès technicien expiré.';
+				header('Location: ' . (defined('BASE_URL') ? BASE_URL : '') . '/login/index.php');
+				exit;
+			}
+			return;
+		}
 		requireRole('administrateur');
+	}
+}
+
+if (!function_exists('isTechnicienValid')) {
+	/**
+	 * Vérifie si l'accès technicien est encore valide (actif + non expiré)
+	 */
+	function isTechnicienValid(): bool {
+		if (getUserRole() !== 'technicien') return false;
+		try {
+			$pdo = getPDO();
+			$stmt = $pdo->prepare("SELECT id FROM technicien_access WHERE id = ? AND actif = 1 AND date_expiration > NOW() AND revoked_at IS NULL LIMIT 1");
+			$stmt->execute([getUserId()]);
+			return (bool)$stmt->fetchColumn();
+		} catch (\Throwable $e) {
+			return false;
+		}
 	}
 }
 

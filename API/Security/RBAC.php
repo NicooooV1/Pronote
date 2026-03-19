@@ -252,7 +252,9 @@ class RBAC
     }
 
     /**
-     * Vérifie si l'utilisateur courant a une permission donnée
+     * Vérifie si l'utilisateur courant a une permission donnée.
+     * Prend en compte la hiérarchie des rôles : un administrateur hérite
+     * des permissions de vie_scolaire et professeur.
      */
     public function can(string $permission): bool
     {
@@ -265,10 +267,13 @@ class RBAC
             return $this->cachedPermissions[$permission];
         }
 
+        // Résoudre tous les rôles effectifs (rôle courant + rôles hérités)
+        $effectiveRoles = $this->resolveRoles($this->currentRole);
+
         // 1) Vérifier dans la matrice statique
         $allowed = self::PERMISSIONS[$permission] ?? null;
         if ($allowed !== null) {
-            $result = in_array($this->currentRole, $allowed, true);
+            $result = !empty(array_intersect($effectiveRoles, $allowed));
             $this->cachedPermissions[$permission] = $result;
             return $result;
         }
@@ -277,6 +282,19 @@ class RBAC
         $result = $this->checkDynamicPermission($permission);
         $this->cachedPermissions[$permission] = $result;
         return $result;
+    }
+
+    /**
+     * Résout la hiérarchie des rôles : retourne le rôle + tous les rôles hérités (récursif).
+     */
+    private function resolveRoles(string $role): array
+    {
+        $roles = [$role];
+        $children = self::ROLE_HIERARCHY[$role] ?? [];
+        foreach ($children as $child) {
+            $roles = array_merge($roles, $this->resolveRoles($child));
+        }
+        return array_unique($roles);
     }
 
     /**
@@ -393,6 +411,156 @@ class RBAC
             'parent'         => 'Parent',
             'eleve'          => 'Élève',
         ];
+    }
+
+    // ───────────── PERMISSIONS MODULE CRUD ─────────────
+
+    /**
+     * Vérifie une permission CRUD sur un module.
+     * Ex: canModule('messagerie', 'send'), canModule('notes', 'create')
+     */
+    public function canModule(string $moduleKey, string $action = 'view'): bool
+    {
+        if (!$this->currentRole) return false;
+
+        $cacheKey = "module.{$moduleKey}.{$action}";
+        if (isset($this->cachedPermissions[$cacheKey])) {
+            return $this->cachedPermissions[$cacheKey];
+        }
+
+        try {
+            // Actions standard → colonnes directes
+            $standardActions = ['view', 'create', 'edit', 'delete', 'export', 'import'];
+
+            if (in_array($action, $standardActions, true)) {
+                $column = "can_{$action}";
+                $stmt = $this->pdo->prepare("
+                    SELECT `{$column}` FROM module_permissions
+                    WHERE module_key = ? AND role = ?
+                    LIMIT 1
+                ");
+                $stmt->execute([$moduleKey, $this->currentRole]);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                // Si pas de ligne → fallback sur la permission statique
+                if ($row === false) {
+                    $result = $this->can("{$moduleKey}.{$action}") || $this->can("{$moduleKey}.manage");
+                } else {
+                    $result = (bool)$row[$column];
+                }
+            } else {
+                // Action custom → chercher dans custom_permissions JSON
+                $stmt = $this->pdo->prepare("
+                    SELECT custom_permissions FROM module_permissions
+                    WHERE module_key = ? AND role = ?
+                    LIMIT 1
+                ");
+                $stmt->execute([$moduleKey, $this->currentRole]);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($row === false || $row['custom_permissions'] === null) {
+                    $result = false;
+                } else {
+                    $custom = json_decode($row['custom_permissions'], true) ?? [];
+                    $result = !empty($custom["can_{$action}"]);
+                }
+            }
+        } catch (\PDOException $e) {
+            // Table n'existe pas encore → fallback
+            $result = $this->can("{$moduleKey}.{$action}") || $this->can("{$moduleKey}.manage");
+        }
+
+        $this->cachedPermissions[$cacheKey] = $result;
+        return $result;
+    }
+
+    /**
+     * Récupère toutes les permissions de module pour un rôle donné.
+     */
+    public function getModulePermissions(string $role): array
+    {
+        try {
+            $stmt = $this->pdo->prepare("
+                SELECT mp.*, mc.label as module_label, mc.category
+                FROM module_permissions mp
+                JOIN modules_config mc ON mc.module_key = mp.module_key
+                WHERE mp.role = ?
+                ORDER BY mc.sort_order
+            ");
+            $stmt->execute([$role]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Récupère toutes les permissions de module (matrice complète).
+     */
+    public function getAllModulePermissions(): array
+    {
+        try {
+            $stmt = $this->pdo->query("
+                SELECT mp.*, mc.label as module_label, mc.category, mc.icon
+                FROM module_permissions mp
+                JOIN modules_config mc ON mc.module_key = mp.module_key
+                ORDER BY mc.sort_order, mp.role
+            ");
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Met à jour les permissions CRUD d'un module pour un rôle.
+     */
+    public function setModulePermission(string $moduleKey, string $role, array $permissions): bool
+    {
+        try {
+            $customJson = null;
+            if (!empty($permissions['custom'])) {
+                $customJson = json_encode($permissions['custom']);
+            }
+
+            $stmt = $this->pdo->prepare("
+                INSERT INTO module_permissions (module_key, role, can_view, can_create, can_edit, can_delete, can_export, can_import, custom_permissions)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    can_view = VALUES(can_view),
+                    can_create = VALUES(can_create),
+                    can_edit = VALUES(can_edit),
+                    can_delete = VALUES(can_delete),
+                    can_export = VALUES(can_export),
+                    can_import = VALUES(can_import),
+                    custom_permissions = VALUES(custom_permissions),
+                    updated_at = NOW()
+            ");
+
+            $result = $stmt->execute([
+                $moduleKey,
+                $role,
+                (int)($permissions['view'] ?? 0),
+                (int)($permissions['create'] ?? 0),
+                (int)($permissions['edit'] ?? 0),
+                (int)($permissions['delete'] ?? 0),
+                (int)($permissions['export'] ?? 0),
+                (int)($permissions['import'] ?? 0),
+                $customJson,
+            ]);
+
+            // Clear cache for this module/role
+            foreach ($this->cachedPermissions as $key => $v) {
+                if (str_starts_with($key, "module.{$moduleKey}.")) {
+                    unset($this->cachedPermissions[$key]);
+                }
+            }
+
+            return $result;
+        } catch (\PDOException $e) {
+            error_log("RBAC::setModulePermission error: " . $e->getMessage());
+            return false;
+        }
     }
 
     // ───────────── PERMISSIONS DYNAMIQUES (DB) ─────────────

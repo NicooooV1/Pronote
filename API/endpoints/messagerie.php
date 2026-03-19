@@ -95,9 +95,16 @@ try {
             http_response_code(404);
             echo json_encode(['success' => false, 'error' => "Ressource '{$resource}' inconnue"]);
     }
-} catch (Exception $e) {
+} catch (\InvalidArgumentException $e) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+} catch (\RuntimeException $e) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+} catch (Exception $e) {
+    error_log("API messagerie error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => 'Erreur interne du serveur']);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -105,7 +112,7 @@ try {
 // ═══════════════════════════════════════════════════════
 
 function handleConversations(string $action, array $user): void {
-    global $pdo;
+    $pdo = getPDO();
     
     switch ($action) {
         case 'list':
@@ -245,7 +252,7 @@ function handleConversations(string $action, array $user): void {
 }
 
 function handleMessages(string $action, array $user): void {
-    global $pdo;
+    $pdo = getPDO();
     $convId = Validator::id($_GET['conv_id'] ?? $_POST['conv_id'] ?? null);
     
     switch ($action) {

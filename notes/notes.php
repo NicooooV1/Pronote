@@ -28,11 +28,45 @@ if (!$selectedTrimestre || $selectedTrimestre < 1 || $selectedTrimestre > 3) {
     $selectedTrimestre = NoteService::getTrimestreCourant();
 }
 
+// Parent : récupérer la liste des enfants
+$enfants = [];
+$selectedEnfantId = 0;
+$selectedEnfantNom = '';
+if ($user_role === 'parent') {
+    try {
+        $stmtEnfants = $pdo->prepare("
+            SELECT e.id, e.nom, e.prenom, e.classe
+            FROM parent_eleve pe
+            JOIN eleves e ON pe.id_eleve = e.id
+            WHERE pe.id_parent = ?
+            ORDER BY e.prenom, e.nom
+        ");
+        $stmtEnfants->execute([$user['id']]);
+        $enfants = $stmtEnfants->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {}
+
+    $selectedEnfantId = (int) ($_GET['enfant'] ?? ($_SESSION['selected_enfant_id'] ?? 0));
+    if (!$selectedEnfantId && !empty($enfants)) {
+        $selectedEnfantId = $enfants[0]['id'];
+    }
+    $_SESSION['selected_enfant_id'] = $selectedEnfantId;
+
+    foreach ($enfants as $e) {
+        if ($e['id'] == $selectedEnfantId) {
+            $selectedEnfantNom = trim($e['prenom'] . ' ' . $e['nom']);
+            break;
+        }
+    }
+}
+
 // Charger les données via le service
 $notes = [];
 $moyennes_par_matiere = [];
 $moyenneGenerale = null;
 $classStats = null;
+$totalNotes = 0;
+$currentPage = max(1, (int) ($_GET['page'] ?? 1));
+$perPage = 50;
 
 // Filtres prof/admin
 $filterClasse  = $_GET['classe']  ?? '';
@@ -43,14 +77,25 @@ try {
         $notes = $noteService->getNotesEleve($user['id'], $selectedTrimestre);
         $moyennes_par_matiere = $noteService->getMoyennesParMatiere($user['id'], $selectedTrimestre);
         $moyenneGenerale = $noteService->getMoyenneGenerale($user['id'], $selectedTrimestre);
+        $totalNotes = count($notes);
+    } elseif ($user_role === 'parent' && $selectedEnfantId > 0) {
+        $notes = $noteService->getNotesEleve($selectedEnfantId, $selectedTrimestre);
+        $moyennes_par_matiere = $noteService->getMoyennesParMatiere($selectedEnfantId, $selectedTrimestre);
+        $moyenneGenerale = $noteService->getMoyenneGenerale($selectedEnfantId, $selectedTrimestre);
+        $totalNotes = count($notes);
     } elseif ($user_role === 'professeur') {
         $notes = $noteService->getNotesProfesseur($user['id'], $selectedTrimestre);
+        $totalNotes = count($notes);
         // Stats de classe si filtres renseignés
         if ($filterClasse && $filterMatiere) {
             $classStats = $noteService->getStatsClasse($filterClasse, $filterMatiere, $selectedTrimestre);
         }
     } else {
-        $notes = $noteService->getAllNotes($selectedTrimestre);
+        // Admin/vie scolaire : pagination + filtres SQL
+        $offset = ($currentPage - 1) * $perPage;
+        $result = $noteService->getAllNotes($selectedTrimestre, $perPage, $offset, $filterClasse, $filterMatiere);
+        $notes = $result['notes'];
+        $totalNotes = $result['total'];
         if ($filterClasse && $filterMatiere) {
             $classStats = $noteService->getStatsClasse($filterClasse, $filterMatiere, $selectedTrimestre);
         }
@@ -58,6 +103,8 @@ try {
 } catch (PDOException $e) {
     error_log("Erreur notes: " . $e->getMessage());
 }
+
+$totalPages = max(1, (int) ceil($totalNotes / $perPage));
 
 // Données de référence pour les filtres prof/admin
 $availableClasses  = [];
@@ -68,19 +115,16 @@ if ($user_role !== 'eleve') {
         $availableMatieres = $noteService->getMatieres();
     } catch (PDOException $e) {}
 
-    // Filtrer les notes affichées selon les critères sélectionnés
-    if (!empty($notes)) {
+    // Filtrer côté PHP pour le professeur (petit dataset)
+    if ($user_role === 'professeur' && !empty($notes)) {
         if ($filterClasse) {
-            $notes = array_filter($notes, function ($n) use ($filterClasse) {
-                return ($n['classe'] ?? '') === $filterClasse;
-            });
+            $notes = array_filter($notes, fn($n) => ($n['classe'] ?? '') === $filterClasse);
         }
         if ($filterMatiere) {
-            $notes = array_filter($notes, function ($n) use ($filterMatiere) {
-                return ($n['id_matiere'] ?? 0) == $filterMatiere;
-            });
+            $notes = array_filter($notes, fn($n) => ($n['id_matiere'] ?? 0) == $filterMatiere);
         }
         $notes = array_values($notes);
+        $totalNotes = count($notes);
     }
 }
 
@@ -128,7 +172,7 @@ include __DIR__ . '/../templates/shared_topbar.php';
                 <?php if (isAdmin()): ?>
                 <div class="admin-toolbar">
                     <span class="admin-toolbar-badge"><i class="fas fa-shield-alt"></i> Administration</span>
-                    <span style="font-size:13px;color:#4a5568">Vue complète — <?= count($notes) ?> note(s) affichée(s)</span>
+                    <span style="font-size:13px;color:#4a5568">Vue complète — <?= $totalNotes ?> note(s) au total</span>
                     <a href="ajouter_note.php" class="btn-sm" style="background:#059669;color:white;text-decoration:none;margin-left:auto"><i class="fas fa-plus"></i> Ajouter une note</a>
                     <a href="../admin/scolaire/notes.php" class="btn-sm" style="background:#0f4c81;color:white;text-decoration:none"><i class="fas fa-cog"></i> Panneau admin</a>
                 </div>
@@ -165,7 +209,90 @@ include __DIR__ . '/../templates/shared_topbar.php';
                     <?php endfor; ?>
                 </div>
 
-                <?php if ($user_role === 'eleve'): ?>
+                <?php if ($user_role === 'parent'): ?>
+                <!-- ========== VUE PARENT ========== -->
+                <?php if (count($enfants) > 1): ?>
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; background:white; padding:15px 20px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                    <span style="font-weight:600; color:#4a5568; line-height:36px;">Enfant :</span>
+                    <?php foreach ($enfants as $e): ?>
+                    <a href="?trimestre=<?= $selectedTrimestre ?>&enfant=<?= $e['id'] ?>"
+                       class="btn <?= $e['id'] == $selectedEnfantId ? 'btn-primary' : 'btn-secondary' ?>">
+                        <?= htmlspecialchars($e['prenom'] . ' ' . $e['nom']) ?>
+                        <span style="font-size:11px; opacity:0.8;">(<?= htmlspecialchars($e['classe'] ?? '') ?>)</span>
+                    </a>
+                    <?php endforeach; ?>
+                </div>
+                <?php elseif (!empty($enfants)): ?>
+                <p style="color:#4a5568; margin-bottom:16px;">Notes de <strong><?= htmlspecialchars($selectedEnfantNom) ?></strong></p>
+                <?php endif; ?>
+
+                <?php if (empty($enfants)): ?>
+                    <div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> Aucun enfant associé à votre compte.</div>
+                <?php elseif ($selectedEnfantId > 0): ?>
+
+                    <?php if ($moyenneGenerale !== null): ?>
+                    <div class="notes-hero-card">
+                        <div>
+                            <div class="notes-hero-label">Moyenne générale de <?= htmlspecialchars($selectedEnfantNom) ?> — <?= $selectedTrimestre === 1 ? '1er' : $selectedTrimestre . 'ème' ?> trimestre</div>
+                            <div class="notes-hero-value"><?= $moyenneGenerale ?><span class="notes-hero-unit">/20</span></div>
+                        </div>
+                        <div class="notes-hero-icon"><i class="fas fa-graduation-cap"></i></div>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if (!empty($moyennes_par_matiere)): ?>
+                    <h2 class="section-title">Moyennes par matière</h2>
+                    <div class="notes-grid">
+                        <?php foreach ($moyennes_par_matiere as $m): ?>
+                        <div class="notes-matiere-card" style="border-left-color:<?= htmlspecialchars($m['couleur'] ?? '#3498db') ?>">
+                            <div class="notes-matiere-name"><?= htmlspecialchars($m['matiere_nom'] ?? 'Matière') ?></div>
+                            <div class="notes-matiere-moyenne"><?= $m['moyenne'] ?><span class="notes-matiere-unit">/20</span></div>
+                            <div class="notes-matiere-count"><?= $m['nb_notes'] ?> évaluation<?= $m['nb_notes'] > 1 ? 's' : '' ?></div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+
+                    <h2 class="section-title">Détail des notes</h2>
+                    <?php if (empty($notes)): ?>
+                        <div class="alert alert-info"><i class="fas fa-info-circle"></i> Aucune note pour ce trimestre.</div>
+                    <?php else: ?>
+                    <div class="notes-table-wrapper">
+                        <table class="notes-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Matière</th>
+                                    <th>Évaluation</th>
+                                    <th class="text-center">Note</th>
+                                    <th class="text-center">Coeff.</th>
+                                    <th>Professeur</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($notes as $n): ?>
+                                <tr>
+                                    <td><?= date('d/m/Y', strtotime($n['date_note'])) ?></td>
+                                    <td>
+                                        <span class="badge-matiere" style="background:<?= htmlspecialchars($n['matiere_couleur'] ?? '#3498db') ?>20; color:<?= htmlspecialchars($n['matiere_couleur'] ?? '#3498db') ?>;">
+                                            <?= htmlspecialchars($n['matiere_nom'] ?? '') ?>
+                                        </span>
+                                    </td>
+                                    <td><?= htmlspecialchars($n['type_evaluation'] ?? '') ?></td>
+                                    <td class="text-center note-value <?= ($n['note'] / ($n['note_sur'] ?: 20) * 20) >= 10 ? 'note-good' : 'note-bad' ?>">
+                                        <?= $n['note'] ?><span class="note-sur">/<?= $n['note_sur'] ?></span>
+                                    </td>
+                                    <td class="text-center text-muted">×<?= $n['coefficient'] ?></td>
+                                    <td class="text-muted"><?= htmlspecialchars($n['professeur_nom'] ?? '') ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+
+                <?php elseif ($user_role === 'eleve'): ?>
                 <!-- ========== VUE ÉLÈVE ========== -->
 
                 <?php if ($moyenneGenerale !== null): ?>
@@ -329,7 +456,11 @@ include __DIR__ . '/../templates/shared_topbar.php';
                                 <td class="text-center text-muted">×<?= $n['coefficient'] ?></td>
                                 <td class="text-center">
                                     <a href="form_note.php?id=<?= $n['id'] ?>" class="btn btn-sm btn-secondary" title="Modifier"><i class="fas fa-edit"></i></a>
-                                    <a href="supprimer_note.php?id=<?= $n['id'] ?>" class="btn btn-sm btn-danger" title="Supprimer" onclick="return confirm('Supprimer cette note ?');"><i class="fas fa-trash"></i></a>
+                                    <form method="POST" action="supprimer_note.php" style="display:inline;" onsubmit="return confirm('Supprimer cette note ?');">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_hdr_csrf_token ?? '') ?>">
+                                        <input type="hidden" name="id" value="<?= $n['id'] ?>">
+                                        <button type="submit" class="btn btn-sm btn-danger" title="Supprimer"><i class="fas fa-trash"></i></button>
+                                    </form>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -399,6 +530,30 @@ include __DIR__ . '/../templates/shared_topbar.php';
                     </table>
                 </div>
                 <?php endif; ?>
+                <?php endif; ?>
+
+                <?php if ($totalPages > 1 && $user_role !== 'eleve'): ?>
+                <!-- Pagination -->
+                <div class="pagination" style="display:flex; justify-content:center; align-items:center; gap:8px; margin-top:24px;">
+                    <?php
+                    $queryBase = http_build_query(array_filter([
+                        'trimestre' => $selectedTrimestre,
+                        'classe' => $filterClasse,
+                        'matiere' => $filterMatiere ?: null,
+                    ]));
+                    ?>
+                    <?php if ($currentPage > 1): ?>
+                    <a href="?<?= $queryBase ?>&page=<?= $currentPage - 1 ?>" class="btn btn-sm btn-secondary">&laquo; Précédent</a>
+                    <?php endif; ?>
+
+                    <span style="font-size:14px;color:#4a5568;">
+                        Page <?= $currentPage ?> / <?= $totalPages ?> (<?= $totalNotes ?> notes)
+                    </span>
+
+                    <?php if ($currentPage < $totalPages): ?>
+                    <a href="?<?= $queryBase ?>&page=<?= $currentPage + 1 ?>" class="btn btn-sm btn-secondary">Suivant &raquo;</a>
+                    <?php endif; ?>
+                </div>
                 <?php endif; ?>
 
             </div>

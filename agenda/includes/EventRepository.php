@@ -265,6 +265,104 @@ class EventRepository
         return $parts;
     }
 
+    /* ================================================================
+       RÉUNIONS → Événements (intégration agenda ↔ réunions)
+       ================================================================ */
+
+    /**
+     * Récupère les réunions et les convertit en événements agenda.
+     * Permet d'afficher réunions, conseils de classe, RDV parents-profs
+     * directement dans le calendrier.
+     */
+    public function findReunionsAsEvents(array $options = []): array
+    {
+        $params = [];
+        $where  = ["r.statut != 'annulee'"];
+
+        if (!empty($options['date_start']) && !empty($options['date_end'])) {
+            $where[]  = "DATE(r.date_debut) BETWEEN ? AND ?";
+            $params[] = $options['date_start'];
+            $params[] = $options['date_end'];
+        } elseif (!empty($options['date'])) {
+            $where[]  = "DATE(r.date_debut) = ?";
+            $params[] = $options['date'];
+        } elseif (!empty($options['month']) && !empty($options['year'])) {
+            $where[]  = "MONTH(r.date_debut) = ? AND YEAR(r.date_debut) = ?";
+            $params[] = (int)$options['month'];
+            $params[] = (int)$options['year'];
+        }
+
+        if (!empty($options['upcoming'])) {
+            $where[] = "r.date_debut >= NOW()";
+        }
+
+        // Filtrage rôle : les parents ne voient que les réunions parents_profs
+        $role = $options['user_role'] ?? '';
+        if ($role === 'parent') {
+            $where[] = "r.type IN ('parents_profs', 'individuel')";
+        } elseif ($role === 'eleve') {
+            $where[] = "r.type IN ('conseil_classe', 'parents_profs')";
+        }
+
+        $sql = "SELECT r.id, r.titre, r.description, r.date_debut, r.date_fin,
+                       r.lieu, r.type, r.statut, r.classe_id, c.nom AS classe_nom
+                FROM reunions r
+                LEFT JOIN classes c ON r.classe_id = c.id
+                WHERE " . implode(' AND ', $where) . "
+                ORDER BY r.date_debut";
+
+        if (!empty($options['limit'])) {
+            $sql .= " LIMIT " . (int)$options['limit'];
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $reunions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Convertir en format événement agenda
+        $typeLabels = [
+            'parents_profs'  => 'Réunion parents-profs',
+            'conseil_classe' => 'Conseil de classe',
+            'reunion_equipe' => 'Réunion d\'équipe',
+            'individuel'     => 'Entretien individuel',
+            'autre'          => 'Réunion',
+        ];
+
+        return array_map(function ($r) use ($typeLabels) {
+            return [
+                'id'                => 'reunion_' . $r['id'],
+                'reunion_id'        => $r['id'],
+                'titre'             => $r['titre'],
+                'description'       => $r['description'] ?? '',
+                'date_debut'        => $r['date_debut'],
+                'date_fin'          => $r['date_fin'],
+                'type_evenement'    => 'reunion',
+                'type_personnalise' => $typeLabels[$r['type']] ?? 'Réunion',
+                'statut'            => $r['statut'] === 'terminee' ? 'actif' : ($r['statut'] === 'annulee' ? 'annulé' : 'actif'),
+                'lieu'              => $r['lieu'] ?? '',
+                'classes'           => $r['classe_nom'] ?? '',
+                'visibilite'        => 'public',
+                'createur'          => '',
+                'personnes_concernees' => '',
+                'matieres'          => '',
+                'rrule'             => null,
+                'is_reunion'        => true,
+            ];
+        }, $reunions);
+    }
+
+    /**
+     * Requête combinée : événements + réunions, triés par date.
+     */
+    public function findAllWithReunions(array $options = []): array
+    {
+        $events   = $this->findFiltered($options);
+        $reunions = $this->findReunionsAsEvents($options);
+        $combined = array_merge($events, $reunions);
+        usort($combined, fn($a, $b) => strcmp($a['date_debut'], $b['date_debut']));
+        return $combined;
+    }
+
     /* ── Raccourcis ── */
 
     public function findById(int $id): ?array

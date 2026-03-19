@@ -47,21 +47,43 @@ class SessionGuard {
             session_regenerate_id(true);
         }
 
+        // Ne jamais stocker le hash du mot de passe en session
+        $safeUser = $user;
+        unset($safeUser['mot_de_passe']);
+
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_type'] = $user['type'];
-        $_SESSION['user'] = $user;
-        
-        $this->user = $user;
+        $_SESSION['user'] = $safeUser;
+
+        $this->user = $safeUser;
     }
 
     /**
      * Déconnecte l'utilisateur
      */
     public function logout() {
-        unset($_SESSION['user_id']);
-        unset($_SESSION['user_type']);
-        unset($_SESSION['user']);
-        
         $this->user = null;
+
+        // Vider toutes les données de session
+        $_SESSION = [];
+
+        // Supprimer le cookie de session
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(
+                session_name(),
+                '',
+                time() - 42000,
+                $params['path'],
+                $params['domain'],
+                $params['secure'],
+                $params['httponly']
+            );
+        }
+
+        // Détruire la session côté serveur
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_destroy();
+        }
     }
 }

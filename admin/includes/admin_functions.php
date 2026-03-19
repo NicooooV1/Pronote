@@ -131,6 +131,7 @@ function getAdminBreadcrumb($currentPage, $pageTitle = '') {
         'audit'            => ['label' => 'Journal d\'audit',        'parent' => 'Système'],
         'stats'            => ['label' => 'Statistiques',            'parent' => 'Système'],
         'modules'          => ['label' => 'Gestion des modules',     'parent' => 'Système'],
+        'import_export'    => ['label' => 'Import / Export',         'parent' => 'Système'],
     ];
     return $sections[$currentPage] ?? ['label' => $pageTitle, 'parent' => null];
 }

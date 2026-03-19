@@ -1241,7 +1241,9 @@ CREATE TABLE `user_settings` (
   `sidebar_collapsed` tinyint(1) NOT NULL DEFAULT 0,
   `avatar_chemin` varchar(255) DEFAULT NULL,
   `bio` text DEFAULT NULL,
-  `accueil_config` text DEFAULT NULL,
+  `banner_color` VARCHAR(7) DEFAULT NULL COMMENT 'Couleur de bannière profil (hex)',
+  `banner_image` VARCHAR(255) DEFAULT NULL COMMENT 'Image de bannière profil',
+  `accueil_config` JSON DEFAULT NULL COMMENT 'Configuration widgets accueil (JSON)',
   `date_modification` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_user_settings` (`user_id`, `user_type`)
@@ -2165,7 +2167,7 @@ CREATE TABLE `modules_config` (
 -- Modules système (ne peuvent pas être désactivés)
 INSERT INTO `modules_config` (`module_key`, `label`, `description`, `icon`, `category`, `enabled`, `sort_order`, `is_core`) VALUES
 ('accueil',         'Accueil',                'Page d''accueil et tableau de bord',                 'fas fa-home',               'navigation', 1, 1,  1),
-('messagerie',      'Messagerie',             'Messagerie interne entre utilisateurs',              'fas fa-envelope',           'navigation', 1, 2,  1),
+('messagerie',      'Messagerie',             'Messagerie interne entre utilisateurs',              'fas fa-envelope',           'navigation', 0, 2,  0),
 ('parametres',      'Paramètres',             'Paramètres du compte utilisateur',                   'fas fa-cog',                'navigation', 1, 3,  1),
 ('notifications',   'Notifications',          'Centre de notifications',                            'fas fa-bell',               'navigation', 1, 4,  1);
 
@@ -2609,6 +2611,215 @@ CREATE OR REPLACE VIEW `v_users` AS
   SELECT id, prenom, nom, CONCAT(prenom, ' ', nom), 'vie_scolaire' FROM vie_scolaire
   UNION ALL
   SELECT id, prenom, nom, CONCAT(prenom, ' ', nom), 'administrateur' FROM administrateurs;
+
+-- ============================================================
+-- M99 : RBAC Permissions dynamiques
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `rbac_permissions` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `role` VARCHAR(50) NOT NULL,
+  `permission` VARCHAR(100) NOT NULL,
+  `granted` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_role_permission` (`role`, `permission`),
+  INDEX `idx_role` (`role`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- M100 : Permissions CRUD par module (admin)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `module_permissions` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `module_key` VARCHAR(50) NOT NULL,
+  `role` VARCHAR(50) NOT NULL,
+  `can_view` TINYINT(1) NOT NULL DEFAULT 1,
+  `can_create` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_edit` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_delete` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_export` TINYINT(1) NOT NULL DEFAULT 0,
+  `can_import` TINYINT(1) NOT NULL DEFAULT 0,
+  `custom_permissions` JSON DEFAULT NULL COMMENT 'Permissions spécifiques au module, ex: {"can_send":true,"can_moderate":false}',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_module_role` (`module_key`, `role`),
+  KEY `idx_role` (`role`),
+  KEY `idx_module` (`module_key`),
+  CONSTRAINT `fk_modperm_module` FOREIGN KEY (`module_key`) REFERENCES `modules_config` (`module_key`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Permissions par défaut messagerie (désactivée par défaut sauf admin)
+INSERT INTO `module_permissions` (`module_key`, `role`, `can_view`, `can_create`, `can_edit`, `can_delete`, `can_export`, `custom_permissions`) VALUES
+('messagerie', 'administrateur', 1, 1, 1, 1, 1, '{"can_send":true,"can_moderate":true,"can_broadcast":true}'),
+('messagerie', 'professeur',     0, 0, 0, 0, 0, '{"can_send":false,"can_moderate":false}'),
+('messagerie', 'vie_scolaire',   0, 0, 0, 0, 0, '{"can_send":false,"can_moderate":false}'),
+('messagerie', 'eleve',          0, 0, 0, 0, 0, '{"can_send":false}'),
+('messagerie', 'parent',         0, 0, 0, 0, 0, '{"can_send":false}');
+
+-- Permissions par défaut notes
+INSERT INTO `module_permissions` (`module_key`, `role`, `can_view`, `can_create`, `can_edit`, `can_delete`, `can_export`) VALUES
+('notes', 'administrateur', 1, 1, 1, 1, 1),
+('notes', 'professeur',     1, 1, 1, 0, 1),
+('notes', 'vie_scolaire',   1, 0, 0, 0, 1),
+('notes', 'eleve',          1, 0, 0, 0, 0),
+('notes', 'parent',         1, 0, 0, 0, 0);
+
+-- Permissions par défaut absences
+INSERT INTO `module_permissions` (`module_key`, `role`, `can_view`, `can_create`, `can_edit`, `can_delete`, `can_export`) VALUES
+('absences', 'administrateur', 1, 1, 1, 1, 1),
+('absences', 'professeur',     1, 1, 1, 0, 0),
+('absences', 'vie_scolaire',   1, 1, 1, 1, 1),
+('absences', 'eleve',          1, 0, 0, 0, 0),
+('absences', 'parent',         1, 0, 0, 0, 0);
+
+-- ============================================================
+-- M101 : Accès technicien temporaire
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `technicien_access` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `nom` VARCHAR(100) NOT NULL,
+  `prenom` VARCHAR(100) NOT NULL,
+  `email` VARCHAR(150) DEFAULT NULL,
+  `identifiant` VARCHAR(50) NOT NULL,
+  `mot_de_passe` VARCHAR(255) NOT NULL,
+  `motif` TEXT NOT NULL COMMENT 'Raison de l''accès temporaire',
+  `permissions` JSON NOT NULL DEFAULT ('["admin.access","admin.systeme"]') COMMENT 'Liste des permissions accordées',
+  `modules_autorises` JSON DEFAULT NULL COMMENT 'null = tous les modules, sinon liste de module_key',
+  `ip_whitelist` JSON DEFAULT NULL COMMENT 'IPs autorisées, null = toutes',
+  `created_by` INT NOT NULL COMMENT 'ID admin qui a créé l''accès',
+  `actif` TINYINT(1) NOT NULL DEFAULT 1,
+  `date_debut` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `date_expiration` DATETIME NOT NULL COMMENT 'Expiration automatique',
+  `last_login` DATETIME DEFAULT NULL,
+  `login_count` INT NOT NULL DEFAULT 0,
+  `revoked_at` DATETIME DEFAULT NULL,
+  `revoked_by` INT DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_identifiant` (`identifiant`),
+  KEY `idx_actif_expiration` (`actif`, `date_expiration`),
+  KEY `idx_created_by` (`created_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Log des actions technicien (audit renforcé)
+CREATE TABLE IF NOT EXISTS `technicien_audit_log` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `technicien_id` INT NOT NULL,
+  `action` VARCHAR(100) NOT NULL,
+  `details` JSON DEFAULT NULL,
+  `ip_address` VARCHAR(45) DEFAULT NULL,
+  `user_agent` TEXT DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY `idx_technicien` (`technicien_id`),
+  KEY `idx_action` (`action`),
+  KEY `idx_date` (`created_at`),
+  CONSTRAINT `fk_techaudit_tech` FOREIGN KEY (`technicien_id`) REFERENCES `technicien_access` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- M102 : Profil utilisateur étendu (citation, réseaux sociaux, photo)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `user_profiles` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `user_type` VARCHAR(20) NOT NULL,
+  `citation` VARCHAR(500) DEFAULT NULL COMMENT 'Citation ou phrase de présentation',
+  `site_web` VARCHAR(255) DEFAULT NULL,
+  `lien_linkedin` VARCHAR(255) DEFAULT NULL,
+  `lien_twitter` VARCHAR(255) DEFAULT NULL,
+  `lien_github` VARCHAR(255) DEFAULT NULL,
+  `lien_instagram` VARCHAR(255) DEFAULT NULL,
+  `lien_autre` VARCHAR(255) DEFAULT NULL,
+  `competences_tags` JSON DEFAULT NULL COMMENT 'Tags de compétences/intérêts',
+  `disponibilites` VARCHAR(255) DEFAULT NULL COMMENT 'Horaires de disponibilité (texte libre)',
+  `bureau` VARCHAR(100) DEFAULT NULL COMMENT 'Numéro de bureau (professeur/admin)',
+  `telephone_pro` VARCHAR(20) DEFAULT NULL,
+  `date_naissance_visible` TINYINT(1) NOT NULL DEFAULT 0,
+  `email_visible` TINYINT(1) NOT NULL DEFAULT 0,
+  `profil_public` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Visible dans le trombinoscope',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_user_profile` (`user_id`, `user_type`),
+  KEY `idx_profil_public` (`profil_public`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- M103 : Configuration import/export
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `import_export_logs` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `type` ENUM('import','export') NOT NULL,
+  `cible` VARCHAR(50) NOT NULL COMMENT 'users, config, notes, absences, etc.',
+  `format` VARCHAR(20) NOT NULL DEFAULT 'csv' COMMENT 'csv, json, xlsx',
+  `fichier_nom` VARCHAR(255) DEFAULT NULL,
+  `fichier_chemin` VARCHAR(500) DEFAULT NULL,
+  `nb_lignes_total` INT DEFAULT 0,
+  `nb_lignes_traitees` INT DEFAULT 0,
+  `nb_erreurs` INT DEFAULT 0,
+  `erreurs_detail` JSON DEFAULT NULL,
+  `options` JSON DEFAULT NULL COMMENT 'Options utilisées (mapping colonnes, etc.)',
+  `statut` ENUM('en_cours','termine','erreur','annule') NOT NULL DEFAULT 'en_cours',
+  `user_id` INT NOT NULL,
+  `user_type` VARCHAR(20) NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `completed_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_type_cible` (`type`, `cible`),
+  KEY `idx_statut` (`statut`),
+  KEY `idx_user` (`user_id`, `user_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- M104 : Widgets personnalisables accueil
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `dashboard_widgets` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `widget_key` VARCHAR(50) NOT NULL COMMENT 'identifiant unique du widget',
+  `label` VARCHAR(100) NOT NULL,
+  `description` TEXT DEFAULT NULL,
+  `icon` VARCHAR(50) NOT NULL DEFAULT 'fas fa-puzzle-piece',
+  `type` ENUM('stats','list','chart','calendar','shortcut','custom') NOT NULL DEFAULT 'stats',
+  `module_key` VARCHAR(50) DEFAULT NULL COMMENT 'Module lié (null = global)',
+  `roles_autorises` JSON DEFAULT NULL COMMENT 'null = tous les rôles',
+  `default_config` JSON DEFAULT NULL COMMENT 'Config par défaut du widget',
+  `min_width` INT NOT NULL DEFAULT 1 COMMENT 'Largeur min en colonnes (1-4)',
+  `max_width` INT NOT NULL DEFAULT 4,
+  `default_width` INT NOT NULL DEFAULT 2,
+  `default_height` INT NOT NULL DEFAULT 1,
+  `is_default` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Affiché par défaut pour les nouveaux utilisateurs',
+  `actif` TINYINT(1) NOT NULL DEFAULT 1,
+  `sort_order` INT NOT NULL DEFAULT 100,
+  UNIQUE KEY `uk_widget_key` (`widget_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `user_dashboard_config` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `user_type` VARCHAR(20) NOT NULL,
+  `widget_key` VARCHAR(50) NOT NULL,
+  `position_x` INT NOT NULL DEFAULT 0 COMMENT 'Colonne (0-based)',
+  `position_y` INT NOT NULL DEFAULT 0 COMMENT 'Ligne (0-based)',
+  `width` INT NOT NULL DEFAULT 2,
+  `height` INT NOT NULL DEFAULT 1,
+  `config` JSON DEFAULT NULL COMMENT 'Config spécifique utilisateur',
+  `visible` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_user_widget` (`user_id`, `user_type`, `widget_key`),
+  KEY `idx_user` (`user_id`, `user_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Widgets par défaut
+INSERT INTO `dashboard_widgets` (`widget_key`, `label`, `description`, `icon`, `type`, `module_key`, `roles_autorises`, `default_width`, `is_default`, `sort_order`) VALUES
+('prochains_evenements', 'Prochains événements', 'Événements à venir cette semaine', 'fas fa-calendar', 'list', 'agenda', NULL, 2, 1, 10),
+('devoirs_a_faire',      'Devoirs à rendre',     'Devoirs en attente de rendu',      'fas fa-tasks', 'list', 'devoirs', '["eleve","parent"]', 2, 1, 20),
+('dernieres_notes',      'Dernières notes',       'Notes les plus récentes',          'fas fa-chart-bar', 'list', 'notes', '["eleve","parent","professeur"]', 2, 1, 30),
+('messages_non_lus',     'Messages non lus',      'Messages en attente de lecture',   'fas fa-envelope', 'stats', 'messagerie', NULL, 1, 1, 40),
+('absences_du_jour',     'Absences du jour',      'Absences signalées aujourd''hui',  'fas fa-calendar-times', 'stats', 'absences', '["administrateur","vie_scolaire","professeur"]', 1, 1, 50),
+('stats_rapides',        'Statistiques rapides',   'Vue d''ensemble chiffrée',         'fas fa-tachometer-alt', 'stats', NULL, '["administrateur","vie_scolaire"]', 4, 1, 5),
+('emploi_du_temps_jour', 'Emploi du temps',        'Cours du jour',                    'fas fa-table', 'calendar', 'emploi_du_temps', '["eleve","professeur"]', 2, 1, 15),
+('raccourcis',           'Accès rapides',          'Raccourcis vers vos modules favoris', 'fas fa-star', 'shortcut', NULL, NULL, 2, 1, 60),
+('annonces_recentes',    'Annonces récentes',     'Dernières annonces et sondages',    'fas fa-bullhorn', 'list', 'annonces', NULL, 2, 1, 25),
+('reunions_a_venir',     'Réunions à venir',      'Prochaines réunions planifiées',    'fas fa-handshake', 'list', 'reunions', '["professeur","parent","administrateur"]', 2, 0, 70);
 
 -- ============================================================
 SET SESSION FOREIGN_KEY_CHECKS = 1;

@@ -33,10 +33,10 @@ $rootPrefix = $rootPrefix ?? '../';
 // Load user's theme preference from DB or localStorage fallback
 $_hdr_theme = 'light';
 try {
-    if (!empty($_SESSION['user_id']) && !empty($_SESSION['role'])) {
+    if (!empty($_SESSION['user_id']) && !empty($_SESSION['user_type'])) {
         $_hdr_pdo = getPDO();
         $_hdr_stmt = $_hdr_pdo->prepare("SELECT theme FROM user_settings WHERE user_id = ? AND user_type = ?");
-        $_hdr_stmt->execute([$_SESSION['user_id'], $_SESSION['role']]);
+        $_hdr_stmt->execute([$_SESSION['user_id'], $_SESSION['user_type']]);
         $_hdr_theme = $_hdr_stmt->fetchColumn() ?: 'light';
     }
 } catch (Exception $e) { /* fallback to light */ }
@@ -88,7 +88,7 @@ try {
 
 // ─── Security headers ────────────────────────────────────────────────────────
 if (!headers_sent()) {
-    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$_hdr_nonce}' cdnjs.cloudflare.com cdn.socket.io code.jquery.com; style-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; font-src cdnjs.cloudflare.com data:; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'none';");
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$_hdr_nonce}' cdnjs.cloudflare.com cdn.socket.io code.jquery.com; style-src 'self' 'nonce-{$_hdr_nonce}' cdnjs.cloudflare.com; font-src cdnjs.cloudflare.com data:; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'none';");
     header("X-Frame-Options: DENY");
     header("X-Content-Type-Options: nosniff");
     header("Referrer-Policy: strict-origin-when-cross-origin");
@@ -104,6 +104,7 @@ if (!headers_sent()) {
     <title><?= htmlspecialchars($pageTitle) ?> - FRONOTE</title>
     <!-- CSS unifié pour toute l'application -->
     <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/pronote-unified.css">
+    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/liquid-glass.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <?php foreach ($extraCss as $css): ?>
     <link rel="stylesheet" href="<?= htmlspecialchars($css) ?>">

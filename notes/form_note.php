@@ -54,7 +54,9 @@ if ($isEdit) {
 
     // Traitement du formulaire de modification
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        validateCSRFToken($_POST['csrf_token'] ?? '');
+        if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
+            $errors[] = 'Jeton de sécurité invalide. Veuillez recharger la page.';
+        }
 
         $data = [
             'note'        => filter_input(INPUT_POST, 'note', FILTER_VALIDATE_FLOAT),
@@ -107,7 +109,9 @@ if ($isEdit) {
 
     // Traitement du formulaire d'ajout
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_notes') {
-        validateCSRFToken($_POST['csrf_token'] ?? '');
+        if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
+            $errors[] = 'Jeton de sécurité invalide. Veuillez recharger la page.';
+        }
 
         $id_matiere      = filter_input(INPUT_POST, 'id_matiere', FILTER_VALIDATE_INT);
         $date_note       = filter_input(INPUT_POST, 'date_note', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
