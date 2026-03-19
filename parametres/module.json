@@ -1,0 +1,16 @@
+{
+    "key": "parametres",
+    "version": "1.0.0",
+    "name": { "fr": "Paramètres", "en": "Settings" },
+    "description": { "fr": "Paramètres du compte utilisateur", "en": "User account settings" },
+    "icon": "fas fa-cog",
+    "category": "navigation",
+    "core": true,
+    "permissions": {
+        "view": { "default_roles": ["*"] }
+    },
+    "routes": { "main": "parametres.php" },
+    "widgets": [],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 99 }
+}

@@ -1,0 +1,17 @@
+{
+  "key": "ressources",
+  "version": "1.0.0",
+  "name": { "fr": "Ressources pédagogiques", "en": "Educational Resources" },
+  "description": { "fr": "Gestion des ressources pédagogiques", "en": "Educational resources management" },
+  "icon": "fas fa-laptop",
+  "category": "scolaire",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur", "professeur"] }
+  },
+  "routes": { "main": "ressources.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 38 }
+}

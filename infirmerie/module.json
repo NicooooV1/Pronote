@@ -1,0 +1,17 @@
+{
+  "key": "infirmerie",
+  "version": "1.0.0",
+  "name": { "fr": "Infirmerie", "en": "Infirmary" },
+  "description": { "fr": "Gestion de l'infirmerie et des fiches santé", "en": "Infirmary and health records management" },
+  "icon": "fas fa-briefcase-medical",
+  "category": "outils",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["administrateur", "vie_scolaire"] },
+    "manage": { "default_roles": ["administrateur", "vie_scolaire"] }
+  },
+  "routes": { "main": "infirmerie.php" },
+  "widgets": [],
+  "establishment_types": ["college", "lycee"],
+  "sidebar": { "sort_order": 62 }
+}

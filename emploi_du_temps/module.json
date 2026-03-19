@@ -1,0 +1,37 @@
+{
+    "key": "emploi_du_temps",
+    "version": "1.0.0",
+    "name": { "fr": "Emploi du temps", "en": "Timetable" },
+    "description": { "fr": "Gestion de l'emploi du temps", "en": "Timetable management" },
+    "icon": "fas fa-table",
+    "category": "scolaire",
+    "core": false,
+    "requires_php": ">=8.0",
+    "dependencies": [],
+    "permissions": {
+        "view": { "default_roles": ["*"] },
+        "manage": { "default_roles": ["administrateur", "vie_scolaire"] }
+    },
+    "routes": {
+        "main": "emploi_du_temps.php"
+    },
+    "widgets": [
+        {
+            "key": "emploi_du_temps_jour",
+            "name": { "fr": "Emploi du temps", "en": "Timetable" },
+            "description": { "fr": "Cours du jour", "en": "Today's classes" },
+            "type": "calendar",
+            "icon": "fas fa-table",
+            "roles": ["eleve", "professeur"],
+            "default_size": { "width": 2, "height": 1 },
+            "min_width": 1,
+            "max_width": 4,
+            "is_default": true,
+            "sort_order": 15,
+            "data_provider": "includes/EdtWidgetProvider.php",
+            "template": "widgets/emploi_du_temps_jour.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 11 }
+}

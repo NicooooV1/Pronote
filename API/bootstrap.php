@@ -39,6 +39,18 @@ try {
 	// Fallback minimal si .env manquant: continuer (certains écrans d'install le créent)
 }
 
+// Sécurité : forcer display_errors off en production
+$_appEnv = getenv('APP_ENV') ?: 'production';
+if ($_appEnv === 'production') {
+	ini_set('display_errors', '0');
+	ini_set('display_startup_errors', '0');
+	error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+} else {
+	ini_set('display_errors', '1');
+	error_reporting(E_ALL);
+}
+unset($_appEnv);
+
 // Définir BASE_URL si pas défini
 if (!defined('BASE_URL')) {
 	$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
@@ -89,6 +101,22 @@ $app->register(new \API\Providers\DatabaseServiceProvider($app));
 $app->register(new \API\Providers\AuthServiceProvider($app));
 $app->register(new \API\Providers\SecurityServiceProvider($app));
 $app->register(new \API\Providers\EtablissementServiceProvider($app));
+$app->register(new \API\Providers\TranslationServiceProvider($app));
+
+// Hook Manager (système d'événements pour les modules)
+$app->singleton('hooks', function($app) {
+	return new \API\Core\HookManager();
+});
+
+// Module SDK (découverte et gestion des modules via module.json)
+$app->singleton('module_sdk', function($app) {
+	return new \API\Services\ModuleSDK($app->make('db')->getConnection(), BASE_PATH);
+});
+
+// Feature Flags (fonctionnalités par type d'établissement)
+$app->singleton('features', function($app) {
+	return new \API\Services\FeatureFlagService($app->make('db')->getConnection());
+});
 
 // Logger structuré avec rotation de fichiers
 $app->singleton('log', function($app) {
@@ -98,6 +126,16 @@ $app->singleton('log', function($app) {
 // Bind audit service (uses existing Pronote\Services\AuditService)
 $app->singleton('audit', function($app) {
 	return new \Pronote\Services\AuditService($app->make('db')->getConnection());
+});
+
+// Cache Manager (file / redis)
+$app->singleton('cache', function($app) {
+	return new \API\Core\CacheManager(null, BASE_PATH);
+});
+
+// Backup Service
+$app->singleton('backup', function($app) {
+	return new \API\Services\BackupService($app->make('db')->getConnection(), BASE_PATH);
 });
 
 // Lier l'application aux Facades

@@ -1,0 +1,17 @@
+{
+  "key": "admin",
+  "version": "1.0.0",
+  "name": { "fr": "Administration", "en": "Administration" },
+  "description": { "fr": "Panneau d'administration du système", "en": "System administration panel" },
+  "icon": "fas fa-shield-alt",
+  "category": "administration",
+  "core": true,
+  "permissions": {
+    "view": { "default_roles": ["administrateur"] },
+    "manage": { "default_roles": ["administrateur"] }
+  },
+  "routes": { "main": "dashboard.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 95 }
+}

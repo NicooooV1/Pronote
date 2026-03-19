@@ -1,0 +1,17 @@
+{
+  "key": "notifications",
+  "version": "1.0.0",
+  "name": { "fr": "Notifications", "en": "Notifications" },
+  "description": { "fr": "Gestion des notifications et alertes", "en": "Notifications and alerts management" },
+  "icon": "fas fa-bell",
+  "category": "communication",
+  "core": true,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur"] }
+  },
+  "routes": { "main": "notifications.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 32 }
+}

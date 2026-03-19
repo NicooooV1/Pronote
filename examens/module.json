@@ -1,0 +1,17 @@
+{
+  "key": "examens",
+  "version": "1.0.0",
+  "name": { "fr": "Examens", "en": "Exams" },
+  "description": { "fr": "Gestion des examens et épreuves", "en": "Exams and tests management" },
+  "icon": "fas fa-file-signature",
+  "category": "scolaire",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur", "professeur"] }
+  },
+  "routes": { "main": "examens.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 25 }
+}

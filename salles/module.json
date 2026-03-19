@@ -1,0 +1,17 @@
+{
+  "key": "salles",
+  "version": "1.0.0",
+  "name": { "fr": "Salles & Matériel", "en": "Rooms & Equipment" },
+  "description": { "fr": "Gestion des salles et du matériel", "en": "Rooms and equipment management" },
+  "icon": "fas fa-door-open",
+  "category": "outils",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["administrateur", "professeur", "vie_scolaire"] },
+    "manage": { "default_roles": ["administrateur"] }
+  },
+  "routes": { "main": "reservations.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 56 }
+}

@@ -14,6 +14,11 @@ class AuditService {
         'token', 'secret', 'api_key', 'api_secret',
         'credit_card', 'ssn', 'two_factor_secret'
     ];
+
+    /** Severity levels */
+    public const INFO     = 'INFO';
+    public const WARNING  = 'WARNING';
+    public const CRITICAL = 'CRITICAL';
     
     public function __construct($db = null) {
         if ($db === null && class_exists('\Database')) {
@@ -50,7 +55,7 @@ class AuditService {
      * @param array $changes Changements effectués
      * @return bool Succès de l'opération
      */
-    public function log($action, $model = null, $changes = []) {
+    public function log($action, $model = null, $changes = [], string $severity = self::INFO) {
         try {
             $event = [
                 'action' => $action,
@@ -62,9 +67,12 @@ class AuditService {
                 'new_values' => !empty($changes['new']) ? json_encode($this->sanitize($changes['new'])) : null,
                 'ip_address' => $_SERVER['REMOTE_ADDR'] ?? null,
                 'user_agent' => isset($_SERVER['HTTP_USER_AGENT']) ? substr($_SERVER['HTTP_USER_AGENT'], 0, 255) : null,
+                'severity' => $severity,
+                'request_method' => $_SERVER['REQUEST_METHOD'] ?? null,
+                'request_uri' => isset($_SERVER['REQUEST_URI']) ? substr($_SERVER['REQUEST_URI'], 0, 500) : null,
                 'created_at' => date('Y-m-d H:i:s')
             ];
-            
+
             return $this->insert($event);
             
         } catch (\Exception $e) {
@@ -77,6 +85,11 @@ class AuditService {
      * Log une action d'authentification
      */
     public function logAuth($action, $username = null, $success = true, $context = []) {
+        $severity = $success ? self::INFO : self::WARNING;
+        if (!$success && in_array($action, ['lockout', 'brute_force'], true)) {
+            $severity = self::CRITICAL;
+        }
+
         $event = [
             'action' => 'auth.' . $action,
             'model' => null,
@@ -90,17 +103,20 @@ class AuditService {
             ], $context)),
             'ip_address' => $_SERVER['REMOTE_ADDR'] ?? null,
             'user_agent' => isset($_SERVER['HTTP_USER_AGENT']) ? substr($_SERVER['HTTP_USER_AGENT'], 0, 255) : null,
+            'severity' => $severity,
+            'request_method' => $_SERVER['REQUEST_METHOD'] ?? null,
+            'request_uri' => isset($_SERVER['REQUEST_URI']) ? substr($_SERVER['REQUEST_URI'], 0, 500) : null,
             'created_at' => date('Y-m-d H:i:s')
         ];
-        
+
         return $this->insert($event);
     }
     
     /**
      * Log une action de sécurité
      */
-    public function logSecurity($event, $details = []) {
-        return $this->log('security.' . $event, null, ['new' => $details]);
+    public function logSecurity($event, $details = [], string $severity = self::WARNING) {
+        return $this->log('security.' . $event, null, ['new' => $details], $severity);
     }
     
     /**
@@ -251,7 +267,10 @@ class AuditService {
     /**
      * Nettoie les anciens logs
      */
-    public function cleanup($daysToKeep = 180) {
+    public function cleanup($daysToKeep = null) {
+        if ($daysToKeep === null) {
+            $daysToKeep = (int) (function_exists('env') ? env('AUDIT_RETENTION_DAYS', '180') : 180);
+        }
         try {
             $sql = "DELETE FROM {$this->table} 
                     WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)";

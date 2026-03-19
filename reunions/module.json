@@ -1,0 +1,17 @@
+{
+  "key": "reunions",
+  "version": "1.0.0",
+  "name": { "fr": "Réunions", "en": "Meetings" },
+  "description": { "fr": "Gestion des réunions et rendez-vous", "en": "Meetings and appointments management" },
+  "icon": "fas fa-handshake",
+  "category": "communication",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur", "professeur", "vie_scolaire"] }
+  },
+  "routes": { "main": "reunions.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 34 }
+}

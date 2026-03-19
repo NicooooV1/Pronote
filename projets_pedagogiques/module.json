@@ -1,0 +1,17 @@
+{
+  "key": "projets_pedagogiques",
+  "version": "1.0.0",
+  "name": { "fr": "Projets pédagogiques", "en": "Educational Projects" },
+  "description": { "fr": "Gestion des projets pédagogiques", "en": "Educational projects management" },
+  "icon": "fas fa-project-diagram",
+  "category": "scolaire",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["administrateur", "professeur", "vie_scolaire"] },
+    "manage": { "default_roles": ["administrateur", "professeur"] }
+  },
+  "routes": { "main": "creer.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 43 }
+}

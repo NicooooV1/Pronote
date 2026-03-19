@@ -177,9 +177,9 @@ try {
                     $badge = '';
                     if ($modKey === 'messagerie') {
                         $_sb_cnt  = (int) $_sb_unread_messages;
-                        $_sb_disp = $_sb_cnt > 0 ? 'inline-flex' : 'none';
                         $_sb_lbl  = $_sb_cnt > 99 ? '99+' : ($_sb_cnt > 0 ? (string)$_sb_cnt : '');
-                        $badge = '<span class="sidebar-badge" id="sidebarMsgBadge" style="display:' . $_sb_disp . '">' . $_sb_lbl . '</span>';
+                        $_sb_hiddenClass = $_sb_cnt > 0 ? '' : ' sidebar-badge--hidden';
+                        $badge = '<span class="sidebar-badge' . $_sb_hiddenClass . '" id="sidebarMsgBadge">' . $_sb_lbl . '</span>';
                     }
                     if ($modKey === 'notifications') {
                         try {
@@ -221,7 +221,7 @@ try {
         <?php endif; ?>
 
         <!-- No results message (hidden by default) -->
-        <div class="sidebar-no-results" id="sidebarNoResults" style="display:none;">
+        <div class="sidebar-no-results" id="sidebarNoResults">
             <i class="fas fa-search"></i>
             <span>Aucun module trouvé</span>
         </div>
@@ -244,9 +244,9 @@ try {
         <!-- Theme toggle -->
         <button class="sidebar-link sidebar-theme-toggle" id="sidebarThemeToggle" type="button" title="Changer le thème">
             <span class="sidebar-link-icon">
-                <i class="fas fa-moon" id="themeIconDark" style="display:<?= $_sb_theme === 'light' ? 'inline' : 'none' ?>"></i>
-                <i class="fas fa-sun" id="themeIconLight" style="display:<?= $_sb_theme === 'dark' ? 'inline' : 'none' ?>"></i>
-                <i class="fas fa-adjust" id="themeIconAuto" style="display:<?= $_sb_theme === 'auto' ? 'inline' : 'none' ?>"></i>
+                <i class="fas fa-moon <?= $_sb_theme === 'light' ? 'theme-icon-visible' : 'theme-icon-hidden' ?>" id="themeIconDark"></i>
+                <i class="fas fa-sun <?= $_sb_theme === 'dark' ? 'theme-icon-visible' : 'theme-icon-hidden' ?>" id="themeIconLight"></i>
+                <i class="fas fa-adjust <?= $_sb_theme === 'auto' ? 'theme-icon-visible' : 'theme-icon-hidden' ?>" id="themeIconAuto"></i>
             </span>
             <span class="sidebar-link-text" id="themeLabel"><?= $_sb_theme === 'dark' ? 'Thème clair' : ($_sb_theme === 'auto' ? 'Thème auto' : 'Thème sombre') ?></span>
         </button>
@@ -421,7 +421,7 @@ try {
                 });
             }
 
-            noResults.style.display = (!anyVisible && q) ? '' : 'none';
+            noResults.classList.toggle('is-visible', !anyVisible && !!q);
 
             // Highlight matching text
             navScroll.querySelectorAll('.sidebar-link-text').forEach(function(span) {
@@ -504,9 +504,9 @@ try {
         }
         html.setAttribute('data-theme-pref', theme);
 
-        if (iconDark) iconDark.style.display = theme === 'light' ? 'inline' : 'none';
-        if (iconLight) iconLight.style.display = theme === 'dark' ? 'inline' : 'none';
-        if (iconAuto) iconAuto.style.display = theme === 'auto' ? 'inline' : 'none';
+        if (iconDark)  { iconDark.className  = 'fas fa-moon '   + (theme === 'light' ? 'theme-icon-visible' : 'theme-icon-hidden'); }
+        if (iconLight) { iconLight.className = 'fas fa-sun '    + (theme === 'dark'  ? 'theme-icon-visible' : 'theme-icon-hidden'); }
+        if (iconAuto)  { iconAuto.className  = 'fas fa-adjust ' + (theme === 'auto'  ? 'theme-icon-visible' : 'theme-icon-hidden'); }
         if (label) label.textContent = theme === 'dark' ? 'Thème clair' : (theme === 'auto' ? 'Thème auto' : 'Thème sombre');
 
         try { localStorage.setItem('fronote_theme', theme); } catch(e) {}

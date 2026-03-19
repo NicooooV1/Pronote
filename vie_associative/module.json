@@ -1,0 +1,17 @@
+{
+  "key": "vie_associative",
+  "version": "1.0.0",
+  "name": { "fr": "Vie associative", "en": "Student Organizations" },
+  "description": { "fr": "Gestion de la vie associative", "en": "Student organizations management" },
+  "icon": "fas fa-users",
+  "category": "outils",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur"] }
+  },
+  "routes": { "main": "associations.php" },
+  "widgets": [],
+  "establishment_types": ["lycee", "superieur"],
+  "sidebar": { "sort_order": 57 }
+}

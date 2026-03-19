@@ -1,0 +1,17 @@
+{
+  "key": "periscolaire",
+  "version": "1.0.0",
+  "name": { "fr": "Périscolaire", "en": "Extracurricular" },
+  "description": { "fr": "Gestion des activités périscolaires", "en": "Extracurricular activities management" },
+  "icon": "fas fa-child",
+  "category": "outils",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur"] }
+  },
+  "routes": { "main": "detail_service.php" },
+  "widgets": [],
+  "establishment_types": ["college"],
+  "sidebar": { "sort_order": 59 }
+}

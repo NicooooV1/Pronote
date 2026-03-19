@@ -1,0 +1,17 @@
+{
+  "key": "reporting",
+  "version": "1.0.0",
+  "name": { "fr": "Reporting", "en": "Reporting" },
+  "description": { "fr": "Tableaux de bord et rapports statistiques", "en": "Dashboards and statistical reports" },
+  "icon": "fas fa-chart-pie",
+  "category": "administration",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["administrateur", "vie_scolaire"] },
+    "manage": { "default_roles": ["administrateur"] }
+  },
+  "routes": { "main": "reporting.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 72 }
+}

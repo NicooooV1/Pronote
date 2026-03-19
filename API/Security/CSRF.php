@@ -125,6 +125,53 @@ class CSRF {
     }
     
     /**
+     * Valide le token CSRF depuis la requête courante.
+     * Cherche dans POST (csrf_token, _csrf_token), header X-CSRF-Token, et body JSON.
+     *
+     * @return bool true si un token valide est trouvé
+     */
+    public function validateFromRequest(): bool {
+        $token = $_POST['csrf_token'] ?? $_POST['_csrf_token'] ?? null;
+
+        if ($token === null) {
+            $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
+        }
+
+        if ($token === null) {
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            if (stripos($contentType, 'application/json') !== false) {
+                $input = json_decode(file_get_contents('php://input'), true);
+                $token = $input['csrf_token'] ?? $input['_csrf_token'] ?? null;
+            }
+        }
+
+        if ($token === null) {
+            return false;
+        }
+
+        return $this->validate($token);
+    }
+
+    /**
+     * Valide le token CSRF et arrête l'exécution si invalide.
+     * À appeler en début de traitement POST/PUT/DELETE.
+     */
+    public function verifyOrFail(): void {
+        if (!$this->validateFromRequest()) {
+            http_response_code(403);
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+                      strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Token CSRF invalide. Veuillez rafraîchir la page.']);
+            } else {
+                echo 'Erreur de sécurité : token CSRF invalide. <a href="javascript:location.reload()">Rafraîchir</a>';
+            }
+            exit;
+        }
+    }
+
+    /**
      * Génère un champ HTML caché
      */
     public function field($name = 'csrf_token') {

@@ -1,0 +1,17 @@
+{
+  "key": "diplomes",
+  "version": "1.0.0",
+  "name": { "fr": "Diplômes", "en": "Diplomas" },
+  "description": { "fr": "Gestion des diplômes et certifications", "en": "Diplomas and certifications management" },
+  "icon": "fas fa-award",
+  "category": "administration",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur"] }
+  },
+  "routes": { "main": "diplomes.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 75 }
+}

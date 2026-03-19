@@ -1,0 +1,17 @@
+{
+  "key": "bulletins",
+  "version": "1.0.0",
+  "name": { "fr": "Bulletins", "en": "Report Cards" },
+  "description": { "fr": "Gestion des bulletins scolaires", "en": "Report cards management" },
+  "icon": "fas fa-file-alt",
+  "category": "scolaire",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur", "professeur"] }
+  },
+  "routes": { "main": "bulletins.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 20 }
+}

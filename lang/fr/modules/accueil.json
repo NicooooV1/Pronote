@@ -1,0 +1,18 @@
+{
+    "accueil.title": "Tableau de bord",
+    "accueil.greeting.morning": "Bonjour",
+    "accueil.greeting.afternoon": "Bon après-midi",
+    "accueil.greeting.evening": "Bonsoir",
+    "accueil.class_of": "Classe de :class",
+    "accueil.fallback_name": "Établissement Scolaire",
+
+    "accueil.customize.title": "Personnaliser le tableau de bord",
+    "accueil.customize.hint": "Activez ou désactivez les widgets, puis réordonnez-les par glisser-déposer.",
+    "accueil.customize.saved": "Personnalisation sauvegardée.",
+    "accueil.layout.saved": "Layout sauvegardé.",
+
+    "accueil.widget.chart_soon": "Graphique disponible prochainement.",
+    "accueil.widget.no_data": "Aucun élément à afficher.",
+    "accueil.widget.no_courses": "Aucun cours aujourd'hui.",
+    "accueil.widget.no_shortcuts": "Aucun raccourci."
+}

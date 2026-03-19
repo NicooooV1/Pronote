@@ -2822,6 +2822,127 @@ INSERT INTO `dashboard_widgets` (`widget_key`, `label`, `description`, `icon`, `
 ('reunions_a_venir',     'Réunions à venir',      'Prochaines réunions planifiées',    'fas fa-handshake', 'list', 'reunions', '["professeur","parent","administrateur"]', 2, 0, 70);
 
 -- ============================================================
+-- INTERNATIONALISATION (i18n)
+-- ============================================================
+
+-- Table de traductions pour le contenu dynamique en base
+CREATE TABLE IF NOT EXISTS `translations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `translatable_type` varchar(50) NOT NULL COMMENT 'Type d''entité (module, widget, announcement)',
+  `translatable_id` int(11) NOT NULL COMMENT 'ID de l''entité traduite',
+  `locale` varchar(10) NOT NULL COMMENT 'Code locale (fr, en, etc.)',
+  `field` varchar(50) NOT NULL COMMENT 'Champ traduit (label, description, etc.)',
+  `value` text NOT NULL COMMENT 'Valeur traduite',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_trans` (`translatable_type`, `translatable_id`, `locale`, `field`),
+  KEY `idx_trans_lookup` (`translatable_type`, `translatable_id`, `locale`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Ajouter la colonne default_locale à etablissement_info
+ALTER TABLE `etablissement_info`
+  ADD COLUMN IF NOT EXISTS `default_locale` varchar(10) NOT NULL DEFAULT 'fr' COMMENT 'Locale par défaut de l''établissement';
+
+-- ============================================================
+-- FEATURE FLAGS (multi-établissement)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS `feature_flags` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `flag_key` varchar(100) NOT NULL,
+  `label` varchar(200) NOT NULL,
+  `description` text DEFAULT NULL,
+  `establishment_types` JSON DEFAULT NULL COMMENT 'null = tous types, ["college","lycee"] = spécifique',
+  `enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `config` JSON DEFAULT NULL COMMENT 'Configuration additionnelle du flag',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_flag` (`flag_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Feature flags par défaut
+INSERT INTO `feature_flags` (`flag_key`, `label`, `establishment_types`, `enabled`) VALUES
+('stages.enabled',            'Stages',                      '["lycee","superieur"]',       1),
+('alternance.enabled',        'Alternance',                  '["superieur"]',               1),
+('orientation.parcoursup',    'Parcoursup',                  '["lycee"]',                   1),
+('orientation.ects',          'Crédits ECTS',                '["superieur"]',               1),
+('bulletins.brevet',          'Bulletins Brevet',            '["college"]',                 1),
+('bulletins.bac',             'Bulletins Bac',               '["lycee"]',                   1),
+('examens.brevet',            'Examens Brevet',              '["college"]',                 1),
+('examens.bac',               'Examens Bac',                 '["lycee"]',                   1),
+('internat.enabled',          'Internat',                    '["college","lycee"]',         1),
+('garderie.enabled',          'Garderie',                    '["college"]',                 1),
+('cantine.enabled',           'Cantine',                     NULL,                          1),
+('periscolaire.enabled',      'Périscolaire',                '["college"]',                 1),
+('competences.socle',         'Socle commun de compétences', '["college"]',                 1),
+('competences.referentiel',   'Référentiel de compétences',  '["lycee","superieur"]',       1);
+
+-- ============================================================
+-- API TOKENS (authentification externe)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS `api_tokens` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `user_type` varchar(20) NOT NULL,
+  `token_hash` varchar(64) NOT NULL COMMENT 'SHA-256 du token',
+  `name` varchar(100) NOT NULL COMMENT 'Nom descriptif du token',
+  `abilities` JSON DEFAULT NULL COMMENT 'Permissions du token (null = toutes)',
+  `last_used_at` datetime DEFAULT NULL,
+  `expires_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_token` (`token_hash`),
+  KEY `idx_api_tokens_user` (`user_id`, `user_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- WEBHOOKS (intégrations externes)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS `webhooks` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `url` varchar(500) NOT NULL,
+  `events` JSON NOT NULL COMMENT 'Événements déclencheurs',
+  `secret` varchar(64) NOT NULL COMMENT 'Secret HMAC-SHA256',
+  `active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_by` int(11) DEFAULT NULL,
+  `last_triggered_at` datetime DEFAULT NULL,
+  `failure_count` int(11) NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Ajouter establishment_types aux modules
+ALTER TABLE `modules_config`
+  ADD COLUMN IF NOT EXISTS `establishment_types` JSON DEFAULT NULL COMMENT 'null = tous types d''établissement';
+
+-- ============================================================
+-- OAuth SSO bindings
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `oauth_bindings` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `user_type` VARCHAR(20) NOT NULL,
+  `provider` VARCHAR(50) NOT NULL,
+  `provider_user_id` VARCHAR(255) NOT NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_binding` (`provider`, `provider_user_id`),
+  KEY `idx_user` (`user_id`, `user_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- Audit log : colonnes supplémentaires pour traçabilité avancée
+-- ============================================================
+ALTER TABLE `audit_log`
+  ADD COLUMN IF NOT EXISTS `severity` ENUM('INFO','WARNING','CRITICAL') NOT NULL DEFAULT 'INFO' AFTER `user_agent`,
+  ADD COLUMN IF NOT EXISTS `request_method` VARCHAR(10) DEFAULT NULL AFTER `severity`,
+  ADD COLUMN IF NOT EXISTS `request_uri` VARCHAR(500) DEFAULT NULL AFTER `request_method`;
+
+-- Index composites pour les requêtes fréquentes du dashboard admin
+ALTER TABLE `audit_log`
+  ADD INDEX IF NOT EXISTS `idx_severity_date` (`severity`, `created_at`),
+  ADD INDEX IF NOT EXISTS `idx_action_date` (`action`, `created_at`);
+
+-- ============================================================
 SET SESSION FOREIGN_KEY_CHECKS = 1;
 COMMIT;
 

@@ -1,0 +1,17 @@
+{
+  "key": "besoins",
+  "version": "1.0.0",
+  "name": { "fr": "Besoins éducatifs", "en": "Special Needs" },
+  "description": { "fr": "Gestion des besoins éducatifs particuliers", "en": "Special educational needs management" },
+  "icon": "fas fa-hands-helping",
+  "category": "scolaire",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur", "professeur", "vie_scolaire"] }
+  },
+  "routes": { "main": "besoins.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 45 }
+}

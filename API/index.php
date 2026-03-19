@@ -4,19 +4,53 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/API/bootstrap.php';
 
 use API\Core\Router;
+use API\Middleware\RateLimitMiddleware;
+use API\Controllers\HealthController;
+use API\Controllers\ModuleController;
+use API\Controllers\UserController;
+use API\Controllers\DashboardController;
+use API\Controllers\EtablissementController;
 
 header('Content-Type: application/json');
 
+// Rate limiting global sur tous les endpoints API
+RateLimitMiddleware::handleGlobal();
+
 $router = new Router();
 
-// Déléguer aux endpoints existants (qui gèrent leur auth/CSRF en interne)
+// ─── API v1 — REST Controllers ──────────────────────────────────────────────
+
+// Health / Monitoring
+$router->get('/v1/health',          fn($p) => (new HealthController())->index());
+$router->get('/v1/health/detailed', fn($p) => (new HealthController())->detailed());
+
+// Modules
+$router->get('/v1/modules',      fn($p) => (new ModuleController())->index());
+$router->get('/v1/modules/:key', fn($p) => (new ModuleController())->show($p));
+
+// Current user
+$router->get('/v1/users/me',             fn($p) => (new UserController())->me());
+$router->get('/v1/users/me/tokens',      fn($p) => (new UserController())->listTokens());
+$router->post('/v1/users/me/tokens',     fn($p) => (new UserController())->createToken());
+$router->delete('/v1/users/me/tokens/:id', fn($p) => (new UserController())->revokeToken($p));
+
+// Dashboard
+$router->get('/v1/dashboard/widgets', fn($p) => (new DashboardController())->widgets());
+$router->put('/v1/dashboard/layout',  fn($p) => (new DashboardController())->saveLayout());
+
+// Établissement
+$router->get('/v1/etablissement', fn($p) => (new EtablissementController())->index());
+
+// ─── Legacy endpoints (rétrocompatibilité) ──────────────────────────────────
+
 $router->get('/messages',       fn($p) => require __DIR__ . '/endpoints/messagerie.php');
 $router->post('/messages',      fn($p) => require __DIR__ . '/endpoints/messagerie.php');
 $router->get('/agenda/persons', fn($p) => require __DIR__ . '/endpoints/agenda_persons.php');
 $router->get('/notes/eleves',   fn($p) => require __DIR__ . '/endpoints/notes_eleves.php');
-$router->get('/health',         fn($p) => require __DIR__ . '/endpoints/health.php');
+$router->get('/health',         fn($p) => (new HealthController())->index());
 
-// Construire l'URI relative (retirer le préfixe /api ou /sous-dossier/api)
+// ─── Dispatch ───────────────────────────────────────────────────────────────
+
 $uri    = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
 $base   = rtrim(env('APP_BASE_PATH', ''), '/');
 $apiPfx = $base . '/api';

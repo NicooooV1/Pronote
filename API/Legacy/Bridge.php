@@ -158,41 +158,45 @@ if (!function_exists('hasPermission')) {
 	}
 }
 
-// Fonctions legacy — délèguent à hasPermission() pour rétro-compatibilité
-if (!function_exists('canManageNotes'))       { function canManageNotes()       { return hasPermission('notes'); } }
-if (!function_exists('canManageAbsences'))    { function canManageAbsences()    { return hasPermission('absences'); } }
-if (!function_exists('canManageDevoirs'))     { function canManageDevoirs()     { return hasPermission('devoirs'); } }
-if (!function_exists('canManageEDT'))         { function canManageEDT()         { return hasPermission('edt'); } }
-if (!function_exists('canManageAppel'))       { function canManageAppel()       { return hasPermission('appel'); } }
-if (!function_exists('canManageDiscipline'))  { function canManageDiscipline()  { return hasPermission('discipline'); } }
-if (!function_exists('canSignalerIncident'))  { function canSignalerIncident()  { return hasPermission('signaler_incident'); } }
-if (!function_exists('canManageAnnonces'))    { function canManageAnnonces()    { return hasPermission('annonces'); } }
-if (!function_exists('canManageBulletins'))   { function canManageBulletins()   { return hasPermission('bulletins'); } }
-if (!function_exists('canManageRendus'))      { function canManageRendus()      { return hasPermission('rendus'); } }
-if (!function_exists('canAccessVieScolaire')) { function canAccessVieScolaire() { return hasPermission('vie_scolaire'); } }
-if (!function_exists('canManageDocuments'))   { function canManageDocuments()   { return hasPermission('documents'); } }
-if (!function_exists('canManageCompetences')) { function canManageCompetences() { return hasPermission('competences'); } }
-if (!function_exists('canAccessReporting'))   { function canAccessReporting()   { return hasPermission('reporting'); } }
-if (!function_exists('canManageReunions'))    { function canManageReunions()    { return hasPermission('reunions'); } }
-if (!function_exists('canManageInscriptions')){ function canManageInscriptions(){ return hasPermission('inscriptions'); } }
-if (!function_exists('canManageOrientation')) { function canManageOrientation() { return hasPermission('orientation'); } }
-if (!function_exists('canManageSignalements')){ function canManageSignalements(){ return hasPermission('signalements'); } }
-if (!function_exists('canManageBibliotheque')){ function canManageBibliotheque(){ return hasPermission('bibliotheque'); } }
-if (!function_exists('canManageClubs'))       { function canManageClubs()       { return hasPermission('clubs'); } }
-if (!function_exists('canAccessInfirmerie'))  { function canAccessInfirmerie()  { return hasPermission('infirmerie'); } }
-if (!function_exists('canManageArchives'))    { function canManageArchives()    { return hasPermission('archives'); } }
-if (!function_exists('canManageSupport'))     { function canManageSupport()     { return hasPermission('support'); } }
-if (!function_exists('canManageExamens'))     { function canManageExamens()     { return hasPermission('examens'); } }
-if (!function_exists('canManageBesoins'))     { function canManageBesoins()     { return hasPermission('besoins'); } }
-if (!function_exists('canManagePersonnel'))   { function canManagePersonnel()   { return hasPermission('personnel'); } }
-if (!function_exists('canManageSalles'))      { function canManageSalles()      { return hasPermission('salles'); } }
-if (!function_exists('canManagePeriscolaire')){ function canManagePeriscolaire(){ return hasPermission('periscolaire'); } }
-if (!function_exists('canManageStages'))      { function canManageStages()      { return hasPermission('stages'); } }
-if (!function_exists('canManageTransports'))  { function canManageTransports()  { return hasPermission('transports'); } }
-if (!function_exists('canManageFacturation')) { function canManageFacturation() { return hasPermission('facturation'); } }
-if (!function_exists('canManageRessources'))  { function canManageRessources()  { return hasPermission('ressources'); } }
-if (!function_exists('canManageDiplomes'))    { function canManageDiplomes()    { return hasPermission('diplomes'); } }
-if (!function_exists('isPersonnelVS'))        { function isPersonnelVS()        { return getUserRole() === 'vie_scolaire'; } }
+/**
+ * Fonctions legacy de vérification de permissions par module.
+ * @deprecated Utiliser hasPermission('module.action') ou canModule('module', 'action') à la place.
+ *             Ces fonctions seront supprimées quand tous les modules utiliseront le Module SDK (Phase 3).
+ */
+if (!function_exists('canManageNotes'))       { /** @deprecated Utiliser hasPermission('notes.manage') */ function canManageNotes()       { return hasPermission('notes'); } }
+if (!function_exists('canManageAbsences'))    { /** @deprecated Utiliser hasPermission('absences.manage') */ function canManageAbsences()    { return hasPermission('absences'); } }
+if (!function_exists('canManageDevoirs'))     { /** @deprecated Utiliser hasPermission('devoirs.manage') */ function canManageDevoirs()     { return hasPermission('devoirs'); } }
+if (!function_exists('canManageEDT'))         { /** @deprecated Utiliser hasPermission('edt.manage') */ function canManageEDT()         { return hasPermission('edt'); } }
+if (!function_exists('canManageAppel'))       { /** @deprecated Utiliser hasPermission('appel.manage') */ function canManageAppel()       { return hasPermission('appel'); } }
+if (!function_exists('canManageDiscipline'))  { /** @deprecated Utiliser hasPermission('discipline.manage') */ function canManageDiscipline()  { return hasPermission('discipline'); } }
+if (!function_exists('canSignalerIncident'))  { /** @deprecated Utiliser hasPermission('signaler_incident.manage') */ function canSignalerIncident()  { return hasPermission('signaler_incident'); } }
+if (!function_exists('canManageAnnonces'))    { /** @deprecated Utiliser hasPermission('annonces.manage') */ function canManageAnnonces()    { return hasPermission('annonces'); } }
+if (!function_exists('canManageBulletins'))   { /** @deprecated Utiliser hasPermission('bulletins.manage') */ function canManageBulletins()   { return hasPermission('bulletins'); } }
+if (!function_exists('canManageRendus'))      { /** @deprecated Utiliser hasPermission('rendus.manage') */ function canManageRendus()      { return hasPermission('rendus'); } }
+if (!function_exists('canAccessVieScolaire')) { /** @deprecated Utiliser hasPermission('vie_scolaire.manage') */ function canAccessVieScolaire() { return hasPermission('vie_scolaire'); } }
+if (!function_exists('canManageDocuments'))   { /** @deprecated Utiliser hasPermission('documents.manage') */ function canManageDocuments()   { return hasPermission('documents'); } }
+if (!function_exists('canManageCompetences')) { /** @deprecated Utiliser hasPermission('competences.manage') */ function canManageCompetences() { return hasPermission('competences'); } }
+if (!function_exists('canAccessReporting'))   { /** @deprecated Utiliser hasPermission('reporting.manage') */ function canAccessReporting()   { return hasPermission('reporting'); } }
+if (!function_exists('canManageReunions'))    { /** @deprecated Utiliser hasPermission('reunions.manage') */ function canManageReunions()    { return hasPermission('reunions'); } }
+if (!function_exists('canManageInscriptions')){ /** @deprecated Utiliser hasPermission('inscriptions.manage') */ function canManageInscriptions(){ return hasPermission('inscriptions'); } }
+if (!function_exists('canManageOrientation')) { /** @deprecated Utiliser hasPermission('orientation.manage') */ function canManageOrientation() { return hasPermission('orientation'); } }
+if (!function_exists('canManageSignalements')){ /** @deprecated Utiliser hasPermission('signalements.manage') */ function canManageSignalements(){ return hasPermission('signalements'); } }
+if (!function_exists('canManageBibliotheque')){ /** @deprecated Utiliser hasPermission('bibliotheque.manage') */ function canManageBibliotheque(){ return hasPermission('bibliotheque'); } }
+if (!function_exists('canManageClubs'))       { /** @deprecated Utiliser hasPermission('clubs.manage') */ function canManageClubs()       { return hasPermission('clubs'); } }
+if (!function_exists('canAccessInfirmerie'))  { /** @deprecated Utiliser hasPermission('infirmerie.manage') */ function canAccessInfirmerie()  { return hasPermission('infirmerie'); } }
+if (!function_exists('canManageArchives'))    { /** @deprecated Utiliser hasPermission('archives.manage') */ function canManageArchives()    { return hasPermission('archives'); } }
+if (!function_exists('canManageSupport'))     { /** @deprecated Utiliser hasPermission('support.manage') */ function canManageSupport()     { return hasPermission('support'); } }
+if (!function_exists('canManageExamens'))     { /** @deprecated Utiliser hasPermission('examens.manage') */ function canManageExamens()     { return hasPermission('examens'); } }
+if (!function_exists('canManageBesoins'))     { /** @deprecated Utiliser hasPermission('besoins.manage') */ function canManageBesoins()     { return hasPermission('besoins'); } }
+if (!function_exists('canManagePersonnel'))   { /** @deprecated Utiliser hasPermission('personnel.manage') */ function canManagePersonnel()   { return hasPermission('personnel'); } }
+if (!function_exists('canManageSalles'))      { /** @deprecated Utiliser hasPermission('salles.manage') */ function canManageSalles()      { return hasPermission('salles'); } }
+if (!function_exists('canManagePeriscolaire')){ /** @deprecated Utiliser hasPermission('periscolaire.manage') */ function canManagePeriscolaire(){ return hasPermission('periscolaire'); } }
+if (!function_exists('canManageStages'))      { /** @deprecated Utiliser hasPermission('stages.manage') */ function canManageStages()      { return hasPermission('stages'); } }
+if (!function_exists('canManageTransports'))  { /** @deprecated Utiliser hasPermission('transports.manage') */ function canManageTransports()  { return hasPermission('transports'); } }
+if (!function_exists('canManageFacturation')) { /** @deprecated Utiliser hasPermission('facturation.manage') */ function canManageFacturation() { return hasPermission('facturation'); } }
+if (!function_exists('canManageRessources'))  { /** @deprecated Utiliser hasPermission('ressources.manage') */ function canManageRessources()  { return hasPermission('ressources'); } }
+if (!function_exists('canManageDiplomes'))    { /** @deprecated Utiliser hasPermission('diplomes.manage') */ function canManageDiplomes()    { return hasPermission('diplomes'); } }
+if (!function_exists('isPersonnelVS'))        { /** @deprecated Utiliser isVieScolaire() */ function isPersonnelVS()        { return getUserRole() === 'vie_scolaire'; } }
 
 // ==================== RBAC ====================
 
@@ -317,8 +321,69 @@ if (!function_exists('getUserId')) {
 	}
 }
 
+// ==================== INTERNATIONALISATION (i18n) ====================
+
+if (!function_exists('__')) {
+	/**
+	 * Traduit une clé avec interpolation de paramètres.
+	 * @param string $key     Clé de traduction (ex: 'btn.save', 'modules/notes.title')
+	 * @param array  $params  Paramètres (ex: ['name' => 'Jean'] → ':name' remplacé)
+	 * @param string|null $locale Forcer une locale
+	 * @return string Texte traduit ou la clé si non trouvée
+	 */
+	function __(string $key, array $params = [], ?string $locale = null): string {
+		try {
+			return app('translator')->get($key, $params, $locale);
+		} catch (\Throwable $e) {
+			return $key;
+		}
+	}
+}
+
+if (!function_exists('_n')) {
+	/**
+	 * Pluralisation. Le fichier de traduction utilise des variantes séparées par |
+	 * Ex: "Aucun élément|:count élément|:count éléments"
+	 * @param string $key    Clé de traduction
+	 * @param int    $count  Nombre pour la pluralisation
+	 * @param array  $params Paramètres supplémentaires
+	 * @param string|null $locale Locale forcée
+	 * @return string
+	 */
+	function _n(string $key, int $count, array $params = [], ?string $locale = null): string {
+		try {
+			return app('translator')->choice($key, $count, $params, $locale);
+		} catch (\Throwable $e) {
+			return $key;
+		}
+	}
+}
+
+if (!function_exists('currentLocale')) {
+	/**
+	 * Retourne la locale active
+	 */
+	function currentLocale(): string {
+		try {
+			return app('translator')->locale();
+		} catch (\Throwable $e) {
+			return 'fr';
+		}
+	}
+}
+
 // ==================== CSRF ====================
 
+if (!function_exists('csrf_token')) {
+	function csrf_token() {
+		return app('csrf')->getToken();
+	}
+}
+if (!function_exists('csrf_field')) {
+	function csrf_field() {
+		return app('csrf')->field();
+	}
+}
 if (!function_exists('generateCSRFToken')) {
 	function generateCSRFToken() {
 		return app('csrf')->generate();
@@ -593,6 +658,131 @@ if (!function_exists('validateStrongPassword')) {
 			$errors[] = "Le mot de passe doit contenir au moins un caractère spécial";
 		}
 		return ['valid' => empty($errors), 'errors' => $errors];
+	}
+}
+
+// ==================== AUTH HELPERS (déplacés depuis core.php) ====================
+
+if (!function_exists('authenticateUser')) {
+	function authenticateUser($username, $password, $userType, $rememberMe = false) {
+		try {
+			$auth = app('auth');
+			$credentials = [
+				'email' => $username,
+				'password' => $password,
+				'type' => $userType
+			];
+			if ($auth->attempt($credentials)) {
+				$user = $auth->user();
+				return ['success' => true, 'user' => $user, 'message' => 'Connexion réussie'];
+			}
+			return ['success' => false, 'message' => 'Identifiant ou mot de passe incorrect'];
+		} catch (\Exception $e) {
+			error_log("Authentication error: " . $e->getMessage());
+			return ['success' => false, 'message' => 'Erreur lors de l\'authentification'];
+		}
+	}
+}
+
+if (!function_exists('logoutUser')) {
+	function logoutUser() {
+		app('auth')->logout();
+		redirect('login/index.php');
+	}
+}
+
+if (!function_exists('createUser')) {
+	function createUser($profil, $userData) {
+		try {
+			$userService = app()->make('API\Services\UserService');
+			return $userService->create($profil, $userData);
+		} catch (\Exception $e) {
+			error_log("User creation error: " . $e->getMessage());
+			return ['success' => false, 'message' => 'Erreur lors de la création de l\'utilisateur'];
+		}
+	}
+}
+
+if (!function_exists('changePassword')) {
+	function changePassword($userId, $newPassword) {
+		try {
+			$userService = app()->make('API\Services\UserService');
+			return $userService->changePassword($userId, $newPassword);
+		} catch (\Exception $e) {
+			error_log("Password change error: " . $e->getMessage());
+			return ['success' => false, 'message' => 'Erreur lors du changement de mot de passe'];
+		}
+	}
+}
+
+if (!function_exists('getEtablissementData')) {
+	function getEtablissementData() {
+		try {
+			$etablissementService = app()->make('API\Services\EtablissementService');
+			return $etablissementService->getData();
+		} catch (\Exception $e) {
+			error_log("Etablissement data error: " . $e->getMessage());
+			return ['classes' => [], 'matieres' => [], 'periodes' => []];
+		}
+	}
+}
+
+if (!function_exists('findUserByCredentials')) {
+	function findUserByCredentials($username, $email, $phone, $userType) {
+		try {
+			$userService = app()->make('API\Services\UserService');
+			return $userService->findByCredentials($username, $email, $phone, $userType);
+		} catch (\Exception $e) {
+			error_log("Find user error: " . $e->getMessage());
+			return null;
+		}
+	}
+}
+
+if (!function_exists('createResetRequest')) {
+	function createResetRequest($userId, $userType) {
+		try {
+			$userService = app()->make('API\Services\UserService');
+			return $userService->createResetRequest($userId, $userType);
+		} catch (\Exception $e) {
+			error_log("Reset request error: " . $e->getMessage());
+			return false;
+		}
+	}
+}
+
+if (!function_exists('validateUserData')) {
+	function validateUserData() {
+		if (!isset($_SESSION['user'])) {
+			return false;
+		}
+		try {
+			$userProvider = app('auth.provider');
+			$user = $userProvider->retrieveById($_SESSION['user']['id'], $_SESSION['user']['type']);
+			return $user !== null;
+		} catch (\Exception $e) {
+			error_log("User validation error: " . $e->getMessage());
+			return false;
+		}
+	}
+}
+
+if (!function_exists('getErrorMessage')) {
+	function getErrorMessage() {
+		return $_SESSION['error_message'] ?? 'Une erreur est survenue';
+	}
+}
+
+if (!function_exists('getDatabaseConnection')) {
+	function getDatabaseConnection() {
+		return app('db')->getConnection();
+	}
+}
+
+if (!function_exists('validate')) {
+	function validate($data, $rules) {
+		$validator = app('validator');
+		return $validator->validate($data, $rules);
 	}
 }
 

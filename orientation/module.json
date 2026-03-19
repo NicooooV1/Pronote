@@ -1,0 +1,17 @@
+{
+  "key": "orientation",
+  "version": "1.0.0",
+  "name": { "fr": "Orientation", "en": "Career Guidance" },
+  "description": { "fr": "Gestion de l'orientation scolaire et professionnelle", "en": "Academic and career guidance management" },
+  "icon": "fas fa-compass",
+  "category": "scolaire",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur", "professeur", "vie_scolaire"] }
+  },
+  "routes": { "main": "orientation.php" },
+  "widgets": [],
+  "establishment_types": ["lycee", "superieur"],
+  "sidebar": { "sort_order": 40 }
+}

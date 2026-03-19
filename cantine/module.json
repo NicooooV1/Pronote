@@ -1,0 +1,17 @@
+{
+  "key": "cantine",
+  "version": "1.0.0",
+  "name": { "fr": "Cantine", "en": "Cafeteria" },
+  "description": { "fr": "Gestion de la cantine et des repas", "en": "Cafeteria and meal management" },
+  "icon": "fas fa-utensils",
+  "category": "outils",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur"] }
+  },
+  "routes": { "main": "reservations.php" },
+  "widgets": [],
+  "establishment_types": ["college", "lycee"],
+  "sidebar": { "sort_order": 60 }
+}

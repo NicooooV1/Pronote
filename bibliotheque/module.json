@@ -1,0 +1,17 @@
+{
+  "key": "bibliotheque",
+  "version": "1.0.0",
+  "name": { "fr": "Bibliothèque", "en": "Library" },
+  "description": { "fr": "Gestion de la bibliothèque et des emprunts", "en": "Library and loan management" },
+  "icon": "fas fa-book",
+  "category": "outils",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur"] }
+  },
+  "routes": { "main": "catalogue.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 55 }
+}

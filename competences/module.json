@@ -1,0 +1,17 @@
+{
+  "key": "competences",
+  "version": "1.0.0",
+  "name": { "fr": "Compétences", "en": "Skills Assessment" },
+  "description": { "fr": "Évaluation et suivi des compétences", "en": "Skills assessment and tracking" },
+  "icon": "fas fa-tasks",
+  "category": "scolaire",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur", "professeur"] }
+  },
+  "routes": { "main": "competences.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 22 }
+}

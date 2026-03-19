@@ -1,0 +1,17 @@
+{
+  "key": "support",
+  "version": "1.0.0",
+  "name": { "fr": "Support", "en": "Support" },
+  "description": { "fr": "Aide et support technique", "en": "Help and technical support" },
+  "icon": "fas fa-question-circle",
+  "category": "outils",
+  "core": true,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur"] }
+  },
+  "routes": { "main": "aide.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 90 }
+}

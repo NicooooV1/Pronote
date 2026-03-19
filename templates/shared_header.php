@@ -88,15 +88,20 @@ try {
 
 // ─── Security headers ────────────────────────────────────────────────────────
 if (!headers_sent()) {
-    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$_hdr_nonce}' cdnjs.cloudflare.com cdn.socket.io code.jquery.com; style-src 'self' 'nonce-{$_hdr_nonce}' cdnjs.cloudflare.com; font-src cdnjs.cloudflare.com data:; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'none';");
+    // CSP renforcé avec base-uri, form-action, upgrade-insecure-requests
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$_hdr_nonce}' cdnjs.cloudflare.com cdn.socket.io code.jquery.com; style-src 'self' 'nonce-{$_hdr_nonce}' cdnjs.cloudflare.com; font-src cdnjs.cloudflare.com data:; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;");
     header("X-Frame-Options: DENY");
     header("X-Content-Type-Options: nosniff");
     header("Referrer-Policy: strict-origin-when-cross-origin");
     header("Permissions-Policy: camera=(), microphone=(), geolocation=()");
+    // HSTS — actif uniquement en HTTPS pour éviter les problèmes en dev local
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+        header("Strict-Transport-Security: max-age=31536000; includeSubDomains");
+    }
 }
 ?>
 <!DOCTYPE html>
-<html lang="fr" data-theme="<?= htmlspecialchars($_hdr_effective_theme) ?>" data-theme-pref="<?= htmlspecialchars($_hdr_theme) ?>">
+<html lang="<?= htmlspecialchars(function_exists('currentLocale') ? currentLocale() : 'fr') ?>" data-theme="<?= htmlspecialchars($_hdr_effective_theme) ?>" data-theme-pref="<?= htmlspecialchars($_hdr_theme) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -105,14 +110,14 @@ if (!headers_sent()) {
     <!-- CSS unifié pour toute l'application -->
     <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/pronote-unified.css">
     <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/liquid-glass.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" integrity="sha384-KYJrkGWuVHP9YZ/0sczGQMYGaxGpGXsmEA45LR7IdhQOXFMGqaY6eATZMAi/ROHK" crossorigin="anonymous">
     <?php foreach ($extraCss as $css): ?>
     <link rel="stylesheet" href="<?= htmlspecialchars($css) ?>">
     <?php endforeach; ?>
     <?= $extraHeadHtml ?>
     <!-- WebSocket global -->
     <script nonce="<?= $_hdr_nonce ?>">window.FRONOTE_WS = <?= $_hdr_ws_config ?>;</script>
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-6yMGWMk4R+xj0LHjwXCpNHnM80CKhp9OLRL4e0s5eWzWD2mSKhQOgvD1OuE+ALU" crossorigin="anonymous">
     <script src="<?= $rootPrefix ?>assets/js/ws-global.js" defer></script>
     <script nonce="<?= $_hdr_nonce ?>">
     // Instant theme application to prevent flash of wrong theme

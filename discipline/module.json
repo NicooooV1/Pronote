@@ -1,0 +1,18 @@
+{
+    "key": "discipline",
+    "version": "1.0.0",
+    "name": { "fr": "Discipline", "en": "Discipline" },
+    "description": { "fr": "Gestion des incidents et sanctions", "en": "Incident and sanction management" },
+    "icon": "fas fa-gavel",
+    "category": "vie_scolaire",
+    "core": false,
+    "permissions": {
+        "view": { "default_roles": ["administrateur", "vie_scolaire", "professeur"] },
+        "manage": { "default_roles": ["administrateur", "vie_scolaire"] },
+        "report": { "default_roles": ["administrateur", "vie_scolaire", "professeur"] }
+    },
+    "routes": { "main": "incidents.php" },
+    "widgets": [],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 22 }
+}

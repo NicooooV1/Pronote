@@ -1,0 +1,17 @@
+{
+  "key": "trombinoscope",
+  "version": "1.0.0",
+  "name": { "fr": "Trombinoscope", "en": "Directory" },
+  "description": { "fr": "Trombinoscope de l'établissement", "en": "Establishment directory" },
+  "icon": "fas fa-th",
+  "category": "communication",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur"] }
+  },
+  "routes": { "main": "trombinoscope.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 36 }
+}

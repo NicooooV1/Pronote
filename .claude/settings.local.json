@@ -4,7 +4,11 @@
       "Bash(where php:*)",
       "Read(//c/xampp/php/**)",
       "Read(//c/wamp64/bin/**)",
-      "Read(//c/laragon/bin/**)"
+      "Read(//c/laragon/bin/**)",
+      "Bash(for dir:*)",
+      "Bash(do echo:*)",
+      "Read(//c/Users/Nico0/Desktop/Dev/Pronote/$dir/**)",
+      "Bash(done)"
     ]
   }
 }

@@ -1,0 +1,17 @@
+{
+  "key": "clubs",
+  "version": "1.0.0",
+  "name": { "fr": "Clubs & Activités", "en": "Clubs & Activities" },
+  "description": { "fr": "Gestion des clubs et activités extrascolaires", "en": "Clubs and extracurricular activities management" },
+  "icon": "fas fa-puzzle-piece",
+  "category": "outils",
+  "core": false,
+  "permissions": {
+    "view": { "default_roles": ["*"] },
+    "manage": { "default_roles": ["administrateur", "professeur"] }
+  },
+  "routes": { "main": "clubs.php" },
+  "widgets": [],
+  "establishment_types": null,
+  "sidebar": { "sort_order": 58 }
+}

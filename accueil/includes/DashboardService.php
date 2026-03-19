@@ -63,9 +63,10 @@ class DashboardService
      */
     private function getDefaultWidgetsForRole(string $role): array
     {
+        // FIX N+1: inclure roles_autorises dans la requête initiale
         $rows = $this->safeQuery(
             "SELECT widget_key, label, description, icon, type, module_key,
-                    min_width, max_width, default_width, default_height,
+                    roles_autorises, min_width, max_width, default_width, default_height,
                     default_config, sort_order
              FROM dashboard_widgets
              WHERE actif = 1 AND is_default = 1
@@ -77,15 +78,13 @@ class DashboardService
         $posX = 0;
 
         foreach ($rows as $row) {
-            // Vérifier l'accès par rôle
-            $rolesAllowed = $row['roles_autorises'] ?? null;
-            if ($rolesAllowed !== null) {
-                // The column is named roles_autorises in the DB
-                // but might come as NULL from safeQuery
-            }
-            // Re-query to get roles_autorises
-            if (!$this->isWidgetAllowedForRole($row['widget_key'], $role)) {
-                continue;
+            // Vérifier l'accès par rôle directement depuis les données chargées
+            $rolesJson = $row['roles_autorises'] ?? null;
+            if ($rolesJson !== null) {
+                $allowed = json_decode($rolesJson, true);
+                if (is_array($allowed) && !in_array($role, $allowed, true)) {
+                    continue;
+                }
             }
 
             $row['position_x'] = $posX;
@@ -284,6 +283,21 @@ class DashboardService
      */
     public function renderWidgetData(string $widgetKey, int $userId, string $userType): array
     {
+        // 1) Essayer de résoudre via le ModuleSDK (widgets déclarés dans module.json)
+        try {
+            if (function_exists('app')) {
+                $sdk = app('module_sdk');
+                $provider = $sdk->resolveWidgetProvider($widgetKey);
+                if ($provider !== null) {
+                    return $provider->getData($userId, $userType);
+                }
+            }
+        } catch (\Throwable $e) {
+            // Fallback silencieux vers le match hardcodé
+            error_log("DashboardService: SDK widget resolution failed for '{$widgetKey}': " . $e->getMessage());
+        }
+
+        // 2) Fallback : renderers internes (rétro-compatibilité)
         return match ($widgetKey) {
             'prochains_evenements' => $this->renderProchainEvenements($userId, $userType),
             'devoirs_a_faire'     => $this->renderDevoirsAFaire($userId, $userType),

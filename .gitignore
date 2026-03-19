@@ -7,7 +7,7 @@ uploads/
 install.lock
 *.log
 *.bak
-.DS_Store
-Thumbs.db
-websocket-server/node_modules/
-login/data/etablissement.json
+storage/cache/*.cache
+storage/backups/*
+!storage/backups/.gitkeep
+.phpunit.cache/

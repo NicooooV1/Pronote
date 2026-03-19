@@ -1,0 +1,32 @@
+{
+    "key": "annonces",
+    "version": "1.0.0",
+    "name": { "fr": "Annonces", "en": "Announcements" },
+    "description": { "fr": "Annonces et sondages", "en": "Announcements and polls" },
+    "icon": "fas fa-bullhorn",
+    "category": "communication",
+    "core": false,
+    "permissions": {
+        "view": { "default_roles": ["*"] },
+        "manage": { "default_roles": ["administrateur", "vie_scolaire", "professeur"] },
+        "create": { "default_roles": ["administrateur", "vie_scolaire"] }
+    },
+    "routes": { "main": "annonces.php" },
+    "widgets": [
+        {
+            "key": "annonces_recentes",
+            "name": { "fr": "Annonces récentes", "en": "Recent announcements" },
+            "description": { "fr": "Dernières annonces et sondages", "en": "Latest announcements and polls" },
+            "type": "list",
+            "icon": "fas fa-bullhorn",
+            "roles": null,
+            "default_size": { "width": 2, "height": 1 },
+            "is_default": true,
+            "sort_order": 25,
+            "data_provider": "includes/AnnonceWidgetProvider.php",
+            "template": "widgets/annonces_recentes.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 16 }
+}

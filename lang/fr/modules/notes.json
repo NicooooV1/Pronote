@@ -1,0 +1,23 @@
+{
+    "notes.title": "Notes",
+    "notes.list": "Liste des notes",
+    "notes.add": "Ajouter des notes",
+    "notes.edit": "Modifier la note",
+    "notes.delete": "Supprimer la note",
+    "notes.average": "Moyenne : :value",
+    "notes.class_average": "Moyenne de classe : :value",
+    "notes.coefficient": "Coefficient : :value",
+    "notes.subject": "Matière",
+    "notes.date": "Date",
+    "notes.grade": "Note",
+    "notes.out_of": "/ :max",
+    "notes.comment": "Commentaire",
+    "notes.locked": "Notes verrouillées",
+    "notes.unlock": "Déverrouiller",
+    "notes.lock": "Verrouiller",
+    "notes.no_grades": "Aucune note enregistrée.",
+    "notes.confirm_delete": "Êtes-vous sûr de vouloir supprimer cette note ?",
+    "notes.export_csv": "Exporter en CSV",
+    "notes.trimester": "Trimestre",
+    "notes.items_count": "Aucune note|:count note|:count notes"
+}
