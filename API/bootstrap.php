@@ -79,6 +79,13 @@ if (!defined('BASE_URL')) {
 	define('BASE_URL', $baseUrl);
 }
 
+// Request ID unique pour traçabilité (J1)
+$requestId = bin2hex(random_bytes(8));
+$_SERVER['X_REQUEST_ID'] = $requestId;
+if (!headers_sent()) {
+	header('X-Request-Id: ' . $requestId);
+}
+
 // Démarrer la session si pas déjà démarrée
 if (session_status() !== PHP_SESSION_ACTIVE) {
 	session_start([
@@ -102,6 +109,7 @@ $app->register(new \API\Providers\AuthServiceProvider($app));
 $app->register(new \API\Providers\SecurityServiceProvider($app));
 $app->register(new \API\Providers\EtablissementServiceProvider($app));
 $app->register(new \API\Providers\TranslationServiceProvider($app));
+$app->register(new \API\Providers\ScolaireServiceProvider($app));
 
 // Hook Manager (système d'événements pour les modules)
 $app->singleton('hooks', function($app) {
@@ -131,6 +139,16 @@ $app->singleton('audit', function($app) {
 // Cache Manager (file / redis)
 $app->singleton('cache', function($app) {
 	return new \API\Core\CacheManager(null, BASE_PATH);
+});
+
+// Metrics Service (J2)
+$app->singleton('metrics', function($app) {
+	return new \API\Services\MetricsService($app->make('db')->getConnection());
+});
+
+// Queue Service (G4)
+$app->singleton('queue', function($app) {
+	return new \API\Services\QueueService($app->make('db')->getConnection());
 });
 
 // Backup Service

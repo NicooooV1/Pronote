@@ -3,6 +3,16 @@
  * Fonctions helper globales
  */
 
+if (!function_exists('e')) {
+    /**
+     * Échappe une valeur pour affichage HTML sécurisé
+     */
+    function e(?string $value): string
+    {
+        return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
+    }
+}
+
 if (!function_exists('app')) {
     /**
      * Retourne l'instance de l'application (via singleton, sans global)

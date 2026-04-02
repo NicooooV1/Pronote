@@ -8,7 +8,18 @@
       "Bash(for dir:*)",
       "Bash(do echo:*)",
       "Read(//c/Users/Nico0/Desktop/Dev/Pronote/$dir/**)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(php -l /c/Users/Nico0/Desktop/Dev/Pronote/API/Auth/TokenGuard.php)",
+      "Bash(wc -l /c/Users/Nico0/Desktop/Dev/Pronote/API/Controllers/*.php)",
+      "Bash(wc -l /c/Users/Nico0/Desktop/Dev/Pronote/API/Services/*.php)",
+      "Bash(wc -l /c/Users/Nico0/Desktop/Dev/Pronote/API/Core/*.php)",
+      "Bash(wc -l /c/Users/Nico0/Desktop/Dev/Pronote/API/Security/*.php)",
+      "Bash(wc -l /c/Users/Nico0/Desktop/Dev/Pronote/admin/includes/*.php)",
+      "Bash(wc -l /c/Users/Nico0/Desktop/Dev/Pronote/assets/css/*.css)",
+      "Bash(wc -l /c/Users/Nico0/Desktop/Dev/Pronote/pronote.sql /c/Users/Nico0/Desktop/Dev/Pronote/tests/Unit/Core/*.php /c/Users/Nico0/Desktop/Dev/Pronote/tests/Unit/Security/*.php /c/Users/Nico0/Desktop/Dev/Pronote/tests/Unit/Services/*.php)",
+      "Bash(wc -l /c/Users/Nico0/Desktop/Dev/Pronote/API/Middleware/*.php /c/Users/Nico0/Desktop/Dev/Pronote/API/Providers/*.php /c/Users/Nico0/Desktop/Dev/Pronote/API/Auth/*.php)",
+      "Bash(wc -l /c/Users/Nico0/Desktop/Dev/Pronote/API/Database/*.php /c/Users/Nico0/Desktop/Dev/Pronote/API/Legacy/*.php)",
+      "Bash(xargs wc:*)"
     ]
   }
 }

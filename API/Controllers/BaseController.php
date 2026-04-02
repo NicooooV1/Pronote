@@ -42,7 +42,6 @@ abstract class BaseController
 		}
 
 		$this->error('Unauthorized', 401);
-		exit; // unreachable but for static analysis
 	}
 
 	/**
@@ -115,6 +114,27 @@ abstract class BaseController
 		$input = file_get_contents('php://input');
 		$data = json_decode($input ?: '', true);
 		return is_array($data) ? $data : [];
+	}
+
+	/**
+	 * Envoie une réponse JSON avec headers de cache HTTP (H3).
+	 */
+	protected function jsonCached(mixed $data, int $maxAge = 60): void
+	{
+		$json = json_encode(['success' => true, 'data' => $data], JSON_UNESCAPED_UNICODE);
+		$etag = '"' . md5($json) . '"';
+
+		// 304 Not Modified si ETag correspond
+		if (isset($_SERVER['HTTP_IF_NONE_MATCH']) && trim($_SERVER['HTTP_IF_NONE_MATCH']) === $etag) {
+			http_response_code(304);
+			exit;
+		}
+
+		header("Cache-Control: private, max-age={$maxAge}");
+		header("ETag: {$etag}");
+		http_response_code(200);
+		echo $json;
+		exit;
 	}
 
 	/**

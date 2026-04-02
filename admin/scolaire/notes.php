@@ -10,6 +10,7 @@ requireRole('administrateur');
 
 $pdo = getPDO();
 $admin = getCurrentUser();
+$noteService = app('notes');
 $message = '';
 $error = '';
 
@@ -23,7 +24,7 @@ $classes = $pdo->query("SELECT id, nom FROM classes WHERE actif = 1 ORDER BY nom
 $matieres = $pdo->query("SELECT id, nom, code FROM matieres WHERE actif = 1 ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
 $professeurs = $pdo->query("SELECT id, nom, prenom FROM professeurs ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
 $periodes = [];
-try { $periodes = $pdo->query("SELECT id, nom, numero FROM periodes ORDER BY numero")->fetchAll(PDO::FETCH_ASSOC); } catch (Exception $e) {}
+try { $periodes = app('periodes')->getAll(); } catch (Exception $e) {}
 
 // POST Actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $csrf_token) {
@@ -31,16 +32,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $c
 
     if ($action === 'edit_note') {
         $nid = intval($_POST['note_id'] ?? 0);
-        $note = floatval($_POST['note'] ?? 0);
-        $noteSur = floatval($_POST['note_sur'] ?? 20);
-        $coef = floatval($_POST['coefficient'] ?? 1);
-        $comment = trim($_POST['commentaire'] ?? '');
         if ($nid > 0) {
-            // Sauvegarder ancien
-            $old = $pdo->prepare("SELECT * FROM notes WHERE id = ?"); $old->execute([$nid]); $oldData = $old->fetch(PDO::FETCH_ASSOC);
-            $stmt = $pdo->prepare("UPDATE notes SET note = ?, note_sur = ?, coefficient = ?, commentaire = ? WHERE id = ?");
-            $stmt->execute([$note, $noteSur, $coef, $comment, $nid]);
-            logAudit('note_edited', 'notes', $nid, $oldData, ['note' => $note, 'note_sur' => $noteSur]);
+            $oldData = $noteService->getById($nid);
+            $data = [
+                'note'        => floatval($_POST['note'] ?? 0),
+                'note_sur'    => floatval($_POST['note_sur'] ?? 20),
+                'coefficient' => floatval($_POST['coefficient'] ?? 1),
+                'commentaire' => trim($_POST['commentaire'] ?? ''),
+            ];
+            $noteService->update($nid, $data);
+            logAudit('note_edited', 'notes', $nid, $oldData, $data);
             $message = "Note modifiée.";
         }
     }
@@ -48,8 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $c
     if ($action === 'delete_note') {
         $nid = intval($_POST['note_id'] ?? 0);
         if ($nid > 0) {
-            $old = $pdo->prepare("SELECT * FROM notes WHERE id = ?"); $old->execute([$nid]); $oldData = $old->fetch(PDO::FETCH_ASSOC);
-            $pdo->prepare("DELETE FROM notes WHERE id = ?")->execute([$nid]);
+            $oldData = $noteService->getById($nid);
+            $noteService->delete($nid);
             logAudit('note_deleted', 'notes', $nid, $oldData);
             $message = "Note supprimée.";
         }
@@ -59,18 +60,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $c
         $idEleve = intval($_POST['id_eleve'] ?? 0);
         $idMatiere = intval($_POST['id_matiere'] ?? 0);
         $idProf = intval($_POST['id_professeur'] ?? 0);
-        $note = floatval($_POST['note'] ?? 0);
-        $noteSur = floatval($_POST['note_sur'] ?? 20);
-        $coef = floatval($_POST['coefficient'] ?? 1);
-        $typeEval = trim($_POST['type_evaluation'] ?? 'Contrôle');
-        $dateNote = $_POST['date_note'] ?? date('Y-m-d');
-        $trimestre = intval($_POST['trimestre'] ?? 1);
-        $comment = trim($_POST['commentaire'] ?? '');
 
         if ($idEleve > 0 && $idMatiere > 0 && $idProf > 0) {
-            $stmt = $pdo->prepare("INSERT INTO notes (id_eleve, id_matiere, id_professeur, note, note_sur, coefficient, type_evaluation, date_note, trimestre, commentaire) VALUES (?,?,?,?,?,?,?,?,?,?)");
-            $stmt->execute([$idEleve, $idMatiere, $idProf, $note, $noteSur, $coef, $typeEval, $dateNote, $trimestre, $comment]);
-            logAudit('note_added', 'notes', $pdo->lastInsertId());
+            $data = [
+                'id_eleve'        => $idEleve,
+                'id_matiere'      => $idMatiere,
+                'id_professeur'   => $idProf,
+                'note'            => floatval($_POST['note'] ?? 0),
+                'note_sur'        => floatval($_POST['note_sur'] ?? 20),
+                'coefficient'     => floatval($_POST['coefficient'] ?? 1),
+                'type_evaluation' => trim($_POST['type_evaluation'] ?? 'Contrôle'),
+                'date_note'       => $_POST['date_note'] ?? date('Y-m-d'),
+                'trimestre'       => intval($_POST['trimestre'] ?? 1),
+                'commentaire'     => trim($_POST['commentaire'] ?? ''),
+            ];
+            $newId = $noteService->create($data);
+            logAudit('note_added', 'notes', $newId);
             $message = "Note ajoutée.";
         }
     }
@@ -84,61 +89,31 @@ $filterProf = intval($_GET['prof'] ?? 0);
 $filterEleve = trim($_GET['eleve'] ?? '');
 $page = max(1, intval($_GET['page'] ?? 1));
 $perPage = 50;
-$offset = ($page - 1) * $perPage;
 
-// Construction de la requête
-$where = [];
-$params = [];
+// Build filter array for service
+$filters = [];
+if (!empty($filterClasse))    $filters['classe'] = $filterClasse;
+if ($filterMatiere > 0)       $filters['matiere_id'] = $filterMatiere;
+if ($filterTrimestre !== '')   $filters['trimestre'] = intval($filterTrimestre);
+if ($filterProf > 0)          $filters['professeur_id'] = $filterProf;
+if (!empty($filterEleve))     $filters['eleve_id'] = $filterEleve; // Note: service filters by eleve_id, not name
 
-if (!empty($filterClasse)) {
-    $where[] = "e.classe = ?";
-    $params[] = $filterClasse;
+// Use service for filtered results
+$result = $noteService->getFiltered($filters, $page, $perPage);
+$notes = $result['data'];
+$totalNotes = $result['total'];
+$totalPages = $result['pages'];
+
+// Stats globales — computed from all matching notes (not just current page)
+$allResult = $noteService->getFiltered($filters, 1, PHP_INT_MAX);
+$allNotes = $allResult['data'];
+$stats = ['total' => $allResult['total'], 'moyenne' => null, 'min_note' => null, 'max_note' => null];
+if (!empty($allNotes)) {
+    $normalized = array_map(fn($n) => $n['note_sur'] > 0 ? round($n['note'] / $n['note_sur'] * 20, 2) : 0, $allNotes);
+    $stats['moyenne'] = round(array_sum($normalized) / count($normalized), 2);
+    $stats['min_note'] = min($normalized);
+    $stats['max_note'] = max($normalized);
 }
-if ($filterMatiere > 0) {
-    $where[] = "n.id_matiere = ?";
-    $params[] = $filterMatiere;
-}
-if ($filterTrimestre !== '') {
-    $where[] = "n.trimestre = ?";
-    $params[] = intval($filterTrimestre);
-}
-if ($filterProf > 0) {
-    $where[] = "n.id_professeur = ?";
-    $params[] = $filterProf;
-}
-if (!empty($filterEleve)) {
-    $where[] = "(e.nom LIKE ? OR e.prenom LIKE ?)";
-    $params[] = "%$filterEleve%";
-    $params[] = "%$filterEleve%";
-}
-
-$whereSQL = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
-
-// Count
-$countSQL = "SELECT COUNT(*) FROM notes n JOIN eleves e ON n.id_eleve = e.id $whereSQL";
-$stmtC = $pdo->prepare($countSQL); $stmtC->execute($params);
-$totalNotes = $stmtC->fetchColumn();
-$totalPages = max(1, ceil($totalNotes / $perPage));
-
-// Fetch
-$sql = "SELECT n.*, e.nom AS eleve_nom, e.prenom AS eleve_prenom, e.classe, m.nom AS matiere_nom, m.code AS matiere_code,
-        p.nom AS prof_nom, p.prenom AS prof_prenom
-        FROM notes n
-        JOIN eleves e ON n.id_eleve = e.id
-        JOIN matieres m ON n.id_matiere = m.id
-        JOIN professeurs p ON n.id_professeur = p.id
-        $whereSQL
-        ORDER BY n.date_note DESC, e.nom
-        LIMIT $perPage OFFSET $offset";
-$stmtN = $pdo->prepare($sql); $stmtN->execute($params);
-$notes = $stmtN->fetchAll(PDO::FETCH_ASSOC);
-
-// Stats globales avec les filtres courants
-$statsSQL = "SELECT COUNT(*) AS total, ROUND(AVG(n.note / n.note_sur * 20), 2) AS moyenne,
-             ROUND(MIN(n.note / n.note_sur * 20), 2) AS min_note, ROUND(MAX(n.note / n.note_sur * 20), 2) AS max_note
-             FROM notes n JOIN eleves e ON n.id_eleve = e.id $whereSQL";
-$stmtS = $pdo->prepare($statsSQL); $stmtS->execute($params);
-$stats = $stmtS->fetch(PDO::FETCH_ASSOC);
 
 // Charger élèves pour le modal d'ajout
 $eleves = $pdo->query("SELECT id, nom, prenom, classe FROM eleves WHERE actif = 1 ORDER BY nom, prenom")->fetchAll(PDO::FETCH_ASSOC);

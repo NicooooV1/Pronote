@@ -6,14 +6,34 @@ class Router
 {
     private array $routes = [];
 
-    public function get(string $path, callable $handler): self    { return $this->add('GET',    $path, $handler); }
-    public function post(string $path, callable $handler): self   { return $this->add('POST',   $path, $handler); }
-    public function put(string $path, callable $handler): self    { return $this->add('PUT',    $path, $handler); }
-    public function delete(string $path, callable $handler): self { return $this->add('DELETE', $path, $handler); }
+    public function get(string $path, callable $handler, array $middleware = []): self    { return $this->add('GET',    $path, $handler, $middleware); }
+    public function post(string $path, callable $handler, array $middleware = []): self   { return $this->add('POST',   $path, $handler, $middleware); }
+    public function put(string $path, callable $handler, array $middleware = []): self    { return $this->add('PUT',    $path, $handler, $middleware); }
+    public function delete(string $path, callable $handler, array $middleware = []): self { return $this->add('DELETE', $path, $handler, $middleware); }
 
-    private function add(string $method, string $path, callable $handler): self
+    private function add(string $method, string $path, callable $handler, array $middleware = []): self
     {
-        $this->routes[] = ['method' => strtoupper($method), 'path' => $path, 'handler' => $handler];
+        $this->routes[] = [
+            'method' => strtoupper($method),
+            'path' => $path,
+            'handler' => $handler,
+            'middleware' => $middleware,
+        ];
+        return $this;
+    }
+
+    /**
+     * Enregistre un groupe de routes avec un préfixe commun et des middleware partagés.
+     */
+    public function group(string $prefix, array $middleware, callable $register): self
+    {
+        $sub = new self();
+        $register($sub);
+        foreach ($sub->routes as $route) {
+            $route['path'] = $prefix . $route['path'];
+            $route['middleware'] = array_merge($middleware, $route['middleware']);
+            $this->routes[] = $route;
+        }
         return $this;
     }
 
@@ -24,6 +44,10 @@ class Router
             if ($route['method'] !== strtoupper($method)) continue;
             $params = $this->match($route['path'], $uri);
             if ($params !== false) {
+                // Exécuter les middleware avant le handler
+                if (!empty($route['middleware'])) {
+                    \API\Security\Middleware::run($route['middleware']);
+                }
                 ($route['handler'])($params);
                 return;
             }
@@ -31,6 +55,14 @@ class Router
         http_response_code(404);
         header('Content-Type: application/json');
         echo json_encode(['error' => 'Route not found', 'path' => $uri]);
+    }
+
+    /**
+     * Retourne toutes les routes enregistrées (utile pour le debug).
+     */
+    public function getRoutes(): array
+    {
+        return $this->routes;
     }
 
     // Convertit /users/:id en regex, retourne les paramètres nommés ou false

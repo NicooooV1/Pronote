@@ -2943,6 +2943,69 @@ ALTER TABLE `audit_log`
   ADD INDEX IF NOT EXISTS `idx_action_date` (`action`, `created_at`);
 
 -- ============================================================
+-- Job Queue (G4) — file d'attente asynchrone en base
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `job_queue` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `handler` VARCHAR(255) NOT NULL COMMENT 'Classe ou callable du job',
+  `payload` JSON NOT NULL,
+  `status` ENUM('pending','processing','completed','failed') NOT NULL DEFAULT 'pending',
+  `attempts` INT NOT NULL DEFAULT 0,
+  `max_attempts` INT NOT NULL DEFAULT 3,
+  `available_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `started_at` DATETIME DEFAULT NULL,
+  `completed_at` DATETIME DEFAULT NULL,
+  `error_message` TEXT DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_status_available` (`status`, `available_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- Module Settings Schema (D5) — champs de configuration déclaratifs par module
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `module_settings_schema` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `module_key` VARCHAR(50) NOT NULL,
+  `field_key` VARCHAR(50) NOT NULL,
+  `field_type` ENUM('text','number','checkbox','select','textarea','color') NOT NULL,
+  `label` VARCHAR(100) NOT NULL,
+  `default_value` TEXT DEFAULT NULL,
+  `options` JSON DEFAULT NULL COMMENT 'Options pour les selects',
+  `hint` TEXT DEFAULT NULL,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  UNIQUE KEY `uk_module_field` (`module_key`, `field_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- Module Migrations (I1) — suivi des migrations SQL par module
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `module_migrations` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `module_key` VARCHAR(50) NOT NULL,
+  `migration_file` VARCHAR(100) NOT NULL,
+  `executed_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_module_migration` (`module_key`, `migration_file`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- App Metrics (J2) — métriques applicatives
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `app_metrics` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `metric_key` VARCHAR(100) NOT NULL,
+  `metric_value` DECIMAL(12,2) NOT NULL,
+  `recorded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_key_date` (`metric_key`, `recorded_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- Routes & tri sidebar dans modules_config (D6)
+-- ============================================================
+ALTER TABLE `modules_config`
+  ADD COLUMN IF NOT EXISTS `route_path` VARCHAR(100) DEFAULT NULL AFTER `icon`,
+  ADD COLUMN IF NOT EXISTS `sidebar_sort` INT NOT NULL DEFAULT 100 AFTER `route_path`;
+
+-- ============================================================
 SET SESSION FOREIGN_KEY_CHECKS = 1;
 COMMIT;
 

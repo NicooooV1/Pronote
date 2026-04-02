@@ -20,18 +20,18 @@ namespace API\Core;
 class CacheManager
 {
 	protected string $driver;
-	protected string $filePath;
+	protected string $cacheDir;
 	protected ?\Redis $redis = null;
 
 	public function __construct(?string $driver = null, ?string $basePath = null)
 	{
 		$this->driver = $driver ?? (function_exists('env') ? (env('CACHE_DRIVER', 'file') ?: 'file') : 'file');
-		$this->filePath = ($basePath ?? (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2))) . '/storage/cache';
+		$this->cacheDir = ($basePath ?? (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2))) . '/storage/cache';
 
 		if ($this->driver === 'redis') {
 			$this->initRedis();
 		} else {
-			$this->ensureDirectory($this->filePath);
+			$this->ensureDirectory($this->cacheDir);
 		}
 	}
 
@@ -102,7 +102,7 @@ class CacheManager
 			return (bool) $this->redis->del($this->prefixKey($key));
 		}
 
-		$file = $this->filePath($key);
+		$file = $this->cacheFilePath($key);
 		return file_exists($file) && unlink($file);
 	}
 
@@ -121,7 +121,7 @@ class CacheManager
 		}
 
 		// File driver : supprimer tous les fichiers .cache
-		$files = glob($this->filePath . '/*.cache');
+		$files = glob($this->cacheDir . '/*.cache');
 		if ($files === false) {
 			return false;
 		}
@@ -156,7 +156,7 @@ class CacheManager
 		}
 
 		$cleaned = 0;
-		$files = glob($this->filePath . '/*.cache');
+		$files = glob($this->cacheDir . '/*.cache');
 		if ($files === false) {
 			return 0;
 		}
@@ -176,7 +176,7 @@ class CacheManager
 
 	protected function fileGet(string $key, mixed $default): mixed
 	{
-		$file = $this->filePath($key);
+		$file = $this->cacheFilePath($key);
 		if (!file_exists($file)) {
 			return $default;
 		}
@@ -192,7 +192,7 @@ class CacheManager
 
 	protected function filePut(string $key, mixed $value, int $ttl): bool
 	{
-		$file = $this->filePath($key);
+		$file = $this->cacheFilePath($key);
 		$expiresAt = $ttl > 0 ? time() + $ttl : 0;
 
 		$payload = serialize([
@@ -210,7 +210,7 @@ class CacheManager
 			return null;
 		}
 
-		$data = @unserialize($content);
+		$data = @unserialize($content, ['allowed_classes' => false]);
 		if ($data === false || !is_array($data) || !array_key_exists('value', $data)) {
 			return null;
 		}
@@ -223,9 +223,9 @@ class CacheManager
 		return $data['value'];
 	}
 
-	protected function filePath(string $key): string
+	protected function cacheFilePath(string $key): string
 	{
-		return $this->filePath . '/' . md5($key) . '.cache';
+		return $this->cacheDir . '/' . md5($key) . '.cache';
 	}
 
 	protected function ensureDirectory(string $path): void
@@ -242,7 +242,7 @@ class CacheManager
 		if (!extension_loaded('redis')) {
 			// Fallback au file driver si Redis n'est pas installé
 			$this->driver = 'file';
-			$this->ensureDirectory($this->filePath);
+			$this->ensureDirectory($this->cacheDir);
 			return;
 		}
 
@@ -258,7 +258,7 @@ class CacheManager
 			error_log('CacheManager: Redis unavailable, falling back to file driver: ' . $e->getMessage());
 			$this->redis = null;
 			$this->driver = 'file';
-			$this->ensureDirectory($this->filePath);
+			$this->ensureDirectory($this->cacheDir);
 		}
 	}
 
@@ -268,7 +268,7 @@ class CacheManager
 		if ($value === false) {
 			return $default;
 		}
-		return unserialize($value);
+		return unserialize($value, ['allowed_classes' => false]);
 	}
 
 	protected function redisPut(string $key, mixed $value, int $ttl): bool

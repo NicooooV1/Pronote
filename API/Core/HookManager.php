@@ -95,6 +95,23 @@ class HookManager
     }
 
     /**
+     * Dispatche un objet événement vers tous les listeners enregistrés.
+     * Déclenche aussi les listeners sur les classes/interfaces parentes.
+     *
+     * @param object $event Objet événement (ex: NoteCreated, AbsenceCreated)
+     */
+    public function dispatch(object $event): void
+    {
+        $class = get_class($event);
+        $this->fire($class, $event);
+
+        // Déclencher les listeners sur les parents et interfaces
+        foreach (array_merge(class_parents($event) ?: [], class_implements($event) ?: []) as $parent) {
+            $this->fire($parent, $event);
+        }
+    }
+
+    /**
      * Vérifie si un événement a des hooks enregistrés.
      */
     public function has(string $event): bool

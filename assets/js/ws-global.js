@@ -100,11 +100,11 @@
 
         var count = parseInt(data.count || 0, 10);
         if (count > 0) {
-            badge.textContent    = count > 99 ? '99+' : String(count);
-            badge.style.display  = 'inline-flex';
+            badge.textContent = count > 99 ? '99+' : String(count);
+            badge.classList.remove('sidebar-badge--hidden');
         } else {
-            badge.textContent    = '';
-            badge.style.display  = 'none';
+            badge.textContent = '';
+            badge.classList.add('sidebar-badge--hidden');
         }
     }
 

@@ -1,0 +1,98 @@
+/**
+ * FRONOTE - Base CSS
+ * Minimal reset, shared structural utilities, and print styles.
+ * Theme-agnostic: works with both theme-classic.css and theme-glass.css.
+ */
+
+/* ======= Reset ======= */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ======= System font stack ======= */
+html, body {
+  height: 100%;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+               Roboto, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ======= Base elements ======= */
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+ul, ol {
+  list-style-type: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* ======= Structural utilities ======= */
+.hidden {
+  display: none !important;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.clearfix::after {
+  content: '';
+  display: table;
+  clear: both;
+}
+
+/* ======= Theme icon visibility ======= */
+.theme-icon-hidden { display: none; }
+.theme-icon-visible { display: inline; }
+
+/* ======= Sidebar utilities ======= */
+.sidebar-badge--hidden { display: none !important; }
+.sidebar-no-results { display: none; }
+.sidebar-no-results.is-visible { display: flex; }
+
+/* ======= Print styles ======= */
+@media print {
+  body {
+    background: white !important;
+    color: #000 !important;
+  }
+
+  .sidebar,
+  .sidebar-footer,
+  .header-actions,
+  .footer {
+    display: none !important;
+  }
+
+  .main-content {
+    margin-left: 0 !important;
+    padding: 0 !important;
+  }
+
+  a[href]::after {
+    content: ' (' attr(href) ')';
+    font-size: 0.8em;
+    color: #666;
+  }
+}

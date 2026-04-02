@@ -1,5 +1,6 @@
-</div><!-- Fin content-container -->
-
 <?php
-include __DIR__ . '/../../templates/shared_footer.php';
-?>
+/**
+ * @deprecated Utiliser footer.php directement.
+ * Ce fichier est maintenu pour rétrocompatibilité des includes existants.
+ */
+require __DIR__ . '/footer.php';

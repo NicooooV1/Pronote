@@ -57,6 +57,7 @@ class Logger
             'level' => $level,
             'channel' => $this->channel,
             'message' => $message,
+            'request_id' => $_SERVER['X_REQUEST_ID'] ?? null,
             'ip' => $_SERVER['REMOTE_ADDR'] ?? 'cli',
             'uri' => $_SERVER['REQUEST_URI'] ?? 'cli',
         ];

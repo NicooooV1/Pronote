@@ -13,19 +13,22 @@ class CacheManagerTest extends TestCase
 
 	protected function setUp(): void
 	{
-		$this->testDir = sys_get_temp_dir() . '/fronote_test_cache_' . uniqid();
+		$this->testDir = sys_get_temp_dir() . '/fronote_test_' . uniqid();
 		mkdir($this->testDir, 0755, true);
-		$this->cache = new CacheManager('file', $this->testDir . '/..');
+		// CacheManager appends /storage/cache to basePath
+		$this->cache = new CacheManager('file', $this->testDir);
 	}
 
 	protected function tearDown(): void
 	{
 		// Cleanup
-		$files = glob($this->testDir . '/cache/*.cache');
+		$cacheDir = $this->testDir . '/storage/cache';
+		$files = glob($cacheDir . '/*.cache');
 		if ($files) {
 			foreach ($files as $f) unlink($f);
 		}
-		@rmdir($this->testDir . '/cache');
+		@rmdir($cacheDir);
+		@rmdir($this->testDir . '/storage');
 		@rmdir($this->testDir);
 	}
 

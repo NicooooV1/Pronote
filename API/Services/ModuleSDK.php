@@ -351,17 +351,27 @@ class ModuleSDK
             return null;
         }
 
+        // Lire le fichier pour extraire le namespace + classe
+        $fileContent = file_get_contents($providerPath);
+        $namespace = '';
+        if (preg_match('/namespace\s+([^;]+);/', $fileContent, $nsMatch)) {
+            $namespace = trim($nsMatch[1]) . '\\';
+        }
+        $shortName = pathinfo($config['data_provider'], PATHINFO_FILENAME);
+
         require_once $providerPath;
 
-        // Déduire le nom de la classe depuis le nom du fichier
-        $className = pathinfo($config['data_provider'], PATHINFO_FILENAME);
-
+        // Essayer avec namespace puis sans
+        $className = $namespace . $shortName;
         if (!class_exists($className)) {
-            error_log("ModuleSDK: Class '{$className}' not found in {$providerPath}");
+            $className = $shortName; // Fallback sans namespace
+        }
+        if (!class_exists($className)) {
+            error_log("ModuleSDK: Class '{$shortName}' not found in {$providerPath}");
             return null;
         }
 
-        $instance = new $className($this->pdo);
+        $instance = new $className();
 
         if (!($instance instanceof \API\Contracts\WidgetDataProvider)) {
             error_log("ModuleSDK: Class '{$className}' does not implement WidgetDataProvider");

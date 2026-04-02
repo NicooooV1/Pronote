@@ -200,7 +200,7 @@ class OAuthGuard
 			return [
 				'email'      => $data['mail'] ?? $data['userPrincipalName'] ?? '',
 				'given_name' => $data['givenName'] ?? '',
-				'family_name'=> $data['surname'] ?? '',
+				'family_name' =>$data['surname'] ?? '',
 				'name'       => $data['displayName'] ?? '',
 				'sub'        => $data['id'] ?? '',
 				'picture'    => null,
@@ -211,7 +211,7 @@ class OAuthGuard
 		return [
 			'email'      => $data['email'] ?? '',
 			'given_name' => $data['given_name'] ?? '',
-			'family_name'=> $data['family_name'] ?? '',
+			'family_name' =>$data['family_name'] ?? '',
 			'name'       => $data['name'] ?? '',
 			'sub'        => $data['sub'] ?? $data['id'] ?? '',
 			'picture'    => $data['picture'] ?? null,

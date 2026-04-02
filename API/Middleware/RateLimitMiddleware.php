@@ -31,7 +31,8 @@ class RateLimitMiddleware
 		?int $windowSeconds = null
 	): void {
 		$maxAttempts = $maxAttempts ?? (int) (env('API_RATE_LIMIT', '60') ?: 60);
-		$windowMinutes = ($windowSeconds ?? (int) (env('API_RATE_LIMIT_WINDOW', '60') ?: 60)) / 60;
+		$windowSec = $windowSeconds ?? (int) (env('API_RATE_LIMIT_WINDOW', '60') ?: 60);
+		$windowMinutes = (int) ceil($windowSec / 60);
 
 		$limiter = new RateLimiter();
 		$limiter->setMaxAttempts($maxAttempts);
@@ -46,11 +47,11 @@ class RateLimitMiddleware
 		if (!headers_sent()) {
 			header("X-RateLimit-Limit: {$maxAttempts}");
 			header("X-RateLimit-Remaining: {$remaining}");
-			header("X-RateLimit-Reset: " . (time() + ($windowMinutes > 0 ? (int)($windowMinutes * 60) : 60)));
+			header("X-RateLimit-Reset: " . (time() + $windowSec));
 		}
 
 		if ($limiter->tooManyAttempts($key)) {
-			$retryAfter = (int)($windowMinutes * 60);
+			$retryAfter = $windowSec;
 			if (!headers_sent()) {
 				header("Retry-After: {$retryAfter}");
 				http_response_code(429);

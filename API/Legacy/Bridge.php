@@ -161,42 +161,72 @@ if (!function_exists('hasPermission')) {
 /**
  * Fonctions legacy de vérification de permissions par module.
  * @deprecated Utiliser hasPermission('module.action') ou canModule('module', 'action') à la place.
- *             Ces fonctions seront supprimées quand tous les modules utiliseront le Module SDK (Phase 3).
+ *
+ * Le mapping est centralisé dans un tableau unique. Les fonctions sont générées
+ * dans un fichier cache (storage/cache/_legacy_perms.php) et incluses une seule fois.
+ * Cela élimine l'usage d'eval() tout en gardant la compatibilité totale.
  */
-if (!function_exists('canManageNotes'))       { /** @deprecated Utiliser hasPermission('notes.manage') */ function canManageNotes()       { return hasPermission('notes'); } }
-if (!function_exists('canManageAbsences'))    { /** @deprecated Utiliser hasPermission('absences.manage') */ function canManageAbsences()    { return hasPermission('absences'); } }
-if (!function_exists('canManageDevoirs'))     { /** @deprecated Utiliser hasPermission('devoirs.manage') */ function canManageDevoirs()     { return hasPermission('devoirs'); } }
-if (!function_exists('canManageEDT'))         { /** @deprecated Utiliser hasPermission('edt.manage') */ function canManageEDT()         { return hasPermission('edt'); } }
-if (!function_exists('canManageAppel'))       { /** @deprecated Utiliser hasPermission('appel.manage') */ function canManageAppel()       { return hasPermission('appel'); } }
-if (!function_exists('canManageDiscipline'))  { /** @deprecated Utiliser hasPermission('discipline.manage') */ function canManageDiscipline()  { return hasPermission('discipline'); } }
-if (!function_exists('canSignalerIncident'))  { /** @deprecated Utiliser hasPermission('signaler_incident.manage') */ function canSignalerIncident()  { return hasPermission('signaler_incident'); } }
-if (!function_exists('canManageAnnonces'))    { /** @deprecated Utiliser hasPermission('annonces.manage') */ function canManageAnnonces()    { return hasPermission('annonces'); } }
-if (!function_exists('canManageBulletins'))   { /** @deprecated Utiliser hasPermission('bulletins.manage') */ function canManageBulletins()   { return hasPermission('bulletins'); } }
-if (!function_exists('canManageRendus'))      { /** @deprecated Utiliser hasPermission('rendus.manage') */ function canManageRendus()      { return hasPermission('rendus'); } }
-if (!function_exists('canAccessVieScolaire')) { /** @deprecated Utiliser hasPermission('vie_scolaire.manage') */ function canAccessVieScolaire() { return hasPermission('vie_scolaire'); } }
-if (!function_exists('canManageDocuments'))   { /** @deprecated Utiliser hasPermission('documents.manage') */ function canManageDocuments()   { return hasPermission('documents'); } }
-if (!function_exists('canManageCompetences')) { /** @deprecated Utiliser hasPermission('competences.manage') */ function canManageCompetences() { return hasPermission('competences'); } }
-if (!function_exists('canAccessReporting'))   { /** @deprecated Utiliser hasPermission('reporting.manage') */ function canAccessReporting()   { return hasPermission('reporting'); } }
-if (!function_exists('canManageReunions'))    { /** @deprecated Utiliser hasPermission('reunions.manage') */ function canManageReunions()    { return hasPermission('reunions'); } }
-if (!function_exists('canManageInscriptions')){ /** @deprecated Utiliser hasPermission('inscriptions.manage') */ function canManageInscriptions(){ return hasPermission('inscriptions'); } }
-if (!function_exists('canManageOrientation')) { /** @deprecated Utiliser hasPermission('orientation.manage') */ function canManageOrientation() { return hasPermission('orientation'); } }
-if (!function_exists('canManageSignalements')){ /** @deprecated Utiliser hasPermission('signalements.manage') */ function canManageSignalements(){ return hasPermission('signalements'); } }
-if (!function_exists('canManageBibliotheque')){ /** @deprecated Utiliser hasPermission('bibliotheque.manage') */ function canManageBibliotheque(){ return hasPermission('bibliotheque'); } }
-if (!function_exists('canManageClubs'))       { /** @deprecated Utiliser hasPermission('clubs.manage') */ function canManageClubs()       { return hasPermission('clubs'); } }
-if (!function_exists('canAccessInfirmerie'))  { /** @deprecated Utiliser hasPermission('infirmerie.manage') */ function canAccessInfirmerie()  { return hasPermission('infirmerie'); } }
-if (!function_exists('canManageArchives'))    { /** @deprecated Utiliser hasPermission('archives.manage') */ function canManageArchives()    { return hasPermission('archives'); } }
-if (!function_exists('canManageSupport'))     { /** @deprecated Utiliser hasPermission('support.manage') */ function canManageSupport()     { return hasPermission('support'); } }
-if (!function_exists('canManageExamens'))     { /** @deprecated Utiliser hasPermission('examens.manage') */ function canManageExamens()     { return hasPermission('examens'); } }
-if (!function_exists('canManageBesoins'))     { /** @deprecated Utiliser hasPermission('besoins.manage') */ function canManageBesoins()     { return hasPermission('besoins'); } }
-if (!function_exists('canManagePersonnel'))   { /** @deprecated Utiliser hasPermission('personnel.manage') */ function canManagePersonnel()   { return hasPermission('personnel'); } }
-if (!function_exists('canManageSalles'))      { /** @deprecated Utiliser hasPermission('salles.manage') */ function canManageSalles()      { return hasPermission('salles'); } }
-if (!function_exists('canManagePeriscolaire')){ /** @deprecated Utiliser hasPermission('periscolaire.manage') */ function canManagePeriscolaire(){ return hasPermission('periscolaire'); } }
-if (!function_exists('canManageStages'))      { /** @deprecated Utiliser hasPermission('stages.manage') */ function canManageStages()      { return hasPermission('stages'); } }
-if (!function_exists('canManageTransports'))  { /** @deprecated Utiliser hasPermission('transports.manage') */ function canManageTransports()  { return hasPermission('transports'); } }
-if (!function_exists('canManageFacturation')) { /** @deprecated Utiliser hasPermission('facturation.manage') */ function canManageFacturation() { return hasPermission('facturation'); } }
-if (!function_exists('canManageRessources'))  { /** @deprecated Utiliser hasPermission('ressources.manage') */ function canManageRessources()  { return hasPermission('ressources'); } }
-if (!function_exists('canManageDiplomes'))    { /** @deprecated Utiliser hasPermission('diplomes.manage') */ function canManageDiplomes()    { return hasPermission('diplomes'); } }
-if (!function_exists('isPersonnelVS'))        { /** @deprecated Utiliser isVieScolaire() */ function isPersonnelVS()        { return getUserRole() === 'vie_scolaire'; } }
+$_legacyPermissionMap = [
+    'canManageNotes'       => 'notes',
+    'canManageAbsences'    => 'absences',
+    'canManageDevoirs'     => 'devoirs',
+    'canManageEDT'         => 'edt',
+    'canManageAppel'       => 'appel',
+    'canManageDiscipline'  => 'discipline',
+    'canSignalerIncident'  => 'signaler_incident',
+    'canManageAnnonces'    => 'annonces',
+    'canManageBulletins'   => 'bulletins',
+    'canManageRendus'      => 'rendus',
+    'canAccessVieScolaire' => 'vie_scolaire',
+    'canManageDocuments'   => 'documents',
+    'canManageCompetences' => 'competences',
+    'canAccessReporting'   => 'reporting',
+    'canManageReunions'    => 'reunions',
+    'canManageInscriptions'=> 'inscriptions',
+    'canManageOrientation' => 'orientation',
+    'canManageSignalements'=> 'signalements',
+    'canManageBibliotheque'=> 'bibliotheque',
+    'canManageClubs'       => 'clubs',
+    'canAccessInfirmerie'  => 'infirmerie',
+    'canManageArchives'    => 'archives',
+    'canManageSupport'     => 'support',
+    'canManageExamens'     => 'examens',
+    'canManageBesoins'     => 'besoins',
+    'canManagePersonnel'   => 'personnel',
+    'canManageSalles'      => 'salles',
+    'canManagePeriscolaire'=> 'periscolaire',
+    'canManageStages'      => 'stages',
+    'canManageTransports'  => 'transports',
+    'canManageFacturation' => 'facturation',
+    'canManageRessources'  => 'ressources',
+    'canManageDiplomes'    => 'diplomes',
+];
+
+// Générer un fichier cache contenant toutes les fonctions (évite eval)
+$_cacheDir = (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)) . '/storage/cache';
+$_cacheFile = $_cacheDir . '/_legacy_perms.php';
+
+if (!file_exists($_cacheFile)) {
+    if (!is_dir($_cacheDir)) {
+        @mkdir($_cacheDir, 0755, true);
+    }
+    $_code = "<?php\n// Auto-generated legacy permission functions — do not edit\n";
+    foreach ($_legacyPermissionMap as $_fn => $_pk) {
+        $_code .= "if (!function_exists('{$_fn}')) {\n";
+        $_code .= "    /** @deprecated Use hasPermission('{$_pk}') */ \n";
+        $_code .= "    function {$_fn}(): bool { return hasPermission('{$_pk}'); }\n";
+        $_code .= "}\n";
+    }
+    file_put_contents($_cacheFile, $_code);
+}
+
+require_once $_cacheFile;
+unset($_legacyPermissionMap, $_cacheDir, $_cacheFile, $_code, $_fn, $_pk);
+
+if (!function_exists('isPersonnelVS')) {
+    /** @deprecated Utiliser isVieScolaire() */
+    function isPersonnelVS() { return getUserRole() === 'vie_scolaire'; }
+}
 
 // ==================== RBAC ====================
 
@@ -370,6 +400,36 @@ if (!function_exists('currentLocale')) {
 			return 'fr';
 		}
 	}
+}
+
+// ==================== CSRF (helpers supplémentaires, ex-core.php) ====================
+
+if (!function_exists('csrf_meta')) {
+    function csrf_meta() {
+        return app('csrf')->meta();
+    }
+}
+
+if (!function_exists('csrf_validate')) {
+    function csrf_validate(?string $token = null): bool {
+        if ($token !== null) {
+            return app('csrf')->validate($token);
+        }
+        return app('csrf')->validateFromRequest();
+    }
+}
+
+if (!function_exists('csrf_verify')) {
+    function csrf_verify(): void {
+        app('csrf')->verifyOrFail();
+    }
+}
+
+if (!function_exists('isAjaxRequest')) {
+    function isAjaxRequest(): bool {
+        return !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    }
 }
 
 // ==================== CSRF ====================
