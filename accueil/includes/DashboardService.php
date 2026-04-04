@@ -29,6 +29,17 @@ class DashboardService
      */
     public function getUserWidgets(int $userId, string $userType): array
     {
+        // Cache session via ClientCache (évite la requête SQL sur chaque page accueil)
+        $cc = class_exists('\\API\\Core\\ClientCache') ? new \API\Core\ClientCache() : null;
+        $cacheKey = 'widgets_' . $userId . '_' . $userType;
+
+        if ($cc) {
+            $cached = $cc->get($cacheKey);
+            if ($cached !== null && is_array($cached)) {
+                return $cached;
+            }
+        }
+
         // 1) Charger la config utilisateur
         $userConfig = $this->safeQuery(
             "SELECT udc.widget_key, udc.position_x, udc.position_y, udc.width, udc.height,
@@ -43,19 +54,24 @@ class DashboardService
             [$userId, $userType]
         );
 
+        $result = [];
         if (!empty($userConfig)) {
-            // Filtrer par role
-            $result = [];
             foreach ($userConfig as $row) {
                 $row['config'] = $row['user_config'] ? json_decode($row['user_config'], true) : null;
                 unset($row['user_config']);
                 $result[] = $row;
             }
-            return $result;
+        } else {
+            // 2) Pas de config => renvoyer les widgets par defaut pour ce role
+            $result = $this->getDefaultWidgetsForRole($userType);
         }
 
-        // 2) Pas de config => renvoyer les widgets par defaut pour ce role
-        return $this->getDefaultWidgetsForRole($userType);
+        // Mettre en cache session (5 min) — invalidé par saveWidgetLayout()
+        if ($cc) {
+            $cc->set($cacheKey, $result, 300);
+        }
+
+        return $result;
     }
 
     /**
@@ -170,6 +186,13 @@ class DashboardService
             }
 
             $this->pdo->commit();
+
+            // Invalider le cache widget pour cet utilisateur
+            $cc = class_exists('\\API\\Core\\ClientCache') ? new \API\Core\ClientCache() : null;
+            if ($cc) {
+                $cc->forget('widgets_' . $userId . '_' . $userType);
+            }
+
             return true;
         } catch (PDOException $e) {
             $this->pdo->rollBack();

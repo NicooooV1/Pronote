@@ -29,6 +29,25 @@ DROP VIEW  IF EXISTS `v_users`;
 DROP TABLE IF EXISTS `event_exceptions`;
 DROP TABLE IF EXISTS `evenement_exceptions`;
 
+-- Tables Marketplace & Themes (v2.1+)
+DROP TABLE IF EXISTS `theme_token_overrides`;
+DROP TABLE IF EXISTS `themes`;
+DROP TABLE IF EXISTS `marketplace_installs`;
+-- Tables Sécurité (v2.4+)
+DROP TABLE IF EXISTS `ip_blocklist`;
+-- Tables Push Notifications (v2.2+)
+DROP TABLE IF EXISTS `push_subscriptions`;
+-- Tables SMS (v2.3+)
+DROP TABLE IF EXISTS `sms_log`;
+DROP TABLE IF EXISTS `sms_config`;
+-- Tables Email amélioré (v2.3+)
+DROP TABLE IF EXISTS `email_templates`;
+DROP TABLE IF EXISTS `email_log`;
+-- Tables Paiement (v2.7+)
+DROP TABLE IF EXISTS `payments`;
+-- Tables Signatures (v2.7+)
+DROP TABLE IF EXISTS `signatures`;
+
 -- Tables ajoutées (phases 2+)
 DROP TABLE IF EXISTS `app_metrics`;
 DROP TABLE IF EXISTS `module_migrations`;
@@ -3351,6 +3370,165 @@ INSERT IGNORE INTO `module_settings_schema` (`module_key`, `field_key`, `field_t
 ('facturation','currency','select','Devise','EUR','{"EUR":"Euro (€)","USD":"Dollar ($)","GBP":"Livre (£)","CHF":"Franc suisse (CHF)"}',NULL,10),
 ('facturation','tva_rate','number','Taux TVA par défaut (%)','0','{"min":0,"max":30}',NULL,20),
 ('facturation','payment_reminder_days','number','Rappel paiement (jours)','30','{"min":7,"max":90}',NULL,30);
+
+-- ============================================================
+-- PHASE 1 : Marketplace & Themes
+-- ============================================================
+
+CREATE TABLE `marketplace_installs` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `item_key` VARCHAR(100) NOT NULL,
+  `item_type` ENUM('module','theme') NOT NULL DEFAULT 'module',
+  `version` VARCHAR(20) NOT NULL DEFAULT '1.0.0',
+  `author` VARCHAR(100) DEFAULT NULL,
+  `installed_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_marketplace_item` (`item_key`, `item_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `themes` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `key` VARCHAR(50) NOT NULL UNIQUE,
+  `name` VARCHAR(100) NOT NULL,
+  `description` TEXT DEFAULT NULL,
+  `author` VARCHAR(100) DEFAULT 'Custom',
+  `version` VARCHAR(20) DEFAULT '1.0.0',
+  `css_file` VARCHAR(255) NOT NULL,
+  `preview_image` VARCHAR(255) DEFAULT NULL,
+  `actif` TINYINT(1) NOT NULL DEFAULT 1,
+  `installed_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `theme_token_overrides` (
+  `theme_key` VARCHAR(50) NOT NULL PRIMARY KEY,
+  `overrides` JSON DEFAULT NULL,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- PHASE 2 : Push Notifications
+-- ============================================================
+
+CREATE TABLE `push_subscriptions` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `user_type` VARCHAR(30) NOT NULL,
+  `endpoint` TEXT NOT NULL,
+  `p256dh` VARCHAR(255) NOT NULL,
+  `auth` VARCHAR(255) NOT NULL,
+  `user_agent` VARCHAR(255) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_push_user` (`user_id`, `user_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- PHASE 3 : SMS & Email amélioré
+-- ============================================================
+
+CREATE TABLE `sms_config` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `provider` VARCHAR(50) NOT NULL DEFAULT 'twilio',
+  `api_key` VARCHAR(255) DEFAULT NULL,
+  `api_secret` VARCHAR(255) DEFAULT NULL,
+  `sender_name` VARCHAR(20) DEFAULT 'Fronote',
+  `actif` TINYINT(1) NOT NULL DEFAULT 0,
+  `monthly_quota` INT DEFAULT 1000,
+  `used_this_month` INT DEFAULT 0,
+  `quota_reset_at` DATE DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `sms_log` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `recipient` VARCHAR(20) NOT NULL,
+  `message` TEXT NOT NULL,
+  `status` ENUM('pending','sent','delivered','failed') NOT NULL DEFAULT 'pending',
+  `provider_id` VARCHAR(100) DEFAULT NULL,
+  `error` TEXT DEFAULT NULL,
+  `sent_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `email_templates` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `key` VARCHAR(50) NOT NULL UNIQUE,
+  `name` VARCHAR(100) NOT NULL,
+  `subject` VARCHAR(255) NOT NULL,
+  `html_body` TEXT NOT NULL,
+  `variables` JSON DEFAULT NULL,
+  `actif` TINYINT(1) NOT NULL DEFAULT 1,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `email_log` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `to_address` VARCHAR(255) NOT NULL,
+  `subject` VARCHAR(255) NOT NULL,
+  `template_key` VARCHAR(50) DEFAULT NULL,
+  `status` ENUM('pending','sent','failed') NOT NULL DEFAULT 'pending',
+  `attempts` TINYINT DEFAULT 0,
+  `error` TEXT DEFAULT NULL,
+  `sent_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_email_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Seed email templates
+INSERT INTO `email_templates` (`key`, `name`, `subject`, `html_body`, `variables`) VALUES
+('welcome', 'Bienvenue', 'Bienvenue sur Fronote', '<h2>Bienvenue {{prenom}} !</h2><p>Votre compte a été créé sur <strong>{{etablissement}}</strong>.</p><p>Identifiant : <code>{{identifiant}}</code></p>', '["prenom","etablissement","identifiant"]'),
+('reset_password', 'Réinitialisation', 'Réinitialisation de votre mot de passe', '<h2>Réinitialisation</h2><p>Cliquez sur le lien ci-dessous pour réinitialiser votre mot de passe :</p><p><a href="{{reset_url}}">{{reset_url}}</a></p><p>Ce lien expire dans {{expiry}}.</p>', '["reset_url","expiry"]'),
+('absence', 'Absence', 'Absence de {{eleve}}', '<h2>Notification d\'absence</h2><p>{{eleve}} ({{classe}}) a été signalé(e) absent(e) le {{date}} de {{heure_debut}} à {{heure_fin}}.</p><p>Motif : {{motif}}</p>', '["eleve","classe","date","heure_debut","heure_fin","motif"]'),
+('bulletin', 'Bulletin disponible', 'Bulletin de {{periode}} disponible', '<h2>Bulletin scolaire</h2><p>Le bulletin de {{eleve}} pour la période <strong>{{periode}}</strong> est désormais disponible.</p><p><a href="{{url}}">Consulter le bulletin</a></p>', '["eleve","periode","url"]'),
+('reunion', 'Invitation réunion', 'Réunion parents-professeurs le {{date}}', '<h2>Réunion parents-professeurs</h2><p>Vous êtes invité(e) à la réunion du <strong>{{date}}</strong> à <strong>{{heure}}</strong>.</p><p>Lieu : {{lieu}}</p><p><a href="{{url}}">Réserver un créneau</a></p>', '["date","heure","lieu","url"]'),
+('annonce', 'Annonce', '{{titre}}', '<h2>{{titre}}</h2><div>{{contenu}}</div><p>— {{auteur}}</p>', '["titre","contenu","auteur"]');
+
+-- ============================================================
+-- PHASE 4 : Sécurité IP Firewall
+-- ============================================================
+
+CREATE TABLE `ip_blocklist` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `ip` VARCHAR(45) NOT NULL,
+  `reason` VARCHAR(255) DEFAULT NULL,
+  `auto_blocked` TINYINT(1) NOT NULL DEFAULT 0,
+  `blocked_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` DATETIME DEFAULT NULL,
+  `created_by` INT DEFAULT NULL,
+  UNIQUE KEY `uq_ip` (`ip`),
+  INDEX `idx_ip_expires` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- PHASE 7 : Paiements & Signatures
+-- ============================================================
+
+CREATE TABLE `payments` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `user_type` VARCHAR(30) NOT NULL DEFAULT 'parent',
+  `amount` DECIMAL(10,2) NOT NULL,
+  `currency` VARCHAR(3) NOT NULL DEFAULT 'EUR',
+  `description` VARCHAR(255) DEFAULT NULL,
+  `provider` VARCHAR(30) NOT NULL DEFAULT 'stripe',
+  `provider_reference` VARCHAR(255) DEFAULT NULL,
+  `status` ENUM('pending','completed','failed','refunded') NOT NULL DEFAULT 'pending',
+  `metadata` JSON DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `completed_at` DATETIME DEFAULT NULL,
+  INDEX `idx_payment_user` (`user_id`, `user_type`),
+  INDEX `idx_payment_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE `signatures` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `document_type` VARCHAR(50) NOT NULL,
+  `document_id` INT NOT NULL,
+  `signer_id` INT NOT NULL,
+  `signer_type` VARCHAR(30) NOT NULL,
+  `signature_hash` VARCHAR(64) NOT NULL,
+  `signature_data` MEDIUMTEXT DEFAULT NULL,
+  `ip_address` VARCHAR(45) DEFAULT NULL,
+  `signed_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_sig_document` (`document_type`, `document_id`),
+  INDEX `idx_sig_signer` (`signer_id`, `signer_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
 SET SESSION FOREIGN_KEY_CHECKS = 1;

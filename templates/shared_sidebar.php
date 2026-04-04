@@ -69,32 +69,47 @@ $_sb_profil_labels = [
 ];
 $_sb_profil_label = $_sb_profil_labels[$_sb_user_role] ?? ucfirst($_sb_user_role);
 
-// ─── Badge counts ────────────────────────────────────────────────
+// ─── Badge counts (cached 30s via session) ──────────────────────
 $_sb_unread_messages = 0;
 $_sb_admin_badge = 0;
 try {
     $_sb_pdo = getPDO();
-    // Unread messages badge
-    $stmt = $_sb_pdo->prepare("SELECT COALESCE(SUM(cp.unread_count), 0) FROM conversation_participants cp WHERE cp.user_id = ? AND cp.user_type = ? AND cp.is_deleted = 0");
-    $stmt->execute([$currentUser['id'] ?? 0, $userRole]);
-    $_sb_unread_messages = (int) $stmt->fetchColumn();
+    $_sb_badge_cache_key = '_cc_badges_' . ($currentUser['id'] ?? 0);
+    $_sb_badge_cached = $_SESSION[$_sb_badge_cache_key] ?? null;
 
-    // Admin badges
-    if ($isAdmin) {
-        $stmt = $_sb_pdo->query("SELECT COUNT(*) FROM demandes_reinitialisation WHERE status = 'pending'");
-        $_sb_admin_badge += (int) $stmt->fetchColumn();
-        $stmt = $_sb_pdo->query("SELECT COUNT(*) FROM justificatifs WHERE traite = 0");
-        $_sb_admin_badge += (int) $stmt->fetchColumn();
+    if ($_sb_badge_cached && ($_sb_badge_cached['exp'] ?? 0) > time()) {
+        // Utiliser le cache session (évite 2-3 requêtes SQL)
+        $_sb_unread_messages = $_sb_badge_cached['unread'] ?? 0;
+        $_sb_admin_badge = $_sb_badge_cached['admin'] ?? 0;
+    } else {
+        // Requêtes DB puis mise en cache 30s
+        $stmt = $_sb_pdo->prepare("SELECT COALESCE(SUM(cp.unread_count), 0) FROM conversation_participants cp WHERE cp.user_id = ? AND cp.user_type = ? AND cp.is_deleted = 0");
+        $stmt->execute([$currentUser['id'] ?? 0, $userRole]);
+        $_sb_unread_messages = (int) $stmt->fetchColumn();
+
+        if ($isAdmin) {
+            $stmt = $_sb_pdo->query("SELECT COUNT(*) FROM demandes_reinitialisation WHERE status = 'pending'");
+            $_sb_admin_badge += (int) $stmt->fetchColumn();
+            $stmt = $_sb_pdo->query("SELECT COUNT(*) FROM justificatifs WHERE traite = 0");
+            $_sb_admin_badge += (int) $stmt->fetchColumn();
+        }
+
+        $_SESSION[$_sb_badge_cache_key] = [
+            'unread' => $_sb_unread_messages,
+            'admin'  => $_sb_admin_badge,
+            'exp'    => time() + 30,
+        ];
     }
 } catch (Exception $e) { /* silent */ }
 
-// ─── User theme ──────────────────────────────────────────────────
-$_sb_theme = 'light';
-try {
-    $stmt = $_sb_pdo->prepare("SELECT theme FROM user_settings WHERE user_id = ? AND user_type = ?");
-    $stmt->execute([$currentUser['id'] ?? 0, $userRole]);
-    $_sb_theme = $stmt->fetchColumn() ?: 'light';
-} catch (Exception $e) { /* fallback */ }
+// ─── User theme (reuse cached value from shared_header.php) ─────
+// Le header a déjà chargé le theme via ClientCache, on réutilise la valeur.
+$_sb_theme = $_hdr_dark_mode ?? 'light';
+// Si le header n'a pas été inclus (cas rare), fallback session
+if (!isset($_hdr_dark_mode)) {
+    $cc = class_exists('\\API\\Core\\ClientCache') ? new \API\Core\ClientCache() : null;
+    $_sb_theme = $cc ? ($cc->get('user_theme') ?: 'light') : 'light';
+}
 ?>
 
 <!-- Sidebar -->

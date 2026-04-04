@@ -284,6 +284,7 @@ class CacheManager
 
 	protected function prefixKey(string $key): string
 	{
-		return 'fronote:' . $key;
+		$instanceId = defined('INSTANCE_ID') ? INSTANCE_ID : 'default';
+		return 'fronote:' . $instanceId . ':' . $key;
 	}
 }

@@ -11,6 +11,22 @@ define('PRONOTE_BOOTSTRAP_LOADED', true);
 define('API_PATH', __DIR__);
 define('BASE_PATH', dirname(__DIR__));
 
+// ─── Instance fingerprint (multi-instance isolation) ────────────────────────
+// Chaque installation Fronote sur un même serveur obtient un identifiant unique
+// basé sur son chemin physique. Utilisé pour isoler sessions, cookies, cache Redis.
+define('INSTANCE_ID', substr(md5(realpath(BASE_PATH) ?: BASE_PATH), 0, 8));
+
+// Chemin web de l'installation (pour scoper les cookies)
+$_instWebPath = '/';
+$_instProjectRoot = str_replace('\\', '/', realpath(BASE_PATH) ?: BASE_PATH);
+$_instDocRoot = str_replace('\\', '/', realpath($_SERVER['DOCUMENT_ROOT'] ?? '.') ?: '.');
+if ($_instDocRoot && strpos($_instProjectRoot, $_instDocRoot) === 0) {
+    $_instWebPath = substr($_instProjectRoot, strlen($_instDocRoot)) ?: '/';
+    $_instWebPath = rtrim($_instWebPath, '/') . '/';
+}
+define('INSTANCE_COOKIE_PATH', $_instWebPath);
+unset($_instWebPath, $_instProjectRoot, $_instDocRoot);
+
 // Priorité 1 : autoloader Composer (si vendor/ disponible)
 $_vendor = dirname(__DIR__) . '/vendor/autoload.php';
 if (file_exists($_vendor)) {
@@ -87,13 +103,17 @@ if (!headers_sent()) {
 }
 
 // Démarrer la session si pas déjà démarrée
+// Nom et path scopés par instance pour éviter les conflits multi-installation
 if (session_status() !== PHP_SESSION_ACTIVE) {
+	$_sessName = getenv('SESSION_NAME') ?: ('fronote_' . INSTANCE_ID);
 	session_start([
 		'cookie_httponly' => true,
-		'cookie_secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
+		'cookie_secure'   => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
 		'cookie_samesite' => 'Lax',
-		'name' => getenv('SESSION_NAME') ?: 'pronote_session'
+		'cookie_path'     => INSTANCE_COOKIE_PATH,
+		'name'            => $_sessName,
 	]);
+	unset($_sessName);
 }
 
 // Créer l'application et enregistrer les providers
@@ -131,7 +151,8 @@ $app->singleton('features', function($app) {
 
 // Logger structuré avec rotation de fichiers
 $app->singleton('log', function($app) {
-	return new \API\Core\Logger(BASE_PATH . '/logs', 'app', 30);
+	$logDir = getenv('LOGS_PATH') ?: (BASE_PATH . '/logs');
+	return new \API\Core\Logger($logDir, 'app', 30);
 });
 
 // Bind audit service (uses existing Pronote\Services\AuditService)
@@ -139,9 +160,58 @@ $app->singleton('audit', function($app) {
 	return new \Pronote\Services\AuditService($app->make('db')->getConnection());
 });
 
-// Cache Manager (file / redis)
+// Cache Manager (file / redis) — préfixe scopé par instance
 $app->singleton('cache', function($app) {
 	return new \API\Core\CacheManager(null, BASE_PATH);
+});
+
+// Client Cache (session + cookies signés HMAC, scopé par instance)
+$app->singleton('client_cache', function($app) {
+	return new \API\Core\ClientCache();
+});
+
+// Marketplace Service
+$app->singleton('marketplace', function($app) {
+	return new \API\Services\MarketplaceService($app->make('db')->getConnection(), BASE_PATH);
+});
+
+// Theme Service
+$app->singleton('themes', function($app) {
+	return new \API\Services\ThemeService($app->make('db')->getConnection(), BASE_PATH);
+});
+
+// IP Firewall (brute-force protection)
+$app->singleton('firewall', function($app) {
+	return new \API\Security\IpFirewall($app->make('db')->getConnection());
+});
+
+// Encryption Service (AES-256-GCM)
+$app->singleton('encryption', function($app) {
+	try {
+		return new \API\Core\Encryption();
+	} catch (\Throwable $e) {
+		return null; // APP_KEY non configuré
+	}
+});
+
+// SMS Service
+$app->singleton('sms', function($app) {
+	return new \API\Services\SmsService($app->make('db')->getConnection());
+});
+
+// Email Queue Service
+$app->singleton('email_queue', function($app) {
+	return new \API\Services\EmailQueueService($app->make('db')->getConnection());
+});
+
+// WebPush Service
+$app->singleton('webpush', function($app) {
+	return new \API\Services\WebPushService($app->make('db')->getConnection());
+});
+
+// Video Conference Service
+$app->singleton('visio', function($app) {
+	return new \API\Services\VideoConferenceService();
 });
 
 // Metrics Service (J2)
@@ -149,14 +219,44 @@ $app->singleton('metrics', function($app) {
 	return new \API\Services\MetricsService($app->make('db')->getConnection());
 });
 
+// Analytics Service
+$app->singleton('analytics', function($app) {
+	return new \API\Services\AnalyticsService($app->make('db')->getConnection());
+});
+
+// Bulletin PDF Service
+$app->singleton('bulletin_pdf', function($app) {
+	return new \API\Services\BulletinPdfService($app->make('db')->getConnection(), BASE_PATH);
+});
+
 // Queue Service (G4)
 $app->singleton('queue', function($app) {
 	return new \API\Services\QueueService($app->make('db')->getConnection());
 });
 
+// Payment Service
+$app->singleton('payment', function($app) {
+	return new \API\Services\PaymentService($app->make('db')->getConnection());
+});
+
+// Signature Service
+$app->singleton('signature', function($app) {
+	return new \API\Services\SignatureService($app->make('db')->getConnection());
+});
+
+// QR Presence Service
+$app->singleton('qr_presence', function($app) {
+	return new \API\Services\QrPresenceService($app->make('db')->getConnection());
+});
+
 // Backup Service
 $app->singleton('backup', function($app) {
 	return new \API\Services\BackupService($app->make('db')->getConnection(), BASE_PATH);
+});
+
+// Update Service (auto-update from GitHub)
+$app->singleton('updates', function($app) {
+	return new \API\Services\UpdateService(BASE_PATH);
 });
 
 // Lier l'application aux Facades

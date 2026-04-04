@@ -29,21 +29,37 @@ $rootPrefix = $rootPrefix ?? '../';
 // NOTE : $activePage doit être défini dans chaque page/module pour la coloration de la navigation
 // Exemples : 'accueil', 'notes', 'agenda', 'cahierdetextes', 'messagerie', 'absences', 'admin'
 
-// ─── Theme loading ───────────────────────────────────────────────────────────
-// Load user's theme preference from DB (classic|glass) and dark mode pref (light|dark|auto)
+// ─── Theme loading (cached) ──────────────────────────────────────────────────
+// Priorité : ClientCache (session+cookie) → DB → fallback 'classic'
+// Élimine la requête SQL sur chaque page après le premier chargement.
 $_hdr_theme = 'classic';
 $_hdr_dark_mode = 'light';
 try {
     if (!empty($_SESSION['user_id']) && !empty($_SESSION['user_type'])) {
-        $_hdr_pdo = getPDO();
-        $_hdr_stmt = $_hdr_pdo->prepare("SELECT theme FROM user_settings WHERE user_id = ? AND user_type = ? LIMIT 1");
-        $_hdr_stmt->execute([$_SESSION['user_id'], $_SESSION['user_type']]);
-        $_hdr_raw_theme = $_hdr_stmt->fetchColumn() ?: 'classic';
+        /** @var \API\Core\ClientCache $cc */
+        $cc = class_exists('\\API\\Core\\ClientCache') ? new \API\Core\ClientCache() : null;
+
+        $_hdr_raw_theme = null;
+        if ($cc) {
+            $_hdr_raw_theme = $cc->get('user_theme');
+        }
+
+        // Fallback DB si pas en cache
+        if ($_hdr_raw_theme === null) {
+            $_hdr_pdo = getPDO();
+            $_hdr_stmt = $_hdr_pdo->prepare("SELECT theme FROM user_settings WHERE user_id = ? AND user_type = ? LIMIT 1");
+            $_hdr_stmt->execute([$_SESSION['user_id'], $_SESSION['user_type']]);
+            $_hdr_raw_theme = $_hdr_stmt->fetchColumn() ?: 'classic';
+            // Mettre en cache (TTL 1h — invalidé à la modification dans parametres)
+            if ($cc) {
+                $cc->set('user_theme', $_hdr_raw_theme, 3600);
+            }
+        }
+
         // Support both old (light/dark/auto) and new (classic/glass) theme values
         if (in_array($_hdr_raw_theme, ['classic', 'glass'], true)) {
             $_hdr_theme = $_hdr_raw_theme;
         } elseif ($_hdr_raw_theme === 'light' || $_hdr_raw_theme === 'dark' || $_hdr_raw_theme === 'auto') {
-            // Legacy value: treat as dark-mode preference, CSS theme defaults to classic
             $_hdr_theme = 'classic';
             $_hdr_dark_mode = $_hdr_raw_theme;
         }
@@ -115,6 +131,11 @@ if (!headers_sent()) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="<?= htmlspecialchars($_hdr_csrf_token) ?>">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="manifest" href="<?= $rootPrefix ?>manifest.webmanifest">
+    <link rel="apple-touch-icon" href="<?= $rootPrefix ?>assets/icons/icon-192.png">
     <title><?= htmlspecialchars($pageTitle) ?> - FRONOTE</title>
     <!-- CSS : base + tokens + classic (always) + glass overlay (if selected) -->
     <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/base.css">
@@ -132,6 +153,14 @@ if (!headers_sent()) {
     <script nonce="<?= $_hdr_nonce ?>">window.FRONOTE_WS = <?= $_hdr_ws_config ?>;</script>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-6yMGWMk4R+xj0LHjwXCpNHnM80CKhp9OLRL4e0s5eWzWD2mSKhQOgvD1OuE+ALU" crossorigin="anonymous"></script>
     <script src="<?= $rootPrefix ?>assets/js/ws-global.js" defer></script>
+    <script src="<?= $rootPrefix ?>assets/js/push-manager.js" defer></script>
+    <script nonce="<?= $_hdr_nonce ?>">
+    window.FRONOTE_BASE_URL = <?= json_encode(rtrim($rootPrefix, '/') . '/') ?>;
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register(<?= json_encode($rootPrefix . 'sw.js') ?>, { scope: <?= json_encode($rootPrefix) ?> })
+            .catch(function(e) { console.warn('SW registration failed:', e); });
+    }
+    </script>
     <script nonce="<?= $_hdr_nonce ?>">
     // Instant dark-mode application to prevent flash of wrong theme
     (function() {

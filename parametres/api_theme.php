@@ -42,6 +42,10 @@ try {
     ");
     $stmt->execute([$userId, $userType, $theme]);
 
+    // Invalider le cache client pour forcer le reload du thème
+    $cc = new \API\Core\ClientCache();
+    $cc->set('user_theme', $theme, 3600);
+
     echo json_encode(['success' => true, 'theme' => $theme]);
 } catch (PDOException $e) {
     http_response_code(500);

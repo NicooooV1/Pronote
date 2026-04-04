@@ -307,9 +307,11 @@ class UserService
             );
             $stmt->execute([$userId, $userType, $tokenHash]);
 
-            setcookie('remember_token', $token, [
+            $cookieName = 'remember_' . (defined('INSTANCE_ID') ? INSTANCE_ID : 'token');
+            $cookiePath = defined('INSTANCE_COOKIE_PATH') ? INSTANCE_COOKIE_PATH : '/';
+            setcookie($cookieName, $token, [
                 'expires'  => time() + 30 * 86400,
-                'path'     => '/',
+                'path'     => $cookiePath,
                 'secure'   => !empty($_SERVER['HTTPS']),
                 'httponly'  => true,
                 'samesite' => 'Lax',
@@ -364,9 +366,11 @@ class UserService
             }
         } catch (\Throwable $e) { /* silencieux */ }
 
-        setcookie('remember_token', '', [
+        $cookieName = 'remember_' . (defined('INSTANCE_ID') ? INSTANCE_ID : 'token');
+        $cookiePath = defined('INSTANCE_COOKIE_PATH') ? INSTANCE_COOKIE_PATH : '/';
+        setcookie($cookieName, '', [
             'expires'  => time() - 3600,
-            'path'     => '/',
+            'path'     => $cookiePath,
             'secure'   => !empty($_SERVER['HTTPS']),
             'httponly'  => true,
             'samesite' => 'Lax',

@@ -33,13 +33,15 @@ if (isset($_SESSION['success_message'])) { $success = $_SESSION['success_message
 if (isset($_SESSION['error_message']))   { $error   = $_SESSION['error_message'];   unset($_SESSION['error_message']); }
 
 // Remember-me : tentative de restauration automatique
-if (!empty($_COOKIE['remember_token'])) {
-    $remembered = $userService->validateRememberToken($_COOKIE['remember_token']);
+$_rememberCookieName = 'remember_' . (defined('INSTANCE_ID') ? INSTANCE_ID : 'token');
+if (!empty($_COOKIE[$_rememberCookieName])) {
+    $remembered = $userService->validateRememberToken($_COOKIE[$_rememberCookieName]);
     if ($remembered) {
         $auth->loginUser($remembered);
         redirect('accueil/accueil.php');
     }
 }
+unset($_rememberCookieName);
 
 // --- Traitement du formulaire ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
