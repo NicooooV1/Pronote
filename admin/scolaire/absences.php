@@ -8,17 +8,19 @@ require_once __DIR__ . '/../includes/admin_functions.php';
 requireAuth();
 requireRole('administrateur');
 
-$pdo = getPDO();
-$admin = getCurrentUser();
-$message = '';
-$error = '';
+$pdo            = getPDO();
+$admin          = getCurrentUser();
+$absenceService = app('absences');
+$classeService  = app('classes');
+$message        = '';
+$error          = '';
 
 if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 $csrf_token = $_SESSION['csrf_token'];
 
-$classes = $pdo->query("SELECT id, nom FROM classes WHERE actif = 1 ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
+$classes = $classeService->getAllWithStats();
 
 // POST Actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $csrf_token) {
@@ -27,19 +29,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $c
     if ($action === 'toggle_justify_absence') {
         $aid = intval($_POST['absence_id'] ?? 0);
         if ($aid > 0) {
-            $cur = $pdo->prepare("SELECT justifie FROM absences WHERE id = ?"); $cur->execute([$aid]); $val = $cur->fetchColumn();
-            $newVal = $val ? 0 : 1;
-            $pdo->prepare("UPDATE absences SET justifie = ? WHERE id = ?")->execute([$newVal, $aid]);
-            logAudit($newVal ? 'absence_justified' : 'absence_unjustified', 'absences', $aid);
-            $message = $newVal ? "Absence marquée comme justifiée." : "Absence marquée comme non justifiée.";
+            $absenceService->toggleJustificationAbsence($aid);
+            $message = "Statut de justification modifié.";
         }
     }
 
     if ($action === 'delete_absence') {
         $aid = intval($_POST['absence_id'] ?? 0);
         if ($aid > 0) {
-            $pdo->prepare("DELETE FROM absences WHERE id = ?")->execute([$aid]);
-            logAudit('absence_deleted', 'absences', $aid);
+            $absenceService->deleteAbsence($aid);
             $message = "Absence supprimée.";
         }
     }
@@ -47,19 +45,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $c
     if ($action === 'toggle_justify_retard') {
         $rid = intval($_POST['retard_id'] ?? 0);
         if ($rid > 0) {
-            $cur = $pdo->prepare("SELECT justifie FROM retards WHERE id = ?"); $cur->execute([$rid]); $val = $cur->fetchColumn();
-            $newVal = $val ? 0 : 1;
-            $pdo->prepare("UPDATE retards SET justifie = ? WHERE id = ?")->execute([$newVal, $rid]);
-            logAudit($newVal ? 'retard_justified' : 'retard_unjustified', 'retards', $rid);
-            $message = $newVal ? "Retard justifié." : "Retard non justifié.";
+            $absenceService->toggleJustificationRetard($rid);
+            $message = "Statut de justification modifié.";
         }
     }
 
     if ($action === 'delete_retard') {
         $rid = intval($_POST['retard_id'] ?? 0);
         if ($rid > 0) {
-            $pdo->prepare("DELETE FROM retards WHERE id = ?")->execute([$rid]);
-            logAudit('retard_deleted', 'retards', $rid);
+            $absenceService->deleteRetard($rid);
             $message = "Retard supprimé.";
         }
     }
@@ -67,14 +61,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $c
     if ($action === 'add_absence') {
         $idEleve = intval($_POST['id_eleve'] ?? 0);
         $dateDebut = $_POST['date_debut'] ?? '';
-        $dateFin = $_POST['date_fin'] ?? '';
-        $typeAbs = trim($_POST['type_absence'] ?? 'absence');
-        $motif = trim($_POST['motif'] ?? '');
-        $commentaire = trim($_POST['commentaire'] ?? '');
+        $dateFin   = $_POST['date_fin'] ?? '';
         if ($idEleve > 0 && $dateDebut && $dateFin) {
-            $stmt = $pdo->prepare("INSERT INTO absences (id_eleve, date_debut, date_fin, type_absence, motif, commentaire, signale_par) VALUES (?,?,?,?,?,?,?)");
-            $stmt->execute([$idEleve, $dateDebut, $dateFin, $typeAbs, $motif, $commentaire, 'Administrateur']);
-            logAudit('absence_added', 'absences', $pdo->lastInsertId());
+            $absenceService->createAbsence([
+                'id_eleve'     => $idEleve,
+                'date_debut'   => $dateDebut,
+                'date_fin'     => $dateFin,
+                'type_absence' => trim($_POST['type_absence'] ?? 'absence'),
+                'motif'        => trim($_POST['motif'] ?? ''),
+                'commentaire'  => trim($_POST['commentaire'] ?? ''),
+                'signale_par'  => 'Administrateur',
+            ]);
             $message = "Absence ajoutée.";
         }
     }
@@ -82,64 +79,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $c
     if ($action === 'add_retard') {
         $idEleve = intval($_POST['id_eleve'] ?? 0);
         $dateRetard = $_POST['date_retard'] ?? '';
-        $duree = intval($_POST['duree_minutes'] ?? 0);
-        $motif = trim($_POST['motif'] ?? '');
+        $duree      = intval($_POST['duree_minutes'] ?? 0);
         if ($idEleve > 0 && $dateRetard && $duree > 0) {
-            $stmt = $pdo->prepare("INSERT INTO retards (id_eleve, date_retard, duree_minutes, motif, signale_par) VALUES (?,?,?,?,?)");
-            $stmt->execute([$idEleve, $dateRetard, $duree, $motif, 'Administrateur']);
-            logAudit('retard_added', 'retards', $pdo->lastInsertId());
+            $absenceService->createRetard([
+                'id_eleve'      => $idEleve,
+                'date_retard'   => $dateRetard,
+                'duree_minutes' => $duree,
+                'motif'         => trim($_POST['motif'] ?? ''),
+                'signale_par'   => 'Administrateur',
+            ]);
             $message = "Retard ajouté.";
         }
     }
 }
 
 // Filtres
-$tab = $_GET['tab'] ?? 'absences';
-$filterClasse = $_GET['classe'] ?? '';
-$filterEleve = trim($_GET['eleve'] ?? '');
+$tab           = $_GET['tab'] ?? 'absences';
+$filterClasse  = $_GET['classe'] ?? '';
+$filterEleve   = trim($_GET['eleve'] ?? '');
 $filterJustifie = $_GET['justifie'] ?? '';
-$page = max(1, intval($_GET['page'] ?? 1));
+$page    = max(1, intval($_GET['page'] ?? 1));
 $perPage = 50;
-$offset = ($page - 1) * $perPage;
 
-// Absences
-$absWhere = []; $absParams = [];
-if (!empty($filterClasse)) { $absWhere[] = "e.classe = ?"; $absParams[] = $filterClasse; }
-if (!empty($filterEleve)) { $absWhere[] = "(e.nom LIKE ? OR e.prenom LIKE ?)"; $absParams[] = "%$filterEleve%"; $absParams[] = "%$filterEleve%"; }
-if ($filterJustifie !== '') { $absWhere[] = "a.justifie = ?"; $absParams[] = intval($filterJustifie); }
-$absWhereSQL = !empty($absWhere) ? 'WHERE ' . implode(' AND ', $absWhere) : '';
+$filters = array_filter([
+    'classe'   => $filterClasse ?: null,
+    'justifie' => $filterJustifie !== '' ? (int) $filterJustifie : null,
+]);
 
-$absTotal = $pdo->prepare("SELECT COUNT(*) FROM absences a JOIN eleves e ON a.id_eleve = e.id $absWhereSQL");
-$absTotal->execute($absParams); $totalAbsences = $absTotal->fetchColumn();
+// Les absences/retards
+$absResult    = $absenceService->getAbsences($filters, $page, $perPage);
+$absences     = $absResult['data'];
+$totalAbsences = $absResult['total'];
 
-$absSQL = "SELECT a.*, e.nom AS eleve_nom, e.prenom AS eleve_prenom, e.classe
-           FROM absences a JOIN eleves e ON a.id_eleve = e.id $absWhereSQL
-           ORDER BY a.date_debut DESC LIMIT $perPage OFFSET $offset";
-$absStmt = $pdo->prepare($absSQL); $absStmt->execute($absParams);
-$absences = $absStmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Retards
-$retWhere = []; $retParams = [];
-if (!empty($filterClasse)) { $retWhere[] = "e.classe = ?"; $retParams[] = $filterClasse; }
-if (!empty($filterEleve)) { $retWhere[] = "(e.nom LIKE ? OR e.prenom LIKE ?)"; $retParams[] = "%$filterEleve%"; $retParams[] = "%$filterEleve%"; }
-if ($filterJustifie !== '' && $tab === 'retards') { $retWhere[] = "r.justifie = ?"; $retParams[] = intval($filterJustifie); }
-$retWhereSQL = !empty($retWhere) ? 'WHERE ' . implode(' AND ', $retWhere) : '';
-
-$retTotal = $pdo->prepare("SELECT COUNT(*) FROM retards r JOIN eleves e ON r.id_eleve = e.id $retWhereSQL");
-$retTotal->execute($retParams); $totalRetards = $retTotal->fetchColumn();
-
-$retSQL = "SELECT r.*, e.nom AS eleve_nom, e.prenom AS eleve_prenom, e.classe
-           FROM retards r JOIN eleves e ON r.id_eleve = e.id $retWhereSQL
-           ORDER BY r.date_retard DESC LIMIT $perPage OFFSET $offset";
-$retStmt = $pdo->prepare($retSQL); $retStmt->execute($retParams);
-$retards = $retStmt->fetchAll(PDO::FETCH_ASSOC);
+$retResult   = $absenceService->getRetards($filters, $page, $perPage);
+$retards     = $retResult['data'];
+$totalRetards = $retResult['total'];
 
 // Stats rapides
-$todayAbsences = $pdo->query("SELECT COUNT(*) FROM absences WHERE DATE(date_debut) <= CURDATE() AND DATE(date_fin) >= CURDATE()")->fetchColumn();
-$unjustifiedCount = $pdo->query("SELECT COUNT(*) FROM absences WHERE justifie = 0")->fetchColumn();
-$totalRetardsAll = $pdo->query("SELECT COUNT(*) FROM retards")->fetchColumn();
+$statsToday      = $absenceService->getStatsToday();
+$todayAbsences   = $statsToday['absences'];
+$unjustifiedCount = $absenceService->getUnjustifiedCount();
+$totalRetardsAll = $retResult['total'];
 
-$eleves = $pdo->query("SELECT id, nom, prenom, classe FROM eleves WHERE actif = 1 ORDER BY nom, prenom")->fetchAll(PDO::FETCH_ASSOC);
+$eleves = [];
+try {
+    $eleves = $pdo->query("SELECT id, nom, prenom, classe FROM eleves WHERE actif = 1 ORDER BY nom, prenom")->fetchAll(PDO::FETCH_ASSOC);
+} catch (\Throwable $e) {}
 
 $pageTitle = 'Absences & Retards';
 $currentPage = 'absences';
@@ -163,7 +148,7 @@ ob_start();
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();
-include __DIR__ . '/../includes/sub_header.php';
+include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="abs-container">
@@ -292,4 +277,4 @@ include __DIR__ . '/../includes/sub_header.php';
 document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); }));
 </script>
 
-<?php include __DIR__ . '/../includes/sub_footer.php'; ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>

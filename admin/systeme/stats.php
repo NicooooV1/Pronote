@@ -71,7 +71,7 @@ $pageTitle = 'Statistiques';
 $currentPage = 'stats';
 
 $extraCss = ['../../assets/css/admin.css'];
-include __DIR__ . '/../includes/sub_header.php';
+include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="kpis">
@@ -177,4 +177,4 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 
-<?php include __DIR__ . '/../includes/sub_footer.php'; ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>

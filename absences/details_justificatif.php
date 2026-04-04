@@ -10,7 +10,7 @@ require_once __DIR__ . '/../API/core.php';
 require_once __DIR__ . '/includes/AbsenceRepository.php';
 require_once __DIR__ . '/includes/AbsenceHelper.php';
 
-if (!isLoggedIn() || !canManageAbsences()) {
+if (!isLoggedIn()) {
     header('Location: ' . LOGIN_URL);
     exit;
 }
@@ -36,6 +36,26 @@ if (!$justificatif) {
     $_SESSION['error_message'] = "Justificatif non trouvé";
     header('Location: justificatifs.php');
     exit;
+}
+
+// Authorization: parents/eleves can only view their own justificatifs
+if (!canManageAbsences()) {
+    $role = getUserRole();
+    $allowed = false;
+    if ($role === 'eleve' && (int)($justificatif['id_eleve'] ?? 0) === (int)$user['id']) {
+        $allowed = true;
+    } elseif ($role === 'parent') {
+        $children = $repo->getChildrenForParent((int)$user['id']);
+        $childIds = array_column($children, 'id');
+        if (in_array((int)($justificatif['id_eleve'] ?? 0), $childIds, true)) {
+            $allowed = true;
+        }
+    }
+    if (!$allowed) {
+        $_SESSION['error_message'] = "Accès non autorisé";
+        header('Location: ../index.php');
+        exit;
+    }
 }
 
 // --- Absence associée ---
@@ -81,22 +101,62 @@ include 'includes/header.php';
     </div>
 
     <div class="content-body">
-        <!-- Statut -->
-        <div class="alert <?= $justificatif['traite'] ? ($justificatif['approuve'] ? 'alert-success' : 'alert-error') : 'alert-warning' ?>">
-            <i class="fas <?= $justificatif['traite'] ? ($justificatif['approuve'] ? 'fa-check-circle' : 'fa-times-circle') : 'fa-clock' ?>"></i>
-            <div>
-                <strong>Statut : </strong>
-                <?php if ($justificatif['traite']): ?>
-                    <?= $justificatif['approuve'] ? 'Approuvé' : 'Rejeté' ?>
-                    <?php if (!empty($justificatif['traite_par'])): ?>
-                        par <?= htmlspecialchars($justificatif['traite_par']) ?>
+        <!-- Timeline de suivi -->
+        <?php
+            $isTraite   = !empty($justificatif['traite']);
+            $isApprouve = !empty($justificatif['approuve']);
+            // Determine current step: 1 = Soumis, 2 = En examen (has attachment/been reviewed partially), 3 = Approuvé/Refusé
+            $currentStep = 1; // Soumis
+            if ($isTraite) {
+                $currentStep = 3;
+            } elseif (!empty($attachments) || !empty($justificatif['commentaire_admin'])) {
+                $currentStep = 2; // En examen — attachments submitted or admin started reviewing
+            }
+        ?>
+        <div class="justificatif-timeline">
+            <div class="timeline-step <?= $currentStep >= 1 ? 'active' : '' ?>">
+                <div class="timeline-dot"><i class="fas fa-paper-plane"></i></div>
+                <div class="timeline-content">
+                    <strong>Soumis</strong>
+                    <?php if (!empty($justificatif['date_soumission'])): ?>
+                    <span class="timeline-date"><?= date('d/m/Y à H:i', strtotime($justificatif['date_soumission'])) ?></span>
                     <?php endif; ?>
-                    <?php if (!empty($justificatif['date_traitement'])): ?>
-                        le <?= date('d/m/Y à H:i', strtotime($justificatif['date_traitement'])) ?>
+                </div>
+            </div>
+            <div class="timeline-line <?= $currentStep >= 2 ? 'active' : '' ?>"></div>
+            <div class="timeline-step <?= $currentStep >= 2 ? 'active' : '' ?>">
+                <div class="timeline-dot"><i class="fas fa-search"></i></div>
+                <div class="timeline-content">
+                    <strong>En examen</strong>
+                    <?php if ($currentStep === 2): ?>
+                    <span class="timeline-date">En cours de traitement</span>
+                    <?php elseif ($currentStep >= 3): ?>
+                    <span class="timeline-date">Examiné</span>
+                    <?php else: ?>
+                    <span class="timeline-date text-muted">En attente</span>
                     <?php endif; ?>
-                <?php else: ?>
-                    En attente de traitement
-                <?php endif; ?>
+                </div>
+            </div>
+            <div class="timeline-line <?= $currentStep >= 3 ? ($isApprouve ? 'active' : 'active refused') : '' ?>"></div>
+            <div class="timeline-step <?= $currentStep >= 3 ? ($isApprouve ? 'active approved' : 'active refused') : '' ?>">
+                <div class="timeline-dot">
+                    <i class="fas <?= $isTraite ? ($isApprouve ? 'fa-check' : 'fa-times') : 'fa-question' ?>"></i>
+                </div>
+                <div class="timeline-content">
+                    <strong><?= $isTraite ? ($isApprouve ? 'Approuvé' : 'Refusé') : 'Décision' ?></strong>
+                    <?php if ($isTraite): ?>
+                        <?php if (!empty($justificatif['traite_par'])): ?>
+                        <span class="timeline-date">
+                            par <?= htmlspecialchars($justificatif['traite_par']) ?>
+                            <?php if (!empty($justificatif['date_traitement'])): ?>
+                                le <?= date('d/m/Y à H:i', strtotime($justificatif['date_traitement'])) ?>
+                            <?php endif; ?>
+                        </span>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <span class="timeline-date text-muted">En attente</span>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
 

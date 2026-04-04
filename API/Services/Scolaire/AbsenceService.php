@@ -178,7 +178,9 @@ class AbsenceService
             ':signale_par'  => $data['signale_par'],
         ]);
 
-        return (int) $this->pdo->lastInsertId();
+        $id = (int) $this->pdo->lastInsertId();
+        app('hooks')?->dispatch(new \API\Events\AbsenceCreated($id, $data));
+        return $id;
     }
 
     /**
@@ -205,7 +207,9 @@ class AbsenceService
             ':signale_par'    => $data['signale_par'],
         ]);
 
-        return (int) $this->pdo->lastInsertId();
+        $id = (int) $this->pdo->lastInsertId();
+        app('hooks')?->dispatch(new \API\Events\RetardCreated($id, $data));
+        return $id;
     }
 
     /**
@@ -251,7 +255,11 @@ class AbsenceService
         $stmt = $this->pdo->prepare('DELETE FROM absences WHERE id = ?');
         $stmt->execute([$id]);
 
-        return $stmt->rowCount() > 0;
+        $deleted = $stmt->rowCount() > 0;
+        if ($deleted) {
+            app('hooks')?->dispatch(new \API\Events\AbsenceDeleted($id));
+        }
+        return $deleted;
     }
 
     /**
@@ -265,7 +273,11 @@ class AbsenceService
         $stmt = $this->pdo->prepare('DELETE FROM retards WHERE id = ?');
         $stmt->execute([$id]);
 
-        return $stmt->rowCount() > 0;
+        $deleted = $stmt->rowCount() > 0;
+        if ($deleted) {
+            app('hooks')?->dispatch(new \API\Events\RetardDeleted($id));
+        }
+        return $deleted;
     }
 
     /**
@@ -350,6 +362,9 @@ class AbsenceService
 
             $this->pdo->commit();
 
+            if ($updated) {
+                app('hooks')?->dispatch(new \API\Events\JustificatifApproved($id, $adminId, $comment));
+            }
             return $updated;
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
@@ -384,7 +399,11 @@ class AbsenceService
             ':id'       => $id,
         ]);
 
-        return $stmt->rowCount() > 0;
+        $updated = $stmt->rowCount() > 0;
+        if ($updated) {
+            app('hooks')?->dispatch(new \API\Events\JustificatifRejected($id, $adminId, $comment));
+        }
+        return $updated;
     }
 
     /**

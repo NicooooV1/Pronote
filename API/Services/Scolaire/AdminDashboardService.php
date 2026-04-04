@@ -19,16 +19,18 @@ class AdminDashboardService
      */
     public function getUserCounts(): array
     {
-        $counts = [];
-        $tables = ['eleves', 'professeurs', 'parents', 'vie_scolaire', 'administrateurs'];
-        foreach ($tables as $table) {
-            try {
-                $counts[$table] = (int) $this->pdo->query("SELECT COUNT(*) FROM {$table} WHERE actif = 1")->fetchColumn();
-            } catch (\Throwable $e) {
-                $counts[$table] = 0;
+        return app('cache')->remember('dashboard:user_counts', 120, function () {
+            $counts = [];
+            $tables = ['eleves', 'professeurs', 'parents', 'vie_scolaire', 'administrateurs'];
+            foreach ($tables as $table) {
+                try {
+                    $counts[$table] = (int) $this->pdo->query("SELECT COUNT(*) FROM {$table} WHERE actif = 1")->fetchColumn();
+                } catch (\Throwable $e) {
+                    $counts[$table] = 0;
+                }
             }
-        }
-        return $counts;
+            return $counts;
+        });
     }
 
     /**
@@ -73,6 +75,13 @@ class AdminDashboardService
      * KPIs : moyenne générale, taux absentéisme, remplissage notes, WebSocket, sessions.
      */
     public function getKPIs(): array
+    {
+        return app('cache')->remember('dashboard:kpis', 30, function () {
+            return $this->computeKPIs();
+        });
+    }
+
+    private function computeKPIs(): array
     {
         $kpi = [
             'taux_absenteisme' => null,

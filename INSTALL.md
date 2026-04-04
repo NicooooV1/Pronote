@@ -133,7 +133,7 @@ Dans l'onglet **Configuration** :
 Transmettez au support l'**URL de mise à jour** de votre serveur, qui a la forme suivante :
 
 ```
-https://votre-domaine.fr/fronote/webhook_update.php
+https://votre-domaine.fr/fronote/API/endpoints/webhook_update.php
 ```
 
 Le support enregistrera cette URL dans le système de déploiement, ce qui permettra à votre serveur de recevoir automatiquement les mises à jour lors de chaque nouvelle version.
@@ -212,6 +212,39 @@ curl http://localhost:3000/health
 
 ---
 
+## Étape 7 — Tâches planifiées (cron)
+
+Fronote utilise des tâches de fond pour le traitement asynchrone et la maintenance.
+
+### Tâches obligatoires
+
+```bash
+crontab -e
+# Ajouter ces lignes :
+
+# Traitement de la file de tâches (emails, notifications…) — toutes les minutes
+* * * * * php /var/www/fronote/scripts/worker.php >> /dev/null 2>&1
+
+# Maintenance quotidienne (nettoyage logs, purge cache, sauvegardes) — chaque nuit à 2h
+0 2 * * * php /var/www/fronote/cron/daily_maintenance.php >> /dev/null 2>&1
+```
+
+### Tâche optionnelle (mises à jour automatiques)
+
+```bash
+# Vérification de mises à jour — toutes les 6 heures
+0 */6 * * * php /var/www/fronote/scripts/check_update.php >> /dev/null 2>&1
+```
+
+> **Note :** Les mises à jour automatiques nécessitent que **Git** soit installé sur le serveur (`sudo apt install git`). Si vous avez installé Fronote depuis une archive ZIP, installez Git et initialisez le dépôt :
+> ```bash
+> cd /var/www/fronote
+> git init && git remote add origin https://github.com/VOTRE-REPO/fronote.git
+> git fetch origin && git reset --hard origin/main
+> ```
+
+---
+
 ## Checklist post-installation
 
 - [ ] Connexion administrateur fonctionnelle
@@ -220,6 +253,7 @@ curl http://localhost:3000/health
 - [ ] Configuration des **permissions par module** (Administration → Modules → Permissions)
 - [ ] Activation de la **messagerie** si souhaitée (désactivée par défaut pour des raisons de sécurité)
 - [ ] Personnalisation des **widgets du tableau de bord** (page d'accueil → Personnaliser)
+- [ ] Tâches cron configurées (worker.php + daily_maintenance.php)
 - [ ] Clé webhook saisie et URL transmise au support
 - [ ] `APP_DEBUG=false` dans la configuration (vérifiable dans Administration → Système)
 - [ ] HTTPS configuré si accès depuis Internet

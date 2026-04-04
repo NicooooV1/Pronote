@@ -30,21 +30,30 @@ $rootPrefix = $rootPrefix ?? '../';
 // Exemples : 'accueil', 'notes', 'agenda', 'cahierdetextes', 'messagerie', 'absences', 'admin'
 
 // ─── Theme loading ───────────────────────────────────────────────────────────
-// Load user's theme preference from DB or localStorage fallback
-$_hdr_theme = 'light';
+// Load user's theme preference from DB (classic|glass) and dark mode pref (light|dark|auto)
+$_hdr_theme = 'classic';
+$_hdr_dark_mode = 'light';
 try {
     if (!empty($_SESSION['user_id']) && !empty($_SESSION['user_type'])) {
         $_hdr_pdo = getPDO();
-        $_hdr_stmt = $_hdr_pdo->prepare("SELECT theme FROM user_settings WHERE user_id = ? AND user_type = ?");
+        $_hdr_stmt = $_hdr_pdo->prepare("SELECT theme FROM user_settings WHERE user_id = ? AND user_type = ? LIMIT 1");
         $_hdr_stmt->execute([$_SESSION['user_id'], $_SESSION['user_type']]);
-        $_hdr_theme = $_hdr_stmt->fetchColumn() ?: 'light';
+        $_hdr_raw_theme = $_hdr_stmt->fetchColumn() ?: 'classic';
+        // Support both old (light/dark/auto) and new (classic/glass) theme values
+        if (in_array($_hdr_raw_theme, ['classic', 'glass'], true)) {
+            $_hdr_theme = $_hdr_raw_theme;
+        } elseif ($_hdr_raw_theme === 'light' || $_hdr_raw_theme === 'dark' || $_hdr_raw_theme === 'auto') {
+            // Legacy value: treat as dark-mode preference, CSS theme defaults to classic
+            $_hdr_theme = 'classic';
+            $_hdr_dark_mode = $_hdr_raw_theme;
+        }
     }
-} catch (Exception $e) { /* fallback to light */ }
+} catch (Exception $e) { /* fallback to classic */ }
 
-// For 'auto' theme, we'll let JS handle the actual dark/light switch
-$_hdr_effective_theme = $_hdr_theme;
-if ($_hdr_theme === 'auto') {
-    $_hdr_effective_theme = 'light'; // JS will override based on prefers-color-scheme
+// For dark mode, let JS handle 'auto' via prefers-color-scheme
+$_hdr_effective_dark = $_hdr_dark_mode;
+if ($_hdr_dark_mode === 'auto') {
+    $_hdr_effective_dark = 'light';
 }
 
 // ─── CSRF token ──────────────────────────────────────────────────────────────
@@ -101,15 +110,19 @@ if (!headers_sent()) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="<?= htmlspecialchars(function_exists('currentLocale') ? currentLocale() : 'fr') ?>" data-theme="<?= htmlspecialchars($_hdr_effective_theme) ?>" data-theme-pref="<?= htmlspecialchars($_hdr_theme) ?>">
+<html lang="<?= htmlspecialchars(function_exists('currentLocale') ? currentLocale() : 'fr') ?>" data-theme="<?= htmlspecialchars($_hdr_effective_dark) ?>" data-theme-pref="<?= htmlspecialchars($_hdr_dark_mode) ?>" data-css-theme="<?= htmlspecialchars($_hdr_theme) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="<?= htmlspecialchars($_hdr_csrf_token) ?>">
     <title><?= htmlspecialchars($pageTitle) ?> - FRONOTE</title>
-    <!-- CSS unifié pour toute l'application -->
-    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/pronote-unified.css">
-    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/liquid-glass.css">
+    <!-- CSS : base + tokens + classic (always) + glass overlay (if selected) -->
+    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/base.css">
+    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/tokens.css">
+    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/theme-classic.css">
+    <?php if ($_hdr_theme === 'glass' || $_hdr_theme === 'auto-glass'): ?>
+    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/theme-glass.css">
+    <?php endif; ?>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" integrity="sha384-KYJrkGWuVHP9YZ/0sczGQMYGaxGpGXsmEA45LR7IdhQOXFMGqaY6eATZMAi/ROHK" crossorigin="anonymous">
     <?php foreach ($extraCss as $css): ?>
     <link rel="stylesheet" href="<?= htmlspecialchars($css) ?>">
@@ -117,15 +130,15 @@ if (!headers_sent()) {
     <?= $extraHeadHtml ?>
     <!-- WebSocket global -->
     <script nonce="<?= $_hdr_nonce ?>">window.FRONOTE_WS = <?= $_hdr_ws_config ?>;</script>
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-6yMGWMk4R+xj0LHjwXCpNHnM80CKhp9OLRL4e0s5eWzWD2mSKhQOgvD1OuE+ALU" crossorigin="anonymous">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-6yMGWMk4R+xj0LHjwXCpNHnM80CKhp9OLRL4e0s5eWzWD2mSKhQOgvD1OuE+ALU" crossorigin="anonymous"></script>
     <script src="<?= $rootPrefix ?>assets/js/ws-global.js" defer></script>
     <script nonce="<?= $_hdr_nonce ?>">
-    // Instant theme application to prevent flash of wrong theme
+    // Instant dark-mode application to prevent flash of wrong theme
     (function() {
         var pref = document.documentElement.getAttribute('data-theme-pref') || 'light';
         var stored = null;
-        try { stored = localStorage.getItem('fronote_theme'); } catch(e) {}
-        if (stored && !pref) pref = stored;
+        try { stored = localStorage.getItem('fronote_dark_mode'); } catch(e) {}
+        if (stored && pref === 'light') pref = stored;
         if (pref === 'auto') {
             var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');

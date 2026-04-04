@@ -36,8 +36,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Le titre et le contenu sont obligatoires.';
         } else {
             try {
-                $cibleRoles = $_POST['cible_roles'] ?? [];
-                $cibleClasses = $_POST['cible_classes'] ?? [];
+                $cibleRoles    = $_POST['cible_roles'] ?? [];
+                $cibleClasses  = $_POST['cible_classes'] ?? [];
+                $cibleNiveaux  = $_POST['cible_niveaux'] ?? [];
+                $cibleMatieres = $_POST['cible_matieres'] ?? [];
 
                 $annonceId = $service->createAnnonce([
                     'titre'           => $titre,
@@ -47,6 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'auteur_type'     => $role,
                     'cible_roles'     => !empty($cibleRoles) ? $cibleRoles : null,
                     'cible_classes'   => !empty($cibleClasses) ? array_map('intval', $cibleClasses) : null,
+                    'cible_niveaux'   => !empty($cibleNiveaux) ? $cibleNiveaux : null,
+                    'cible_matieres'  => !empty($cibleMatieres) ? array_map('intval', $cibleMatieres) : null,
                     'publie'          => isset($_POST['publier']) ? 1 : 0,
                     'epingle'         => isset($_POST['epingle']) ? 1 : 0,
                     'date_publication'=> $_POST['date_publication'] ?? date('Y-m-d H:i:s'),
@@ -63,6 +67,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'date_fin'     => !empty($_POST['sondage_date_fin']) ? $_POST['sondage_date_fin'] : null,
                         'options'      => $options,
                     ]);
+                }
+
+                // Handle file attachments
+                if (!empty($_FILES['fichiers']['name'][0])) {
+                    $service->handleFileUploads($annonceId, $_FILES['fichiers'], $user['id'], $role);
                 }
 
                 $success = "Annonce créée avec succès.";
@@ -82,6 +91,18 @@ $roles = [
     'vie_scolaire'   => 'Vie scolaire',
     'administrateur' => 'Administrateurs',
 ];
+
+// Niveaux disponibles
+$niveaux = [];
+try {
+    $niveaux = $pdo->query("SELECT DISTINCT niveau FROM classes WHERE actif = 1 ORDER BY niveau")->fetchAll(PDO::FETCH_COLUMN);
+} catch (\Throwable $e) {}
+
+// Matières disponibles
+$matieres = [];
+try {
+    $matieres = $pdo->query("SELECT id, nom FROM matieres WHERE actif = 1 ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
+} catch (\Throwable $e) {}
 ?>
 
 <h1 class="page-title"><i class="fas fa-plus-circle"></i> Nouvelle annonce</h1>
@@ -96,7 +117,7 @@ $roles = [
 <?php endif; ?>
 
 <div class="card form-card">
-    <form method="POST" id="form-annonce">
+    <form method="POST" id="form-annonce" enctype="multipart/form-data">
         <?= csrfField() ?>
 
         <!-- Informations principales -->
@@ -162,6 +183,34 @@ $roles = [
                     <?php endforeach; ?>
                 </div>
             </div>
+
+            <?php if (!empty($niveaux)): ?>
+            <div class="form-group">
+                <label>Niveaux ciblés</label>
+                <div class="checkbox-group">
+                    <?php foreach ($niveaux as $niv): ?>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="cible_niveaux[]" value="<?= htmlspecialchars($niv) ?>">
+                        <?= htmlspecialchars($niv) ?>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <?php if (!empty($matieres)): ?>
+            <div class="form-group">
+                <label>Matières ciblées <small class="text-muted">(visible uniquement par les profs de ces matières)</small></label>
+                <div class="checkbox-group checkbox-group-scroll">
+                    <?php foreach ($matieres as $mat): ?>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="cible_matieres[]" value="<?= $mat['id'] ?>">
+                        <?= htmlspecialchars($mat['nom']) ?>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
 
         <!-- Sondage (conditionnel) -->
@@ -206,6 +255,17 @@ $roles = [
             <button type="button" id="add-option" class="btn btn-sm btn-secondary">
                 <i class="fas fa-plus"></i> Ajouter une option
             </button>
+        </div>
+
+        <!-- Pièces jointes -->
+        <div class="form-section">
+            <h3><i class="fas fa-paperclip"></i> Pièces jointes <small class="text-muted">(max 5 fichiers, 10 Mo chacun)</small></h3>
+            <div class="form-group">
+                <input type="file" name="fichiers[]" id="fichiers" class="form-control" multiple
+                       accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.gif,.webp">
+                <small class="text-muted">Formats acceptés : PDF, Word, Excel, PowerPoint, images, texte</small>
+            </div>
+            <div id="file-preview" class="file-preview-list"></div>
         </div>
 
         <!-- Options de publication -->
@@ -263,6 +323,28 @@ function updateRemoveButtons() {
     rows.forEach(row => {
         const btn = row.querySelector('.remove-option');
         btn.style.display = rows.length > 2 ? 'inline-block' : 'none';
+    });
+}
+
+// File upload preview
+const fileInput = document.getElementById('fichiers');
+const previewContainer = document.getElementById('file-preview');
+if (fileInput) {
+    fileInput.addEventListener('change', function() {
+        previewContainer.innerHTML = '';
+        const files = Array.from(this.files).slice(0, 5);
+        if (this.files.length > 5) {
+            previewContainer.innerHTML = '<div class="text-warning"><i class="fas fa-exclamation-triangle"></i> Seuls les 5 premiers fichiers seront envoyés.</div>';
+        }
+        files.forEach(file => {
+            const size = file.size > 1024 * 1024
+                ? (file.size / (1024 * 1024)).toFixed(1) + ' Mo'
+                : (file.size / 1024).toFixed(0) + ' Ko';
+            const div = document.createElement('div');
+            div.className = 'file-preview-item';
+            div.innerHTML = '<i class="fas fa-file"></i> ' + file.name + ' <span class="text-muted">(' + size + ')</span>';
+            previewContainer.appendChild(div);
+        });
     });
 }
 </script>

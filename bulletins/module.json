@@ -11,7 +11,21 @@
     "manage": { "default_roles": ["administrateur", "professeur"] }
   },
   "routes": { "main": "bulletins.php" },
-  "widgets": [],
+  "widgets": [
+    {
+      "key": "bulletins_recents",
+      "name": { "fr": "Bulletins récents", "en": "Recent report cards" },
+      "description": { "fr": "Derniers bulletins disponibles", "en": "Latest available report cards" },
+      "type": "list",
+      "icon": "fas fa-file-alt",
+      "roles": ["eleve", "parent"],
+      "default_size": { "width": 2, "height": 1 },
+      "is_default": false,
+      "sort_order": 35,
+      "data_provider": "includes/BulletinWidgetProvider.php",
+      "template": "widgets/bulletins_recents.php"
+    }
+  ],
   "establishment_types": null,
   "sidebar": { "sort_order": 20 }
 }

@@ -1,6 +1,7 @@
-﻿<?php
+<?php
 /**
  * Gestion des périodes scolaires (trimestres/semestres)
+ * Converti en AdminCrudPage déclaratif.
  */
 require_once __DIR__ . '/../../API/core.php';
 require_once __DIR__ . '/../includes/admin_functions.php';
@@ -8,188 +9,63 @@ require_once __DIR__ . '/../includes/admin_functions.php';
 requireAuth();
 requireRole('administrateur');
 
-$pdo = getPDO();
-$admin = getCurrentUser();
-$message = '';
-$error = '';
+$periodeService = app('periodes');
 
-if (!isset($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-$csrf_token = $_SESSION['csrf_token'];
-
-// POST Actions
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $csrf_token) {
-    $action = $_POST['action'] ?? '';
-
-    if ($action === 'create') {
-        $nom = trim($_POST['nom'] ?? '');
-        $numero = intval($_POST['numero'] ?? 1);
-        $type = $_POST['type'] ?? 'trimestre';
-        $dateDebut = $_POST['date_debut'] ?? '';
-        $dateFin = $_POST['date_fin'] ?? '';
-        if (!empty($nom) && $dateDebut && $dateFin) {
-            $pdo->prepare("INSERT INTO periodes (nom, numero, type, date_debut, date_fin) VALUES (?,?,?,?,?)")
-                ->execute([$nom, $numero, $type, $dateDebut, $dateFin]);
-            logAudit('periode_created', 'periodes', $pdo->lastInsertId());
-            $message = "Période créée.";
-        }
-    }
-
-    if ($action === 'edit') {
-        $pid = intval($_POST['periode_id'] ?? 0);
-        $nom = trim($_POST['nom'] ?? '');
-        $numero = intval($_POST['numero'] ?? 1);
-        $type = $_POST['type'] ?? 'trimestre';
-        $dateDebut = $_POST['date_debut'] ?? '';
-        $dateFin = $_POST['date_fin'] ?? '';
-        if ($pid > 0 && !empty($nom)) {
-            $pdo->prepare("UPDATE periodes SET nom = ?, numero = ?, type = ?, date_debut = ?, date_fin = ? WHERE id = ?")
-                ->execute([$nom, $numero, $type, $dateDebut, $dateFin, $pid]);
-            logAudit('periode_edited', 'periodes', $pid);
-            $message = "Période modifiée.";
-        }
-    }
-
-    if ($action === 'delete') {
-        $pid = intval($_POST['periode_id'] ?? 0);
-        if ($pid > 0) {
-            $pdo->prepare("DELETE FROM periodes WHERE id = ?")->execute([$pid]);
-            logAudit('periode_deleted', 'periodes', $pid);
-            $message = "Période supprimée.";
-        }
-    }
-}
-
-$periodes = $pdo->query("SELECT * FROM periodes ORDER BY numero")->fetchAll(PDO::FETCH_ASSOC);
-
-// Vérifier chevauchements
+// Detect overlaps for stats display
 $overlaps = [];
-for ($i = 0; $i < count($periodes); $i++) {
-    for ($j = $i + 1; $j < count($periodes); $j++) {
-        if ($periodes[$i]['date_debut'] <= $periodes[$j]['date_fin'] && $periodes[$j]['date_debut'] <= $periodes[$i]['date_fin']) {
-            $overlaps[] = $periodes[$i]['nom'] . ' / ' . $periodes[$j]['nom'];
+try {
+    $overlaps = $periodeService->detectOverlaps();
+} catch (\Throwable $e) {}
+
+$page = new \API\Admin\AdminCrudPage([
+    'title'       => 'Périodes scolaires',
+    'currentPage' => 'etab_periodes',
+    'service'     => $periodeService,
+    'entityName'  => 'Période',
+    'createLabel' => 'Nouvelle période',
+    'idField'     => 'id',
+    'listMethod'  => 'getAll',
+    'extraCss'    => ['../../assets/css/admin.css'],
+    'columns' => [
+        'numero' => ['label' => '#', 'sortable' => true,
+            'render' => fn($v, $row) => '<span style="display:inline-flex;width:32px;height:32px;border-radius:50%;background:#0f4c81;color:white;align-items:center;justify-content:center;font-weight:700">' . (int) $v . '</span>'],
+        'nom' => ['label' => 'Nom', 'sortable' => true,
+            'render' => function ($v, $row) {
+                $today = date('Y-m-d');
+                $isCurrent = ($today >= ($row['date_debut'] ?? '') && $today <= ($row['date_fin'] ?? ''));
+                $badge = $isCurrent ? ' <span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">En cours</span>' : '';
+                return '<strong>' . htmlspecialchars($v ?? '') . '</strong>' . $badge;
+            }],
+        'type' => ['label' => 'Type',
+            'render' => fn($v) => '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:#e2e8f0;color:#4a5568">' . htmlspecialchars($v ?? '') . '</span>'],
+        'date_debut' => ['label' => 'Début', 'sortable' => true,
+            'render' => fn($v) => $v ? '<span style="background:#eff6ff;padding:4px 10px;border-radius:6px;color:#1e40af;font-weight:500;font-size:13px">' . date('d/m/Y', strtotime($v)) . '</span>' : '-'],
+        'date_fin' => ['label' => 'Fin', 'sortable' => true,
+            'render' => fn($v) => $v ? '<span style="background:#eff6ff;padding:4px 10px;border-radius:6px;color:#1e40af;font-weight:500;font-size:13px">' . date('d/m/Y', strtotime($v)) . '</span>' : '-'],
+    ],
+    'form_fields' => [
+        'nom'        => ['type' => 'text', 'label' => 'Nom', 'required' => true, 'placeholder' => 'Trimestre 1'],
+        'numero'     => ['type' => 'number', 'label' => 'Numéro', 'default' => 1, 'min' => 1, 'max' => 6],
+        'type'       => ['type' => 'select', 'label' => 'Type', 'options' => ['trimestre' => 'Trimestre', 'semestre' => 'Semestre', 'annuel' => 'Annuel']],
+        'date_debut' => ['type' => 'date', 'label' => 'Date début', 'required' => true],
+        'date_fin'   => ['type' => 'date', 'label' => 'Date fin', 'required' => true],
+    ],
+    'actions' => ['edit', 'delete'],
+    'stats' => function () use ($overlaps, $periodeService) {
+        $stats = [];
+        try {
+            $all = $periodeService->getAll();
+            $stats[] = ['icon' => 'fas fa-calendar-alt', 'color' => '#0f4c81', 'value' => count($all), 'label' => 'période(s)'];
+            $current = $periodeService->getCurrent();
+            if ($current) {
+                $stats[] = ['icon' => 'fas fa-clock', 'color' => '#059669', 'value' => $current['nom'], 'label' => '(en cours)'];
+            }
+        } catch (\Throwable $e) {}
+        if (!empty($overlaps)) {
+            $stats[] = ['icon' => 'fas fa-exclamation-triangle', 'color' => '#f59e0b', 'value' => count($overlaps), 'label' => 'chevauchement(s)'];
         }
-    }
-}
-
-$pageTitle = 'Périodes scolaires';
-$currentPage = 'etab_periodes';
-$extraCss = ['../../assets/css/admin.css'];
-
-ob_start();
-?>
-<style>
-    .per-container { max-width: 900px; margin: 0 auto; }
-    .alert-warn { background: #fef3cd; border-left: 4px solid #f59e0b; padding: 10px 14px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; }
-    .timeline { position: relative; }
-    .period-card { background: white; border-radius: 10px; padding: 18px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); display: flex; align-items: center; gap: 15px; border-left: 4px solid #0f4c81; }
-    .period-number { width: 40px; height: 40px; border-radius: 50%; background: #0f4c81; color: white; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; }
-    .period-info { flex: 1; }
-    .period-info h4 { margin: 0 0 4px; font-size: 16px; }
-    .period-meta { font-size: 13px; color: #666; }
-    .period-dates { font-size: 13px; display: flex; gap: 10px; align-items: center; }
-    .date-badge { background: #eff6ff; padding: 4px 10px; border-radius: 6px; color: #1e40af; font-weight: 500; }
-    .badge-type { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: #e2e8f0; color: #4a5568; }
-    .period-actions { display: flex; gap: 6px; }
-    .current-badge { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-left: 6px; }
-</style>
-<?php
-$extraHeadHtml = ob_get_clean();
-include __DIR__ . '/../includes/sub_header.php';
-?>
-
-<div class="per-container">
-    <?php if (!empty($message)): ?><div class="alert alert-success"><?= htmlspecialchars($message) ?></div><?php endif; ?>
-    <?php if (!empty($error)): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
-
-    <?php if (!empty($overlaps)): ?>
-    <div class="alert-warn"><strong><i class="fas fa-exclamation-triangle"></i> Chevauchement détecté :</strong> <?= htmlspecialchars(implode(', ', $overlaps)) ?></div>
-    <?php endif; ?>
-
-    <div class="top-bar">
-        <button class="btn btn-primary" onclick="document.getElementById('createModal').classList.add('active')"><i class="fas fa-plus"></i> Nouvelle période</button>
-    </div>
-
-    <div class="timeline">
-        <?php if (empty($periodes)): ?>
-            <div style="text-align:center;padding:40px;color:#999"><p>Aucune période définie.</p></div>
-        <?php endif; ?>
-        <?php foreach ($periodes as $p):
-            $today = date('Y-m-d');
-            $isCurrent = ($today >= $p['date_debut'] && $today <= $p['date_fin']);
-        ?>
-        <div class="period-card" <?= $isCurrent ? 'style="border-left-color:#059669"' : '' ?>>
-            <div class="period-number" <?= $isCurrent ? 'style="background:#059669"' : '' ?>><?= $p['numero'] ?></div>
-            <div class="period-info">
-                <h4><?= htmlspecialchars($p['nom']) ?> <?php if ($isCurrent): ?><span class="current-badge">En cours</span><?php endif; ?></h4>
-                <div class="period-meta"><span class="badge-type"><?= htmlspecialchars($p['type']) ?></span></div>
-            </div>
-            <div class="period-dates">
-                <span class="date-badge"><?= date('d/m/Y', strtotime($p['date_debut'])) ?></span>
-                <i class="fas fa-arrow-right" style="color:#ccc"></i>
-                <span class="date-badge"><?= date('d/m/Y', strtotime($p['date_fin'])) ?></span>
-            </div>
-            <div class="period-actions">
-                <button class="btn-xs primary" onclick='openEdit(<?= json_encode($p) ?>)'><i class="fas fa-pen"></i></button>
-                <form method="post" style="display:inline" onsubmit="return confirm('Supprimer ?')"><input type="hidden" name="csrf_token" value="<?= $csrf_token ?>"><input type="hidden" name="action" value="delete"><input type="hidden" name="periode_id" value="<?= $p['id'] ?>"><button class="btn-xs danger"><i class="fas fa-trash"></i></button></form>
-            </div>
-        </div>
-        <?php endforeach; ?>
-    </div>
-</div>
-
-<!-- Modal Créer -->
-<div class="modal-overlay" id="createModal">
-    <div class="modal-box">
-        <h3><i class="fas fa-plus"></i> Nouvelle période</h3>
-        <form method="post">
-            <input type="hidden" name="csrf_token" value="<?= $csrf_token ?>"><input type="hidden" name="action" value="create">
-            <div class="form-row">
-                <div class="form-group"><label>Nom</label><input type="text" name="nom" placeholder="Trimestre 1" required></div>
-                <div class="form-group"><label>Numéro</label><input type="number" name="numero" value="1" min="1" max="6"></div>
-            </div>
-            <div class="form-group"><label>Type</label><select name="type"><option value="trimestre">Trimestre</option><option value="semestre">Semestre</option><option value="annuel">Annuel</option></select></div>
-            <div class="form-row">
-                <div class="form-group"><label>Date début</label><input type="date" name="date_debut" required></div>
-                <div class="form-group"><label>Date fin</label><input type="date" name="date_fin" required></div>
-            </div>
-            <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn btn-secondary" onclick="document.getElementById('createModal').classList.remove('active')">Annuler</button><button type="submit" class="btn btn-primary">Créer</button></div>
-        </form>
-    </div>
-</div>
-
-<!-- Modal Modifier -->
-<div class="modal-overlay" id="editModal">
-    <div class="modal-box">
-        <h3><i class="fas fa-pen"></i> Modifier la période</h3>
-        <form method="post">
-            <input type="hidden" name="csrf_token" value="<?= $csrf_token ?>"><input type="hidden" name="action" value="edit"><input type="hidden" name="periode_id" id="e_pid">
-            <div class="form-row">
-                <div class="form-group"><label>Nom</label><input type="text" name="nom" id="e_nom" required></div>
-                <div class="form-group"><label>Numéro</label><input type="number" name="numero" id="e_numero" min="1"></div>
-            </div>
-            <div class="form-group"><label>Type</label><select name="type" id="e_type"><option value="trimestre">Trimestre</option><option value="semestre">Semestre</option><option value="annuel">Annuel</option></select></div>
-            <div class="form-row">
-                <div class="form-group"><label>Date début</label><input type="date" name="date_debut" id="e_dd"></div>
-                <div class="form-group"><label>Date fin</label><input type="date" name="date_fin" id="e_df"></div>
-            </div>
-            <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn btn-secondary" onclick="document.getElementById('editModal').classList.remove('active')">Annuler</button><button type="submit" class="btn btn-primary">Enregistrer</button></div>
-        </form>
-    </div>
-</div>
-
-<script>
-function openEdit(p) {
-    document.getElementById('e_pid').value = p.id;
-    document.getElementById('e_nom').value = p.nom;
-    document.getElementById('e_numero').value = p.numero;
-    document.getElementById('e_type').value = p.type;
-    document.getElementById('e_dd').value = p.date_debut;
-    document.getElementById('e_df').value = p.date_fin;
-    document.getElementById('editModal').classList.add('active');
-}
-document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); }));
-</script>
-
-<?php include __DIR__ . '/../includes/sub_footer.php'; ?>
+        return $stats;
+    },
+]);
+$page->handle();
+$page->render();

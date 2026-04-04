@@ -27,6 +27,9 @@ class EtablissementServiceProvider extends ServiceProvider
         $this->app->singleton('API\Services\UserService', function($app) {
             return new UserService($app->make('db')->getConnection());
         });
+        $this->app->singleton('user', function($app) {
+            return new \User($app->make('db')->getConnection());
+        });
 
         // Service d'envoi d'emails (SMTP)
         $this->app->singleton('API\Services\EmailService', function($app) {

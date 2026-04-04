@@ -11,7 +11,21 @@
     "manage": { "default_roles": ["administrateur", "vie_scolaire"] }
   },
   "routes": { "main": "dashboard.php" },
-  "widgets": [],
+  "widgets": [
+    {
+      "key": "vie_scolaire_stats",
+      "name": { "fr": "Tableau de bord vie scolaire", "en": "Student life dashboard" },
+      "description": { "fr": "Absences, retards, incidents du jour", "en": "Today's absences, tardiness, incidents" },
+      "type": "stats",
+      "icon": "fas fa-user-graduate",
+      "roles": ["administrateur", "vie_scolaire"],
+      "default_size": { "width": 4, "height": 1 },
+      "is_default": true,
+      "sort_order": 5,
+      "data_provider": "includes/VieScolaireWidgetProvider.php",
+      "template": "widgets/vie_scolaire_stats.php"
+    }
+  ],
   "establishment_types": null,
   "sidebar": { "sort_order": 16 }
 }

@@ -310,7 +310,7 @@ ob_start();
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();
-include __DIR__ . '/../includes/sub_header.php';
+include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="ie-container">
@@ -675,4 +675,4 @@ include __DIR__ . '/../includes/sub_header.php';
     <?php endif; ?>
 </div>
 
-<?php include __DIR__ . '/../includes/sub_footer.php'; ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>

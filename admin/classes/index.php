@@ -126,7 +126,7 @@ ob_start();
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();
-include __DIR__ . '/../includes/sub_header.php';
+include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="classes-container">
@@ -260,4 +260,4 @@ function filterStudents() {
 document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); }));
 </script>
 
-<?php include __DIR__ . '/../includes/sub_footer.php'; ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>

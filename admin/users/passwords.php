@@ -10,7 +10,7 @@ requireRole('administrateur');
 
 $pdo = getPDO();
 $admin = getCurrentUser();
-$userObj = new User($pdo);
+$userObj = app('user');
 
 $message = '';
 $error = '';
@@ -123,7 +123,7 @@ ob_start();
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();
-include __DIR__ . '/../includes/sub_header.php';
+include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="pwd-container">
@@ -202,4 +202,4 @@ function switchTab(name) {
 }
 </script>
 
-<?php include __DIR__ . '/../includes/sub_footer.php'; ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>

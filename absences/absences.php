@@ -12,19 +12,13 @@
  * - Remplacement de etablissement.json par getEtablissementData()
  * - Utilisation d'AbsenceRepository et AbsenceHelper
  */
-ob_start();
+// Boot standardisé — fournit $user, $user_role, $user_fullname, $user_initials, $pdo, $isAdmin, $rootPrefix
+$pageTitle  = 'Absences';
+$activePage = 'absences';
+require_once __DIR__ . '/../API/module_boot.php';
 
-require_once __DIR__ . '/../API/core.php';
 require_once __DIR__ . '/includes/AbsenceRepository.php';
 require_once __DIR__ . '/includes/AbsenceHelper.php';
-
-$pdo = getPDO();
-requireAuth();
-
-$user      = getCurrentUser();
-$user_role = getUserRole();
-$user_fullname = getUserFullName();
-$user_initials = getUserInitials();
 
 // Vérifier les droits d'accès
 if (!canManageAbsences() && !isStudent() && !isParent()) {

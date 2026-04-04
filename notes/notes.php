@@ -5,21 +5,13 @@
  * Utilise NoteService pour centraliser les requêtes SQL.
  */
 
-// Inclure l'API centralisée
-require_once __DIR__ . '/../API/core.php';
+// Boot standardisé — fournit $user, $user_role, $user_fullname, $user_initials, $pdo, $isAdmin, $rootPrefix
+$pageTitle  = 'Notes';
+$activePage = 'notes';
+require_once __DIR__ . '/../API/module_boot.php';
+
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/NoteService.php';
-
-// Vérifier l'authentification
-requireAuth();
-
-// Récupération des informations utilisateur via l'API
-$user      = getCurrentUser();
-$user_role = getUserRole();
-$user_fullname = getUserFullName();
-$user_initials = getUserInitials();
-
-$pdo         = getPDO();
 $noteService = new NoteService($pdo);
 
 // Récupérer le trimestre sélectionné (par défaut: actuel)

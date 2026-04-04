@@ -243,7 +243,7 @@ $pageTitle = 'Permissions des modules';
 $currentPage = 'modules';
 $extraCss = ['../../assets/css/admin.css'];
 
-include __DIR__ . '/../includes/sub_header.php';
+include __DIR__ . '/../includes/header.php';
 ?>
 
 <style>
@@ -475,4 +475,4 @@ function toggleColumnPerms(permName, checked) {
 }
 </script>
 
-<?php include __DIR__ . '/../includes/sub_footer.php'; ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>

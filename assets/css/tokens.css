@@ -1,0 +1,147 @@
+/**
+ * FRONOTE - Design Tokens
+ * Single source of truth for colors, spacing, typography, shadows, and radii.
+ * Imported by both theme-classic.css and theme-glass.css.
+ * Override in each theme only when the theme needs a different value.
+ */
+
+/* ===================================================================
+   LIGHT TOKENS (default)
+   =================================================================== */
+:root {
+  /* ── Primary palette ── */
+  --primary-color: #0f4c81;
+  --primary-light: #2d7dd2;
+  --primary-dark: #0a3962;
+
+  /* ── Neutral palette ── */
+  --background-color: #f5f6fa;
+  --text-color: #333;
+  --text-light: #666;
+  --text-muted: #999;
+  --white: #fff;
+  --border-color: #eee;
+
+  /* ── Module accent colors ── */
+  --accent-notes: #ff9500;
+  --accent-agenda: #007aff;
+  --accent-cahier: #34c759;
+  --accent-messagerie: #5856d6;
+  --accent-absences: #ff3b30;
+
+  /* ── Pastel backgrounds ── */
+  --pastel-notes: rgba(255, 149, 0, 0.15);
+  --pastel-agenda: rgba(0, 122, 255, 0.15);
+  --pastel-cahier: rgba(52, 199, 89, 0.15);
+  --pastel-messagerie: rgba(88, 86, 214, 0.15);
+  --pastel-absences: rgba(255, 59, 48, 0.15);
+
+  /* ── Feedback / semantic ── */
+  --success-color: #34c759;
+  --warning-color: #ff9500;
+  --error-color: #ff3b30;
+  --info-color: #007aff;
+
+  /* ── Shadows ── */
+  --shadow-light: 0 2px 6px rgba(0, 0, 0, 0.05);
+  --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.1);
+
+  /* ── Spacing scale ── */
+  --space-xs: 5px;
+  --space-sm: 10px;
+  --space-md: 20px;
+  --space-lg: 30px;
+  --space-xl: 40px;
+
+  /* ── Border radii ── */
+  --radius-sm: 4px;
+  --radius-md: 10px;
+  --radius-lg: 20px;
+  --radius-circle: 50%;
+
+  /* ── Layout dimensions ── */
+  --sidebar-width: 260px;
+  --header-height: 70px;
+
+  /* ── Design System (DS) palette ── */
+  --ds-primary: #2563eb;
+  --ds-primary-hover: #1d4ed8;
+  --ds-primary-light: #dbeafe;
+  --ds-success: #16a34a;
+  --ds-success-light: #dcfce7;
+  --ds-warning: #d97706;
+  --ds-warning-light: #fef3c7;
+  --ds-danger: #dc2626;
+  --ds-danger-light: #fee2e2;
+  --ds-info: #0891b2;
+  --ds-info-light: #cffafe;
+  --ds-bg: #f8fafc;
+  --ds-surface: #ffffff;
+  --ds-border: #e2e8f0;
+  --ds-text: #1e293b;
+  --ds-text-muted: #64748b;
+  --ds-text-light: #94a3b8;
+  --ds-radius: 8px;
+  --ds-radius-sm: 4px;
+  --ds-radius-lg: 12px;
+  --ds-shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+  --ds-shadow-md: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
+  --ds-shadow-lg: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -4px rgba(0,0,0,.1);
+  --ds-transition: 0.2s ease;
+  --ds-font: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* ── Fluid typography scale ── */
+  --font-xs: clamp(0.6875rem, 0.65rem + 0.15vw, 0.75rem);     /* 11-12px */
+  --font-sm: clamp(0.8125rem, 0.78rem + 0.15vw, 0.875rem);    /* 13-14px */
+  --font-base: clamp(0.875rem, 0.83rem + 0.2vw, 1rem);        /* 14-16px */
+  --font-md: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);         /* 16-18px */
+  --font-lg: clamp(1.125rem, 1.05rem + 0.35vw, 1.375rem);     /* 18-22px */
+  --font-xl: clamp(1.375rem, 1.25rem + 0.5vw, 1.75rem);       /* 22-28px */
+  --font-2xl: clamp(1.75rem, 1.5rem + 0.8vw, 2.25rem);        /* 28-36px */
+}
+
+/* ===================================================================
+   DARK TOKENS
+   =================================================================== */
+[data-theme="dark"] {
+  --primary-color: #2563eb;
+  --primary-light: #3b82f6;
+  --primary-dark: #1d4ed8;
+  --background-color: #0f172a;
+  --text-color: #e2e8f0;
+  --text-light: #94a3b8;
+  --text-muted: #64748b;
+  --white: #1e293b;
+  --border-color: #334155;
+
+  --success-color: #22c55e;
+  --warning-color: #f59e0b;
+  --error-color: #ef4444;
+  --info-color: #3b82f6;
+
+  --shadow-light: 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-medium: 0 4px 16px rgba(0,0,0,0.4);
+  --shadow-hover: 0 8px 24px rgba(0,0,0,0.5);
+
+  --ds-primary: #3b82f6;
+  --ds-primary-hover: #60a5fa;
+  --ds-primary-light: #1e3a5f;
+  --ds-success: #22c55e;
+  --ds-success-light: #14532d;
+  --ds-warning: #f59e0b;
+  --ds-warning-light: #451a03;
+  --ds-danger: #ef4444;
+  --ds-danger-light: #450a0a;
+  --ds-info: #06b6d4;
+  --ds-info-light: #164e63;
+  --ds-bg: #0f172a;
+  --ds-surface: #1e293b;
+  --ds-border: #334155;
+  --ds-text: #f1f5f9;
+  --ds-text-muted: #94a3b8;
+  --ds-text-light: #64748b;
+  --ds-shadow: 0 1px 3px rgba(0,0,0,.3);
+  --ds-shadow-md: 0 4px 6px rgba(0,0,0,.3);
+  --ds-shadow-lg: 0 10px 15px rgba(0,0,0,.4);
+}

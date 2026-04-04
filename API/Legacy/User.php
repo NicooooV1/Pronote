@@ -24,7 +24,7 @@ class User
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
-        $this->service = new \API\Services\UserService($pdo);
+        $this->service = function_exists('app') ? app('API\Services\UserService') : new \API\Services\UserService($pdo);
     }
 
     /* ──────────────────────── CRUD ──────────────────────── */

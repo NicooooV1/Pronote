@@ -11,7 +11,21 @@
     "manage": { "default_roles": ["administrateur"] }
   },
   "routes": { "main": "aide.php" },
-  "widgets": [],
+  "widgets": [
+    {
+      "key": "support_tickets",
+      "name": { "fr": "Tickets ouverts", "en": "Open tickets" },
+      "description": { "fr": "Tickets de support en cours", "en": "Currently open support tickets" },
+      "type": "list",
+      "icon": "fas fa-life-ring",
+      "roles": ["administrateur", "vie_scolaire", "professeur", "eleve", "parent"],
+      "default_size": { "width": 2, "height": 1 },
+      "is_default": false,
+      "sort_order": 70,
+      "data_provider": "includes/SupportWidgetProvider.php",
+      "template": "widgets/support_tickets.php"
+    }
+  ],
   "establishment_types": null,
   "sidebar": { "sort_order": 90 }
 }

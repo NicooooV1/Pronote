@@ -1,7 +1,7 @@
 Options -Indexes
 
 # Protéger les fichiers sensibles
-<FilesMatch "(^\.env$|^install\.lock$|^composer\.lock$|^pronote\.sql$|^diagnostic\.php$|\.bak$|\.log$)">
+<FilesMatch "(^\.env$|^install\.lock$|^composer\.lock$|^pronote\.sql$|\.bak$|\.log$)">
     Require all denied
 </FilesMatch>
 
@@ -37,7 +37,7 @@ Options -Indexes
     RewriteEngine On
 
     # Bloquer l'accès aux répertoires sensibles
-    RewriteRule ^(temp|logs|vendor|migrations)(/|$) - [F,L]
+    RewriteRule ^(temp|logs|vendor)(/|$) - [F,L]
 
     # Router /api/* vers le dispatcher (uniquement si fichier/dossier inexistant)
     RewriteCond %{REQUEST_FILENAME} !-f

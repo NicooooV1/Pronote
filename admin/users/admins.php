@@ -10,7 +10,7 @@ requireRole('administrateur');
 
 $pdo = getPDO();
 $currentUser = getCurrentUser();
-$userObj = new User($pdo);
+$userObj = app('user');
 
 $message = '';
 $error = '';
@@ -113,7 +113,7 @@ ob_start();
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();
-include __DIR__ . '/../includes/sub_header.php';
+include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="admins-container">
@@ -208,4 +208,4 @@ function openPwd(id) {
 document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); }));
 </script>
 
-<?php include __DIR__ . '/../includes/sub_footer.php'; ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>

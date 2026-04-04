@@ -116,6 +116,9 @@ $app->singleton('hooks', function($app) {
 	return new \API\Core\HookManager();
 });
 
+// Event listeners (audit, WebSocket, notifications parents)
+$app->register(new \API\Providers\EventServiceProvider($app));
+
 // Module SDK (découverte et gestion des modules via module.json)
 $app->singleton('module_sdk', function($app) {
 	return new \API\Services\ModuleSDK($app->make('db')->getConnection(), BASE_PATH);

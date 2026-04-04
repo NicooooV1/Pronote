@@ -13,9 +13,23 @@ abstract class BaseController
 	protected ?\PDO $pdo = null;
 	protected ?array $currentUser = null;
 
+	private float $_startTime;
+
 	public function __construct()
 	{
 		$this->pdo = getPDO();
+		$this->_startTime = microtime(true);
+
+		register_shutdown_function(function (): void {
+			try {
+				$metrics = app('metrics');
+				if (!$metrics) return;
+				$elapsed  = (microtime(true) - $this->_startTime) * 1000;
+				$endpoint = preg_replace('/\/\d+/', '/{id}', $_SERVER['REQUEST_URI'] ?? 'unknown');
+				$endpoint = strtok($endpoint, '?');
+				$metrics->recordResponseTime($endpoint, round($elapsed, 2));
+			} catch (\Throwable) {}
+		});
 	}
 
 	/**

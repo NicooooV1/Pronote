@@ -22,9 +22,10 @@ class PeriodeService
      */
     public function getAll(): array
     {
-        $stmt = $this->pdo->query('SELECT * FROM periodes ORDER BY numero');
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return app('cache')->remember('periodes:all', 1800, function () {
+            $stmt = $this->pdo->query('SELECT * FROM periodes ORDER BY numero');
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        });
     }
 
     /**
@@ -65,7 +66,10 @@ class PeriodeService
             ':date_fin'   => $data['date_fin'],
         ]);
 
-        return (int) $this->pdo->lastInsertId();
+        $id = (int) $this->pdo->lastInsertId();
+        app('cache')->forget('periodes:all');
+        app('hooks')?->dispatch(new \API\Events\PeriodeCreated($id, $data));
+        return $id;
     }
 
     /**
@@ -97,7 +101,12 @@ class PeriodeService
             ':id'         => $id,
         ]);
 
-        return $stmt->rowCount() > 0;
+        $updated = $stmt->rowCount() > 0;
+        if ($updated) {
+            app('cache')->forget('periodes:all');
+            app('hooks')?->dispatch(new \API\Events\PeriodeUpdated($id, $data));
+        }
+        return $updated;
     }
 
     /**
@@ -111,7 +120,12 @@ class PeriodeService
         $stmt = $this->pdo->prepare('DELETE FROM periodes WHERE id = ?');
         $stmt->execute([$id]);
 
-        return $stmt->rowCount() > 0;
+        $deleted = $stmt->rowCount() > 0;
+        if ($deleted) {
+            app('cache')->forget('periodes:all');
+            app('hooks')?->dispatch(new \API\Events\PeriodeDeleted($id));
+        }
+        return $deleted;
     }
 
     /**

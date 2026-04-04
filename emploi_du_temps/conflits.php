@@ -3,11 +3,12 @@
  * Emploi du temps — Détection et gestion des conflits
  * Accessible uniquement par admin et vie scolaire.
  */
-require_once __DIR__ . '/../API/core.php';
-require_once __DIR__ . '/includes/EdtService.php';
+// Boot standardisé
+$pageTitle  = 'Conflits EDT';
+$activePage = 'emploi_du_temps';
+require_once __DIR__ . '/../API/module_boot.php';
 
-$pdo = getPDO();
-requireAuth();
+require_once __DIR__ . '/includes/EdtService.php';
 
 if (!isAdmin() && !isVieScolaire()) {
     echo '<div class="alert alert-danger">Accès non autorisé.</div>';
@@ -16,8 +17,6 @@ if (!isAdmin() && !isVieScolaire()) {
 
 $service = new EdtService($pdo);
 $conflits = $service->scanAllConflits();
-
-$pageTitle = 'Conflits EDT';
 $currentPage = 'conflits';
 require_once __DIR__ . '/includes/header.php';
 ?>

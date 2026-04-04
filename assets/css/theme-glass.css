@@ -1,0 +1,1493 @@
+/*
+ * FRONOTE - Glass Theme (cleaned)
+ * This file previously contained the entire "pronote-unified.css" base (2400+ lines)
+ * concatenated with the liquid-glass overrides. The base layout/sidebar/card rules
+ * are now shared via theme-classic.css (loaded by base.css + tokens.css).
+ * Only the glass-specific overrides remain below.
+ *
+ * Requires: base.css + tokens.css + theme-classic.css (loaded before this file)
+ */
+
+/**
+ * FRONOTE - Liquid Glass Design System
+ * Apple-inspired glassmorphism overhaul for the entire UI.
+ * Loaded AFTER theme-classic.css to progressively enhance every component.
+ *
+ * Supports:
+ *   - Light mode (default)
+ *   - Dark mode via [data-theme="dark"] and prefers-color-scheme
+ *   - Responsive / mobile-first
+ *   - Smooth animations & micro-interactions
+ */
+
+/* ===================================================================
+   0. CSS CUSTOM PROPERTIES
+   =================================================================== */
+:root {
+  /* --- Apple color palette --- */
+  --glass-primary: #007AFF;
+  --glass-primary-light: #409CFF;
+  --glass-primary-dark: #0062CC;
+  --glass-success: #34C759;
+  --glass-success-dark: #248A3D;
+  --glass-warning: #FF9500;
+  --glass-warning-dark: #C93400;
+  --glass-danger: #FF3B30;
+  --glass-danger-dark: #D70015;
+  --glass-info: #5856D6;
+  --glass-info-dark: #3634A3;
+
+  /* --- Surface / Glass tokens --- */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-heavy: rgba(255, 255, 255, 0.85);
+  --glass-bg-light: rgba(255, 255, 255, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-border-strong: rgba(255, 255, 255, 0.35);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --glass-shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.12);
+  --glass-shadow-elevated: 0 20px 60px rgba(0, 0, 0, 0.18);
+  --glass-blur: blur(20px) saturate(180%);
+  --glass-blur-heavy: blur(40px) saturate(200%);
+
+  /* --- Page background gradient --- */
+  --glass-page-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+  /* --- Typography --- */
+  --glass-font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --glass-text: #1d1d1f;
+  --glass-text-secondary: #6e6e73;
+  --glass-text-tertiary: #aeaeb2;
+
+  /* --- Radii --- */
+  --glass-radius-xs: 6px;
+  --glass-radius-sm: 10px;
+  --glass-radius-md: 14px;
+  --glass-radius-lg: 20px;
+  --glass-radius-xl: 28px;
+  --glass-radius-pill: 980px;
+
+  /* --- Transitions --- */
+  --glass-transition: 0.2s ease;
+  --glass-transition-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* --- Sidebar --- */
+  --glass-sidebar-bg: rgba(30, 30, 30, 0.72);
+  --glass-sidebar-width: 260px;
+}
+
+/* Dark mode tokens */
+[data-theme="dark"] {
+  --glass-bg: rgba(30, 30, 30, 0.72);
+  --glass-bg-heavy: rgba(30, 30, 30, 0.85);
+  --glass-bg-light: rgba(50, 50, 50, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-strong: rgba(255, 255, 255, 0.15);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  --glass-shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.35);
+  --glass-shadow-elevated: 0 20px 60px rgba(0, 0, 0, 0.45);
+  --glass-text: #f5f5f7;
+  --glass-text-secondary: #a1a1a6;
+  --glass-text-tertiary: #636366;
+  --glass-sidebar-bg: rgba(15, 15, 15, 0.82);
+  --glass-page-bg: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+
+/* Auto dark via media query (when data-theme is not explicitly set) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --glass-bg: rgba(30, 30, 30, 0.72);
+    --glass-bg-heavy: rgba(30, 30, 30, 0.85);
+    --glass-bg-light: rgba(50, 50, 50, 0.45);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-border-strong: rgba(255, 255, 255, 0.15);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+    --glass-shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.35);
+    --glass-shadow-elevated: 0 20px 60px rgba(0, 0, 0, 0.45);
+    --glass-text: #f5f5f7;
+    --glass-text-secondary: #a1a1a6;
+    --glass-text-tertiary: #636366;
+    --glass-sidebar-bg: rgba(15, 15, 15, 0.82);
+    --glass-page-bg: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  }
+}
+
+/* ===================================================================
+   1. PAGE-LEVEL BASE & TYPOGRAPHY
+   =================================================================== */
+html, body {
+  font-family: var(--glass-font);
+  color: var(--glass-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--glass-page-bg);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* Responsive heading sizes */
+h1 { font-size: clamp(1.5rem, 2.5vw, 2rem); font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: clamp(1.25rem, 2vw, 1.625rem); font-weight: 600; letter-spacing: -0.015em; }
+h3 { font-size: clamp(1.05rem, 1.5vw, 1.25rem); font-weight: 600; letter-spacing: -0.01em; }
+h4 { font-size: clamp(0.95rem, 1.2vw, 1.1rem); font-weight: 600; }
+
+/* Page load fade-in */
+@keyframes glassPageFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.app-container {
+  animation: glassPageFadeIn 0.4s var(--glass-transition-slow) both;
+}
+
+/* ===================================================================
+   2. SIDEBAR — Frosted glass panel
+   =================================================================== */
+.sidebar {
+  background: var(--glass-sidebar-bg);
+  -webkit-backdrop-filter: var(--glass-blur-heavy);
+  backdrop-filter: var(--glass-blur-heavy);
+  border-right: 1px solid var(--glass-border);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.1);
+}
+
+.logo-container,
+.sidebar-brand {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-brand-logo,
+.app-logo {
+  background: var(--glass-primary);
+  color: white;
+  border-radius: var(--glass-radius-sm);
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.3);
+}
+
+.sidebar-nav-item {
+  border-radius: var(--glass-radius-sm);
+  transition: all var(--glass-transition);
+}
+
+.sidebar-nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-nav-item.active {
+  background: rgba(0, 122, 255, 0.2);
+  color: white;
+  font-weight: 600;
+}
+
+.sidebar-search input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--glass-radius-sm);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: all var(--glass-transition);
+}
+
+.sidebar-search input:focus {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--glass-primary);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
+.sidebar-badge {
+  background: var(--glass-danger);
+  border-radius: var(--glass-radius-pill);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  box-shadow: 0 2px 6px rgba(255, 59, 48, 0.3);
+}
+
+.sidebar-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-action-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--glass-radius-sm);
+  transition: all var(--glass-transition);
+}
+
+.sidebar-action-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateX(2px);
+}
+
+/* ===================================================================
+   3. MAIN CONTENT AREA
+   =================================================================== */
+.main-content {
+  background: transparent;
+}
+
+/* ===================================================================
+   4. TOPBAR / TOP HEADER — Glass navbar
+   =================================================================== */
+.top-header {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-lg);
+  padding: 16px 24px;
+  box-shadow: var(--glass-shadow);
+  margin-bottom: 24px;
+}
+
+.page-title h1 {
+  color: var(--glass-text);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.page-title .subtitle {
+  color: var(--glass-text-secondary);
+}
+
+.user-avatar {
+  background: var(--glass-primary);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);
+  transition: transform var(--glass-transition), box-shadow var(--glass-transition);
+}
+
+.user-avatar:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35);
+}
+
+.admin-topbar-link {
+  background: rgba(0, 122, 255, 0.1);
+  border-radius: 50%;
+  transition: all var(--glass-transition);
+}
+
+.admin-topbar-link:hover {
+  background: var(--glass-primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.3);
+}
+
+/* ===================================================================
+   5. CARDS — Glass cards with hover lift
+   =================================================================== */
+
+/* Card entrance stagger animation */
+@keyframes glassCardEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.card,
+.form-card,
+.stat-card,
+.chart-card,
+.kpi,
+.dashboard-section,
+.admin-stat-card,
+.admin-activity,
+.admin-card,
+.config-card,
+.widget-card,
+.widget {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-md);
+  box-shadow: var(--glass-shadow);
+  transition: transform var(--glass-transition), box-shadow var(--glass-transition), border-color var(--glass-transition);
+  animation: glassCardEntrance 0.4s var(--glass-transition-slow) both;
+}
+
+/* Stagger children in grids */
+.dashboard-grid > *:nth-child(1),
+.admin-stats-row > *:nth-child(1),
+.admin-cards-grid > *:nth-child(1),
+.stats-grid > *:nth-child(1) { animation-delay: 0.05s; }
+
+.dashboard-grid > *:nth-child(2),
+.admin-stats-row > *:nth-child(2),
+.admin-cards-grid > *:nth-child(2),
+.stats-grid > *:nth-child(2) { animation-delay: 0.1s; }
+
+.dashboard-grid > *:nth-child(3),
+.admin-stats-row > *:nth-child(3),
+.admin-cards-grid > *:nth-child(3),
+.stats-grid > *:nth-child(3) { animation-delay: 0.15s; }
+
+.dashboard-grid > *:nth-child(4),
+.admin-stats-row > *:nth-child(4),
+.admin-cards-grid > *:nth-child(4),
+.stats-grid > *:nth-child(4) { animation-delay: 0.2s; }
+
+.dashboard-grid > *:nth-child(5),
+.admin-stats-row > *:nth-child(5),
+.admin-cards-grid > *:nth-child(5),
+.stats-grid > *:nth-child(5) { animation-delay: 0.25s; }
+
+.dashboard-grid > *:nth-child(6),
+.admin-stats-row > *:nth-child(6),
+.admin-cards-grid > *:nth-child(6),
+.stats-grid > *:nth-child(6) { animation-delay: 0.3s; }
+
+.dashboard-grid > *:nth-child(n+7),
+.admin-stats-row > *:nth-child(n+7),
+.admin-cards-grid > *:nth-child(n+7),
+.stats-grid > *:nth-child(n+7) { animation-delay: 0.35s; }
+
+/* Hover lift for cards */
+.card:hover,
+.form-card:hover,
+.stat-card:hover,
+.chart-card:hover,
+.kpi:hover,
+.dashboard-section:hover,
+.admin-stat-card:hover,
+.admin-card:hover,
+.config-card:hover,
+.widget-card:hover,
+.widget:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--glass-shadow-hover);
+  border-color: var(--glass-border-strong);
+}
+
+/* Stat card text */
+.stat-number,
+.admin-stat-value,
+.kpi .v {
+  color: var(--glass-text);
+}
+
+.stat-label,
+.admin-stat-label,
+.kpi .l {
+  color: var(--glass-text-secondary);
+}
+
+/* Stat icon glass effect */
+.stat-icon {
+  border-radius: var(--glass-radius-sm);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.stat-icon.blue   { background: linear-gradient(135deg, #007AFF, #409CFF); }
+.stat-icon.green  { background: linear-gradient(135deg, #34C759, #30D158); }
+.stat-icon.orange { background: linear-gradient(135deg, #FF9500, #FFAC33); }
+.stat-icon.red    { background: linear-gradient(135deg, #FF3B30, #FF6961); }
+.stat-icon.purple { background: linear-gradient(135deg, #5856D6, #7B79E0); }
+.stat-icon.pink   { background: linear-gradient(135deg, #FF2D55, #FF6482); }
+
+/* Admin card icon glass treatment */
+.admin-card-icon {
+  background: rgba(0, 122, 255, 0.1);
+  color: var(--glass-primary);
+  border-radius: var(--glass-radius-sm);
+  transition: all var(--glass-transition);
+}
+
+.admin-card:hover .admin-card-icon {
+  background: var(--glass-primary);
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+}
+
+/* ===================================================================
+   6. STATS BAR
+   =================================================================== */
+.stats-bar .stat-card {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-md);
+  box-shadow: var(--glass-shadow);
+}
+
+.stats-bar .stat-card .val {
+  color: var(--glass-text);
+}
+
+.stats-bar .stat-card .lbl {
+  color: var(--glass-text-secondary);
+}
+
+/* ===================================================================
+   7. BUTTONS — Pill-shaped with subtle gradients
+   =================================================================== */
+.btn {
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 20px;
+  transition: all var(--glass-transition);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--glass-primary), var(--glass-primary-light));
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, var(--glass-primary-dark), var(--glass-primary));
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: scale(0.98) translateY(0);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, var(--glass-success), #30D158);
+  color: white;
+  box-shadow: 0 2px 8px rgba(52, 199, 89, 0.25);
+}
+
+.btn-success:hover {
+  background: linear-gradient(135deg, var(--glass-success-dark), var(--glass-success));
+  box-shadow: 0 4px 14px rgba(52, 199, 89, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, var(--glass-danger), #FF6961);
+  color: white;
+  box-shadow: 0 2px 8px rgba(255, 59, 48, 0.25);
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, var(--glass-danger-dark), var(--glass-danger));
+  box-shadow: 0 4px 14px rgba(255, 59, 48, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-warning {
+  background: linear-gradient(135deg, var(--glass-warning), #FFAC33);
+  color: white;
+  box-shadow: 0 2px 8px rgba(255, 149, 0, 0.25);
+}
+
+.btn-warning:hover {
+  background: linear-gradient(135deg, var(--glass-warning-dark), var(--glass-warning));
+  box-shadow: 0 4px 14px rgba(255, 149, 0, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-info {
+  background: linear-gradient(135deg, var(--glass-info), #7B79E0);
+  color: white;
+  box-shadow: 0 2px 8px rgba(88, 86, 214, 0.25);
+}
+
+.btn-info:hover {
+  background: linear-gradient(135deg, var(--glass-info-dark), var(--glass-info));
+  box-shadow: 0 4px 14px rgba(88, 86, 214, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border-strong);
+  color: var(--glass-text);
+  box-shadow: var(--glass-shadow);
+}
+
+.btn-secondary:hover {
+  background: var(--glass-bg-heavy);
+  border-color: var(--glass-primary);
+  color: var(--glass-primary);
+  transform: translateY(-1px);
+}
+
+/* Small buttons */
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+/* Micro action buttons */
+.btn-xs {
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all var(--glass-transition);
+}
+
+.btn-xs:active {
+  transform: scale(0.96);
+}
+
+.btn-xs.primary { background: var(--glass-primary); }
+.btn-xs.success { background: var(--glass-success); }
+.btn-xs.warning { background: var(--glass-warning); }
+.btn-xs.danger  { background: var(--glass-danger); }
+
+/* ===================================================================
+   8. FORM INPUTS — Glass-style with inner shadow
+   =================================================================== */
+.form-control,
+.form-select,
+.form-group input,
+.form-group select,
+.form-group textarea,
+.form-group-admin input,
+.form-group-admin select,
+.modal-box .form-group input,
+.modal-box .form-group select,
+.filters-bar input,
+.filters-bar select {
+  background: var(--glass-bg-light);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--glass-radius-sm);
+  color: var(--glass-text);
+  font-family: var(--glass-font);
+  transition: all var(--glass-transition);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.form-control:focus,
+.form-select:focus,
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus,
+.form-group-admin input:focus,
+.form-group-admin select:focus,
+.modal-box .form-group input:focus,
+.modal-box .form-group select:focus,
+.filters-bar input:focus,
+.filters-bar select:focus {
+  outline: none;
+  border-color: var(--glass-primary);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
+.form-control::placeholder,
+.form-group input::placeholder,
+.form-group textarea::placeholder,
+.filters-bar input::placeholder {
+  color: var(--glass-text-tertiary);
+}
+
+.form-label,
+.form-group-admin label,
+.modal-box .form-group label {
+  color: var(--glass-text-secondary);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+/* Filters bar glass treatment */
+.filters-bar {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-md);
+  box-shadow: var(--glass-shadow);
+}
+
+/* ===================================================================
+   9. BADGES — Rounded pills
+   =================================================================== */
+.badge,
+.sidebar-badge,
+.badge-profil,
+.activity-type,
+.admin-toolbar-badge,
+.admin-card-badge {
+  border-radius: var(--glass-radius-pill);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.badge-action {
+  border-radius: var(--glass-radius-pill);
+  font-weight: 600;
+  padding: 4px 12px;
+  font-size: 12px;
+  transition: all var(--glass-transition);
+}
+
+/* Glass badge variants */
+.badge-eleve  { background: rgba(0, 122, 255, 0.12); color: var(--glass-primary); }
+.badge-parent { background: rgba(52, 199, 89, 0.12); color: var(--glass-success); }
+.badge-prof   { background: rgba(255, 149, 0, 0.12); color: var(--glass-warning); }
+.badge-vs     { background: rgba(88, 86, 214, 0.12); color: var(--glass-info); }
+.badge-admin  { background: rgba(255, 59, 48, 0.12); color: var(--glass-danger); }
+
+/* ===================================================================
+   10. ALERTS — Glass alerts with colored left border
+   =================================================================== */
+.alert-banner,
+.alert {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-md);
+  box-shadow: var(--glass-shadow);
+  border-left-width: 4px;
+  border-left-style: solid;
+}
+
+.alert-success {
+  background: rgba(52, 199, 89, 0.08);
+  border-left-color: var(--glass-success);
+  color: var(--glass-success-dark);
+}
+
+.alert-error,
+.alert-danger {
+  background: rgba(255, 59, 48, 0.08);
+  border-left-color: var(--glass-danger);
+  color: var(--glass-danger-dark);
+}
+
+.alert-warning {
+  background: rgba(255, 149, 0, 0.08);
+  border-left-color: var(--glass-warning);
+  color: var(--glass-warning-dark);
+}
+
+.alert-info {
+  background: rgba(0, 122, 255, 0.08);
+  border-left-color: var(--glass-primary);
+  color: var(--glass-primary-dark);
+}
+
+[data-theme="dark"] .alert-success {
+  background: rgba(52, 199, 89, 0.1);
+  color: #86efac;
+}
+
+[data-theme="dark"] .alert-error,
+[data-theme="dark"] .alert-danger {
+  background: rgba(255, 59, 48, 0.1);
+  color: #fca5a5;
+}
+
+[data-theme="dark"] .alert-warning {
+  background: rgba(255, 149, 0, 0.1);
+  color: #fcd34d;
+}
+
+[data-theme="dark"] .alert-info {
+  background: rgba(0, 122, 255, 0.1);
+  color: #93c5fd;
+}
+
+/* Alert list items (admin dashboard) */
+.alert-list li {
+  background: var(--glass-bg-light);
+  border-radius: var(--glass-radius-xs);
+  border-left-width: 3px;
+  border-left-style: solid;
+}
+
+.admin-alert-item {
+  background: var(--glass-bg-light);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-radius: var(--glass-radius-xs);
+}
+
+/* ===================================================================
+   11. MODAL — Glass modal with backdrop blur
+   =================================================================== */
+.modal-overlay {
+  background: rgba(0, 0, 0, 0.4);
+  -webkit-backdrop-filter: blur(8px) saturate(150%);
+  backdrop-filter: blur(8px) saturate(150%);
+}
+
+.modal-box {
+  background: var(--glass-bg-heavy);
+  -webkit-backdrop-filter: var(--glass-blur-heavy);
+  backdrop-filter: var(--glass-blur-heavy);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-lg);
+  box-shadow: var(--glass-shadow-elevated);
+  animation: glassModalIn 0.3s var(--glass-transition-slow) both;
+}
+
+@keyframes glassModalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.06);
+  transition: all var(--glass-transition);
+  float: right;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--glass-text-secondary);
+  line-height: 1;
+}
+
+.modal-close:hover {
+  background: rgba(0, 0, 0, 0.12);
+  color: var(--glass-text);
+}
+
+.modal-actions {
+  border-top: 1px solid var(--glass-border);
+}
+
+/* ===================================================================
+   12. TABLES — Glass table with transparent rows
+   =================================================================== */
+.admin-table,
+table {
+  border-radius: var(--glass-radius-md);
+  overflow: hidden;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.admin-table th,
+.log-table th,
+table th {
+  background: rgba(0, 0, 0, 0.03);
+  color: var(--glass-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+[data-theme="dark"] .admin-table th,
+[data-theme="dark"] .log-table th,
+[data-theme="dark"] table th {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--glass-text-secondary);
+  border-bottom-color: var(--glass-border);
+}
+
+.admin-table td,
+.log-table td,
+table td {
+  border-bottom: 1px solid var(--glass-border);
+  color: var(--glass-text);
+}
+
+.admin-table tr:hover,
+.log-table tr:hover,
+table tbody tr:hover {
+  background: rgba(0, 122, 255, 0.04);
+}
+
+[data-theme="dark"] .admin-table tr:hover,
+[data-theme="dark"] .log-table tr:hover,
+[data-theme="dark"] table tbody tr:hover {
+  background: rgba(0, 122, 255, 0.08);
+}
+
+/* ===================================================================
+   13. PAGINATION — Pill-shaped page buttons
+   =================================================================== */
+.pagination a,
+.pagination span {
+  border-radius: var(--glass-radius-sm);
+  background: var(--glass-bg-light);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  color: var(--glass-text-secondary);
+  font-weight: 500;
+  transition: all var(--glass-transition);
+}
+
+.pagination a:hover {
+  background: var(--glass-bg);
+  border-color: var(--glass-primary);
+  color: var(--glass-primary);
+  transform: translateY(-1px);
+}
+
+.pagination span.current {
+  background: linear-gradient(135deg, var(--glass-primary), var(--glass-primary-light));
+  color: white;
+  border-color: var(--glass-primary);
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);
+}
+
+/* ===================================================================
+   14. TABS — Glass tab navigation
+   =================================================================== */
+.tab-buttons {
+  background: var(--glass-bg-light);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-md);
+  padding: 4px;
+  gap: 4px;
+  border-bottom: none;
+}
+
+.tab-btn {
+  border-radius: var(--glass-radius-sm);
+  padding: 8px 18px;
+  font-weight: 500;
+  color: var(--glass-text-secondary);
+  transition: all var(--glass-transition);
+  border: none;
+  border-bottom: none;
+  margin-bottom: 0;
+  background: transparent;
+}
+
+.tab-btn:hover {
+  color: var(--glass-text);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.tab-btn.active {
+  background: var(--glass-bg-heavy);
+  color: var(--glass-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  border-bottom-color: transparent;
+}
+
+[data-theme="dark"] .tab-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .tab-btn.active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ===================================================================
+   15. WELCOME BANNER — Glass treatment
+   =================================================================== */
+.welcome-banner {
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.85), rgba(88, 86, 214, 0.85));
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--glass-radius-lg);
+  box-shadow: 0 8px 32px rgba(0, 122, 255, 0.2);
+}
+
+/* ===================================================================
+   16. FOOTER — Glass footer
+   =================================================================== */
+.footer {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-top: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-md);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.04);
+  color: var(--glass-text-secondary);
+}
+
+.footer-links a {
+  color: var(--glass-primary);
+  transition: opacity var(--glass-transition);
+}
+
+.footer-links a:hover {
+  opacity: 0.75;
+}
+
+/* ===================================================================
+   17. DROPDOWN MENU — Glass dropdown
+   =================================================================== */
+.dropdown-menu {
+  background: var(--glass-bg-heavy);
+  -webkit-backdrop-filter: var(--glass-blur-heavy);
+  backdrop-filter: var(--glass-blur-heavy);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-md);
+  box-shadow: var(--glass-shadow-elevated);
+  padding: 6px;
+  animation: glassDropdownIn 0.2s ease both;
+}
+
+@keyframes glassDropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dropdown-menu a,
+.dropdown-menu button,
+.dropdown-item {
+  border-radius: var(--glass-radius-xs);
+  padding: 8px 12px;
+  transition: background var(--glass-transition);
+  color: var(--glass-text);
+}
+
+.dropdown-menu a:hover,
+.dropdown-menu button:hover,
+.dropdown-item:hover {
+  background: rgba(0, 122, 255, 0.08);
+  color: var(--glass-primary);
+}
+
+/* ===================================================================
+   18. TOOLTIP — Glass tooltip
+   =================================================================== */
+.tooltip,
+[data-tooltip]::after {
+  background: var(--glass-bg-heavy);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-sm);
+  box-shadow: var(--glass-shadow);
+  color: var(--glass-text);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 10px;
+}
+
+/* ===================================================================
+   19. ADMIN TOOLBAR — Glass toolbar
+   =================================================================== */
+.admin-toolbar {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-md);
+  box-shadow: var(--glass-shadow);
+}
+
+.admin-toolbar select,
+.admin-toolbar input {
+  background: var(--glass-bg-light);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--glass-radius-xs);
+  color: var(--glass-text);
+}
+
+.admin-toolbar-badge {
+  background: var(--glass-primary);
+  box-shadow: 0 2px 6px rgba(0, 122, 255, 0.25);
+}
+
+/* ===================================================================
+   20. QUICK ACTIONS — Glass treatment
+   =================================================================== */
+.quick-action {
+  background: var(--glass-bg-light);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius-sm);
+  transition: all var(--glass-transition);
+  color: var(--glass-text);
+}
+
+.quick-action:hover {
+  background: var(--glass-bg);
+  border-color: var(--glass-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.1);
+}
+
+.quick-action i {
+  color: var(--glass-primary);
+}
+
+/* ===================================================================
+   21. BREADCRUMB — Glass treatment
+   =================================================================== */
+.admin-breadcrumb {
+  color: var(--glass-text-secondary);
+}
+
+.admin-breadcrumb a {
+  color: var(--glass-primary);
+}
+
+/* ===================================================================
+   22. STATUS INDICATORS
+   =================================================================== */
+.status-active   { color: var(--glass-success); }
+.status-inactive { color: var(--glass-danger); }
+.status-locked   { color: var(--glass-warning); }
+
+/* ===================================================================
+   23. TOGGLE SWITCHES — Refined styling
+   =================================================================== */
+.toggle-slider {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: var(--glass-radius-pill);
+  transition: background var(--glass-transition);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--glass-success);
+  box-shadow: 0 2px 8px rgba(52, 199, 89, 0.3);
+}
+
+/* ===================================================================
+   24. SCROLLBAR — Refined scrollbar
+   =================================================================== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: var(--glass-radius-pill);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ===================================================================
+   25. SELECTION
+   =================================================================== */
+::selection {
+  background: rgba(0, 122, 255, 0.25);
+  color: inherit;
+}
+
+/* ===================================================================
+   26. DARK MODE — Glass-specific dark overrides
+   =================================================================== */
+[data-theme="dark"] body {
+  background: var(--glass-page-bg);
+  color: var(--glass-text);
+}
+
+[data-theme="dark"] .sidebar {
+  background: var(--glass-sidebar-bg);
+  border-right-color: var(--glass-border);
+}
+
+[data-theme="dark"] .sidebar-brand-logo,
+[data-theme="dark"] .app-logo {
+  background: var(--glass-primary);
+  color: white;
+}
+
+[data-theme="dark"] .sidebar-nav-item.active {
+  background: rgba(0, 122, 255, 0.25);
+}
+
+[data-theme="dark"] .top-header {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+}
+
+[data-theme="dark"] .card,
+[data-theme="dark"] .form-card,
+[data-theme="dark"] .stat-card,
+[data-theme="dark"] .chart-card,
+[data-theme="dark"] .kpi,
+[data-theme="dark"] .dashboard-section,
+[data-theme="dark"] .admin-stat-card,
+[data-theme="dark"] .admin-activity,
+[data-theme="dark"] .admin-card,
+[data-theme="dark"] .config-card,
+[data-theme="dark"] .widget-card,
+[data-theme="dark"] .widget {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+  color: var(--glass-text);
+}
+
+[data-theme="dark"] .card:hover,
+[data-theme="dark"] .admin-card:hover {
+  border-color: rgba(0, 122, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 122, 255, 0.1);
+}
+
+[data-theme="dark"] .admin-card-icon {
+  background: rgba(0, 122, 255, 0.15);
+  color: var(--glass-primary-light);
+}
+
+[data-theme="dark"] .admin-card:hover .admin-card-icon {
+  background: var(--glass-primary);
+  color: white;
+}
+
+[data-theme="dark"] .admin-card-title,
+[data-theme="dark"] .admin-cards-section-title,
+[data-theme="dark"] .admin-activity-header {
+  color: var(--glass-text);
+}
+
+[data-theme="dark"] .admin-card-stat,
+[data-theme="dark"] .admin-stat-label {
+  color: var(--glass-text-secondary);
+}
+
+[data-theme="dark"] .admin-cards-section-title {
+  border-bottom-color: var(--glass-border);
+}
+
+[data-theme="dark"] .page-title h1 {
+  color: var(--glass-text);
+}
+
+[data-theme="dark"] .main-content {
+  background: transparent;
+}
+
+[data-theme="dark"] .footer {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+  color: var(--glass-text-secondary);
+}
+
+[data-theme="dark"] .footer-links a {
+  color: var(--glass-primary-light);
+}
+
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select,
+[data-theme="dark"] .form-group input,
+[data-theme="dark"] .form-group select,
+[data-theme="dark"] .form-group textarea,
+[data-theme="dark"] .filters-bar input,
+[data-theme="dark"] .filters-bar select,
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="email"],
+[data-theme="dark"] input[type="password"],
+[data-theme="dark"] input[type="number"],
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="datetime-local"],
+[data-theme="dark"] input[type="search"],
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--glass-border);
+  color: var(--glass-text);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="dark"] .form-control:focus,
+[data-theme="dark"] .form-select:focus,
+[data-theme="dark"] .form-group input:focus,
+[data-theme="dark"] .form-group select:focus,
+[data-theme="dark"] .form-group textarea:focus,
+[data-theme="dark"] input:focus,
+[data-theme="dark"] select:focus,
+[data-theme="dark"] textarea:focus {
+  border-color: var(--glass-primary);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15), 0 0 0 3px rgba(0, 122, 255, 0.2);
+}
+
+[data-theme="dark"] .form-control::placeholder,
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: var(--glass-text-tertiary);
+}
+
+[data-theme="dark"] .modal-box {
+  background: var(--glass-bg-heavy);
+  border-color: var(--glass-border);
+}
+
+[data-theme="dark"] .modal-close {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--glass-text-secondary);
+}
+
+[data-theme="dark"] .modal-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--glass-text);
+}
+
+[data-theme="dark"] .admin-table,
+[data-theme="dark"] table {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+  color: var(--glass-text);
+}
+
+[data-theme="dark"] .admin-toolbar {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+}
+
+[data-theme="dark"] .admin-toolbar select,
+[data-theme="dark"] .admin-toolbar input {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--glass-border);
+  color: var(--glass-text);
+}
+
+[data-theme="dark"] .filters-bar {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+}
+
+[data-theme="dark"] .quick-action {
+  background: var(--glass-bg-light);
+  border-color: var(--glass-border);
+  color: var(--glass-text);
+}
+
+[data-theme="dark"] .quick-action:hover {
+  background: var(--glass-bg);
+  border-color: var(--glass-primary);
+}
+
+[data-theme="dark"] .btn-secondary {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+  color: var(--glass-text);
+}
+
+[data-theme="dark"] .btn-secondary:hover {
+  border-color: var(--glass-primary);
+  color: var(--glass-primary-light);
+}
+
+[data-theme="dark"] .admin-alert-item {
+  background: rgba(255, 149, 0, 0.08);
+  border-left-color: var(--glass-warning);
+  color: #fcd34d;
+}
+
+[data-theme="dark"] .pagination a,
+[data-theme="dark"] .pagination span {
+  background: var(--glass-bg-light);
+  border-color: var(--glass-border);
+  color: var(--glass-text-secondary);
+}
+
+[data-theme="dark"] .pagination a:hover {
+  background: var(--glass-bg);
+  color: var(--glass-primary-light);
+  border-color: var(--glass-primary);
+}
+
+[data-theme="dark"] .tab-buttons {
+  background: var(--glass-bg-light);
+  border-color: var(--glass-border);
+}
+
+[data-theme="dark"] .tab-btn {
+  color: var(--glass-text-secondary);
+}
+
+[data-theme="dark"] .tab-btn.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--glass-primary-light);
+}
+
+[data-theme="dark"] .toggle-slider {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .badge-eleve  { background: rgba(0, 122, 255, 0.18); color: var(--glass-primary-light); }
+[data-theme="dark"] .badge-parent { background: rgba(52, 199, 89, 0.18); color: #86efac; }
+[data-theme="dark"] .badge-prof   { background: rgba(255, 149, 0, 0.18); color: #fcd34d; }
+[data-theme="dark"] .badge-vs     { background: rgba(88, 86, 214, 0.18); color: #a5b4fc; }
+[data-theme="dark"] .badge-admin  { background: rgba(255, 59, 48, 0.18); color: #fca5a5; }
+
+[data-theme="dark"] .welcome-banner {
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.65), rgba(88, 86, 214, 0.65));
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .dropdown-menu {
+  background: var(--glass-bg-heavy);
+  border-color: var(--glass-border);
+}
+
+[data-theme="dark"] .dropdown-menu a:hover,
+[data-theme="dark"] .dropdown-menu button:hover,
+[data-theme="dark"] .dropdown-item:hover {
+  background: rgba(0, 122, 255, 0.12);
+  color: var(--glass-primary-light);
+}
+
+[data-theme="dark"] .user-avatar {
+  background: var(--glass-primary);
+}
+
+[data-theme="dark"] .admin-topbar-link {
+  color: var(--glass-primary-light);
+  background: rgba(0, 122, 255, 0.12);
+}
+
+[data-theme="dark"] .admin-topbar-link:hover {
+  background: var(--glass-primary);
+  color: white;
+}
+
+[data-theme="dark"] .admin-breadcrumb {
+  color: var(--glass-text-secondary);
+}
+
+[data-theme="dark"] .admin-breadcrumb a {
+  color: var(--glass-primary-light);
+}
+
+[data-theme="dark"] .admin-breadcrumb .breadcrumb-current {
+  color: var(--glass-text);
+}
+
+/* ===================================================================
+   27. RESPONSIVE — Mobile-first adjustments
+   =================================================================== */
+@media (max-width: 768px) {
+  /* Glass sidebar drawer — override classic's drawer with glass styling */
+  .sidebar {
+    -webkit-backdrop-filter: var(--glass-blur-heavy);
+    backdrop-filter: var(--glass-blur-heavy);
+    background: var(--glass-sidebar-bg);
+    border-right: 1px solid var(--glass-border);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+  }
+
+  .top-header {
+    padding: 12px 16px;
+    border-radius: var(--glass-radius-md);
+  }
+
+  .card,
+  .form-card,
+  .stat-card,
+  .dashboard-section,
+  .admin-stat-card,
+  .admin-activity {
+    border-radius: var(--glass-radius-sm);
+  }
+
+  .btn {
+    padding: 10px 16px;
+    font-size: 14px;
+    width: auto;
+  }
+
+  .modal-box {
+    border-radius: var(--glass-radius-md);
+    margin: 10px;
+  }
+
+  .welcome-banner {
+    border-radius: var(--glass-radius-md);
+  }
+
+  .tab-buttons {
+    border-radius: var(--glass-radius-sm);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-btn {
+    white-space: nowrap;
+    font-size: 13px;
+    padding: 8px 14px;
+  }
+
+  /* Glass mobile overlay */
+  .mobile-overlay {
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.35);
+  }
+}
+
+@media (max-width: 576px) {
+  .top-header {
+    padding: 10px 12px;
+    border-radius: var(--glass-radius-sm);
+  }
+
+  .pagination a,
+  .pagination span {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+}
+
+/* ===================================================================
+   28. PRINT — Disable glass effects for print
+   =================================================================== */
+@media print {
+  * {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  .sidebar {
+    display: none !important;
+  }
+}

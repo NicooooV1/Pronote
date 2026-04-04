@@ -20,7 +20,7 @@
             "description": { "fr": "Devoirs en attente de rendu", "en": "Pending assignments" },
             "type": "list",
             "icon": "fas fa-tasks",
-            "roles": ["eleve", "parent"],
+            "roles": ["eleve", "parent", "professeur"],
             "default_size": { "width": 2, "height": 1 },
             "is_default": true,
             "sort_order": 20,

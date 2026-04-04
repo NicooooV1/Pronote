@@ -27,8 +27,8 @@ if (file_exists($lockFile)) {
 }
 
 // ─── Vérification version PHP ────────────────────────────────────────────────
-if (version_compare(PHP_VERSION, '7.4.0', '<')) {
-    die('PHP 7.4+ requis. Version actuelle : ' . PHP_VERSION);
+if (version_compare(PHP_VERSION, '8.0.0', '<')) {
+    die('PHP 8.0+ requis. Version actuelle : ' . PHP_VERSION);
 }
 
 // ─── Session ─────────────────────────────────────────────────────────────────
@@ -207,7 +207,38 @@ function writeEnvFile(string $dir, array $c): bool {
         "# Divers",
         "APP_TIMEZONE=Europe/Paris",
         "ALLOWED_INSTALL_IP={$c['client_ip']}",
-        "JWT_SECRET=" . bin2hex(random_bytes(32)),
+        "JWT_SECRET=" . bin2hex(random_bytes(32)), "",
+        "# Audit",
+        "AUDIT_ENABLED=true",
+        "AUDIT_RETENTION_DAYS=90", "",
+        "# WebSocket (optionnel)",
+        "WEBSOCKET_ENABLED=false",
+        "WEBSOCKET_URL=http://localhost:3100",
+        "WEBSOCKET_CLIENT_URL=ws://localhost:3100",
+        "WEBSOCKET_API_SECRET=" . bin2hex(random_bytes(16)), "",
+        "# Mise à jour GitHub (optionnel)",
+        "GITHUB_WEBHOOK_SECRET=",
+        "GITHUB_REPO=",
+        "GITHUB_BRANCH=main", "",
+        "# Internationalisation",
+        "APP_LOCALE=fr",
+        "APP_FALLBACK_LOCALE=fr", "",
+        "# API Rate limiting",
+        "API_RATE_LIMIT=60",
+        "API_RATE_LIMIT_WINDOW=60", "",
+        "# Cache",
+        "CACHE_DRIVER=file",
+        "REDIS_HOST=127.0.0.1",
+        "REDIS_PORT=6379", "",
+        "# SSO / OAuth2 (optionnel)",
+        "SSO_ENABLED=false",
+        "SSO_PROVIDER=",
+        "SSO_CLIENT_ID=",
+        "SSO_CLIENT_SECRET=",
+        "SSO_REDIRECT_URI=",
+        "SSO_TENANT_ID=", "",
+        "# Sauvegardes",
+        "BACKUP_RETENTION=30",
     ];
     return @file_put_contents($dir . '/.env', implode("\n", $lines), LOCK_EX) !== false;
 }
@@ -518,16 +549,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $log[] = ['warn', count($errors) . " requête(s) SQL en erreur (non bloquant)"];
             }
 
-            // 5e-bis — Exécuter les migrations incrémentales
-            try {
-                require_once $installDir . '/API/Database/Migrator.php';
-                $migrator = new \API\Database\Migrator($pdo, $installDir . '/migrations');
-                $migrated = $migrator->run();
-                if ($migrated > 0) {
-                    $log[] = ['ok', "$migrated migration(s) exécutée(s)"];
+            // 5e-bis — Validation du schéma (tables critiques)
+            $criticalTables = ['administrateurs','eleves','professeurs','parents','classes','matieres','periodes','notes','absences','evenements','modules_config'];
+            $missingTables = [];
+            foreach ($criticalTables as $tbl) {
+                $chk = $pdo->query("SHOW TABLES LIKE " . $pdo->quote($tbl));
+                if ($chk->rowCount() === 0) {
+                    $missingTables[] = $tbl;
                 }
-            } catch (Throwable $migErr) {
-                $log[] = ['warn', 'Migrations : ' . $migErr->getMessage()];
+            }
+            if (!empty($missingTables)) {
+                $log[] = ['warn', 'Tables critiques manquantes : ' . implode(', ', $missingTables)];
+            } else {
+                $log[] = ['ok', 'Toutes les tables critiques vérifiées'];
             }
 
             // 5f — Compte administrateur
@@ -892,7 +926,7 @@ code{background:#edf2f7;padding:1px 6px;border-radius:3px;font-size:.88em;font-f
 <p class="section-sub">PHP, extensions, répertoires et fichiers nécessaires.</p>
 
 <?php
-    $phpOk = version_compare(PHP_VERSION, '7.4.0', '>=');
+    $phpOk = version_compare(PHP_VERSION, '8.0.0', '>=');
 
     $requiredExts = ['pdo', 'pdo_mysql', 'json', 'mbstring', 'session'];
     $extResults = [];

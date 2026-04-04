@@ -9,7 +9,7 @@ requireAuth();
 requireRole('administrateur');
 
 $pdo = getPDO();
-$userObj = new User($pdo);
+$userObj = app('user');
 
 $id = intval($_GET['id'] ?? 0);
 $type = $_GET['type'] ?? '';

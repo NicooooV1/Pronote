@@ -12,7 +12,21 @@
         "report": { "default_roles": ["administrateur", "vie_scolaire", "professeur"] }
     },
     "routes": { "main": "incidents.php" },
-    "widgets": [],
+    "widgets": [
+        {
+            "key": "discipline_recente",
+            "name": { "fr": "Discipline", "en": "Discipline" },
+            "description": { "fr": "Derniers incidents et suivi", "en": "Recent incidents and tracking" },
+            "type": "list",
+            "icon": "fas fa-gavel",
+            "roles": ["administrateur", "vie_scolaire", "professeur"],
+            "default_size": { "width": 2, "height": 1 },
+            "is_default": false,
+            "sort_order": 55,
+            "data_provider": "includes/DisciplineWidgetProvider.php",
+            "template": "widgets/discipline_recente.php"
+        }
+    ],
     "establishment_types": null,
     "sidebar": { "sort_order": 22 }
 }

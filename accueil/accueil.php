@@ -1,27 +1,16 @@
 <?php
-ob_start();
+// Boot standardisé — fournit $user, $user_role, $user_fullname, $user_initials, $pdo, $isAdmin, $rootPrefix
+$pageTitle  = 'Accueil';
+$activePage = 'accueil';
+require_once __DIR__ . '/../API/module_boot.php';
 
-// Inclure l'API centralisee
-require_once dirname(__DIR__) . '/API/core.php';
 require_once __DIR__ . '/includes/DashboardService.php';
 
-// Authentification via API
-requireAuth();
-
-// --- Donnees utilisateur ---
-$user          = getCurrentUser();
-$user_fullname = getUserFullName();
-$user_role     = getUserRole();
-$user_initials = getUserInitials();
-$classe        = $user['classe'] ?? '';
-
+$classe     = $user['classe'] ?? '';
 $aujourdhui = date('d/m/Y');
 $trimestre  = function_exists('getTrimestre') ? getTrimestre() : '';
 $jours      = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 $jour       = $jours[date('w')];
-
-// --- Service metier ---
-$pdo       = getPDO();
 $dashboard = new DashboardService($pdo);
 
 // Cache etablissement (REF-4)

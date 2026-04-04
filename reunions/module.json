@@ -11,7 +11,21 @@
     "manage": { "default_roles": ["administrateur", "professeur", "vie_scolaire"] }
   },
   "routes": { "main": "reunions.php" },
-  "widgets": [],
+  "widgets": [
+    {
+      "key": "reunions_a_venir",
+      "name": { "fr": "Réunions à venir", "en": "Upcoming meetings" },
+      "description": { "fr": "Prochaines réunions parents-profs", "en": "Upcoming parent-teacher meetings" },
+      "type": "list",
+      "icon": "fas fa-handshake",
+      "roles": ["parent", "professeur", "administrateur", "vie_scolaire"],
+      "default_size": { "width": 2, "height": 1 },
+      "is_default": false,
+      "sort_order": 50,
+      "data_provider": "includes/ReunionWidgetProvider.php",
+      "template": "widgets/reunions_a_venir.php"
+    }
+  ],
   "establishment_types": null,
   "sidebar": { "sort_order": 34 }
 }

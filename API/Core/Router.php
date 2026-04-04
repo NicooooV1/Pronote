@@ -6,19 +6,43 @@ class Router
 {
     private array $routes = [];
 
+    /** @var array<string, array> Named routes index: name → route */
+    private array $namedRoutes = [];
+
+    /** @var string|null Name for the next registered route */
+    private ?string $pendingName = null;
+
     public function get(string $path, callable $handler, array $middleware = []): self    { return $this->add('GET',    $path, $handler, $middleware); }
     public function post(string $path, callable $handler, array $middleware = []): self   { return $this->add('POST',   $path, $handler, $middleware); }
     public function put(string $path, callable $handler, array $middleware = []): self    { return $this->add('PUT',    $path, $handler, $middleware); }
     public function delete(string $path, callable $handler, array $middleware = []): self { return $this->add('DELETE', $path, $handler, $middleware); }
 
+    /**
+     * Assign a name to the next registered route. Chainable.
+     *   $router->name('notes.index')->get('/v1/notes', ...);
+     */
+    public function name(string $name): self
+    {
+        $this->pendingName = $name;
+        return $this;
+    }
+
     private function add(string $method, string $path, callable $handler, array $middleware = []): self
     {
-        $this->routes[] = [
+        $route = [
             'method' => strtoupper($method),
             'path' => $path,
             'handler' => $handler,
             'middleware' => $middleware,
+            'name' => $this->pendingName,
         ];
+        $this->routes[] = $route;
+
+        if ($this->pendingName !== null) {
+            $this->namedRoutes[$this->pendingName] = $route;
+            $this->pendingName = null;
+        }
+
         return $this;
     }
 
@@ -33,6 +57,9 @@ class Router
             $route['path'] = $prefix . $route['path'];
             $route['middleware'] = array_merge($middleware, $route['middleware']);
             $this->routes[] = $route;
+            if (!empty($route['name'])) {
+                $this->namedRoutes[$route['name']] = $route;
+            }
         }
         return $this;
     }
@@ -58,11 +85,43 @@ class Router
     }
 
     /**
+     * Generate a URL for a named route, replacing :param placeholders.
+     *   $router->url('notes.show', ['id' => 42]) → '/v1/notes/42'
+     */
+    public function url(string $name, array $params = []): ?string
+    {
+        $route = $this->namedRoutes[$name] ?? null;
+        if (!$route) return null;
+
+        $path = $route['path'];
+        foreach ($params as $key => $value) {
+            $path = str_replace(':' . $key, (string)$value, $path);
+        }
+        return $path;
+    }
+
+    /**
+     * Check if a named route exists.
+     */
+    public function hasRoute(string $name): bool
+    {
+        return isset($this->namedRoutes[$name]);
+    }
+
+    /**
      * Retourne toutes les routes enregistrées (utile pour le debug).
      */
     public function getRoutes(): array
     {
         return $this->routes;
+    }
+
+    /**
+     * Retourne les routes nommées.
+     */
+    public function getNamedRoutes(): array
+    {
+        return $this->namedRoutes;
     }
 
     // Convertit /users/:id en regex, retourne les paramètres nommés ou false

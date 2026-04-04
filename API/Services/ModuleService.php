@@ -30,19 +30,22 @@ class ModuleService
     public function getAll(): array
     {
         if ($this->cache === null) {
-            try {
-                $stmt = $this->pdo->query("SELECT * FROM modules_config ORDER BY sort_order, label");
-                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                $this->cache = [];
-                foreach ($rows as $row) {
-                    $row['config'] = !empty($row['config_json']) ? json_decode($row['config_json'], true) : [];
-                    $row['roles_autorises'] = !empty($row['roles_autorises']) ? json_decode($row['roles_autorises'], true) : null;
-                    $this->cache[$row['module_key']] = $row;
+            $this->cache = app('cache')->remember('modules:all', 300, function () {
+                try {
+                    $stmt = $this->pdo->query("SELECT * FROM modules_config ORDER BY sort_order, label");
+                    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    $result = [];
+                    foreach ($rows as $row) {
+                        $row['config'] = !empty($row['config_json']) ? json_decode($row['config_json'], true) : [];
+                        $row['roles_autorises'] = !empty($row['roles_autorises']) ? json_decode($row['roles_autorises'], true) : null;
+                        $result[$row['module_key']] = $row;
+                    }
+                    return $result;
+                } catch (\PDOException $e) {
+                    error_log("ModuleService::getAll error: " . $e->getMessage());
+                    return [];
                 }
-            } catch (\PDOException $e) {
-                error_log("ModuleService::getAll error: " . $e->getMessage());
-                $this->cache = [];
-            }
+            });
         }
         return $this->cache;
     }
@@ -122,7 +125,7 @@ class ModuleService
         try {
             $stmt = $this->pdo->prepare("UPDATE modules_config SET enabled = ? WHERE module_key = ? AND is_core = 0");
             $result = $stmt->execute([(int)$enabled, $key]);
-            $this->cache = null; // Reset cache
+            $this->cache = null; app('cache')->forget('modules:all');
             return $result;
         } catch (\PDOException $e) {
             error_log("ModuleService::setEnabled error: " . $e->getMessage());
@@ -153,7 +156,7 @@ class ModuleService
         try {
             $stmt = $this->pdo->prepare("UPDATE modules_config SET config_json = ? WHERE module_key = ?");
             $result = $stmt->execute([json_encode($config, JSON_UNESCAPED_UNICODE), $key]);
-            $this->cache = null;
+            $this->cache = null; app('cache')->forget('modules:all');
             return $result;
         } catch (\PDOException $e) {
             error_log("ModuleService::updateConfig error: " . $e->getMessage());
@@ -181,7 +184,7 @@ class ModuleService
             $value = ($roles !== null && count($roles) > 0) ? json_encode(array_values($roles)) : null;
             $stmt = $this->pdo->prepare("UPDATE modules_config SET roles_autorises = ? WHERE module_key = ?");
             $result = $stmt->execute([$value, $key]);
-            $this->cache = null;
+            $this->cache = null; app('cache')->forget('modules:all');
             return $result;
         } catch (\PDOException $e) {
             error_log("ModuleService::updateRolesAutorises error: " . $e->getMessage());
@@ -210,7 +213,7 @@ class ModuleService
                 isset($data['sort_order']) ? (int)$data['sort_order'] : null,
                 $key,
             ]);
-            $this->cache = null;
+            $this->cache = null; app('cache')->forget('modules:all');
             return $result;
         } catch (\PDOException $e) {
             error_log("ModuleService::updateInfo error: " . $e->getMessage());
@@ -223,7 +226,7 @@ class ModuleService
      */
     public function clearCache(): void
     {
-        $this->cache = null;
+        $this->cache = null; app('cache')->forget('modules:all');
     }
 
     // ─── Stats ───────────────────────────────────────────────────────────
@@ -242,78 +245,8 @@ class ModuleService
 
     // ─── Sidebar Integration ─────────────────────────────────────────────
 
-    /**
-     * Route map: module_key → relative path from project root.
-     * Used to build sidebar links dynamically.
-     */
-    private static array $routeMap = [
-        'accueil'              => 'accueil/accueil.php',
-        'notes'                => 'notes/notes.php',
-        'agenda'               => 'agenda/agenda.php',
-        'cahierdetextes'       => 'cahierdetextes/cahierdetextes.php',
-        'messagerie'           => 'messagerie/index.php',
-        'annonces'             => 'annonces/annonces.php',
-        'emploi_du_temps'      => 'emploi_du_temps/emploi_du_temps.php',
-        'absences'             => 'absences/absences.php',
-        'appel'                => 'appel/appel.php',
-        'discipline'           => 'discipline/incidents.php',
-        'vie_scolaire'         => 'vie_scolaire/dashboard.php',
-        'reporting'            => 'reporting/reporting.php',
-        'bulletins'            => 'bulletins/bulletins.php',
-        'devoirs'              => 'devoirs/mes_devoirs.php',
-        'competences'          => 'competences/competences.php',
-        'trombinoscope'        => 'trombinoscope/trombinoscope.php',
-        'documents'            => 'documents/documents.php',
-        'notifications'        => 'notifications/notifications.php',
-        'reunions'             => 'reunions/reunions.php',
-        'bibliotheque'         => 'bibliotheque/catalogue.php',
-        'clubs'                => 'clubs/clubs.php',
-        'orientation'          => 'orientation/orientation.php',
-        'inscriptions'         => 'inscriptions/inscriptions.php',
-        'signalements'         => 'signalements/signaler.php',
-        'infirmerie'           => 'infirmerie/infirmerie.php',
-        'examens'              => 'examens/examens.php',
-        'ressources'           => 'ressources/ressources.php',
-        'diplomes'             => 'diplomes/diplomes.php',
-        'periscolaire'         => 'periscolaire/services.php',
-        'cantine'              => 'cantine/menus.php',
-        'internat'             => 'internat/chambres.php',
-        'garderie'             => 'garderie/creneaux.php',
-        'stages'               => 'stages/stages.php',
-        'transports'           => 'transports/lignes.php',
-        'facturation'          => 'facturation/factures.php',
-        'salles'               => 'salles/reservations.php',
-        'personnel'            => 'personnel/absences.php',
-        'besoins'              => 'besoins/besoins.php',
-        'archivage'            => 'archivage/archivage.php',
-        'rgpd'                 => 'rgpd/demandes.php',
-        'support'              => 'support/aide.php',
-        'projets_pedagogiques' => 'projets_pedagogiques/projets.php',
-        'parcours_educatifs'   => 'parcours_educatifs/parcours.php',
-        'vie_associative'      => 'vie_associative/associations.php',
-        'parametres'           => 'parametres/parametres.php',
-        'profil'               => 'profil/index.php',
-    ];
-
-    /**
-     * Role-based visibility: module_key → list of roles that can see it.
-     * If a module is NOT in this map, it is visible to ALL roles.
-     */
-    private static array $roleVisibility = [
-        'absences'       => ['administrateur', 'vie_scolaire', 'professeur'],
-        'appel'          => ['administrateur', 'vie_scolaire', 'professeur'],
-        'discipline'     => ['administrateur', 'vie_scolaire', 'professeur'],
-        'vie_scolaire'   => ['administrateur', 'vie_scolaire', 'professeur'],
-        'reporting'      => ['administrateur', 'vie_scolaire', 'professeur'],
-        'besoins'        => ['administrateur', 'vie_scolaire', 'professeur'],
-        'salles'         => ['administrateur', 'vie_scolaire', 'professeur'],
-        'personnel'      => ['administrateur', 'vie_scolaire'],
-        'rgpd'           => ['administrateur', 'vie_scolaire'],
-        'archivage'      => ['administrateur'],
-        'facturation'    => ['administrateur', 'vie_scolaire', 'parent'],
-        'internat'       => ['administrateur', 'vie_scolaire'],
-        'infirmerie'     => ['administrateur', 'vie_scolaire', 'parent', 'eleve'],
-    ];
+    // Static route map and role visibility removed — now sourced from DB
+    // (populated by ModuleSDK::syncModule from module.json).
 
     /**
      * Category display order + icons for sidebar headings.
@@ -353,23 +286,28 @@ class ModuleService
 
     /**
      * Get the route URL for a module.
+     * Reads route_path from DB (populated by ModuleSDK::syncModule from module.json).
+     * Falls back to convention: {key}/{key}.php.
      */
-    public static function getRoute(string $moduleKey): string
+    public function getRoute(string $moduleKey): string
     {
-        return self::$routeMap[$moduleKey] ?? ($moduleKey . '/' . $moduleKey . '.php');
+        $module = $this->get($moduleKey);
+        if ($module !== null && !empty($module['route_path'])) {
+            return $module['route_path'];
+        }
+        return $moduleKey . '/' . $moduleKey . '.php';
     }
 
     /**
      * Check if a module should be visible for a given role.
-     * Prioritises roles_autorises from DB (editable via admin UI);
-     * falls back to the hardcoded $roleVisibility map for modules that
-     * have not yet been configured in the DB.
+     * Uses the roles_autorises column from DB (editable via admin UI,
+     * populated initially by ModuleSDK::syncModule from module.json permissions).
+     * If no role restriction is set, the module is visible to all roles.
      */
     public function isVisibleForRole(string $moduleKey, string $role): bool
     {
         $module = $this->get($moduleKey);
 
-        // DB column takes priority when present
         if ($module !== null && isset($module['roles_autorises'])) {
             $rolesDb = is_array($module['roles_autorises'])
                 ? $module['roles_autorises']
@@ -379,11 +317,8 @@ class ModuleService
             }
         }
 
-        // Fallback to hardcoded map
-        if (!isset(self::$roleVisibility[$moduleKey])) {
-            return true;
-        }
-        return in_array($role, self::$roleVisibility[$moduleKey], true);
+        // No restriction configured — visible to all
+        return true;
     }
 
     /**
@@ -407,7 +342,7 @@ class ModuleService
 
             // Apply sidebar category override if defined, otherwise use DB category
             $cat = $catOverrides[$key] ?? ($mod['category'] ?? 'general');
-            $mod['route'] = self::getRoute($key);
+            $mod['route'] = $this->getRoute($key);
             $mod['module_key'] = $key;
             $grouped[$cat][] = $mod;
         }
@@ -434,7 +369,7 @@ class ModuleService
     {
         $all = $this->getAll();
         foreach ($all as $key => &$mod) {
-            $mod['route'] = self::getRoute($key);
+            $mod['route'] = $this->getRoute($key);
         }
         return $all;
     }

@@ -23,16 +23,17 @@ class MatiereService
      */
     public function getAll(): array
     {
-        $sql = <<<'SQL'
-            SELECT m.*,
-                   (SELECT COUNT(*) FROM notes WHERE id_matiere = m.id) AS note_count
-            FROM matieres m
-            ORDER BY m.actif DESC, m.nom
-        SQL;
+        $cache = app('cache');
+        return $cache->remember('matieres:all', 600, function () {
+            $sql = <<<'SQL'
+                SELECT m.*,
+                       (SELECT COUNT(*) FROM notes WHERE id_matiere = m.id) AS note_count
+                FROM matieres m
+                ORDER BY m.actif DESC, m.nom
+            SQL;
 
-        $stmt = $this->pdo->query($sql);
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return $this->pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+        });
     }
 
     /**
@@ -72,7 +73,11 @@ class MatiereService
             ':couleur'     => $data['couleur'],
         ]);
 
-        return (int) $this->pdo->lastInsertId();
+        $id = (int) $this->pdo->lastInsertId();
+        app('cache')->forget('matieres:all');
+        app('cache')->forget('dashboard:counts');
+        app('hooks')?->dispatch(new \API\Events\MatiereCreated($id, $data));
+        return $id;
     }
 
     /**
@@ -104,7 +109,13 @@ class MatiereService
             ':id'          => $id,
         ]);
 
-        return $stmt->rowCount() > 0;
+        $updated = $stmt->rowCount() > 0;
+        if ($updated) {
+            app('cache')->forget('matieres:all');
+            app('cache')->forget('dashboard:counts');
+            app('hooks')?->dispatch(new \API\Events\MatiereUpdated($id, $data));
+        }
+        return $updated;
     }
 
     /**
@@ -129,7 +140,13 @@ class MatiereService
         $stmt = $this->pdo->prepare('DELETE FROM matieres WHERE id = ?');
         $stmt->execute([$id]);
 
-        return $stmt->rowCount() > 0;
+        $deleted = $stmt->rowCount() > 0;
+        if ($deleted) {
+            app('cache')->forget('matieres:all');
+            app('cache')->forget('dashboard:counts');
+            app('hooks')?->dispatch(new \API\Events\MatiereDeleted($id));
+        }
+        return $deleted;
     }
 
     /**

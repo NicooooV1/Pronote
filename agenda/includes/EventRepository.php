@@ -176,13 +176,23 @@ class EventRepository
 
     /**
      * Expand events that have an rrule field into virtual occurrences within the given date range.
-     * Supports FREQ=DAILY|WEEKLY|MONTHLY, INTERVAL, UNTIL, COUNT, BYDAY.
+     * Supports FREQ=DAILY|WEEKLY|MONTHLY|YEARLY, INTERVAL, UNTIL, COUNT, BYDAY, EXDATE.
+     * Also supports single-occurrence exceptions stored in evenement_exceptions table.
      */
     private function expandRecurring(array $events, string $rangeStart, string $rangeEnd): array
     {
         $rsTs = strtotime($rangeStart);
         $reTs = strtotime($rangeEnd . ' 23:59:59');
         $result = [];
+
+        // Pre-load all recurrence exceptions for events in this batch
+        $parentIds = [];
+        foreach ($events as $ev) {
+            if (!empty($ev['rrule'])) {
+                $parentIds[] = (int)$ev['id'];
+            }
+        }
+        $exceptions = $this->loadRecurrenceExceptions($parentIds);
 
         foreach ($events as $ev) {
             if (empty($ev['rrule'])) {
@@ -198,6 +208,12 @@ class EventRepository
             $count    = !empty($rule['COUNT']) ? (int)$rule['COUNT'] : 365;
             $byDay    = !empty($rule['BYDAY']) ? explode(',', $rule['BYDAY']) : [];
 
+            // Parse EXDATE — comma-separated list of excluded dates (YYYYMMDD or YYYYMMDDTHHMMSSZ)
+            $exdates = $this->parseExdates($rule['EXDATE'] ?? ($ev['exdate'] ?? ''));
+
+            // Get single-occurrence exceptions (modified or deleted) for this parent event
+            $eventExceptions = $exceptions[(int)$ev['id']] ?? [];
+
             $dtStart  = strtotime($ev['date_debut']);
             $duration = !empty($ev['date_fin']) ? (strtotime($ev['date_fin']) - $dtStart) : 3600;
 
@@ -210,6 +226,7 @@ class EventRepository
                 if ($until && $current > $until) break;
                 if ($current > $reTs + 86400 * 365) break; // safety limit
 
+                $currentDate = date('Y-m-d', $current);
                 $inRange = ($current >= $rsTs && $current <= $reTs);
                 $dayOk = true;
                 if (!empty($byDay)) {
@@ -223,13 +240,41 @@ class EventRepository
                     }
                 }
 
-                if ($inRange && $dayOk) {
-                    $occurrence = $ev;
-                    $occurrence['date_debut'] = date('Y-m-d H:i:s', $current);
-                    $occurrence['date_fin']   = date('Y-m-d H:i:s', $current + $duration);
-                    $occurrence['is_recurrence'] = true;
-                    $occurrence['recurrence_parent_id'] = $ev['id'];
-                    $result[] = $occurrence;
+                // Check if this date is excluded via EXDATE
+                $isExcluded = in_array($currentDate, $exdates, true);
+
+                // Check for single-occurrence exception
+                $exception = $eventExceptions[$currentDate] ?? null;
+
+                if ($inRange && $dayOk && !$isExcluded) {
+                    if ($exception !== null) {
+                        if ($exception['type'] === 'deleted') {
+                            // This occurrence was deleted — skip it
+                        } else {
+                            // This occurrence was modified — use exception data
+                            $occurrence = $ev;
+                            $occurrence['date_debut'] = $exception['date_debut'] ?? date('Y-m-d H:i:s', $current);
+                            $occurrence['date_fin']   = $exception['date_fin'] ?? date('Y-m-d H:i:s', $current + $duration);
+                            if (!empty($exception['titre']))       $occurrence['titre']       = $exception['titre'];
+                            if (!empty($exception['description'])) $occurrence['description'] = $exception['description'];
+                            if (!empty($exception['lieu']))        $occurrence['lieu']        = $exception['lieu'];
+                            if (!empty($exception['statut']))      $occurrence['statut']      = $exception['statut'];
+                            $occurrence['is_recurrence']       = true;
+                            $occurrence['recurrence_parent_id'] = $ev['id'];
+                            $occurrence['is_exception']        = true;
+                            $occurrence['exception_id']        = $exception['id'];
+                            $occurrence['original_date']       = $currentDate;
+                            $result[] = $occurrence;
+                        }
+                    } else {
+                        $occurrence = $ev;
+                        $occurrence['date_debut'] = date('Y-m-d H:i:s', $current);
+                        $occurrence['date_fin']   = date('Y-m-d H:i:s', $current + $duration);
+                        $occurrence['is_recurrence']       = true;
+                        $occurrence['recurrence_parent_id'] = $ev['id'];
+                        $occurrence['original_date']       = $currentDate;
+                        $result[] = $occurrence;
+                    }
                 }
 
                 $occurrences++;
@@ -248,6 +293,119 @@ class EventRepository
         // Sort by date
         usort($result, fn($a, $b) => strcmp($a['date_debut'], $b['date_debut']));
         return $result;
+    }
+
+    /**
+     * Parse EXDATE string into an array of Y-m-d date strings.
+     * Supports formats: "20250315,20250322" or "20250315T080000Z,20250322T080000Z"
+     */
+    private function parseExdates(string $exdate): array
+    {
+        if (empty($exdate)) return [];
+
+        $dates = [];
+        foreach (explode(',', $exdate) as $raw) {
+            $raw = trim($raw);
+            if (empty($raw)) continue;
+            // Strip time component if present (YYYYMMDDTHHMMSSZ → YYYYMMDD)
+            $dateStr = substr($raw, 0, 8);
+            $parsed = DateTime::createFromFormat('Ymd', $dateStr);
+            if ($parsed) {
+                $dates[] = $parsed->format('Y-m-d');
+            }
+        }
+        return $dates;
+    }
+
+    /**
+     * Load recurrence exceptions from the evenement_exceptions table.
+     * Returns array keyed by parent_event_id → original_date → exception data.
+     */
+    private function loadRecurrenceExceptions(array $parentIds): array
+    {
+        if (empty($parentIds)) return [];
+
+        try {
+            $placeholders = implode(',', array_fill(0, count($parentIds), '?'));
+            $stmt = $this->pdo->prepare("
+                SELECT * FROM evenement_exceptions
+                WHERE parent_event_id IN ({$placeholders})
+                ORDER BY original_date
+            ");
+            $stmt->execute($parentIds);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $grouped = [];
+            foreach ($rows as $row) {
+                $pid  = (int)$row['parent_event_id'];
+                $date = $row['original_date'];
+                $grouped[$pid][$date] = $row;
+            }
+            return $grouped;
+        } catch (\PDOException $e) {
+            // Table may not exist yet — degrade gracefully
+            return [];
+        }
+    }
+
+    /**
+     * Create a single-occurrence exception for a recurring event.
+     *
+     * @param int    $parentEventId  The recurring parent event ID
+     * @param string $originalDate   The date (Y-m-d) of the occurrence to modify/delete
+     * @param string $type           'modified' or 'deleted'
+     * @param array  $overrides      Fields to override: titre, description, date_debut, date_fin, lieu, statut
+     */
+    public function createRecurrenceException(int $parentEventId, string $originalDate, string $type = 'modified', array $overrides = []): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO evenement_exceptions (parent_event_id, original_date, type, titre, description, date_debut, date_fin, lieu, statut, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE type = VALUES(type), titre = VALUES(titre), description = VALUES(description),
+                date_debut = VALUES(date_debut), date_fin = VALUES(date_fin), lieu = VALUES(lieu), statut = VALUES(statut)
+        ");
+        $stmt->execute([
+            $parentEventId,
+            $originalDate,
+            $type,
+            $overrides['titre'] ?? null,
+            $overrides['description'] ?? null,
+            $overrides['date_debut'] ?? null,
+            $overrides['date_fin'] ?? null,
+            $overrides['lieu'] ?? null,
+            $overrides['statut'] ?? null,
+        ]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Delete a single occurrence of a recurring event (creates a 'deleted' exception).
+     */
+    public function deleteRecurrenceOccurrence(int $parentEventId, string $originalDate): bool
+    {
+        return $this->createRecurrenceException($parentEventId, $originalDate, 'deleted') > 0;
+    }
+
+    /**
+     * Add an EXDATE entry to an event's rrule or exdate column.
+     */
+    public function addExdate(int $eventId, string $date): bool
+    {
+        $event = $this->findById($eventId);
+        if (!$event) return false;
+
+        $existing = !empty($event['exdate']) ? $event['exdate'] : '';
+        $newDate  = (new DateTime($date))->format('Ymd');
+
+        // Avoid duplicates
+        $currentDates = array_filter(explode(',', $existing));
+        if (in_array($newDate, $currentDates, true)) return true;
+
+        $currentDates[] = $newDate;
+        $updated = implode(',', $currentDates);
+
+        $stmt = $this->pdo->prepare("UPDATE evenements SET exdate = ? WHERE id = ?");
+        return $stmt->execute([$updated, $eventId]);
     }
 
     /**
@@ -460,7 +618,20 @@ class EventRepository
      * Détecte les conflits de créneaux pour un lieu ou des classes donnés.
      * @return array Liste des événements en conflit
      */
-    public function detectConflicts(string $dateDebut, string $dateFin, ?string $lieu = null, ?string $classes = null, ?int $excludeId = null): array
+    /**
+     * Detect scheduling conflicts for a proposed event.
+     * Checks for overlapping: lieu (room), classes, and professor (createur).
+     * Returns conflicts with a 'conflict_type' field indicating the reason.
+     *
+     * @param string      $dateDebut
+     * @param string      $dateFin
+     * @param string|null $lieu
+     * @param string|null $classes    CSV string of class names
+     * @param int|null    $excludeId Event ID to exclude (for edits)
+     * @param string|null $createur   Professor/creator identifier for teacher conflicts
+     * @return array Conflicting events with 'conflict_types' array per event
+     */
+    public function detectConflicts(string $dateDebut, string $dateFin, ?string $lieu = null, ?string $classes = null, ?int $excludeId = null, ?string $createur = null): array
     {
         $where  = ["statut = 'actif'"];
         $params = [];
@@ -477,18 +648,13 @@ class EventRepository
         }
 
         // Conflit de lieu (même salle)
-        $lieuConflict = false;
-        if (!empty($lieu)) {
-            $lieuConflict = true;
-        }
-
+        $lieuConflict = !empty($lieu);
         // Conflit de classe
-        $classeConflict = false;
-        if (!empty($classes)) {
-            $classeConflict = true;
-        }
+        $classeConflict = !empty($classes);
+        // Conflit de professeur (même créateur)
+        $profConflict = !empty($createur);
 
-        if (!$lieuConflict && !$classeConflict) {
+        if (!$lieuConflict && !$classeConflict && !$profConflict) {
             return [];
         }
 
@@ -507,13 +673,38 @@ class EventRepository
             }
             $orConditions[] = "(" . implode(' OR ', $likeConditions) . ")";
         }
+        if ($profConflict) {
+            $orConditions[] = "(createur = ?)";
+            $params[] = $createur;
+        }
 
         $where[] = "(" . implode(' OR ', $orConditions) . ")";
 
         $sql = "SELECT * FROM evenements WHERE " . implode(' AND ', $where) . " ORDER BY date_debut";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $conflicts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Annotate each conflict with the type(s) of conflict detected
+        foreach ($conflicts as &$c) {
+            $types = [];
+            if ($lieuConflict && !empty($c['lieu']) && $c['lieu'] === $lieu) {
+                $types[] = 'lieu';
+            }
+            if ($classeConflict && !empty($c['classes'])) {
+                $cClasses = array_map('trim', explode(',', $c['classes']));
+                $classeList = array_map('trim', explode(',', $classes));
+                if (array_intersect($classeList, $cClasses)) {
+                    $types[] = 'classe';
+                }
+            }
+            if ($profConflict && !empty($c['createur']) && $c['createur'] === $createur) {
+                $types[] = 'professeur';
+            }
+            $c['conflict_types'] = $types;
+        }
+
+        return $conflicts;
     }
 
     /**

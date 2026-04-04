@@ -1,0 +1,10 @@
+# Protect API internals — only index.php should be web-accessible
+<FilesMatch "^(?!index\.php$).*\.php$">
+    Require all denied
+</FilesMatch>
+
+# Block access to sensitive directories
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(Core|Services|Events|Jobs|Providers|Legacy|Security|Middleware|Controllers|Admin|logs)(/|$) - [F,L]
+</IfModule>

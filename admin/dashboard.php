@@ -10,143 +10,52 @@ require_once __DIR__ . '/includes/admin_functions.php';
 requireAuth();
 requireRole('administrateur');
 
-$pdo = getPDO();
-$admin = getCurrentUser();
+$dashService = app('admin_dashboard');
 
-// --- Compteurs principaux ---
-$counts = [];
-try {
-    $counts['eleves']      = (int)$pdo->query("SELECT COUNT(*) FROM eleves WHERE actif = 1")->fetchColumn();
-    $counts['professeurs'] = (int)$pdo->query("SELECT COUNT(*) FROM professeurs WHERE actif = 1")->fetchColumn();
-    $counts['parents']     = (int)$pdo->query("SELECT COUNT(*) FROM parents WHERE actif = 1")->fetchColumn();
-    $counts['vie_scolaire']= (int)$pdo->query("SELECT COUNT(*) FROM vie_scolaire WHERE actif = 1")->fetchColumn();
-} catch (Exception $e) { $counts = array_merge(['eleves'=>0,'professeurs'=>0,'parents'=>0,'vie_scolaire'=>0], $counts); }
+// --- Compteurs principaux (via service) ---
+$userCounts = $dashService->getUserCounts();
+$counts = [
+    'eleves'      => $userCounts['eleves'] ?? 0,
+    'professeurs' => $userCounts['professeurs'] ?? 0,
+    'parents'     => $userCounts['parents'] ?? 0,
+    'vie_scolaire'=> $userCounts['vie_scolaire'] ?? 0,
+];
 
+// --- Absences du jour ---
 try {
-    $counts['absences_today'] = (int)$pdo->query("SELECT COUNT(*) FROM absences WHERE DATE(date_debut) = CURDATE()")->fetchColumn();
-} catch (Exception $e) { $counts['absences_today'] = 0; }
+    $counts['absences_today'] = app('absences')->getStatsToday()['absences'];
+} catch (\Throwable $e) { $counts['absences_today'] = 0; }
 
-try {
-    $counts['reset_pending'] = (int)$pdo->query("SELECT COUNT(*) FROM demandes_reinitialisation WHERE status = 'pending'")->fetchColumn();
-} catch (Exception $e) { $counts['reset_pending'] = 0; }
+// --- Alertes (via service) ---
+$alerts = $dashService->getAlerts();
+$locked = $alerts['locked_accounts'] ?? [];
+$counts['reset_pending'] = $alerts['reset_pending'] ?? 0;
+$counts['justificatifs'] = $alerts['justificatifs_pending'] ?? 0;
 
-try {
-    $counts['justificatifs'] = (int)$pdo->query("SELECT COUNT(*) FROM justificatifs WHERE traite = 0")->fetchColumn();
-} catch (Exception $e) { $counts['justificatifs'] = 0; }
-
-try {
-    $counts['messages_24h'] = (int)$pdo->query("SELECT COUNT(*) FROM messages WHERE is_deleted = 0 AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)")->fetchColumn();
-} catch (Exception $e) { $counts['messages_24h'] = 0; }
-
-// --- Comptes verrouillés ---
-$locked = [];
-try {
-    $stmt = $pdo->query("
-        SELECT identifiant, locked_until, 'eleve' as type FROM eleves WHERE locked_until > NOW()
-        UNION ALL
-        SELECT identifiant, locked_until, 'professeur' FROM professeurs WHERE locked_until > NOW()
-        UNION ALL
-        SELECT identifiant, locked_until, 'parent' FROM parents WHERE locked_until > NOW()
-        UNION ALL
-        SELECT identifiant, locked_until, 'vie_scolaire' FROM vie_scolaire WHERE locked_until > NOW()
-        UNION ALL
-        SELECT identifiant, locked_until, 'administrateur' FROM administrateurs WHERE locked_until > NOW()
-    ");
-    $locked = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {}
+// --- Extra counts (via service) ---
+$extraCounts = $dashService->getExtraCounts();
+$counts['messages_24h'] = $extraCounts['messages_24h'] ?? 0;
 
 // --- Stats supplémentaires ---
 $totalUsers = $counts['eleves'] + $counts['professeurs'] + $counts['parents'] + $counts['vie_scolaire'];
 $totalClasses = 0;
-$totalSessions = 0;
-$totalAdmins = 0;
+$totalAdmins = $userCounts['administrateurs'] ?? 0;
 try {
-    $totalClasses = (int)$pdo->query("SELECT COUNT(*) FROM classes")->fetchColumn();
-    $totalAdmins = (int)$pdo->query("SELECT COUNT(*) FROM administrateurs WHERE actif = 1")->fetchColumn();
-} catch (Exception $e) {}
-try {
-    $totalSessions = (int)$pdo->query("SELECT COUNT(*) FROM session_security WHERE is_active = 1")->fetchColumn();
-} catch (Exception $e) {}
+    $totalClasses = count(app('classes')->getAllWithStats());
+} catch (\Throwable $e) {}
 
-$modulesEnabled = 0;
-$modulesTotal = 0;
-try {
-    $modulesTotal = (int)$pdo->query("SELECT COUNT(*) FROM modules_config")->fetchColumn();
-    $modulesEnabled = (int)$pdo->query("SELECT COUNT(*) FROM modules_config WHERE enabled = 1")->fetchColumn();
-} catch (Exception $e) {}
+// --- Sessions actives (via KPIs) ---
+$kpi = $dashService->getKPIs();
+$totalSessions = $kpi['sessions_actives'] ?? 0;
 
-// --- KPIs avancés ---
-$kpi = ['taux_absenteisme' => null, 'moyenne_generale' => null, 'taux_remplissage_notes' => null, 'ws_status' => 'disabled'];
+// --- Modules ---
+$moduleStats = $dashService->getModuleStats();
+$modulesTotal = $moduleStats['total'] ?? 0;
+$modulesEnabled = $moduleStats['enabled'] ?? 0;
 
-// Taux d'absentéisme (30 derniers jours)
-try {
-    $totalEleves = max($counts['eleves'], 1);
-    $joursOuvres = 20; // approximation mois
-    $absences30j = (int)$pdo->query("SELECT COUNT(DISTINCT id_eleve) FROM absences WHERE date_debut >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)")->fetchColumn();
-    $kpi['taux_absenteisme'] = round(($absences30j / $totalEleves) * 100, 1);
-} catch (Exception $e) {}
-
-// Moyenne générale de l'établissement (trimestre courant)
-try {
-    $mois = (int)date('n');
-    $trimestre = ($mois >= 9 && $mois <= 12) ? 1 : (($mois >= 1 && $mois <= 3) ? 2 : 3);
-    $stmt = $pdo->prepare("SELECT ROUND(AVG(note / note_sur * 20), 2) FROM notes WHERE trimestre = ?");
-    $stmt->execute([$trimestre]);
-    $kpi['moyenne_generale'] = $stmt->fetchColumn() ?: null;
-} catch (Exception $e) {}
-
-// Taux de remplissage des notes (nb profs ayant saisi au moins 1 note / nb profs total)
-try {
-    $stmtProfs = $pdo->prepare("SELECT COUNT(DISTINCT id_professeur) FROM notes WHERE trimestre = ?");
-    $stmtProfs->execute([$trimestre]);
-    $profsAvecNotes = (int)$stmtProfs->fetchColumn();
-    $profsTotal = max($counts['professeurs'], 1);
-    $kpi['taux_remplissage_notes'] = round(($profsAvecNotes / $profsTotal) * 100, 1);
-} catch (Exception $e) {}
-
-// WebSocket status
-try {
-    $wsUrl = function_exists('env') ? env('WEBSOCKET_CLIENT_URL', '') : '';
-    if ($wsUrl) {
-        $ctx = stream_context_create(['http' => ['timeout' => 2, 'method' => 'GET']]);
-        $wsHealth = @file_get_contents(rtrim($wsUrl, '/') . '/health', false, $ctx);
-        $kpi['ws_status'] = $wsHealth !== false ? 'ok' : 'down';
-        if ($wsHealth) {
-            $wsData = json_decode($wsHealth, true);
-            $kpi['ws_connections'] = $wsData['connections'] ?? 0;
-        }
-    }
-} catch (Exception $e) { $kpi['ws_status'] = 'error'; }
-
-// --- Dernières connexions ---
-$recentLogins = [];
-try {
-    $stmt = $pdo->query("
-        (SELECT identifiant, last_login, 'eleve' as type FROM eleves WHERE last_login IS NOT NULL ORDER BY last_login DESC LIMIT 5)
-        UNION ALL
-        (SELECT identifiant, last_login, 'professeur' FROM professeurs WHERE last_login IS NOT NULL ORDER BY last_login DESC LIMIT 5)
-        UNION ALL
-        (SELECT identifiant, last_login, 'parent' FROM parents WHERE last_login IS NOT NULL ORDER BY last_login DESC LIMIT 5)
-        UNION ALL
-        (SELECT identifiant, last_login, 'vie_scolaire' FROM vie_scolaire WHERE last_login IS NOT NULL ORDER BY last_login DESC LIMIT 5)
-        ORDER BY last_login DESC LIMIT 10
-    ");
-    $recentLogins = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {}
-
-// --- Messages récents ---
-$recentMessages = [];
-try {
-    $stmt = $pdo->query("
-        SELECT m.id, m.body, m.sender_type, m.created_at, c.subject
-        FROM messages m
-        JOIN conversations c ON m.conversation_id = c.id
-        WHERE m.is_deleted = 0
-        ORDER BY m.created_at DESC
-        LIMIT 5
-    ");
-    $recentMessages = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {}
+// --- Dernières connexions et messages (via service) ---
+$recentLogins = $dashService->getRecentLogins(10);
+$recentMessages = $dashService->getRecentMessages(5);
 
 $pageTitle = 'Tableau de bord';
 $currentPage = 'dashboard';

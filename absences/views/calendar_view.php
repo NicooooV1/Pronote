@@ -4,9 +4,18 @@
  * Refactorisé : inline CSS (~120 lignes) externalisé vers absences.css.
  * strftime() remplacé par IntlDateFormatter / date().
  * Variables attendues : $absences, $date_debut, $date_fin, $classe, $justifie.
+ *
+ * v2: Color coding by type, rich tooltips, monthly mini-résumé.
  */
 
 $jours_semaine = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
+// Type → CSS modifier class mapping
+$typeColors = [
+    'cours'        => 'type-cours',
+    'demi-journee' => 'type-demi',
+    'journee'      => 'type-journee',
+];
 
 $debut_mois = new DateTime(date('Y-m-01', strtotime($date_debut)));
 $debut_calendrier = clone $debut_mois;
@@ -43,6 +52,30 @@ foreach ($absences as $absence) {
     }
 }
 
+// ── Monthly mini-résumé stats ─────────────────────────────────────────
+$moisPrefix = $debut_mois->format('Y-m');
+$monthlyStats = ['total' => 0, 'justifiees' => 0, 'non_justifiees' => 0, 'eleves_uniques' => [], 'by_type' => []];
+foreach ($absences as $a) {
+    // Only count absences that overlap with the displayed month
+    $aDebut = substr($a['date_debut'], 0, 7);
+    $aFin   = substr($a['date_fin'], 0, 7);
+    if ($aDebut > $moisPrefix && $aFin > $moisPrefix) continue;
+    if ($aDebut < $moisPrefix && $aFin < $moisPrefix) continue;
+
+    $monthlyStats['total']++;
+    if (!empty($a['justifie'])) {
+        $monthlyStats['justifiees']++;
+    } else {
+        $monthlyStats['non_justifiees']++;
+    }
+    if (!empty($a['id_eleve'])) {
+        $monthlyStats['eleves_uniques'][$a['id_eleve']] = true;
+    }
+    $type = $a['type_absence'] ?? 'autre';
+    $monthlyStats['by_type'][$type] = ($monthlyStats['by_type'][$type] ?? 0) + 1;
+}
+$monthlyStats['nb_eleves'] = count($monthlyStats['eleves_uniques']);
+
 // Générer les semaines
 $semaines = [];
 $jour_courant = clone $debut_calendrier;
@@ -60,6 +93,41 @@ while ($jour_courant <= $fin_calendrier) {
     $semaines[] = $semaine;
 }
 ?>
+
+<!-- Mini-résumé mensuel -->
+<div class="calendar-summary">
+    <div class="calendar-summary-stat">
+        <span class="summary-value"><?= $monthlyStats['total'] ?></span>
+        <span class="summary-label">absence<?= $monthlyStats['total'] > 1 ? 's' : '' ?></span>
+    </div>
+    <div class="calendar-summary-stat summary-justified">
+        <span class="summary-value"><?= $monthlyStats['justifiees'] ?></span>
+        <span class="summary-label">justifiée<?= $monthlyStats['justifiees'] > 1 ? 's' : '' ?></span>
+    </div>
+    <div class="calendar-summary-stat summary-unjustified">
+        <span class="summary-value"><?= $monthlyStats['non_justifiees'] ?></span>
+        <span class="summary-label">non justifiée<?= $monthlyStats['non_justifiees'] > 1 ? 's' : '' ?></span>
+    </div>
+    <div class="calendar-summary-stat">
+        <span class="summary-value"><?= $monthlyStats['nb_eleves'] ?></span>
+        <span class="summary-label">élève<?= $monthlyStats['nb_eleves'] > 1 ? 's' : '' ?> concerné<?= $monthlyStats['nb_eleves'] > 1 ? 's' : '' ?></span>
+    </div>
+    <?php if (!empty($monthlyStats['by_type'])): ?>
+    <div class="calendar-summary-types">
+        <?php foreach ($monthlyStats['by_type'] as $type => $count): ?>
+        <span class="summary-type-badge <?= $typeColors[$type] ?? 'type-autre' ?>"><?= AbsenceHelper::typeLabel($type) ?>: <?= $count ?></span>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+</div>
+
+<!-- Légende des couleurs -->
+<div class="calendar-legend">
+    <span class="legend-item"><span class="legend-dot type-cours"></span> Cours</span>
+    <span class="legend-item"><span class="legend-dot type-demi"></span> Demi-journée</span>
+    <span class="legend-item"><span class="legend-dot type-journee"></span> Journée</span>
+    <span class="legend-item"><span class="legend-dot justified"></span> Justifiée</span>
+</div>
 
 <div class="calendar-container">
     <div class="calendar-header">
@@ -94,12 +162,34 @@ while ($jour_courant <= $fin_calendrier) {
                 <?php if ($has_absences): ?>
                 <div class="calendar-absences">
                     <?php foreach (array_slice($jour['absences'], 0, 3) as $absence): ?>
-                    <div class="calendar-absence-item <?= $absence['justifie'] ? 'justified' : '' ?>"
-                         title="<?= htmlspecialchars($absence['prenom'] . ' ' . $absence['nom'] . ' - ' . (new DateTime($absence['date_debut']))->format('H:i') . ' à ' . (new DateTime($absence['date_fin']))->format('H:i')) ?>">
+                    <?php
+                        $absType    = $absence['type_absence'] ?? 'autre';
+                        $typeCss    = $typeColors[$absType] ?? 'type-autre';
+                        $justCss    = !empty($absence['justifie']) ? 'justified' : '';
+                        $motifLabel = AbsenceHelper::motifLabel($absence['motif'] ?? '');
+                        $typeLabel  = AbsenceHelper::typeLabel($absType);
+                        $heureD     = (new DateTime($absence['date_debut']))->format('H:i');
+                        $heureF     = (new DateTime($absence['date_fin']))->format('H:i');
+                        $tooltipParts = [
+                            htmlspecialchars($absence['prenom'] . ' ' . $absence['nom']),
+                            $typeLabel,
+                            $heureD . ' → ' . $heureF,
+                        ];
+                        if ($motifLabel !== 'Non spécifié') {
+                            $tooltipParts[] = 'Motif : ' . $motifLabel;
+                        }
+                        $tooltipParts[] = !empty($absence['justifie']) ? '✓ Justifiée' : '✗ Non justifiée';
+                        $tooltip = implode("\n", $tooltipParts);
+                    ?>
+                    <div class="calendar-absence-item <?= $typeCss ?> <?= $justCss ?>"
+                         title="<?= htmlspecialchars($tooltip) ?>"
+                         data-type="<?= htmlspecialchars($absType) ?>">
                         <?php if (isAdmin() || isVieScolaire() || isTeacher()): ?>
+                            <span class="absence-type-dot <?= $typeCss ?>"></span>
                             <?= htmlspecialchars(substr($absence['prenom'], 0, 1) . '. ' . $absence['nom']) ?>
                         <?php else: ?>
-                            <?= (new DateTime($absence['date_debut']))->format('H:i') ?> - <?= (new DateTime($absence['date_fin']))->format('H:i') ?>
+                            <span class="absence-type-dot <?= $typeCss ?>"></span>
+                            <?= $heureD ?> - <?= $heureF ?>
                         <?php endif; ?>
                     </div>
                     <?php endforeach; ?>

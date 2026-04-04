@@ -5,19 +5,13 @@
  * Utilise EventRepository pour un filtrage unique et centralisé.
  * Aucun SQL en dur, aucun inline JS/CSS, aucun établissement.json.
  */
-ob_start();
+// Boot standardisé — fournit $user, $user_role, $user_fullname, $user_initials, $pdo, $isAdmin, $rootPrefix
+$pageTitle  = 'Agenda';
+$activePage = 'agenda';
+require_once __DIR__ . '/../API/module_boot.php';
 
-require_once __DIR__ . '/../API/core.php';
-$pdo = getPDO();
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/EventRepository.php';
-
-requireAuth();
-
-$user          = getCurrentUser();
-$user_fullname = getUserFullName();
-$user_role     = getUserRole();
-$user_initials = getUserInitials();
 
 $repo = new EventRepository($pdo);
 

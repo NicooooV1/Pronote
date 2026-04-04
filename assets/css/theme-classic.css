@@ -1,104 +1,30 @@
 /**
  * FRONOTE - Classic Theme
  * Flat design with --primary-color: #0f4c81
- * Standalone: requires only base.css
+ * Requires: base.css + tokens.css
  * Includes: layout, sidebar, topbar, cards, buttons, forms, tables,
  *           badges, modals, pagination, responsive, dark mode, admin styles,
  *           datatable components, design system utilities.
+ *
+ * Design tokens (colors, spacing, shadows, typography) live in tokens.css.
+ * This file only overrides tokens when classic theme needs a different value.
  */
 
-/* ===================================================================
-   0. CSS CUSTOM PROPERTIES
-   =================================================================== */
-:root {
-  /* Primary palette */
-  --primary-color: #0f4c81;
-  --primary-light: #2d7dd2;
-  --primary-dark: #0a3962;
-  --background-color: #f5f6fa;
-  --text-color: #333;
-  --text-light: #666;
-  --text-muted: #999;
-  --white: #fff;
-  --border-color: #eee;
-
-  /* Module accent colors */
-  --accent-notes: #ff9500;
-  --accent-agenda: #007aff;
-  --accent-cahier: #34c759;
-  --accent-messagerie: #5856d6;
-  --accent-absences: #ff3b30;
-
-  /* Pastel backgrounds */
-  --pastel-notes: rgba(255, 149, 0, 0.15);
-  --pastel-agenda: rgba(0, 122, 255, 0.15);
-  --pastel-cahier: rgba(52, 199, 89, 0.15);
-  --pastel-messagerie: rgba(88, 86, 214, 0.15);
-  --pastel-absences: rgba(255, 59, 48, 0.15);
-
-  /* Feedback colors */
-  --success-color: #34c759;
-  --warning-color: #ff9500;
-  --error-color: #ff3b30;
-  --info-color: #007aff;
-
-  /* Shadows */
-  --shadow-light: 0 2px 6px rgba(0, 0, 0, 0.05);
-  --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.1);
-
-  /* Spacing */
-  --space-xs: 5px;
-  --space-sm: 10px;
-  --space-md: 20px;
-  --space-lg: 30px;
-  --space-xl: 40px;
-
-  /* Border radii */
-  --radius-sm: 4px;
-  --radius-md: 10px;
-  --radius-lg: 20px;
-  --radius-circle: 50%;
-
-  /* Layout dimensions */
-  --sidebar-width: 260px;
-  --header-height: 70px;
-
-  /* Design System variables (unified) */
-  --ds-primary: #2563eb;
-  --ds-primary-hover: #1d4ed8;
-  --ds-primary-light: #dbeafe;
-  --ds-success: #16a34a;
-  --ds-success-light: #dcfce7;
-  --ds-warning: #d97706;
-  --ds-warning-light: #fef3c7;
-  --ds-danger: #dc2626;
-  --ds-danger-light: #fee2e2;
-  --ds-info: #0891b2;
-  --ds-info-light: #cffafe;
-  --ds-bg: #f8fafc;
-  --ds-surface: #ffffff;
-  --ds-border: #e2e8f0;
-  --ds-text: #1e293b;
-  --ds-text-muted: #64748b;
-  --ds-text-light: #94a3b8;
-  --ds-radius: 8px;
-  --ds-radius-sm: 4px;
-  --ds-radius-lg: 12px;
-  --ds-shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
-  --ds-shadow-md: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
-  --ds-shadow-lg: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -4px rgba(0,0,0,.1);
-  --ds-transition: 0.2s ease;
-  --ds-font: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-}
+/* No :root block — all shared tokens come from tokens.css */
 
 /* ===================================================================
-   1. BASE TYPOGRAPHY & LINKS
+   1. BASE TYPOGRAPHY & LINKS (fluid via tokens.css --font-* scale)
    =================================================================== */
 html, body {
   color: var(--text-color);
   background-color: var(--background-color);
+  font-size: var(--font-base);
 }
+
+h1 { font-size: var(--font-2xl); }
+h2 { font-size: var(--font-xl); }
+h3 { font-size: var(--font-lg); }
+h4, h5, h6 { font-size: var(--font-md); }
 
 a {
   transition: color 0.2s ease, background-color 0.2s ease;
@@ -779,7 +705,7 @@ a {
 }
 
 .page-title h1 {
-  font-size: 26px;
+  font-size: var(--font-xl);
   font-weight: 500;
   color: var(--primary-color);
   margin: 0;
@@ -787,7 +713,7 @@ a {
 .page-title .subtitle {
   color: var(--text-muted);
   margin-top: 2px;
-  font-size: 14px;
+  font-size: var(--font-sm);
 }
 
 .header-actions {
@@ -1753,25 +1679,68 @@ a {
 .toggle-switch input:checked + .toggle-slider { background: var(--success-color); }
 
 /* ===================================================================
-   19. RESPONSIVE
+   19. RESPONSIVE + MOBILE SIDEBAR DRAWER
    =================================================================== */
+
+/* Mobile menu toggle — hidden on desktop */
+.mobile-menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+.mobile-menu-toggle:hover { background: rgba(0,0,0,0.06); }
+
+/* Mobile overlay (created by JS) */
+.mobile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  animation: fadeIn 0.25s ease forwards;
+}
+@keyframes fadeIn { to { opacity: 1; } }
+
 @media (max-width: 900px) {
   .dashboard-row { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {
-  .app-container { flex-direction: column; }
+  /* Show hamburger */
+  .mobile-menu-toggle { display: flex; align-items: center; }
+
+  /* Sidebar becomes off-canvas drawer */
   .sidebar {
-    width: 100%; height: auto;
-    position: relative; overflow: visible;
+    position: fixed;
+    left: 0; top: 0;
+    width: var(--sidebar-width);
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+    overflow-y: auto;
   }
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
   .main-content { margin-left: 0; }
+
   .top-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-md);
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
   }
-  .header-actions { width: 100%; justify-content: flex-end; }
+  .page-title { flex: 1; min-width: 0; }
+  .header-actions { width: auto; justify-content: flex-end; }
+
   .welcome-banner { flex-direction: column; text-align: center; }
   .welcome-logo { margin-top: 15px; }
   .admin-cards-grid {
@@ -1788,6 +1757,16 @@ a {
   .dt-toolbar { flex-direction: column; }
   .dt-pagination { flex-direction: column; text-align: center; }
   .ds-stat-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+
+  /* Tables: horizontal scroll on small screens */
+  .admin-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Cards stack */
+  .dashboard-section { padding: 15px; }
+
+  /* Filters wrap */
+  .filters-bar { flex-direction: column; }
+  .filters-bar input[type="text"] { min-width: 100%; }
 }
 
 @media (max-width: 576px) {
@@ -1797,53 +1776,18 @@ a {
   .footer-copyright { text-align: left; }
   .form-actions { flex-direction: column; }
   .btn { width: 100%; }
+
+  /* Stat cards stack vertically */
+  .stats-bar { flex-direction: column; }
+  .stats-bar .stat-card { min-width: 100%; }
+
+  /* Modal full-width on phone */
+  .modal-box { width: 100%; max-width: 100%; border-radius: var(--radius-md) var(--radius-md) 0 0; }
 }
 
 /* ===================================================================
-   20. DARK THEME
+   20. DARK THEME (component overrides — token variables in tokens.css)
    =================================================================== */
-[data-theme="dark"] {
-  --primary-color: #2563eb;
-  --primary-light: #3b82f6;
-  --primary-dark: #1d4ed8;
-  --background-color: #0f172a;
-  --text-color: #e2e8f0;
-  --text-light: #94a3b8;
-  --text-muted: #64748b;
-  --white: #1e293b;
-  --border-color: #334155;
-
-  --success-color: #22c55e;
-  --warning-color: #f59e0b;
-  --error-color: #ef4444;
-  --info-color: #3b82f6;
-
-  --shadow-light: 0 2px 8px rgba(0,0,0,0.3);
-  --shadow-medium: 0 4px 16px rgba(0,0,0,0.4);
-  --shadow-hover: 0 8px 24px rgba(0,0,0,0.5);
-
-  /* DS dark */
-  --ds-primary: #3b82f6;
-  --ds-primary-hover: #60a5fa;
-  --ds-primary-light: #1e3a5f;
-  --ds-success: #22c55e;
-  --ds-success-light: #14532d;
-  --ds-warning: #f59e0b;
-  --ds-warning-light: #451a03;
-  --ds-danger: #ef4444;
-  --ds-danger-light: #450a0a;
-  --ds-info: #06b6d4;
-  --ds-info-light: #164e63;
-  --ds-bg: #0f172a;
-  --ds-surface: #1e293b;
-  --ds-border: #334155;
-  --ds-text: #f1f5f9;
-  --ds-text-muted: #94a3b8;
-  --ds-text-light: #64748b;
-  --ds-shadow: 0 1px 3px rgba(0,0,0,.3);
-  --ds-shadow-md: 0 4px 6px rgba(0,0,0,.3);
-  --ds-shadow-lg: 0 10px 15px rgba(0,0,0,.4);
-}
 
 [data-theme="dark"] html,
 [data-theme="dark"] body,
@@ -2097,3 +2041,7 @@ a {
 [data-theme="dark"] .selected-user-display {
   background-color: #334155; color: #e2e8f0;
 }
+
+/* Dark mobile menu toggle */
+[data-theme="dark"] .mobile-menu-toggle { color: #e2e8f0; }
+[data-theme="dark"] .mobile-menu-toggle:hover { background: rgba(255,255,255,0.08); }

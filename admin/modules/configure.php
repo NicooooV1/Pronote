@@ -24,9 +24,36 @@ if (!$module) {
 }
 
 // ─── Configuration spécifique par module ─────────────────────────────────────
-// Chaque module peut avoir des champs de configuration spécifiques.
-// On définit ici la structure des champs pour chaque module connu.
-$configFields = getModuleConfigFields($moduleKey);
+// Les champs sont lus depuis module_settings_schema en base de données.
+$configFields = [];
+try {
+    $stmt = $pdo->prepare(
+        'SELECT field_key, field_type, label, default_value, options, hint
+         FROM module_settings_schema WHERE module_key = ? ORDER BY sort_order'
+    );
+    $stmt->execute([$moduleKey]);
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $opts = !empty($row['options']) ? json_decode($row['options'], true) : [];
+        $field = [
+            'key'     => $row['field_key'],
+            'type'    => $row['field_type'],
+            'label'   => $row['label'],
+            'default' => $row['default_value'],
+            'hint'    => $row['hint'] ?? null,
+        ];
+        if ($row['field_type'] === 'select') {
+            $field['options'] = $opts;
+        } elseif ($row['field_type'] === 'number') {
+            $field['min'] = $opts['min'] ?? 0;
+            $field['max'] = $opts['max'] ?? 9999;
+        } elseif ($row['field_type'] === 'checkbox') {
+            $field['checkbox_label'] = $opts['label'] ?? 'Activer';
+        }
+        $configFields[] = $field;
+    }
+} catch (Exception $e) {
+    error_log('configure.php: Cannot load module_settings_schema: ' . $e->getMessage());
+}
 
 // ─── Traitement POST ─────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === ($_SESSION['csrf_token'] ?? '')) {
@@ -92,7 +119,7 @@ if (!isset($_SESSION['csrf_token'])) {
 }
 $csrf_token = $_SESSION['csrf_token'];
 
-include __DIR__ . '/../includes/sub_header.php';
+include __DIR__ . '/../includes/header.php';
 ?>
 
 <style>
@@ -268,74 +295,4 @@ include __DIR__ . '/../includes/sub_header.php';
     <a href="permissions.php" class="btn-back" style="background:#f0f4ff;color:#667eea"><i class="fas fa-shield-alt"></i> Permissions CRUD</a>
 </div>
 
-<?php include __DIR__ . '/../includes/sub_footer.php'; ?>
-
-<?php
-/**
- * Définit les champs de configuration pour chaque module.
- * Retourne un tableau de champs pour le module donné.
- */
-function getModuleConfigFields(string $moduleKey): array {
-    $fields = [
-        'notes' => [
-            ['key' => 'note_max', 'label' => 'Note maximale par défaut', 'type' => 'number', 'default' => 20, 'min' => 1, 'max' => 100],
-            ['key' => 'show_class_average', 'label' => 'Moyenne de classe', 'type' => 'checkbox', 'default' => true, 'checkbox_label' => 'Afficher la moyenne de classe'],
-            ['key' => 'show_rank', 'label' => 'Classement', 'type' => 'checkbox', 'default' => false, 'checkbox_label' => 'Afficher le classement'],
-            ['key' => 'decimal_places', 'label' => 'Décimales affichées', 'type' => 'number', 'default' => 2, 'min' => 0, 'max' => 4],
-        ],
-        'absences' => [
-            ['key' => 'auto_notify_parents', 'label' => 'Notification parents', 'type' => 'checkbox', 'default' => true, 'checkbox_label' => 'Notifier les parents automatiquement par email'],
-            ['key' => 'justification_delay_days', 'label' => 'Délai de justification (jours)', 'type' => 'number', 'default' => 15, 'min' => 1, 'max' => 90],
-            ['key' => 'allowed_file_types', 'label' => 'Types de fichiers acceptés', 'type' => 'text', 'default' => 'pdf,jpg,png', 'hint' => 'Extensions séparées par des virgules'],
-        ],
-        'bulletins' => [
-            ['key' => 'show_absences', 'label' => 'Absences sur bulletin', 'type' => 'checkbox', 'default' => true, 'checkbox_label' => 'Afficher le nombre d\'absences'],
-            ['key' => 'show_retards', 'label' => 'Retards sur bulletin', 'type' => 'checkbox', 'default' => true, 'checkbox_label' => 'Afficher le nombre de retards'],
-            ['key' => 'appreciation_max_length', 'label' => 'Longueur max appréciation', 'type' => 'number', 'default' => 500, 'min' => 100, 'max' => 2000],
-            ['key' => 'pdf_template_type', 'label' => 'Template PDF', 'type' => 'select', 'default' => 'standard', 'options' => ['standard' => 'Standard', 'minimal' => 'Minimaliste', 'detailed' => 'Détaillé']],
-        ],
-        'messagerie' => [
-            ['key' => 'max_message_length', 'label' => 'Longueur max message', 'type' => 'number', 'default' => 5000, 'min' => 500, 'max' => 50000],
-            ['key' => 'allow_attachments', 'label' => 'Pièces jointes', 'type' => 'checkbox', 'default' => true, 'checkbox_label' => 'Autoriser les pièces jointes'],
-            ['key' => 'max_attachment_size_mb', 'label' => 'Taille max pièce jointe (Mo)', 'type' => 'number', 'default' => 5, 'min' => 1, 'max' => 50],
-            ['key' => 'email_notification', 'label' => 'Notification email', 'type' => 'checkbox', 'default' => false, 'checkbox_label' => 'Envoyer un email pour chaque nouveau message'],
-        ],
-        'emploi_du_temps' => [
-            ['key' => 'start_hour', 'label' => 'Heure de début', 'type' => 'text', 'default' => '08:00', 'hint' => 'Format HH:MM'],
-            ['key' => 'end_hour', 'label' => 'Heure de fin', 'type' => 'text', 'default' => '18:00', 'hint' => 'Format HH:MM'],
-            ['key' => 'slot_duration_minutes', 'label' => 'Durée d\'un créneau (min)', 'type' => 'number', 'default' => 60, 'min' => 15, 'max' => 120],
-            ['key' => 'show_weekends', 'label' => 'Week-ends', 'type' => 'checkbox', 'default' => false, 'checkbox_label' => 'Afficher samedi et dimanche'],
-        ],
-        'devoirs' => [
-            ['key' => 'max_file_size_mb', 'label' => 'Taille max rendu (Mo)', 'type' => 'number', 'default' => 10, 'min' => 1, 'max' => 100],
-            ['key' => 'allowed_extensions', 'label' => 'Extensions autorisées', 'type' => 'text', 'default' => 'pdf,doc,docx,odt,jpg,png', 'hint' => 'Extensions séparées par des virgules'],
-            ['key' => 'late_submission', 'label' => 'Rendus en retard', 'type' => 'checkbox', 'default' => false, 'checkbox_label' => 'Autoriser les rendus après la date limite'],
-        ],
-        'reunions' => [
-            ['key' => 'slot_duration_minutes', 'label' => 'Durée créneau par défaut (min)', 'type' => 'number', 'default' => 15, 'min' => 5, 'max' => 60],
-            ['key' => 'max_slots_per_parent', 'label' => 'Max créneaux par parent', 'type' => 'number', 'default' => 5, 'min' => 1, 'max' => 20],
-            ['key' => 'send_confirmation_email', 'label' => 'Email de confirmation', 'type' => 'checkbox', 'default' => true, 'checkbox_label' => 'Envoyer un email de confirmation aux parents'],
-        ],
-        'discipline' => [
-            ['key' => 'auto_notify_parents', 'label' => 'Notification parents', 'type' => 'checkbox', 'default' => true, 'checkbox_label' => 'Notifier les parents des incidents'],
-            ['key' => 'penalty_levels', 'label' => 'Niveaux de sanction', 'type' => 'textarea', 'default' => "Avertissement\nBlâme\nExclusion temporaire\nExclusion définitive", 'hint' => 'Un niveau par ligne'],
-        ],
-        'inscriptions' => [
-            ['key' => 'open_period', 'label' => 'Période d\'inscription ouverte', 'type' => 'checkbox', 'default' => false, 'checkbox_label' => 'Les inscriptions en ligne sont ouvertes'],
-            ['key' => 'require_documents', 'label' => 'Documents obligatoires', 'type' => 'text', 'default' => 'Carte identité,Justificatif domicile,Photo', 'hint' => 'Séparés par des virgules'],
-        ],
-        'periscolaire' => [
-            ['key' => 'cantine_enabled', 'label' => 'Cantine', 'type' => 'checkbox', 'default' => true, 'checkbox_label' => 'Activer le module cantine'],
-            ['key' => 'garderie_enabled', 'label' => 'Garderie', 'type' => 'checkbox', 'default' => true, 'checkbox_label' => 'Activer la garderie'],
-            ['key' => 'tarif_cantine', 'label' => 'Tarif cantine par défaut (€)', 'type' => 'number', 'default' => 3, 'min' => 0, 'max' => 50],
-        ],
-        'facturation' => [
-            ['key' => 'currency', 'label' => 'Devise', 'type' => 'select', 'default' => 'EUR', 'options' => ['EUR' => 'Euro (€)', 'USD' => 'Dollar ($)', 'GBP' => 'Livre (£)', 'CHF' => 'Franc suisse (CHF)']],
-            ['key' => 'tva_rate', 'label' => 'Taux TVA par défaut (%)', 'type' => 'number', 'default' => 0, 'min' => 0, 'max' => 30],
-            ['key' => 'payment_reminder_days', 'label' => 'Rappel paiement (jours)', 'type' => 'number', 'default' => 30, 'min' => 7, 'max' => 90],
-        ],
-    ];
-
-    return $fields[$moduleKey] ?? [];
-}
-?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>

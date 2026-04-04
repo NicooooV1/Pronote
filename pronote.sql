@@ -26,6 +26,29 @@ SET SESSION FOREIGN_KEY_CHECKS = 0;
 -- ============================================================
 DROP VIEW  IF EXISTS `v_users`;
 
+DROP TABLE IF EXISTS `event_exceptions`;
+DROP TABLE IF EXISTS `evenement_exceptions`;
+
+-- Tables ajoutées (phases 2+)
+DROP TABLE IF EXISTS `app_metrics`;
+DROP TABLE IF EXISTS `module_migrations`;
+DROP TABLE IF EXISTS `module_settings_schema`;
+DROP TABLE IF EXISTS `job_queue`;
+DROP TABLE IF EXISTS `oauth_bindings`;
+DROP TABLE IF EXISTS `webhooks`;
+DROP TABLE IF EXISTS `api_tokens`;
+DROP TABLE IF EXISTS `feature_flags`;
+DROP TABLE IF EXISTS `translations`;
+DROP TABLE IF EXISTS `dashboard_layouts`;
+DROP TABLE IF EXISTS `user_dashboard_config`;
+DROP TABLE IF EXISTS `dashboard_widgets`;
+DROP TABLE IF EXISTS `import_export_logs`;
+DROP TABLE IF EXISTS `user_profiles`;
+DROP TABLE IF EXISTS `technicien_audit_log`;
+DROP TABLE IF EXISTS `technicien_access`;
+DROP TABLE IF EXISTS `module_permissions`;
+DROP TABLE IF EXISTS `rbac_permissions`;
+
 -- Système : modules, SMTP, PDF templates
 DROP TABLE IF EXISTS `pdf_templates`;
 DROP TABLE IF EXISTS `modules_config`;
@@ -229,7 +252,8 @@ CREATE TABLE `classes` (
   `actif` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`),
   UNIQUE KEY `nom_annee` (`nom`, `annee_scolaire`),
-  KEY `idx_professeur_principal` (`professeur_principal_id`)
+  KEY `idx_professeur_principal` (`professeur_principal_id`),
+  CONSTRAINT `fk_classes_prof_principal` FOREIGN KEY (`professeur_principal_id`) REFERENCES `professeurs` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
@@ -1019,7 +1043,9 @@ CREATE TABLE `annonces` (
   `cible_roles` varchar(255) DEFAULT NULL COMMENT 'JSON: ["eleve","parent","professeur"]',
   `cible_classes` varchar(255) DEFAULT NULL COMMENT 'JSON: [1,2,3] (ids classes)',
   `cible_niveaux` varchar(255) DEFAULT NULL COMMENT 'JSON: ["6eme","5eme"]',
+  `cible_matieres` varchar(255) DEFAULT NULL COMMENT 'JSON: [1,2,3] (ids matieres)',
   `publie` tinyint(1) NOT NULL DEFAULT 1,
+  `notified` tinyint(1) NOT NULL DEFAULT 0,
   `epingle` tinyint(1) NOT NULL DEFAULT 0,
   `date_publication` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `date_expiration` datetime DEFAULT NULL,
@@ -1040,6 +1066,21 @@ CREATE TABLE `annonces_lues` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_lecture` (`annonce_id`, `user_id`, `user_type`),
   CONSTRAINT `fk_al_annonce` FOREIGN KEY (`annonce_id`) REFERENCES `annonces` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `annonce_attachments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `annonce_id` int(11) NOT NULL,
+  `nom_fichier` varchar(255) NOT NULL COMMENT 'Stored filename (hashed)',
+  `nom_original` varchar(255) NOT NULL COMMENT 'Original upload filename',
+  `taille` int(11) NOT NULL DEFAULT 0 COMMENT 'File size in bytes',
+  `mime_type` varchar(100) NOT NULL DEFAULT 'application/octet-stream',
+  `uploaded_by` int(11) DEFAULT NULL,
+  `uploaded_by_type` varchar(20) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_attach_annonce` (`annonce_id`),
+  CONSTRAINT `fk_attach_annonce` FOREIGN KEY (`annonce_id`) REFERENCES `annonces` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `sondages` (
@@ -1233,7 +1274,7 @@ CREATE TABLE `user_settings` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `user_type` varchar(20) NOT NULL,
-  `theme` varchar(20) NOT NULL DEFAULT 'light',
+  `theme` varchar(20) NOT NULL DEFAULT 'classic',
   `langue` varchar(5) NOT NULL DEFAULT 'fr',
   `notifications_email` tinyint(1) NOT NULL DEFAULT 1,
   `notifications_web` tinyint(1) NOT NULL DEFAULT 1,
@@ -2584,6 +2625,26 @@ CREATE TABLE `association_tresorerie` (
 
 ALTER TABLE `evenements` ADD COLUMN `rrule` varchar(500) DEFAULT NULL COMMENT 'RFC5545 RRULE ex: FREQ=WEEKLY;BYDAY=MO,WE;UNTIL=20260630' AFTER `date_fin`;
 ALTER TABLE `evenements` ADD COLUMN `recurrence_parent_id` int(11) DEFAULT NULL COMMENT 'ID événement parent si occurrence' AFTER `rrule`;
+ALTER TABLE `evenements` ADD COLUMN `exdate` text DEFAULT NULL COMMENT 'Comma-separated YYYYMMDD dates excluded from recurrence' AFTER `recurrence_parent_id`;
+
+-- Single-occurrence exceptions for recurring events
+CREATE TABLE `evenement_exceptions` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `parent_event_id` int(11) NOT NULL,
+  `original_date` date NOT NULL COMMENT 'The date of the occurrence being modified/deleted',
+  `type` enum('modified','deleted') NOT NULL DEFAULT 'modified',
+  `titre` varchar(100) DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `date_debut` datetime DEFAULT NULL,
+  `date_fin` datetime DEFAULT NULL,
+  `lieu` varchar(100) DEFAULT NULL,
+  `statut` varchar(30) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_parent_date` (`parent_event_id`, `original_date`),
+  KEY `idx_parent` (`parent_event_id`),
+  CONSTRAINT `fk_exception_parent` FOREIGN KEY (`parent_event_id`) REFERENCES `evenements` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
 -- 6 nouveaux modules dans modules_config
@@ -2615,7 +2676,7 @@ CREATE OR REPLACE VIEW `v_users` AS
 -- ============================================================
 -- M99 : RBAC Permissions dynamiques
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `rbac_permissions` (
+CREATE TABLE `rbac_permissions` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `role` VARCHAR(50) NOT NULL,
   `permission` VARCHAR(100) NOT NULL,
@@ -2629,7 +2690,7 @@ CREATE TABLE IF NOT EXISTS `rbac_permissions` (
 -- ============================================================
 -- M100 : Permissions CRUD par module (admin)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `module_permissions` (
+CREATE TABLE `module_permissions` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `module_key` VARCHAR(50) NOT NULL,
   `role` VARCHAR(50) NOT NULL,
@@ -2675,7 +2736,7 @@ INSERT INTO `module_permissions` (`module_key`, `role`, `can_view`, `can_create`
 -- ============================================================
 -- M101 : Accès technicien temporaire
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `technicien_access` (
+CREATE TABLE `technicien_access` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `nom` VARCHAR(100) NOT NULL,
   `prenom` VARCHAR(100) NOT NULL,
@@ -2701,7 +2762,7 @@ CREATE TABLE IF NOT EXISTS `technicien_access` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Log des actions technicien (audit renforcé)
-CREATE TABLE IF NOT EXISTS `technicien_audit_log` (
+CREATE TABLE `technicien_audit_log` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `technicien_id` INT NOT NULL,
   `action` VARCHAR(100) NOT NULL,
@@ -2718,7 +2779,7 @@ CREATE TABLE IF NOT EXISTS `technicien_audit_log` (
 -- ============================================================
 -- M102 : Profil utilisateur étendu (citation, réseaux sociaux, photo)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `user_profiles` (
+CREATE TABLE `user_profiles` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NOT NULL,
   `user_type` VARCHAR(20) NOT NULL,
@@ -2745,7 +2806,7 @@ CREATE TABLE IF NOT EXISTS `user_profiles` (
 -- ============================================================
 -- M103 : Configuration import/export
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `import_export_logs` (
+CREATE TABLE `import_export_logs` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `type` ENUM('import','export') NOT NULL,
   `cible` VARCHAR(50) NOT NULL COMMENT 'users, config, notes, absences, etc.',
@@ -2771,7 +2832,7 @@ CREATE TABLE IF NOT EXISTS `import_export_logs` (
 -- ============================================================
 -- M104 : Widgets personnalisables accueil
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `dashboard_widgets` (
+CREATE TABLE `dashboard_widgets` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `widget_key` VARCHAR(50) NOT NULL COMMENT 'identifiant unique du widget',
   `label` VARCHAR(100) NOT NULL,
@@ -2791,7 +2852,7 @@ CREATE TABLE IF NOT EXISTS `dashboard_widgets` (
   UNIQUE KEY `uk_widget_key` (`widget_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `user_dashboard_config` (
+CREATE TABLE `user_dashboard_config` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NOT NULL,
   `user_type` VARCHAR(20) NOT NULL,
@@ -2808,6 +2869,21 @@ CREATE TABLE IF NOT EXISTS `user_dashboard_config` (
   KEY `idx_user` (`user_id`, `user_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Named dashboard layouts per user
+CREATE TABLE `dashboard_layouts` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `user_type` VARCHAR(20) NOT NULL,
+  `name` VARCHAR(100) NOT NULL COMMENT 'Layout name (e.g. "Compact", "Full")',
+  `columns` INT NOT NULL DEFAULT 4 COMMENT 'Grid column count (2, 3, or 4)',
+  `widgets_config` JSON NOT NULL COMMENT 'Array of {widget_key, position_x, position_y, width, height, visible, config}',
+  `is_active` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Currently active layout',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  KEY `idx_layout_user` (`user_id`, `user_type`),
+  UNIQUE KEY `uk_layout_name` (`user_id`, `user_type`, `name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Widgets par défaut
 INSERT INTO `dashboard_widgets` (`widget_key`, `label`, `description`, `icon`, `type`, `module_key`, `roles_autorises`, `default_width`, `is_default`, `sort_order`) VALUES
 ('prochains_evenements', 'Prochains événements', 'Événements à venir cette semaine', 'fas fa-calendar', 'list', 'agenda', NULL, 2, 1, 10),
@@ -2819,14 +2895,20 @@ INSERT INTO `dashboard_widgets` (`widget_key`, `label`, `description`, `icon`, `
 ('emploi_du_temps_jour', 'Emploi du temps',        'Cours du jour',                    'fas fa-table', 'calendar', 'emploi_du_temps', '["eleve","professeur"]', 2, 1, 15),
 ('raccourcis',           'Accès rapides',          'Raccourcis vers vos modules favoris', 'fas fa-star', 'shortcut', NULL, NULL, 2, 1, 60),
 ('annonces_recentes',    'Annonces récentes',     'Dernières annonces et sondages',    'fas fa-bullhorn', 'list', 'annonces', NULL, 2, 1, 25),
-('reunions_a_venir',     'Réunions à venir',      'Prochaines réunions planifiées',    'fas fa-handshake', 'list', 'reunions', '["professeur","parent","administrateur"]', 2, 0, 70);
+('reunions_a_venir',     'Réunions à venir',      'Prochaines réunions planifiées',    'fas fa-handshake', 'list', 'reunions', '["professeur","parent","administrateur"]', 2, 0, 70),
+('bulletins_recents',    'Bulletins récents',     'Derniers bulletins disponibles',    'fas fa-file-alt', 'list', 'bulletins', '["eleve","parent"]', 2, 0, 35),
+('discipline_recente',   'Discipline',            'Derniers incidents et suivi',       'fas fa-gavel', 'list', 'discipline', '["administrateur","vie_scolaire","professeur"]', 2, 0, 55),
+('vie_scolaire_stats',   'Vie scolaire',          'Absences, retards, incidents du jour', 'fas fa-user-graduate', 'stats', 'vie_scolaire', '["administrateur","vie_scolaire"]', 4, 1, 5),
+('cantine_menu_jour',    'Menu du jour',           'Menu de la cantine',                'fas fa-utensils', 'list', 'cantine', NULL, 2, 0, 60),
+('competences_recentes', 'Compétences récentes',  'Dernières évaluations',             'fas fa-award', 'list', 'competences', '["eleve","parent","professeur"]', 2, 0, 40),
+('support_tickets',      'Tickets ouverts',        'Tickets de support en cours',       'fas fa-life-ring', 'list', 'support', NULL, 2, 0, 75);
 
 -- ============================================================
 -- INTERNATIONALISATION (i18n)
 -- ============================================================
 
 -- Table de traductions pour le contenu dynamique en base
-CREATE TABLE IF NOT EXISTS `translations` (
+CREATE TABLE `translations` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `translatable_type` varchar(50) NOT NULL COMMENT 'Type d''entité (module, widget, announcement)',
   `translatable_id` int(11) NOT NULL COMMENT 'ID de l''entité traduite',
@@ -2846,7 +2928,7 @@ ALTER TABLE `etablissement_info`
 -- FEATURE FLAGS (multi-établissement)
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS `feature_flags` (
+CREATE TABLE `feature_flags` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `flag_key` varchar(100) NOT NULL,
   `label` varchar(200) NOT NULL,
@@ -2873,13 +2955,17 @@ INSERT INTO `feature_flags` (`flag_key`, `label`, `establishment_types`, `enable
 ('cantine.enabled',           'Cantine',                     NULL,                          1),
 ('periscolaire.enabled',      'Périscolaire',                '["college"]',                 1),
 ('competences.socle',         'Socle commun de compétences', '["college"]',                 1),
-('competences.referentiel',   'Référentiel de compétences',  '["lycee","superieur"]',       1);
+('competences.referentiel',   'Référentiel de compétences',  '["lycee","superieur"]',       1),
+('absences.notify_parents',   'Notification email parents pour les absences', NULL,          1),
+('annonces.sondages',         'Sondages dans les annonces',  NULL,                          1),
+('agenda.recurrence',         'Événements récurrents',       NULL,                          1),
+('annonces.attachments',      'Pièces jointes dans les annonces', NULL,                     1);
 
 -- ============================================================
 -- API TOKENS (authentification externe)
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS `api_tokens` (
+CREATE TABLE `api_tokens` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `user_type` varchar(20) NOT NULL,
@@ -2898,7 +2984,7 @@ CREATE TABLE IF NOT EXISTS `api_tokens` (
 -- WEBHOOKS (intégrations externes)
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS `webhooks` (
+CREATE TABLE `webhooks` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `url` varchar(500) NOT NULL,
   `events` JSON NOT NULL COMMENT 'Événements déclencheurs',
@@ -2918,7 +3004,7 @@ ALTER TABLE `modules_config`
 -- ============================================================
 -- OAuth SSO bindings
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `oauth_bindings` (
+CREATE TABLE `oauth_bindings` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NOT NULL,
   `user_type` VARCHAR(20) NOT NULL,
@@ -2945,7 +3031,7 @@ ALTER TABLE `audit_log`
 -- ============================================================
 -- Job Queue (G4) — file d'attente asynchrone en base
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `job_queue` (
+CREATE TABLE `job_queue` (
   `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
   `handler` VARCHAR(255) NOT NULL COMMENT 'Classe ou callable du job',
   `payload` JSON NOT NULL,
@@ -2963,7 +3049,7 @@ CREATE TABLE IF NOT EXISTS `job_queue` (
 -- ============================================================
 -- Module Settings Schema (D5) — champs de configuration déclaratifs par module
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `module_settings_schema` (
+CREATE TABLE `module_settings_schema` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `module_key` VARCHAR(50) NOT NULL,
   `field_key` VARCHAR(50) NOT NULL,
@@ -2979,7 +3065,7 @@ CREATE TABLE IF NOT EXISTS `module_settings_schema` (
 -- ============================================================
 -- Module Migrations (I1) — suivi des migrations SQL par module
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `module_migrations` (
+CREATE TABLE `module_migrations` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `module_key` VARCHAR(50) NOT NULL,
   `migration_file` VARCHAR(100) NOT NULL,
@@ -2990,7 +3076,7 @@ CREATE TABLE IF NOT EXISTS `module_migrations` (
 -- ============================================================
 -- App Metrics (J2) — métriques applicatives
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `app_metrics` (
+CREATE TABLE `app_metrics` (
   `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
   `metric_key` VARCHAR(100) NOT NULL,
   `metric_value` DECIMAL(12,2) NOT NULL,
@@ -3004,6 +3090,267 @@ CREATE TABLE IF NOT EXISTS `app_metrics` (
 ALTER TABLE `modules_config`
   ADD COLUMN IF NOT EXISTS `route_path` VARCHAR(100) DEFAULT NULL AFTER `icon`,
   ADD COLUMN IF NOT EXISTS `sidebar_sort` INT NOT NULL DEFAULT 100 AFTER `route_path`;
+
+-- (Table event_exceptions supprimée — doublon de evenement_exceptions définie plus haut)
+
+-- ============================================================
+-- Seeds : modules_config.route_path — chemins de routage par module
+-- ============================================================
+INSERT INTO `modules_config` (`module_key`, `label`, `icon`, `category`, `route_path`)
+VALUES
+  ('accueil','Accueil','fas fa-home','navigation','accueil/accueil.php'),
+  ('notes','Notes','fas fa-star','scolaire','notes/notes.php'),
+  ('agenda','Agenda','fas fa-calendar','scolaire','agenda/agenda.php'),
+  ('cahierdetextes','Cahier de textes','fas fa-book','scolaire','cahierdetextes/cahierdetextes.php'),
+  ('messagerie','Messagerie','fas fa-envelope','communication','messagerie/index.php'),
+  ('annonces','Annonces','fas fa-bullhorn','communication','annonces/annonces.php'),
+  ('emploi_du_temps','Emploi du temps','fas fa-clock','scolaire','emploi_du_temps/emploi_du_temps.php'),
+  ('absences','Absences','fas fa-user-times','vie_scolaire','absences/absences.php'),
+  ('appel','Appel','fas fa-check-square','vie_scolaire','appel/appel.php'),
+  ('discipline','Discipline','fas fa-gavel','vie_scolaire','discipline/incidents.php'),
+  ('vie_scolaire','Vie scolaire','fas fa-school','vie_scolaire','vie_scolaire/dashboard.php'),
+  ('reporting','Reporting','fas fa-chart-bar','systeme','reporting/reporting.php'),
+  ('bulletins','Bulletins','fas fa-file-alt','scolaire','bulletins/bulletins.php'),
+  ('devoirs','Devoirs','fas fa-tasks','scolaire','devoirs/mes_devoirs.php'),
+  ('competences','Compétences','fas fa-award','scolaire','competences/competences.php'),
+  ('trombinoscope','Trombinoscope','fas fa-id-badge','etablissement','trombinoscope/trombinoscope.php'),
+  ('documents','Documents','fas fa-folder','etablissement','documents/documents.php'),
+  ('notifications','Notifications','fas fa-bell','communication','notifications/notifications.php'),
+  ('reunions','Réunions','fas fa-handshake','etablissement','reunions/reunions.php'),
+  ('bibliotheque','Bibliothèque','fas fa-book-open','etablissement','bibliotheque/catalogue.php'),
+  ('clubs','Clubs','fas fa-users','etablissement','clubs/clubs.php'),
+  ('orientation','Orientation','fas fa-compass','scolaire','orientation/orientation.php'),
+  ('inscriptions','Inscriptions','fas fa-user-plus','etablissement','inscriptions/inscriptions.php'),
+  ('signalements','Signalements','fas fa-exclamation-triangle','vie_scolaire','signalements/signaler.php'),
+  ('infirmerie','Infirmerie','fas fa-heartbeat','sante','infirmerie/infirmerie.php'),
+  ('examens','Examens','fas fa-pencil-alt','scolaire','examens/examens.php'),
+  ('ressources','Ressources','fas fa-archive','etablissement','ressources/ressources.php'),
+  ('diplomes','Diplômes','fas fa-certificate','etablissement','diplomes/diplomes.php'),
+  ('periscolaire','Périscolaire','fas fa-child','logistique','periscolaire/services.php'),
+  ('cantine','Cantine','fas fa-utensils','logistique','cantine/menus.php'),
+  ('internat','Internat','fas fa-bed','logistique','internat/chambres.php'),
+  ('garderie','Garderie','fas fa-baby','logistique','garderie/creneaux.php'),
+  ('stages','Stages','fas fa-briefcase','scolaire','stages/stages.php'),
+  ('transports','Transports','fas fa-bus','logistique','transports/lignes.php'),
+  ('facturation','Facturation','fas fa-receipt','etablissement','facturation/factures.php'),
+  ('salles','Salles','fas fa-door-open','logistique','salles/reservations.php'),
+  ('personnel','Personnel','fas fa-id-card','etablissement','personnel/absences.php'),
+  ('besoins','Besoins éducatifs','fas fa-hands-helping','vie_scolaire','besoins/besoins.php'),
+  ('archivage','Archivage','fas fa-archive','systeme','archivage/archivage.php'),
+  ('rgpd','RGPD','fas fa-shield-alt','systeme','rgpd/demandes.php'),
+  ('support','Support','fas fa-life-ring','systeme','support/aide.php'),
+  ('projets_pedagogiques','Projets pédagogiques','fas fa-project-diagram','scolaire','projets_pedagogiques/projets.php'),
+  ('parcours_educatifs','Parcours éducatifs','fas fa-road','scolaire','parcours_educatifs/parcours.php'),
+  ('vie_associative','Vie associative','fas fa-heart','etablissement','vie_associative/associations.php'),
+  ('parametres','Paramètres','fas fa-cog','systeme','parametres/parametres.php'),
+  ('profil','Profil','fas fa-user','systeme','profil/index.php')
+ON DUPLICATE KEY UPDATE route_path = VALUES(route_path);
+
+-- ============================================================
+-- Seeds : rbac_permissions — matrice RBAC initiale depuis RBAC::PERMISSIONS
+-- ============================================================
+INSERT IGNORE INTO `rbac_permissions` (`role`, `permission`, `granted`) VALUES
+-- admin.* (administrateur only)
+('administrateur','admin.access',1),('administrateur','admin.users',1),
+('administrateur','admin.users.create',1),('administrateur','admin.users.delete',1),
+('administrateur','admin.users.import',1),('administrateur','admin.scolaire',1),
+('administrateur','admin.modules',1),('administrateur','admin.systeme',1),
+('administrateur','admin.etablissement',1),('administrateur','admin.messagerie',1),
+('administrateur','admin.classes',1),
+-- notes
+('administrateur','notes.view',1),('professeur','notes.view',1),('vie_scolaire','notes.view',1),('eleve','notes.view',1),('parent','notes.view',1),
+('administrateur','notes.manage',1),('professeur','notes.manage',1),('vie_scolaire','notes.manage',1),
+('administrateur','notes.edit',1),('professeur','notes.edit',1),
+('administrateur','notes.delete',1),('administrateur','notes.lock',1),
+-- absences
+('administrateur','absences.view',1),('professeur','absences.view',1),('vie_scolaire','absences.view',1),('eleve','absences.view',1),('parent','absences.view',1),
+('administrateur','absences.manage',1),('professeur','absences.manage',1),('vie_scolaire','absences.manage',1),
+('administrateur','absences.validate',1),('vie_scolaire','absences.validate',1),
+('eleve','absences.justify',1),('parent','absences.justify',1),
+('administrateur','absences.stats',1),('vie_scolaire','absences.stats',1),
+('administrateur','absences.export',1),('vie_scolaire','absences.export',1),
+-- appel
+('administrateur','appel.view',1),('professeur','appel.view',1),('vie_scolaire','appel.view',1),
+('administrateur','appel.manage',1),('professeur','appel.manage',1),('vie_scolaire','appel.manage',1),
+('administrateur','appel.correction',1),('professeur','appel.correction',1),
+-- devoirs
+('administrateur','devoirs.view',1),('professeur','devoirs.view',1),('eleve','devoirs.view',1),('parent','devoirs.view',1),
+('administrateur','devoirs.manage',1),('professeur','devoirs.manage',1),
+('eleve','devoirs.submit',1),
+('administrateur','devoirs.correct',1),('professeur','devoirs.correct',1),
+-- edt
+('administrateur','edt.view',1),('professeur','edt.view',1),('vie_scolaire','edt.view',1),('eleve','edt.view',1),('parent','edt.view',1),
+('administrateur','edt.manage',1),('vie_scolaire','edt.manage',1),
+-- discipline
+('administrateur','discipline.view',1),('vie_scolaire','discipline.view',1),('professeur','discipline.view',1),
+('administrateur','discipline.manage',1),('vie_scolaire','discipline.manage',1),
+('administrateur','discipline.signal',1),('professeur','discipline.signal',1),('vie_scolaire','discipline.signal',1),
+-- bulletins
+('administrateur','bulletins.view',1),('professeur','bulletins.view',1),('vie_scolaire','bulletins.view',1),('eleve','bulletins.view',1),('parent','bulletins.view',1),
+('administrateur','bulletins.manage',1),('professeur','bulletins.manage',1),('vie_scolaire','bulletins.manage',1),
+('administrateur','bulletins.generate',1),('vie_scolaire','bulletins.generate',1),
+-- competences
+('administrateur','competences.view',1),('professeur','competences.view',1),('vie_scolaire','competences.view',1),('eleve','competences.view',1),('parent','competences.view',1),
+('administrateur','competences.manage',1),('professeur','competences.manage',1),
+-- annonces
+('administrateur','annonces.view',1),('professeur','annonces.view',1),('vie_scolaire','annonces.view',1),('eleve','annonces.view',1),('parent','annonces.view',1),
+('administrateur','annonces.manage',1),('professeur','annonces.manage',1),('vie_scolaire','annonces.manage',1),
+-- agenda
+('administrateur','agenda.view',1),('professeur','agenda.view',1),('vie_scolaire','agenda.view',1),('eleve','agenda.view',1),('parent','agenda.view',1),
+('administrateur','agenda.manage',1),('professeur','agenda.manage',1),('vie_scolaire','agenda.manage',1),
+-- messagerie
+('administrateur','messagerie.view',1),('professeur','messagerie.view',1),('vie_scolaire','messagerie.view',1),('eleve','messagerie.view',1),('parent','messagerie.view',1),
+('administrateur','messagerie.send',1),('professeur','messagerie.send',1),('vie_scolaire','messagerie.send',1),('eleve','messagerie.send',1),('parent','messagerie.send',1),
+-- documents
+('administrateur','documents.view',1),('professeur','documents.view',1),('vie_scolaire','documents.view',1),('eleve','documents.view',1),('parent','documents.view',1),
+('administrateur','documents.manage',1),('professeur','documents.manage',1),('vie_scolaire','documents.manage',1),
+-- cahierdetextes
+('administrateur','cahierdetextes.view',1),('professeur','cahierdetextes.view',1),('vie_scolaire','cahierdetextes.view',1),('eleve','cahierdetextes.view',1),('parent','cahierdetextes.view',1),
+('administrateur','cahierdetextes.manage',1),('professeur','cahierdetextes.manage',1),
+-- reunions
+('administrateur','reunions.view',1),('professeur','reunions.view',1),('vie_scolaire','reunions.view',1),('parent','reunions.view',1),
+('administrateur','reunions.manage',1),('vie_scolaire','reunions.manage',1),('professeur','reunions.manage',1),
+('parent','reunions.reserve',1),
+-- inscriptions
+('administrateur','inscriptions.view',1),('vie_scolaire','inscriptions.view',1),
+('administrateur','inscriptions.manage',1),('vie_scolaire','inscriptions.manage',1),
+-- orientation
+('administrateur','orientation.view',1),('professeur','orientation.view',1),('vie_scolaire','orientation.view',1),('eleve','orientation.view',1),('parent','orientation.view',1),
+('administrateur','orientation.manage',1),('professeur','orientation.manage',1),('vie_scolaire','orientation.manage',1),
+-- signalements
+('administrateur','signalements.view',1),('vie_scolaire','signalements.view',1),
+('administrateur','signalements.manage',1),('vie_scolaire','signalements.manage',1),
+('administrateur','signalements.create',1),('professeur','signalements.create',1),('vie_scolaire','signalements.create',1),('eleve','signalements.create',1),
+-- bibliotheque
+('administrateur','bibliotheque.view',1),('professeur','bibliotheque.view',1),('vie_scolaire','bibliotheque.view',1),('eleve','bibliotheque.view',1),('parent','bibliotheque.view',1),
+('administrateur','bibliotheque.manage',1),('vie_scolaire','bibliotheque.manage',1),
+('eleve','bibliotheque.borrow',1),('professeur','bibliotheque.borrow',1),
+-- clubs
+('administrateur','clubs.view',1),('professeur','clubs.view',1),('vie_scolaire','clubs.view',1),('eleve','clubs.view',1),
+('administrateur','clubs.manage',1),('vie_scolaire','clubs.manage',1),('professeur','clubs.manage',1),
+('eleve','clubs.join',1),
+-- infirmerie
+('administrateur','infirmerie.view',1),('vie_scolaire','infirmerie.view',1),
+('administrateur','infirmerie.manage',1),('vie_scolaire','infirmerie.manage',1),
+-- support
+('administrateur','support.view',1),('professeur','support.view',1),('vie_scolaire','support.view',1),('eleve','support.view',1),('parent','support.view',1),
+('administrateur','support.manage',1),('vie_scolaire','support.manage',1),
+('administrateur','support.create',1),('professeur','support.create',1),('vie_scolaire','support.create',1),('eleve','support.create',1),('parent','support.create',1),
+-- examens
+('administrateur','examens.view',1),('vie_scolaire','examens.view',1),('professeur','examens.view',1),('eleve','examens.view',1),
+('administrateur','examens.manage',1),('vie_scolaire','examens.manage',1),
+-- ressources
+('administrateur','ressources.view',1),('professeur','ressources.view',1),('vie_scolaire','ressources.view',1),('eleve','ressources.view',1),
+('administrateur','ressources.manage',1),('professeur','ressources.manage',1),
+-- stages
+('administrateur','stages.view',1),('professeur','stages.view',1),('vie_scolaire','stages.view',1),('eleve','stages.view',1),('parent','stages.view',1),
+('administrateur','stages.manage',1),('vie_scolaire','stages.manage',1),('professeur','stages.manage',1),
+-- facturation
+('administrateur','facturation.view',1),('vie_scolaire','facturation.view',1),('parent','facturation.view',1),
+('administrateur','facturation.manage',1),('vie_scolaire','facturation.manage',1),
+-- cantine
+('administrateur','cantine.view',1),('vie_scolaire','cantine.view',1),('eleve','cantine.view',1),('parent','cantine.view',1),
+('administrateur','cantine.manage',1),('vie_scolaire','cantine.manage',1),
+('parent','cantine.reserve',1),('eleve','cantine.reserve',1),
+-- salles
+('administrateur','salles.view',1),('vie_scolaire','salles.view',1),('professeur','salles.view',1),
+('administrateur','salles.manage',1),('vie_scolaire','salles.manage',1),
+('administrateur','salles.reserve',1),('vie_scolaire','salles.reserve',1),('professeur','salles.reserve',1),
+-- periscolaire
+('administrateur','periscolaire.view',1),('vie_scolaire','periscolaire.view',1),('parent','periscolaire.view',1),
+('administrateur','periscolaire.manage',1),('vie_scolaire','periscolaire.manage',1),
+-- personnel
+('administrateur','personnel.view',1),('vie_scolaire','personnel.view',1),
+('administrateur','personnel.manage',1),('vie_scolaire','personnel.manage',1),
+-- transports
+('administrateur','transports.view',1),('vie_scolaire','transports.view',1),('parent','transports.view',1),
+('administrateur','transports.manage',1),('vie_scolaire','transports.manage',1),
+-- diplomes
+('administrateur','diplomes.view',1),('vie_scolaire','diplomes.view',1),('eleve','diplomes.view',1),('parent','diplomes.view',1),
+('administrateur','diplomes.manage',1),('vie_scolaire','diplomes.manage',1),
+-- archivage
+('administrateur','archivage.view',1),('administrateur','archivage.manage',1),
+-- trombinoscope
+('administrateur','trombinoscope.view',1),('professeur','trombinoscope.view',1),('vie_scolaire','trombinoscope.view',1),
+-- reporting
+('administrateur','reporting.view',1),('professeur','reporting.view',1),('vie_scolaire','reporting.view',1),
+('administrateur','reporting.export',1),('vie_scolaire','reporting.export',1),
+-- rgpd
+('administrateur','rgpd.view',1),('administrateur','rgpd.manage',1),
+('administrateur','rgpd.my_data',1),('professeur','rgpd.my_data',1),('vie_scolaire','rgpd.my_data',1),('eleve','rgpd.my_data',1),('parent','rgpd.my_data',1),
+-- vie_scolaire
+('administrateur','vie_scolaire.view',1),('vie_scolaire','vie_scolaire.view',1),
+('administrateur','vie_scolaire.manage',1),('vie_scolaire','vie_scolaire.manage',1),
+-- notifications
+('administrateur','notifications.view',1),('professeur','notifications.view',1),('vie_scolaire','notifications.view',1),('eleve','notifications.view',1),('parent','notifications.view',1),
+-- parametres
+('administrateur','parametres.view',1),('professeur','parametres.view',1),('vie_scolaire','parametres.view',1),('eleve','parametres.view',1),('parent','parametres.view',1),
+-- projets
+('administrateur','projets.view',1),('professeur','projets.view',1),('vie_scolaire','projets.view',1),
+('administrateur','projets.manage',1),('professeur','projets.manage',1),
+-- parcours
+('administrateur','parcours.view',1),('professeur','parcours.view',1),('vie_scolaire','parcours.view',1),('eleve','parcours.view',1),('parent','parcours.view',1),
+('administrateur','parcours.manage',1),('professeur','parcours.manage',1),
+-- besoins
+('administrateur','besoins.view',1),('professeur','besoins.view',1),('vie_scolaire','besoins.view',1),('parent','besoins.view',1),
+('administrateur','besoins.manage',1),('vie_scolaire','besoins.manage',1),('professeur','besoins.manage',1),
+-- internat
+('administrateur','internat.view',1),('vie_scolaire','internat.view',1),
+('administrateur','internat.manage',1),('vie_scolaire','internat.manage',1),
+-- vie_associative
+('administrateur','vie_associative.view',1),('vie_scolaire','vie_associative.view',1),('eleve','vie_associative.view',1),
+('administrateur','vie_associative.manage',1),('vie_scolaire','vie_associative.manage',1);
+
+-- ============================================================
+-- Seeds : module_settings_schema — champs de configuration déclaratifs
+-- ============================================================
+INSERT IGNORE INTO `module_settings_schema` (`module_key`, `field_key`, `field_type`, `label`, `default_value`, `options`, `hint`, `sort_order`) VALUES
+-- notes
+('notes','note_max','number','Note maximale par défaut','20','{"min":1,"max":100}',NULL,10),
+('notes','show_class_average','checkbox','Moyenne de classe','1','{"label":"Afficher la moyenne de classe"}',NULL,20),
+('notes','show_rank','checkbox','Classement','0','{"label":"Afficher le classement"}',NULL,30),
+('notes','decimal_places','number','Décimales affichées','2','{"min":0,"max":4}',NULL,40),
+-- absences
+('absences','auto_notify_parents','checkbox','Notification parents','1','{"label":"Notifier les parents automatiquement par email"}',NULL,10),
+('absences','justification_delay_days','number','Délai de justification (jours)','15','{"min":1,"max":90}',NULL,20),
+('absences','allowed_file_types','text','Types de fichiers acceptés','pdf,jpg,png',NULL,'Extensions séparées par des virgules',30),
+-- bulletins
+('bulletins','show_absences','checkbox','Absences sur bulletin','1','{"label":"Afficher le nombre d\'absences"}',NULL,10),
+('bulletins','show_retards','checkbox','Retards sur bulletin','1','{"label":"Afficher le nombre de retards"}',NULL,20),
+('bulletins','appreciation_max_length','number','Longueur max appréciation','500','{"min":100,"max":2000}',NULL,30),
+('bulletins','pdf_template_type','select','Template PDF','standard','{"standard":"Standard","minimal":"Minimaliste","detailed":"Détaillé"}',NULL,40),
+-- messagerie
+('messagerie','max_message_length','number','Longueur max message','5000','{"min":500,"max":50000}',NULL,10),
+('messagerie','allow_attachments','checkbox','Pièces jointes','1','{"label":"Autoriser les pièces jointes"}',NULL,20),
+('messagerie','max_attachment_size_mb','number','Taille max pièce jointe (Mo)','5','{"min":1,"max":50}',NULL,30),
+('messagerie','email_notification','checkbox','Notification email','0','{"label":"Envoyer un email pour chaque nouveau message"}',NULL,40),
+-- emploi_du_temps
+('emploi_du_temps','start_hour','text','Heure de début','08:00',NULL,'Format HH:MM',10),
+('emploi_du_temps','end_hour','text','Heure de fin','18:00',NULL,'Format HH:MM',20),
+('emploi_du_temps','slot_duration_minutes','number','Durée d\'un créneau (min)','60','{"min":15,"max":120}',NULL,30),
+('emploi_du_temps','show_weekends','checkbox','Week-ends','0','{"label":"Afficher samedi et dimanche"}',NULL,40),
+-- devoirs
+('devoirs','max_file_size_mb','number','Taille max rendu (Mo)','10','{"min":1,"max":100}',NULL,10),
+('devoirs','allowed_extensions','text','Extensions autorisées','pdf,doc,docx,odt,jpg,png',NULL,'Extensions séparées par des virgules',20),
+('devoirs','late_submission','checkbox','Rendus en retard','0','{"label":"Autoriser les rendus après la date limite"}',NULL,30),
+-- reunions
+('reunions','slot_duration_minutes','number','Durée créneau par défaut (min)','15','{"min":5,"max":60}',NULL,10),
+('reunions','max_slots_per_parent','number','Max créneaux par parent','5','{"min":1,"max":20}',NULL,20),
+('reunions','send_confirmation_email','checkbox','Email de confirmation','1','{"label":"Envoyer un email de confirmation aux parents"}',NULL,30),
+-- discipline
+('discipline','auto_notify_parents','checkbox','Notification parents','1','{"label":"Notifier les parents des incidents"}',NULL,10),
+('discipline','penalty_levels','textarea','Niveaux de sanction',"Avertissement\nBlâme\nExclusion temporaire\nExclusion définitive",NULL,'Un niveau par ligne',20),
+-- inscriptions
+('inscriptions','open_period','checkbox','Période d\'inscription ouverte','0','{"label":"Les inscriptions en ligne sont ouvertes"}',NULL,10),
+('inscriptions','require_documents','text','Documents obligatoires','Carte identité,Justificatif domicile,Photo',NULL,'Séparés par des virgules',20),
+-- periscolaire
+('periscolaire','cantine_enabled','checkbox','Cantine','1','{"label":"Activer le module cantine"}',NULL,10),
+('periscolaire','garderie_enabled','checkbox','Garderie','1','{"label":"Activer la garderie"}',NULL,20),
+('periscolaire','tarif_cantine','number','Tarif cantine par défaut (€)','3','{"min":0,"max":50}',NULL,30),
+-- facturation
+('facturation','currency','select','Devise','EUR','{"EUR":"Euro (€)","USD":"Dollar ($)","GBP":"Livre (£)","CHF":"Franc suisse (CHF)"}',NULL,10),
+('facturation','tva_rate','number','Taux TVA par défaut (%)','0','{"min":0,"max":30}',NULL,20),
+('facturation','payment_reminder_days','number','Rappel paiement (jours)','30','{"min":7,"max":90}',NULL,30);
 
 -- ============================================================
 SET SESSION FOREIGN_KEY_CHECKS = 1;

@@ -75,6 +75,10 @@ if ($_topbar_is_parent && !empty($_SESSION['user_id'])) {
     <!-- Main Content -->
     <div class="main-content">
         <div class="top-header">
+            <!-- Mobile hamburger — visible only on small screens -->
+            <button class="mobile-menu-toggle" aria-label="Ouvrir le menu" type="button">
+                <i class="fas fa-bars"></i>
+            </button>
             <div class="page-title">
                 <h1><?= htmlspecialchars($pageTitle) ?></h1>
                 <?php if (!empty($pageSubtitle)): ?>

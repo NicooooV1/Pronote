@@ -167,7 +167,9 @@ class NoteService
             ':commentaire'     => $data['commentaire'] ?? null,
         ]);
 
-        return (int) $this->pdo->lastInsertId();
+        $id = (int) $this->pdo->lastInsertId();
+        app('hooks')?->dispatch(new \API\Events\NoteCreated($id, $data));
+        return $id;
     }
 
     /**
@@ -204,7 +206,11 @@ class NoteService
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
 
-        return $stmt->rowCount() > 0;
+        $updated = $stmt->rowCount() > 0;
+        if ($updated) {
+            app('hooks')?->dispatch(new \API\Events\NoteUpdated($id, $data));
+        }
+        return $updated;
     }
 
     /**
@@ -218,7 +224,11 @@ class NoteService
         $stmt = $this->pdo->prepare('DELETE FROM notes WHERE id = ?');
         $stmt->execute([$id]);
 
-        return $stmt->rowCount() > 0;
+        $deleted = $stmt->rowCount() > 0;
+        if ($deleted) {
+            app('hooks')?->dispatch(new \API\Events\NoteDeleted($id));
+        }
+        return $deleted;
     }
 
     /**

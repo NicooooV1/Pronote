@@ -23,9 +23,9 @@ class AnnonceService
     {
         $stmt = $this->pdo->prepare(
             "INSERT INTO annonces (titre, contenu, type, auteur_id, auteur_type,
-                cible_roles, cible_classes, cible_niveaux, publie, epingle,
+                cible_roles, cible_classes, cible_niveaux, cible_matieres, publie, epingle,
                 date_publication, date_expiration)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $stmt->execute([
             $data['titre'],
@@ -36,6 +36,7 @@ class AnnonceService
             is_array($data['cible_roles'] ?? null) ? json_encode($data['cible_roles']) : ($data['cible_roles'] ?? null),
             is_array($data['cible_classes'] ?? null) ? json_encode($data['cible_classes']) : ($data['cible_classes'] ?? null),
             is_array($data['cible_niveaux'] ?? null) ? json_encode($data['cible_niveaux']) : ($data['cible_niveaux'] ?? null),
+            is_array($data['cible_matieres'] ?? null) ? json_encode($data['cible_matieres']) : ($data['cible_matieres'] ?? null),
             $data['publie'] ?? 1,
             $data['epingle'] ?? 0,
             $data['date_publication'] ?? date('Y-m-d H:i:s'),
@@ -62,9 +63,10 @@ class AnnonceService
         $stmt->execute([$id]);
         $a = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($a) {
-            $a['cible_roles']   = json_decode($a['cible_roles'] ?? '[]', true) ?: [];
-            $a['cible_classes'] = json_decode($a['cible_classes'] ?? '[]', true) ?: [];
-            $a['cible_niveaux'] = json_decode($a['cible_niveaux'] ?? '[]', true) ?: [];
+            $a['cible_roles']    = json_decode($a['cible_roles'] ?? '[]', true) ?: [];
+            $a['cible_classes']  = json_decode($a['cible_classes'] ?? '[]', true) ?: [];
+            $a['cible_niveaux']  = json_decode($a['cible_niveaux'] ?? '[]', true) ?: [];
+            $a['cible_matieres'] = json_decode($a['cible_matieres'] ?? '[]', true) ?: [];
         }
         return $a ?: null;
     }
@@ -76,7 +78,7 @@ class AnnonceService
     {
         $stmt = $this->pdo->prepare(
             "UPDATE annonces SET titre = ?, contenu = ?, type = ?,
-                cible_roles = ?, cible_classes = ?, cible_niveaux = ?,
+                cible_roles = ?, cible_classes = ?, cible_niveaux = ?, cible_matieres = ?,
                 publie = ?, epingle = ?, date_expiration = ?
              WHERE id = ?"
         );
@@ -87,6 +89,7 @@ class AnnonceService
             is_array($data['cible_roles'] ?? null) ? json_encode($data['cible_roles']) : ($data['cible_roles'] ?? null),
             is_array($data['cible_classes'] ?? null) ? json_encode($data['cible_classes']) : ($data['cible_classes'] ?? null),
             is_array($data['cible_niveaux'] ?? null) ? json_encode($data['cible_niveaux']) : ($data['cible_niveaux'] ?? null),
+            is_array($data['cible_matieres'] ?? null) ? json_encode($data['cible_matieres']) : ($data['cible_matieres'] ?? null),
             $data['publie'] ?? 1,
             $data['epingle'] ?? 0,
             $data['date_expiration'] ?? null,
@@ -318,6 +321,129 @@ class AnnonceService
         );
         $stmt->execute([$sondageId, $userId, $userType]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ─── Pièces jointes ─────────────────────────────────────────
+
+    /**
+     * Ajoute une pièce jointe à une annonce.
+     */
+    public function addAttachment(int $annonceId, array $fileData): int
+    {
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO annonce_attachments (annonce_id, nom_fichier, nom_original, taille, mime_type, uploaded_by, uploaded_by_type)
+             VALUES (?, ?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([
+            $annonceId,
+            $fileData['nom_fichier'],
+            $fileData['nom_original'],
+            $fileData['taille'] ?? 0,
+            $fileData['mime_type'] ?? 'application/octet-stream',
+            $fileData['uploaded_by'] ?? null,
+            $fileData['uploaded_by_type'] ?? null,
+        ]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Récupère les pièces jointes d'une annonce.
+     */
+    public function getAttachments(int $annonceId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM annonce_attachments WHERE annonce_id = ? ORDER BY created_at");
+        $stmt->execute([$annonceId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Supprime une pièce jointe.
+     */
+    public function deleteAttachment(int $attachmentId): bool
+    {
+        // Get file path before deleting
+        $stmt = $this->pdo->prepare("SELECT nom_fichier FROM annonce_attachments WHERE id = ?");
+        $stmt->execute([$attachmentId]);
+        $filename = $stmt->fetchColumn();
+
+        $deleted = $this->pdo->prepare("DELETE FROM annonce_attachments WHERE id = ?");
+        $deleted->execute([$attachmentId]);
+
+        if ($deleted->rowCount() > 0 && $filename) {
+            $path = __DIR__ . '/../../uploads/annonces/' . $filename;
+            if (file_exists($path)) {
+                @unlink($path);
+            }
+        }
+        return $deleted->rowCount() > 0;
+    }
+
+    /**
+     * Handle file uploads for an announcement.
+     * Returns array of successfully uploaded file info.
+     */
+    public function handleFileUploads(int $annonceId, array $files, int $uploadedBy, string $uploadedByType, int $maxFiles = 5): array
+    {
+        $uploadDir = __DIR__ . '/../../uploads/annonces/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $allowedMimes = [
+            'application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'text/plain', 'text/csv',
+        ];
+        $maxSize = 10 * 1024 * 1024; // 10 MB
+
+        $results = [];
+        $count = 0;
+
+        // Normalize $_FILES array structure
+        $fileList = [];
+        if (isset($files['name']) && is_array($files['name'])) {
+            for ($i = 0; $i < count($files['name']); $i++) {
+                if ($files['error'][$i] === UPLOAD_ERR_OK) {
+                    $fileList[] = [
+                        'name'     => $files['name'][$i],
+                        'type'     => $files['type'][$i],
+                        'tmp_name' => $files['tmp_name'][$i],
+                        'size'     => $files['size'][$i],
+                    ];
+                }
+            }
+        }
+
+        foreach ($fileList as $file) {
+            if ($count >= $maxFiles) break;
+
+            $finfo = new \finfo(FILEINFO_MIME_TYPE);
+            $mimeType = $finfo->file($file['tmp_name']);
+
+            if (!in_array($mimeType, $allowedMimes, true)) continue;
+            if ($file['size'] > $maxSize) continue;
+
+            $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+            $safeName = bin2hex(random_bytes(16)) . ($ext ? '.' . strtolower($ext) : '');
+            $destPath = $uploadDir . $safeName;
+
+            if (move_uploaded_file($file['tmp_name'], $destPath)) {
+                $attachId = $this->addAttachment($annonceId, [
+                    'nom_fichier'     => $safeName,
+                    'nom_original'    => $file['name'],
+                    'taille'          => $file['size'],
+                    'mime_type'       => $mimeType,
+                    'uploaded_by'     => $uploadedBy,
+                    'uploaded_by_type' => $uploadedByType,
+                ]);
+                $results[] = ['id' => $attachId, 'nom_original' => $file['name'], 'taille' => $file['size']];
+                $count++;
+            }
+        }
+
+        return $results;
     }
 
     // ─── Helpers ─────────────────────────────────────────────────

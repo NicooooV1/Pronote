@@ -174,15 +174,26 @@ class ModuleSDK
                 : $manifest['description'];
         }
 
+        // Resolve route_path from module.json routes.main
+        $routePath = null;
+        if (!empty($manifest['routes']['main'])) {
+            $routePath = $key . '/' . $manifest['routes']['main'];
+        }
+
+        // Resolve sidebar_sort from module.json sidebar.sort_order
+        $sidebarSort = $manifest['sidebar']['sort_order'] ?? 100;
+
         // Upsert dans modules_config
-        $sql = "INSERT INTO modules_config (module_key, label, description, icon, category, is_core, establishment_types)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+        $sql = "INSERT INTO modules_config (module_key, label, description, icon, category, is_core, establishment_types, route_path, sidebar_sort)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                     label = VALUES(label),
                     description = VALUES(description),
                     icon = VALUES(icon),
                     category = VALUES(category),
-                    establishment_types = VALUES(establishment_types)";
+                    establishment_types = VALUES(establishment_types),
+                    route_path = COALESCE(VALUES(route_path), route_path),
+                    sidebar_sort = VALUES(sidebar_sort)";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
@@ -193,11 +204,18 @@ class ModuleSDK
             $manifest['category'] ?? 'custom',
             !empty($manifest['core']) ? 1 : 0,
             isset($manifest['establishment_types']) ? json_encode($manifest['establishment_types']) : null,
+            $routePath,
+            (int) $sidebarSort,
         ]);
 
         // Synchroniser les widgets
         if (!empty($manifest['widgets'])) {
             $this->syncWidgets($key, $manifest['widgets']);
+        }
+
+        // Synchroniser les settings_schema depuis module.json
+        if (!empty($manifest['settings_schema'])) {
+            $this->syncSettingsSchema($key, $manifest['settings_schema']);
         }
 
         // Synchroniser les permissions
@@ -401,6 +419,116 @@ class ModuleSDK
         }
 
         return $templatePath;
+    }
+
+    /**
+     * Exécute les migrations SQL déclarées dans module.json sous la clé "migrations".
+     * Chaque migration est un fichier .sql relatif au répertoire du module.
+     * Suivi dans la table module_migrations pour n'exécuter chaque fichier qu'une fois.
+     *
+     * @param string $moduleKey Clé du module (ex: 'absences')
+     * @return array ['executed' => string[], 'skipped' => string[], 'errors' => string[]]
+     */
+    public function migrate(string $moduleKey): array
+    {
+        $manifest = $this->getManifest($moduleKey);
+        if (!$manifest) {
+            return ['executed' => [], 'skipped' => [], 'errors' => ["Module '{$moduleKey}' introuvable"]];
+        }
+
+        $migrations = $manifest['migrations'] ?? [];
+        if (empty($migrations)) {
+            return ['executed' => [], 'skipped' => [], 'errors' => []];
+        }
+
+        $modulePath = $manifest['_path'] ?? '';
+        $executed   = [];
+        $skipped    = [];
+        $errors     = [];
+
+        foreach ($migrations as $migrationFile) {
+            $hash = md5($moduleKey . ':' . $migrationFile);
+
+            // Vérifier si déjà exécutée
+            try {
+                $stmt = $this->pdo->prepare(
+                    'SELECT COUNT(*) FROM module_migrations WHERE module_key = ? AND migration_file = ?'
+                );
+                $stmt->execute([$moduleKey, $migrationFile]);
+                if ((int) $stmt->fetchColumn() > 0) {
+                    $skipped[] = $migrationFile;
+                    continue;
+                }
+            } catch (\Throwable $e) {
+                $errors[] = "Impossible de vérifier module_migrations : " . $e->getMessage();
+                continue;
+            }
+
+            // Lire le fichier SQL
+            $sqlPath = $modulePath . '/' . $migrationFile;
+            if (!file_exists($sqlPath)) {
+                $errors[] = "Fichier introuvable : {$sqlPath}";
+                continue;
+            }
+
+            $sql = file_get_contents($sqlPath);
+            if ($sql === false || trim($sql) === '') {
+                $errors[] = "Fichier vide ou illisible : {$migrationFile}";
+                continue;
+            }
+
+            // Exécuter dans une transaction
+            try {
+                $this->pdo->beginTransaction();
+                $this->pdo->exec($sql);
+
+                $this->pdo->prepare(
+                    'INSERT INTO module_migrations (module_key, migration_file) VALUES (?, ?)'
+                )->execute([$moduleKey, $migrationFile]);
+
+                $this->pdo->commit();
+                $executed[] = $migrationFile;
+            } catch (\Throwable $e) {
+                $this->pdo->rollBack();
+                $errors[] = "Échec migration '{$migrationFile}' : " . $e->getMessage();
+            }
+        }
+
+        return ['executed' => $executed, 'skipped' => $skipped, 'errors' => $errors];
+    }
+
+    /**
+     * Synchronise les settings_schema d'un module depuis module.json vers la table module_settings_schema.
+     */
+    private function syncSettingsSchema(string $moduleKey, array $schema): void
+    {
+        $sortOrder = 0;
+        foreach ($schema as $fieldKey => $fieldDef) {
+            try {
+                $sql = "INSERT INTO module_settings_schema (module_key, field_key, field_type, label, default_value, options, hint, sort_order)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE
+                            field_type = VALUES(field_type),
+                            label = VALUES(label),
+                            default_value = VALUES(default_value),
+                            options = VALUES(options),
+                            hint = VALUES(hint),
+                            sort_order = VALUES(sort_order)";
+
+                $this->pdo->prepare($sql)->execute([
+                    $moduleKey,
+                    $fieldKey,
+                    $fieldDef['type'] ?? 'text',
+                    $fieldDef['label'] ?? $fieldKey,
+                    $fieldDef['default'] ?? null,
+                    isset($fieldDef['options']) ? json_encode($fieldDef['options']) : null,
+                    $fieldDef['hint'] ?? null,
+                    $sortOrder++,
+                ]);
+            } catch (\Throwable $e) {
+                error_log("ModuleSDK: Cannot sync settings_schema {$moduleKey}.{$fieldKey}: " . $e->getMessage());
+            }
+        }
     }
 
     /**

@@ -1,12 +1,12 @@
 # Fronote — Documentation Développeur
 
-![PHP 8+](https://img.shields.io/badge/PHP-8%2B-blue) ![MySQL 5.7+](https://img.shields.io/badge/MySQL-5.7%2B-orange) ![Version](https://img.shields.io/badge/version-1.0.0-green) ![Licence](https://img.shields.io/badge/licence-MIT-lightgrey)
+![PHP 8+](https://img.shields.io/badge/PHP-8%2B-blue) ![MySQL 5.7+](https://img.shields.io/badge/MySQL-5.7%2B-orange) ![Version](https://img.shields.io/badge/version-2.0.0-green) ![Licence](https://img.shields.io/badge/licence-MIT-lightgrey)
 
 > **Deux documents disponibles :**
 > - **README.md** (ce fichier) — Documentation technique pour les développeurs
 > - **[INSTALL.md](INSTALL.md)** — Guide d'installation pour les utilisateurs finaux (établissements scolaires)
 
-Fronote est un système de gestion scolaire en **PHP vanilla** (sans framework) : 50+ modules, 240+ tables SQL, architecture IoC/PSR-4, API centralisée, WebSocket temps réel, design liquid glass.
+Fronote est un système de gestion scolaire en **PHP vanilla** (sans framework) : 47 modules, 140+ tables SQL, architecture IoC/PSR-4, API centralisée, WebSocket temps réel, design system tokens + thèmes (classic/glass).
 
 ---
 
@@ -29,7 +29,7 @@ Fronote est un système de gestion scolaire en **PHP vanilla** (sans framework) 
 - [Permissions par module](#permissions-par-module)
 - [Accès technicien](#accès-technicien)
 - [Import / Export](#import--export)
-- [Design System — Liquid Glass](#design-system--liquid-glass)
+- [Design System](#design-system)
 - [Dépannage développeur](#dépannage-développeur)
 
 ---
@@ -208,13 +208,9 @@ Requête HTTP
 ```bash
 git clone https://github.com/votre-org/fronote.git
 cd fronote
-composer install
-# Créer la base de données MySQL
-mysql -u root -p -e "CREATE DATABASE fronote CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -u root -p fronote < pronote.sql
-# Copier et adapter le .env
-cp .env.example .env
+composer install --optimize-autoloader
 # Ouvrir http://localhost/fronote/install.php dans le navigateur
+# L'assistant gère : création BDD, import SQL, configuration .env, compte admin
 ```
 
 ### Docker (développement rapide)
@@ -377,9 +373,16 @@ $modules->getForSidebar('professeur');       // modules groupés par catégorie
 ### Structure
 
 ```
-assets/                          ← CSS/JS globaux (toute l'appli)
-│   css/pronote-unified.css      ← Feuille de style principale unifiée
-│   js/ws-global.js              ← Client WebSocket global
+assets/
+│   css/
+│   │   base.css                 ← Reset et fondations
+│   │   tokens.css               ← Design tokens (couleurs, typo, spacing)
+│   │   theme-classic.css        ← Thème principal (toujours chargé)
+│   │   theme-glass.css          ← Surcouche glassmorphism (optionnel)
+│   │   admin.css                ← Styles spécifiques admin
+│   js/
+│   │   pronote-theme.js         ← Gestion thème/dark mode/mobile
+│   │   ws-global.js             ← Client WebSocket global
 
 [module]/assets/                 ← CSS/JS spécifiques au module
     css/module.css
@@ -387,6 +390,8 @@ assets/                          ← CSS/JS globaux (toute l'appli)
 ```
 
 **Règle :** si un fichier CSS/JS est utilisé sur plusieurs modules → `assets/` global. Si un seul module → `[module]/assets/`.
+
+**Chargement CSS :** `base.css` → `tokens.css` → `theme-classic.css` → (optionnel) `theme-glass.css`. Le thème glass est une surcouche qui s'ajoute au thème classic, jamais chargé seul.
 
 ### Variables attendues par shared_header.php
 
@@ -598,7 +603,7 @@ Permissions-Policy: camera=(), microphone=(), geolocation=()
 - [ ] HTTPS + `SESSION_SECURE=true`
 - [ ] `TRUSTED_PROXIES` configuré si derrière un reverse proxy
 - [ ] `pronote.sql` bloqué par `.htaccess` (déjà en place)
-- [ ] `diagnostic.php` bloqué ou supprimé
+- [ ] Tâches cron configurées (worker.php + daily_maintenance.php)
 - [ ] Backups automatiques (cron)
 - [ ] Logs rotatifs (`logrotate`)
 
@@ -608,25 +613,26 @@ Permissions-Policy: camera=(), microphone=(), geolocation=()
 
 Schéma complet dans `pronote.sql`. Toujours modifier ce fichier directement (pas de système de migration séparé).
 
-### Tables par groupe (240+ tables)
+### Tables par groupe (140+ tables)
 
 | Groupe | Exemples |
 |--------|---------|
 | **Référentielles** | `classes`, `matieres`, `periodes`, `professeur_classes` |
-| **Utilisateurs** | `administrateurs`, `professeurs`, `eleves`, `parents`, `personnel`, `parent_eleve` |
-| **Configuration** | `etablissement_info`, `modules_config`, `smtp_config`, `user_settings` |
-| **Notes & Bulletins** | `notes`, `bulletins`, `appreciations`, `competences` |
+| **Utilisateurs** | `administrateurs`, `professeurs`, `eleves`, `parents`, `vie_scolaire`, `parent_eleve` |
+| **Configuration** | `etablissement_info`, `modules_config`, `user_settings`, `feature_flags` |
+| **Notes & Bulletins** | `notes`, `bulletins`, `bulletin_matieres`, `competences` |
 | **Absences** | `absences`, `retards`, `justificatifs`, `justificatif_fichiers` |
-| **Cahier de textes** | `devoirs`, `devoirs_fichiers`, `devoirs_statuts_eleve` |
-| **Agenda** | `evenements`, `evenements_recurrents` |
-| **Messagerie** | `conversations`, `conversation_participants`, `messages`, `message_attachments`, `message_reactions`, `announcements` |
-| **Notifications** | `notifications`, `notification_preferences` |
-| **Sécurité** | `api_rate_limits`, `audit_log`, `session_security`, `demandes_reinitialisation` |
-| **Emploi du temps** | `emploi_du_temps`, `creneaux`, `salles` |
-| **Vie scolaire** | `incidents`, `sanctions`, `vie_scolaire` |
-| **Logistique** | `cantine_menus`, `reservations_cantine`, `chambres_internat`, `lignes_transport` |
-| **Facturation** | `factures`, `lignes_facture`, `paiements` |
-| **RGPD** | `rgpd_demandes`, `rgpd_traitements` |
+| **Cahier de textes** | `devoirs`, `devoirs_fichiers`, `devoirs_statuts_eleve`, `devoirs_rendus` |
+| **Agenda** | `evenements`, `evenement_exceptions` |
+| **Messagerie** | `conversations`, `conversation_participants`, `messages`, `message_attachments`, `message_reactions` |
+| **Notifications** | `notifications_globales`, `notification_preferences` |
+| **Sécurité** | `api_rate_limits`, `audit_log`, `session_security`, `rbac_permissions` |
+| **Emploi du temps** | `emploi_du_temps`, `creneaux_horaires`, `salles` |
+| **Vie scolaire** | `incidents`, `sanctions`, `retenues` |
+| **Logistique** | `menus_cantine`, `inscriptions_periscolaire`, `internat_chambres`, `lignes_transport` |
+| **Facturation** | `factures`, `facture_lignes`, `paiements` |
+| **RGPD** | `rgpd_demandes`, `rgpd_consentements` |
+| **Système** | `job_queue`, `translations`, `api_tokens`, `webhooks`, `app_metrics` |
 
 ### Vue unifiée v_users
 
@@ -824,7 +830,7 @@ L'archive envoyée au client ne doit pas contenir les fichiers de développement
 
 ```bash
 # Depuis la racine du projet
-git archive --format=zip --output=fronote-v1.0.0.zip HEAD
+git archive --format=zip --output=fronote-v2.0.0.zip HEAD
 
 # Ce que l'archive contient (fichiers trackés par git) :
 # API/, templates/, assets/, [modules]/, websocket-server/server.js,
@@ -842,7 +848,7 @@ Dans les paramètres GitHub du dépôt (`Settings → Webhooks → Add webhook`)
 
 | Champ | Valeur |
 |-------|--------|
-| Payload URL | `https://domaine-du-client.fr/fronote/webhook_update.php` |
+| Payload URL | `https://domaine-du-client.fr/fronote/API/endpoints/webhook_update.php` |
 | Content type | `application/json` |
 | Secret | La clé générée pour ce client |
 | Events | **Just the push event** |
@@ -853,8 +859,8 @@ Tenez un registre (fichier ou base de données interne) :
 
 | Client | Domaine | `GITHUB_WEBHOOK_SECRET` | Version | Date déploiement |
 |--------|---------|------------------------|---------|-----------------|
-| Collège X | `college-x.fr/fronote` | `abc123…` | 1.0.0 | 2026-03-18 |
-| Lycée Y | `lycee-y.fr/fronote` | `def456…` | 1.0.0 | 2026-03-20 |
+| Collège X | `college-x.fr/fronote` | `abc123…` | 2.0.0 | 2026-03-18 |
+| Lycée Y | `lycee-y.fr/fronote` | `def456…` | 2.0.0 | 2026-03-20 |
 
 ### Config Nginx (référence)
 
@@ -868,7 +874,6 @@ server {
     # Bloquer fichiers sensibles
     location ~* \.(env|sql|bak|log)$ { deny all; }
     location = /install.lock          { deny all; }
-    location = /diagnostic.php        { deny all; }
 
     # WebSocket (si activé)
     location /socket.io/ {
@@ -1017,22 +1022,30 @@ Le système d'import/export (accessible via `admin/systeme/import_export.php`) p
 
 ---
 
-## Design System — Liquid Glass
+## Design System
 
-Fronote utilise un design system "liquid glass" inspiré d'Apple, défini dans `assets/css/liquid-glass.css`.
+Fronote utilise un design system à tokens CSS avec deux thèmes : **classic** (défaut) et **glass** (glassmorphism).
+
+### Architecture CSS
+
+| Fichier | Rôle |
+|---------|------|
+| `base.css` | Reset, fondations |
+| `tokens.css` | Design tokens (couleurs, typo fluide, spacing, ombres) |
+| `theme-classic.css` | Thème principal — toujours chargé |
+| `theme-glass.css` | Surcouche glassmorphism — chargée en overlay si l'utilisateur choisit le thème glass |
 
 ### Caractéristiques
 
-- **Glass morphism** : `backdrop-filter: blur(20px) saturate(180%)`, backgrounds semi-transparents
-- **Palette** : Primary `#007AFF`, Success `#34C759`, Warning `#FF9500`, Danger `#FF3B30`
-- **Dark mode** : Support natif via `prefers-color-scheme` + classe `.dark-mode`
-- **Animations** : Transitions smooth, hover lift, scale on press, fade-in
-- **Typography** : `-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI'`
-- **CSS variables** : Toutes les couleurs et dimensions dans `:root` pour theming facile
+- **Tokens partagés** : toutes les couleurs, tailles et espacements dans `tokens.css` via CSS custom properties
+- **Dark mode** : `[data-theme="dark"]` avec overrides complets dans `tokens.css`
+- **Typographie fluide** : `clamp()` pour des tailles qui s'adaptent de 320px à 1440px
+- **Responsive** : sidebar drawer mobile (<768px), tables scrollables, filtres empilés
+- **Glass mode** : `backdrop-filter: blur()`, backgrounds semi-transparents, chargé en overlay sur classic
 
 ### Composants
 
-Cards, boutons pill, inputs glass, modals, tables transparentes, badges, alerts, tabs, pagination, tooltips, dropdowns — tous définis avec l'effet glass morphism.
+Cards, boutons, inputs, modals, tables, badges, alerts, tabs, pagination, stat cards — tous stylés via les tokens et supportant les deux thèmes + dark mode.
 
 ---
 
@@ -1076,4 +1089,4 @@ MIT — voir [LICENSE](LICENSE)
 
 ---
 
-*Fronote v1.1.0 — PHP vanilla · PSR-4 · IoC · 50+ modules · 240+ tables · WebSocket · Liquid Glass UI*
+*Fronote v2.0.0 — PHP vanilla · PSR-4 · IoC · 47 modules · 140+ tables · WebSocket · Design system tokens*

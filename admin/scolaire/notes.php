@@ -20,11 +20,13 @@ if (!isset($_SESSION['csrf_token'])) {
 $csrf_token = $_SESSION['csrf_token'];
 
 // Charger listes de référence
-$classes = $pdo->query("SELECT id, nom FROM classes WHERE actif = 1 ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
-$matieres = $pdo->query("SELECT id, nom, code FROM matieres WHERE actif = 1 ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
-$professeurs = $pdo->query("SELECT id, nom, prenom FROM professeurs ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
-$periodes = [];
-try { $periodes = app('periodes')->getAll(); } catch (Exception $e) {}
+$classes     = app('classes')->getAllWithStats();
+$matieres    = app('matieres')->getAll();
+$professeurs = [];
+try {
+    $professeurs = $pdo->query("SELECT id, nom, prenom FROM professeurs WHERE actif = 1 ORDER BY nom")->fetchAll(PDO::FETCH_ASSOC);
+} catch (\Throwable $e) {}
+$periodes    = app('periodes')->getAll();
 
 // POST Actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $csrf_token) {
@@ -104,19 +106,22 @@ $notes = $result['data'];
 $totalNotes = $result['total'];
 $totalPages = $result['pages'];
 
-// Stats globales — computed from all matching notes (not just current page)
-$allResult = $noteService->getFiltered($filters, 1, PHP_INT_MAX);
-$allNotes = $allResult['data'];
-$stats = ['total' => $allResult['total'], 'moyenne' => null, 'min_note' => null, 'max_note' => null];
-if (!empty($allNotes)) {
-    $normalized = array_map(fn($n) => $n['note_sur'] > 0 ? round($n['note'] / $n['note_sur'] * 20, 2) : 0, $allNotes);
-    $stats['moyenne'] = round(array_sum($normalized) / count($normalized), 2);
-    $stats['min_note'] = min($normalized);
-    $stats['max_note'] = max($normalized);
+// Stats globales
+$stats = ['total' => $totalNotes, 'moyenne' => null, 'min_note' => null, 'max_note' => null];
+if (!empty($filterClasse) && $filterTrimestre !== '') {
+    try {
+        $classeStats = $noteService->getStatsByClasse($filterClasse, (int) $filterTrimestre);
+        $stats['moyenne'] = $classeStats['moyenne'] ?? null;
+        $stats['min_note'] = $classeStats['min'] ?? null;
+        $stats['max_note'] = $classeStats['max'] ?? null;
+    } catch (\Throwable $e) {}
 }
 
 // Charger élèves pour le modal d'ajout
-$eleves = $pdo->query("SELECT id, nom, prenom, classe FROM eleves WHERE actif = 1 ORDER BY nom, prenom")->fetchAll(PDO::FETCH_ASSOC);
+$eleves = [];
+try {
+    $eleves = $pdo->query("SELECT id, nom, prenom, classe FROM eleves WHERE actif = 1 ORDER BY nom, prenom")->fetchAll(PDO::FETCH_ASSOC);
+} catch (\Throwable $e) {}
 
 $pageTitle = 'Gestion des notes';
 $currentPage = 'notes';
@@ -138,7 +143,7 @@ ob_start();
 </style>
 <?php
 $extraHeadHtml = ob_get_clean();
-include __DIR__ . '/../includes/sub_header.php';
+include __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="notes-container">
@@ -304,4 +309,4 @@ function closeModal(id) { document.getElementById(id).classList.remove('active')
 document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); }));
 </script>
 
-<?php include __DIR__ . '/../includes/sub_footer.php'; ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>

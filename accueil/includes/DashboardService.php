@@ -652,29 +652,53 @@ class DashboardService
         $enfants = $this->getEnfantsParent($parentId);
         $nbEnfants = count($enfants);
 
-        $trimestre = self::getTrimestreCourant();
-        $totalAbsences = 0;
-        $totalDevoirs = 0;
-        foreach ($enfants as $e) {
-            $rows = $this->safeQuery(
-                "SELECT COUNT(*) AS cnt FROM absences WHERE id_eleve = ? AND trimestre = ?",
-                [$e['id'], $trimestre]
-            );
-            $totalAbsences += $rows[0]['cnt'] ?? 0;
-
-            $rows = $this->safeQuery(
-                "SELECT COUNT(*) AS cnt FROM devoirs d
-                 WHERE d.classe = ? AND d.date_rendu BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)",
-                [$e['classe'] ?? '']
-            );
-            $totalDevoirs += $rows[0]['cnt'] ?? 0;
+        if ($nbEnfants === 0) {
+            return [
+                ['icon' => 'fas fa-child', 'value' => 0, 'label' => 'Enfant(s) inscrit(s)', 'color' => 'primary'],
+            ];
         }
 
-        return [
+        $trimestre = self::getTrimestreCourant();
+        $childIds    = array_column($enfants, 'id');
+        $childClasses = array_unique(array_filter(array_column($enfants, 'classe')));
+
+        // Single aggregated query for absences across all children
+        $placeholders = implode(',', array_fill(0, count($childIds), '?'));
+        $absRows = $this->safeQuery(
+            "SELECT COUNT(*) AS cnt FROM absences WHERE id_eleve IN ({$placeholders}) AND trimestre = ?",
+            array_merge($childIds, [$trimestre])
+        );
+        $totalAbsences = $absRows[0]['cnt'] ?? 0;
+
+        // Single aggregated query for devoirs across all children's classes
+        $totalDevoirs = 0;
+        if (!empty($childClasses)) {
+            $clPlaceholders = implode(',', array_fill(0, count($childClasses), '?'));
+            $devRows = $this->safeQuery(
+                "SELECT COUNT(*) AS cnt FROM devoirs d
+                 WHERE d.classe IN ({$clPlaceholders})
+                   AND d.date_rendu BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)",
+                array_values($childClasses)
+            );
+            $totalDevoirs = $devRows[0]['cnt'] ?? 0;
+        }
+
+        // Aggregated average across all children
+        $moyRows = $this->safeQuery(
+            "SELECT ROUND(AVG(n.note / n.note_sur * 20), 1) AS moyenne
+             FROM notes n WHERE n.id_eleve IN ({$placeholders}) AND n.trimestre = ?",
+            array_merge($childIds, [$trimestre])
+        );
+        $moyenneGlobale = $moyRows[0]['moyenne'] ?? null;
+
+        $cards = [
             ['icon' => 'fas fa-child',          'value' => $nbEnfants,     'label' => 'Enfant(s) inscrit(s)',    'color' => 'primary'],
-            ['icon' => 'fas fa-book',            'value' => $totalDevoirs,  'label' => 'Devoirs cette semaine',   'color' => 'success'],
-            ['icon' => 'fas fa-calendar-times',  'value' => $totalAbsences, 'label' => 'Absences ce trimestre',  'color' => 'danger'],
+            ['icon' => 'fas fa-chart-line',     'value' => ($moyenneGlobale !== null ? $moyenneGlobale . '/20' : '-'), 'label' => 'Moyenne globale', 'color' => 'info'],
+            ['icon' => 'fas fa-book',           'value' => $totalDevoirs,  'label' => 'Devoirs cette semaine',   'color' => 'success'],
+            ['icon' => 'fas fa-calendar-times', 'value' => $totalAbsences, 'label' => 'Absences ce trimestre',  'color' => 'danger'],
         ];
+
+        return $cards;
     }
 
     public function getResumeEnfant(int $eleveId): array
@@ -952,5 +976,152 @@ class DashboardService
         if ($mois >= 9 && $mois <= 12) return 1;
         if ($mois >= 1 && $mois <= 3)  return 2;
         return 3;
+    }
+
+    // =====================================================================
+    //  NAMED LAYOUTS (dashboard_layouts)
+    // =====================================================================
+
+    /**
+     * Get all saved layouts for a user.
+     */
+    public function getLayouts(int $userId, string $userType): array
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT * FROM dashboard_layouts WHERE user_id = ? AND user_type = ? ORDER BY is_active DESC, name"
+        );
+        $stmt->execute([$userId, $userType]);
+        $layouts = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($layouts as &$l) {
+            $l['widgets_config'] = json_decode($l['widgets_config'] ?? '[]', true) ?: [];
+        }
+        return $layouts;
+    }
+
+    /**
+     * Get the active layout for a user, or null if none.
+     */
+    public function getActiveLayout(int $userId, string $userType): ?array
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT * FROM dashboard_layouts WHERE user_id = ? AND user_type = ? AND is_active = 1 LIMIT 1"
+        );
+        $stmt->execute([$userId, $userType]);
+        $layout = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if ($layout) {
+            $layout['widgets_config'] = json_decode($layout['widgets_config'] ?? '[]', true) ?: [];
+        }
+        return $layout ?: null;
+    }
+
+    /**
+     * Save a new named layout (snapshot of current widget config).
+     */
+    public function saveLayout(int $userId, string $userType, string $name, int $columns = 4): int
+    {
+        // Snapshot current user_dashboard_config
+        $stmt = $this->pdo->prepare(
+            "SELECT widget_key, position_x, position_y, width, height, visible, config
+             FROM user_dashboard_config WHERE user_id = ? AND user_type = ?"
+        );
+        $stmt->execute([$userId, $userType]);
+        $widgetsConfig = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($widgetsConfig as &$w) {
+            $w['config'] = $w['config'] ? json_decode($w['config'], true) : null;
+        }
+
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO dashboard_layouts (user_id, user_type, name, columns, widgets_config, is_active)
+             VALUES (?, ?, ?, ?, ?, 0)
+             ON DUPLICATE KEY UPDATE columns = VALUES(columns), widgets_config = VALUES(widgets_config), updated_at = NOW()"
+        );
+        $stmt->execute([
+            $userId, $userType, $name, $columns,
+            json_encode($widgetsConfig, JSON_UNESCAPED_UNICODE),
+        ]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Activate a named layout — restores widget positions from the layout snapshot.
+     */
+    public function activateLayout(int $userId, string $userType, int $layoutId): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT * FROM dashboard_layouts WHERE id = ? AND user_id = ? AND user_type = ?"
+        );
+        $stmt->execute([$layoutId, $userId, $userType]);
+        $layout = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$layout) return false;
+
+        $widgetsConfig = json_decode($layout['widgets_config'] ?? '[]', true) ?: [];
+
+        $this->pdo->beginTransaction();
+        try {
+            // Deactivate all layouts
+            $this->pdo->prepare(
+                "UPDATE dashboard_layouts SET is_active = 0 WHERE user_id = ? AND user_type = ?"
+            )->execute([$userId, $userType]);
+
+            // Activate this one
+            $this->pdo->prepare(
+                "UPDATE dashboard_layouts SET is_active = 1 WHERE id = ?"
+            )->execute([$layoutId]);
+
+            // Clear current user config
+            $this->pdo->prepare(
+                "DELETE FROM user_dashboard_config WHERE user_id = ? AND user_type = ?"
+            )->execute([$userId, $userType]);
+
+            // Restore from layout snapshot
+            $insertStmt = $this->pdo->prepare(
+                "INSERT INTO user_dashboard_config (user_id, user_type, widget_key, position_x, position_y, width, height, visible, config)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            );
+            foreach ($widgetsConfig as $w) {
+                $insertStmt->execute([
+                    $userId, $userType,
+                    $w['widget_key'],
+                    $w['position_x'] ?? 0,
+                    $w['position_y'] ?? 0,
+                    $w['width'] ?? 2,
+                    $w['height'] ?? 1,
+                    $w['visible'] ?? 1,
+                    isset($w['config']) ? json_encode($w['config']) : null,
+                ]);
+            }
+
+            $this->pdo->commit();
+            return true;
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            return false;
+        }
+    }
+
+    /**
+     * Delete a named layout.
+     */
+    public function deleteLayout(int $userId, string $userType, int $layoutId): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "DELETE FROM dashboard_layouts WHERE id = ? AND user_id = ? AND user_type = ?"
+        );
+        $stmt->execute([$layoutId, $userId, $userType]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Update widget width for a specific widget in the user's current config.
+     */
+    public function updateWidgetSize(int $userId, string $userType, string $widgetKey, int $width, int $height): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "UPDATE user_dashboard_config SET width = ?, height = ?, updated_at = NOW()
+             WHERE user_id = ? AND user_type = ? AND widget_key = ?"
+        );
+        $stmt->execute([$width, $height, $userId, $userType, $widgetKey]);
+        return $stmt->rowCount() > 0;
     }
 }
