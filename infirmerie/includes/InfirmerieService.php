@@ -222,6 +222,124 @@ class InfirmerieService
         return ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
     }
 
+    /* ───────── VACCINATIONS ───────── */
+
+    /**
+     * Get vaccination records for a student.
+     */
+    public function getVaccinations(int $eleveId): array
+    {
+        $fiche = $this->getFiche($eleveId);
+        if (!$fiche) return [];
+        return json_decode($fiche['vaccinations'] ?? '[]', true) ?: [];
+    }
+
+    /**
+     * Save vaccination records for a student.
+     */
+    public function saveVaccinations(int $eleveId, array $vaccinations): void
+    {
+        $json = json_encode($vaccinations, JSON_UNESCAPED_UNICODE);
+        $fiche = $this->getFiche($eleveId);
+        if ($fiche) {
+            $this->pdo->prepare("UPDATE fiches_sante SET vaccinations = ?, date_maj = NOW() WHERE eleve_id = ?")
+                       ->execute([$json, $eleveId]);
+        } else {
+            $this->pdo->prepare("INSERT INTO fiches_sante (eleve_id, vaccinations, date_maj) VALUES (?, ?, NOW())")
+                       ->execute([$eleveId, $json]);
+        }
+    }
+
+    /**
+     * Get students with missing or expired vaccinations.
+     */
+    public function getVaccinationsManquantes(): array
+    {
+        $obligatoires = self::vaccinsObligatoires();
+        $fiches = $this->getFiches();
+        $manquants = [];
+
+        foreach ($fiches as $f) {
+            $vaccins = json_decode($f['vaccinations'] ?? '[]', true) ?: [];
+            $vaccinsNoms = array_column($vaccins, 'nom');
+            $missing = [];
+            foreach ($obligatoires as $v) {
+                if (!in_array($v, $vaccinsNoms)) {
+                    $missing[] = $v;
+                }
+            }
+            if (!empty($missing)) {
+                $manquants[] = [
+                    'eleve_id' => $f['eleve_id'],
+                    'eleve_nom' => ($f['eleve_nom'] ?? '') . ' ' . ($f['prenom'] ?? ''),
+                    'classe' => $f['classe_nom'] ?? '',
+                    'vaccins_manquants' => $missing,
+                ];
+            }
+        }
+        return $manquants;
+    }
+
+    /* ───────── EMERGENCY PROTOCOLS ───────── */
+
+    /**
+     * Get emergency protocols.
+     */
+    public function getProtocoles(): array
+    {
+        return $this->pdo->query("SELECT * FROM protocoles_urgence ORDER BY nom")->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get protocol by pathology keyword.
+     */
+    public function getProtocoleByPathologie(string $keyword): ?array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM protocoles_urgence WHERE pathologie LIKE ? OR nom LIKE ? LIMIT 1");
+        $like = '%' . $keyword . '%';
+        $stmt->execute([$like, $like]);
+        return $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /**
+     * Get top motifs for passages (for stats dashboard).
+     */
+    public function getTopMotifs(int $limit = 10): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT motif, COUNT(*) AS total
+            FROM passages_infirmerie
+            WHERE date_passage >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+            GROUP BY motif ORDER BY total DESC LIMIT ?
+        ");
+        $stmt->execute([$limit]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get frequent visitors (students with many passages).
+     */
+    public function getVisiteursFrequents(int $limit = 10): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT e.id, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom, cl.nom AS classe_nom,
+                   COUNT(*) AS nb_passages
+            FROM passages_infirmerie p
+            JOIN eleves e ON p.eleve_id = e.id
+            LEFT JOIN classes cl ON e.classe_id = cl.id
+            WHERE p.date_passage >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
+            GROUP BY e.id HAVING nb_passages >= 3
+            ORDER BY nb_passages DESC LIMIT ?
+        ");
+        $stmt->execute([$limit]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public static function vaccinsObligatoires(): array
+    {
+        return ['DTP', 'Coqueluche', 'Haemophilus B', 'Hépatite B', 'Pneumocoque', 'Méningocoque C', 'ROR'];
+    }
+
     /* ───────── STATISTIQUES MENSUELLES ───────── */
 
     /**
@@ -274,5 +392,129 @@ class InfirmerieService
             ];
         }
         return $rows;
+    }
+
+    // ─── SUIVI MÉDICAMENTS ───
+
+    public function ajouterTraitement(int $eleveId, string $medicament, string $posologie, string $dateDebut, ?string $dateFin = null, bool $paiActif = false): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO infirmerie_traitements (eleve_id, medicament, posologie, date_debut, date_fin, pai, created_at)
+            VALUES (:e, :m, :p, :dd, :df, :pai, NOW())
+        ");
+        $stmt->execute([':e' => $eleveId, ':m' => $medicament, ':p' => $posologie, ':dd' => $dateDebut, ':df' => $dateFin, ':pai' => $paiActif ? 1 : 0]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getTraitements(int $eleveId, bool $actifsOnly = false): array
+    {
+        $sql = "SELECT * FROM infirmerie_traitements WHERE eleve_id = :e";
+        if ($actifsOnly) { $sql .= " AND (date_fin IS NULL OR date_fin >= CURDATE())"; }
+        $sql .= " ORDER BY date_debut DESC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':e' => $eleveId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function enregistrerPriseTraitement(int $traitementId, string $date, ?string $commentaire = null): void
+    {
+        $this->pdo->prepare("
+            INSERT INTO infirmerie_prises (traitement_id, date_prise, heure_prise, commentaire)
+            VALUES (:t, :d, NOW(), :c)
+        ")->execute([':t' => $traitementId, ':d' => $date, ':c' => $commentaire]);
+    }
+
+    // ─── DÉTECTION ÉPIDÉMIE ───
+
+    public function detecterEpidemie(int $joursAnalyse = 7, int $seuilAlerte = 5): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT motif, COUNT(*) AS nb_cas, COUNT(DISTINCT eleve_id) AS nb_eleves,
+                   MIN(date_passage) AS premier_cas, MAX(date_passage) AS dernier_cas
+            FROM passages_infirmerie
+            WHERE date_passage >= DATE_SUB(CURDATE(), INTERVAL :j DAY)
+              AND motif IS NOT NULL AND motif != ''
+            GROUP BY motif
+            HAVING nb_cas >= :s
+            ORDER BY nb_cas DESC
+        ");
+        $stmt->execute([':j' => $joursAnalyse, ':s' => $seuilAlerte]);
+        $alertes = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($alertes as &$a) {
+            $stmtClasses = $this->pdo->prepare("
+                SELECT DISTINCT cl.nom AS classe
+                FROM passages_infirmerie p
+                JOIN eleves e ON p.eleve_id = e.id
+                LEFT JOIN classes cl ON e.classe_id = cl.id
+                WHERE p.motif = :m AND p.date_passage >= DATE_SUB(CURDATE(), INTERVAL :j DAY)
+            ");
+            $stmtClasses->execute([':m' => $a['motif'], ':j' => $joursAnalyse]);
+            $a['classes_touchees'] = $stmtClasses->fetchAll(\PDO::FETCH_COLUMN);
+        }
+        return $alertes;
+    }
+
+    // ─── AFFICHAGE PAI ───
+
+    public function getElevesPai(?string $classe = null): array
+    {
+        $sql = "SELECT fs.eleve_id, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom, cl.nom AS classe_nom,
+                       fs.pai, fs.allergies, fs.pathologies
+                FROM fiches_sante fs
+                JOIN eleves e ON fs.eleve_id = e.id
+                LEFT JOIN classes cl ON e.classe_id = cl.id
+                WHERE fs.pai IS NOT NULL AND fs.pai != ''";
+        $params = [];
+        if ($classe) { $sql .= " AND cl.nom = :c"; $params[':c'] = $classe; }
+        $sql .= " ORDER BY e.nom";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function getPaiResume(int $eleveId): ?array
+    {
+        $fiche = $this->getFiche($eleveId);
+        if (!$fiche || empty($fiche['pai'])) return null;
+        $traitements = $this->getTraitements($eleveId, true);
+        $traitementsPai = array_filter($traitements, fn($t) => $t['pai']);
+        return [
+            'eleve_id' => $eleveId,
+            'pai' => $fiche['pai'],
+            'allergies' => $fiche['allergies'] ?? '',
+            'pathologies' => $fiche['pathologies'] ?? '',
+            'traitements_actifs' => array_values($traitementsPai),
+            'protocoles_associes' => $fiche['pathologies'] ? $this->getProtocoleByPathologie($fiche['pathologies']) : null,
+        ];
+    }
+
+    // ─── STATS MENSUELLES WIDGET ───
+
+    public function getStatsMensuellesWidget(): array
+    {
+        $moisCourant = date('Y-m');
+        $moisPrec = date('Y-m', strtotime('-1 month'));
+
+        $stmtCur = $this->pdo->prepare("SELECT COUNT(*) FROM passages_infirmerie WHERE date_passage LIKE ?");
+        $stmtCur->execute([$moisCourant . '%']);
+        $current = (int)$stmtCur->fetchColumn();
+
+        $stmtPrev = $this->pdo->prepare("SELECT COUNT(*) FROM passages_infirmerie WHERE date_passage LIKE ?");
+        $stmtPrev->execute([$moisPrec . '%']);
+        $previous = (int)$stmtPrev->fetchColumn();
+
+        $evolution = $previous > 0 ? round(($current - $previous) / $previous * 100, 1) : 0;
+
+        $topMotifs = $this->getTopMotifs(3);
+
+        return [
+            'passages_mois' => $current,
+            'passages_mois_precedent' => $previous,
+            'evolution_pct' => $evolution,
+            'top_motifs' => $topMotifs,
+            'pai_actifs' => (int)$this->pdo->query("SELECT COUNT(*) FROM fiches_sante WHERE pai IS NOT NULL AND pai != ''")->fetchColumn(),
+            'epidemies_detectees' => count($this->detecterEpidemie()),
+        ];
     }
 }

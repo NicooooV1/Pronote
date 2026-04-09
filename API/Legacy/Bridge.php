@@ -782,8 +782,26 @@ if (!function_exists('getEtablissementData')) {
 			return $etablissementService->getData();
 		} catch (\Exception $e) {
 			error_log("Etablissement data error: " . $e->getMessage());
-			return ['classes' => [], 'matieres' => [], 'periodes' => []];
+			return ['info' => null, 'classes' => [], 'matieres' => [], 'periodes' => []];
 		}
+	}
+}
+
+if (!function_exists('getEstablishmentId')) {
+	/**
+	 * Returns the current establishment ID from the context.
+	 */
+	function getEstablishmentId(): int {
+		return \API\Core\EstablishmentContext::id();
+	}
+}
+
+if (!function_exists('isSuperAdmin')) {
+	/**
+	 * Check if the current user is a super-admin.
+	 */
+	function isSuperAdmin(): bool {
+		return \API\Services\SuperAdminService::isSuperAdmin();
 	}
 }
 

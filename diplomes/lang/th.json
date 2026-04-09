@@ -1,0 +1,13 @@
+{
+    "diplomes.title": "ประกาศนียบัตร",
+    "diplomes.list": "Diploma List",
+    "diplomes.add": "Add Diploma",
+    "diplomes.edit": "Edit",
+    "diplomes.print": "Print",
+    "diplomes.student": "Student",
+    "diplomes.type": "Diploma Type",
+    "diplomes.date": "Date Obtained",
+    "diplomes.mention": "Honors",
+    "diplomes.stats": "Success Statistics",
+    "diplomes.no_diplomas": "No diplomas recorded."
+}

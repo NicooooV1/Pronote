@@ -1,0 +1,13 @@
+{
+    "stages.title": "Practicas",
+    "stages.convention": "Convenio de practicas",
+    "stages.add": "Agregar practica",
+    "stages.student": "Practicante",
+    "stages.company": "Empresa",
+    "stages.tutor": "Tutor",
+    "stages.start_date": "Fecha de inicio",
+    "stages.end_date": "Fecha de fin",
+    "stages.evaluation": "Evaluacion",
+    "stages.report": "Informe de practicas",
+    "stages.no_internships": "Ninguna practica registrada."
+}

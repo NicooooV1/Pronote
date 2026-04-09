@@ -1,0 +1,23 @@
+{
+    "notes.title": "الدرجات",
+    "notes.list": "Grade List",
+    "notes.add": "Add Grades",
+    "notes.edit": "Edit Grade",
+    "notes.delete": "Delete Grade",
+    "notes.average": "Average: :value",
+    "notes.class_average": "Class average: :value",
+    "notes.coefficient": "Coefficient: :value",
+    "notes.subject": "Subject",
+    "notes.date": "Date",
+    "notes.grade": "Grade",
+    "notes.out_of": "/ :max",
+    "notes.comment": "Comment",
+    "notes.locked": "Grades locked",
+    "notes.unlock": "Unlock",
+    "notes.lock": "Lock",
+    "notes.no_grades": "No grades recorded.",
+    "notes.confirm_delete": "Are you sure you want to delete this grade?",
+    "notes.export_csv": "Export as CSV",
+    "notes.trimester": "Term",
+    "notes.items_count": "No grades|:count grade|:count grades"
+}

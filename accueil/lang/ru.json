@@ -1,0 +1,16 @@
+{
+    "accueil.title": "Панель управления",
+    "accueil.greeting.morning": "Доброе утро",
+    "accueil.greeting.afternoon": "Добрый день",
+    "accueil.greeting.evening": "Добрый вечер",
+    "accueil.class_of": "Класс :class",
+    "accueil.fallback_name": "Учебное заведение",
+    "accueil.customize.title": "Настроить панель",
+    "accueil.customize.hint": "Включите или отключите виджеты, затем измените порядок перетаскиванием.",
+    "accueil.customize.saved": "Настройки сохранены.",
+    "accueil.layout.saved": "Макет сохранен.",
+    "accueil.widget.chart_soon": "График скоро будет доступен.",
+    "accueil.widget.no_data": "Нет элементов для отображения.",
+    "accueil.widget.no_courses": "Сегодня нет занятий.",
+    "accueil.widget.no_shortcuts": "Нет ярлыков."
+}

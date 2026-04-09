@@ -1,0 +1,55 @@
+{
+    "key": "formations",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Formation Continue Personnel",
+        "en": "Staff Continuing Education"
+    },
+    "description": {
+        "fr": "Catalogue formations, inscriptions avec validation, suivi certifications, budget et attestations",
+        "en": "Training catalog, enrollment with approval, certification tracking, budget and certificates"
+    },
+    "icon": "fas fa-chalkboard-teacher",
+    "category": "etablissement",
+    "core": false,
+    "requires_php": ">=8.0",
+    "dependencies": ["personnel"],
+    "permissions": {
+        "view": { "default_roles": ["administrateur", "professeur", "vie_scolaire"] },
+        "manage": { "default_roles": ["administrateur"] },
+        "inscrire": { "default_roles": ["professeur", "vie_scolaire"] },
+        "export": { "default_roles": ["administrateur"] }
+    },
+    "routes": { "main": "formations.php" },
+    "widgets": [
+        {
+            "key": "formations_prochaines",
+            "name": { "fr": "Formations à venir", "en": "Upcoming trainings" },
+            "description": { "fr": "Prochaines sessions de formation", "en": "Next training sessions" },
+            "type": "list",
+            "icon": "fas fa-chalkboard-teacher",
+            "roles": ["administrateur", "professeur", "vie_scolaire"],
+            "default_size": { "width": 2, "height": 1 },
+            "is_default": false,
+            "sort_order": 80,
+            "data_provider": "includes/FormationsWidgetProvider.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 82 },
+    "topbar": { "category": "etablissement", "sort_order": 82 },
+    "settings_schema": {
+        "validation_manager": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "Validation responsable requise", "en": "Manager approval required" }
+        },
+        "budget_annuel_defaut": {
+            "type": "integer",
+            "default": 1500,
+            "label": { "fr": "Budget annuel par personne (€)", "en": "Annual budget per person (€)" }
+        }
+    },
+    "author": "Fronote Team",
+    "license": "MIT"
+}

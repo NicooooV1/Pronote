@@ -1,0 +1,13 @@
+{
+    "rgpd.title": "DSGVO",
+    "rgpd.registry": "Verarbeitungsverzeichnis",
+    "rgpd.consent": "Einwilligungen",
+    "rgpd.purge": "Automatische Loeschung",
+    "rgpd.export": "Datenexport",
+    "rgpd.data_subject": "Betroffene Person",
+    "rgpd.purpose": "Zweck",
+    "rgpd.legal_basis": "Rechtsgrundlage",
+    "rgpd.retention": "Aufbewahrungsfrist",
+    "rgpd.dpo": "Datenschutzbeauftragter",
+    "rgpd.no_records": "Keine Verarbeitungen erfasst."
+}

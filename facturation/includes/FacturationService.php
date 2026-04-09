@@ -183,7 +183,139 @@ class FacturationService
         return $count;
     }
 
-    /* ───── EXPORT ───── */
+    /* ───── AUTO-BILLING ───── */
+
+    /**
+     * Generate invoices automatically for a service (cantine, garderie, etc.)
+     * @return int number of invoices created
+     */
+    public function genererFacturesAuto(string $type, string $mois, float $tarif, ?string $description = null): int
+    {
+        $count = 0;
+        $desc = $description ?? ucfirst($type) . ' — ' . $mois;
+
+        // Find parents with active subscriptions for this service
+        $parentIds = [];
+        switch ($type) {
+            case 'cantine':
+                $stmt = $this->pdo->prepare("
+                    SELECT DISTINCT pe.parent_id
+                    FROM cantine_reservations cr
+                    JOIN parent_eleve pe ON pe.eleve_id = cr.eleve_id
+                    WHERE DATE_FORMAT(cr.date_reservation, '%Y-%m') = ?
+                ");
+                $stmt->execute([$mois]);
+                $parentIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+                break;
+            case 'garderie':
+                $stmt = $this->pdo->prepare("
+                    SELECT DISTINCT pe.parent_id
+                    FROM garderie_inscriptions gi
+                    JOIN parent_eleve pe ON pe.eleve_id = gi.eleve_id
+                    WHERE DATE_FORMAT(gi.date_inscription, '%Y-%m') = ?
+                ");
+                $stmt->execute([$mois]);
+                $parentIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+                break;
+            default:
+                // All active parents
+                $parentIds = $this->pdo->query("SELECT id FROM parents WHERE actif = 1")->fetchAll(\PDO::FETCH_COLUMN);
+        }
+
+        foreach ($parentIds as $pid) {
+            // Check if invoice already exists for this parent/type/month
+            $check = $this->pdo->prepare("SELECT id FROM factures WHERE parent_id = ? AND type = ? AND description LIKE ?");
+            $check->execute([$pid, $type, "%$mois%"]);
+            if ($check->fetch()) continue;
+
+            $this->creerFacture([
+                'parent_id' => $pid,
+                'montant_ht' => $tarif,
+                'montant_ttc' => $tarif,
+                'date_echeance' => date('Y-m-t', strtotime($mois . '-01')),
+                'type' => $type,
+                'description' => $desc,
+            ]);
+            $count++;
+        }
+        return $count;
+    }
+
+    /**
+     * Send escalating reminders: J+15, J+30, J+45.
+     * @return int number of relances sent
+     */
+    public function envoyerRelancesEscaladees(): int
+    {
+        $count = 0;
+        $today = date('Y-m-d');
+
+        $stmt = $this->pdo->query("
+            SELECT f.*, CONCAT(p.prenom, ' ', p.nom) AS parent_nom, p.mail AS parent_email
+            FROM factures f
+            JOIN parents p ON f.parent_id = p.id
+            WHERE f.statut IN ('en_retard', 'en_attente')
+              AND f.date_echeance < CURDATE()
+            ORDER BY f.date_echeance ASC
+        ");
+        $factures = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($factures as $f) {
+            $joursRetard = (int)((strtotime($today) - strtotime($f['date_echeance'])) / 86400);
+            $relanceCount = (int)($f['relance_count'] ?? 0);
+
+            $shouldRelance = false;
+            if ($joursRetard >= 45 && $relanceCount < 3) $shouldRelance = true;
+            elseif ($joursRetard >= 30 && $relanceCount < 2) $shouldRelance = true;
+            elseif ($joursRetard >= 15 && $relanceCount < 1) $shouldRelance = true;
+
+            if ($shouldRelance) {
+                try {
+                    $notifPath = __DIR__ . '/../../notifications/includes/NotificationService.php';
+                    if (file_exists($notifPath)) {
+                        require_once $notifPath;
+                        $notif = new \NotificationService($this->pdo);
+                        $niveau = $relanceCount >= 2 ? 'urgente' : 'haute';
+                        $notif->creer(
+                            $f['parent_id'], 'parent', 'facturation',
+                            "Relance paiement n°" . ($relanceCount + 1),
+                            "Facture {$f['numero']} — {$f['montant_ttc']}€ (échéance : " . date('d/m/Y', strtotime($f['date_echeance'])) . ")",
+                            '/facturation/detail.php?id=' . $f['id'],
+                            $niveau
+                        );
+                    }
+                } catch (\Exception $e) {}
+
+                $this->pdo->prepare("UPDATE factures SET relance_count = relance_count + 1, derniere_relance = CURDATE(), statut = 'en_retard' WHERE id = ?")
+                           ->execute([$f['id']]);
+                $count++;
+            }
+        }
+        return $count;
+    }
+
+    /* ───── ACCOUNTING EXPORT ───── */
+
+    /**
+     * Export comptable (format CSV compatible logiciels compta).
+     */
+    public function getExportComptable(string $dateDebut, string $dateFin): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT f.numero, f.created_at AS date_facture, f.montant_ht, f.montant_tva, f.montant_ttc,
+                   f.type, f.statut, f.description,
+                   CONCAT(p.nom, ' ', p.prenom) AS client,
+                   (SELECT COALESCE(SUM(pa.montant), 0) FROM paiements pa WHERE pa.facture_id = f.id) AS total_paye
+            FROM factures f
+            JOIN parents p ON f.parent_id = p.id
+            WHERE f.created_at BETWEEN ? AND ?
+            ORDER BY f.created_at
+        ");
+        $stmt->execute([$dateDebut, $dateFin . ' 23:59:59']);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /* ───── EXPORT ──��── */
 
     /**
      * Export des factures pour ExportService.
@@ -208,5 +340,78 @@ class FacturationService
             ];
         }
         return $result;
+    }
+
+    // ─── AVOIR / NOTE DE CRÉDIT ───
+
+    public function creerAvoir(int $factureId, float $montant, string $motif): int
+    {
+        $facture = $this->getFacture($factureId);
+        if (!$facture) throw new \RuntimeException('Facture introuvable');
+
+        $numero = 'AV-' . date('Y') . '-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+        $stmt = $this->pdo->prepare("
+            INSERT INTO avoirs (facture_id, numero, montant, motif, parent_id, created_at)
+            VALUES (:f, :n, :m, :mo, :p, NOW())
+        ");
+        $stmt->execute([':f' => $factureId, ':n' => $numero, ':m' => $montant, ':mo' => $motif, ':p' => $facture['parent_id']]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getAvoirs(?int $parentId = null): array
+    {
+        $sql = "SELECT a.*, f.numero AS facture_numero FROM avoirs a LEFT JOIN factures f ON a.facture_id = f.id WHERE 1=1";
+        $params = [];
+        if ($parentId) { $sql .= " AND a.parent_id = :p"; $params[':p'] = $parentId; }
+        $sql .= " ORDER BY a.created_at DESC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    // ─── TABLEAU DE BORD TRÉSORERIE ───
+
+    public function getDashboardTresorerie(string $dateDebut, string $dateFin): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT
+                COUNT(*) AS total_factures,
+                SUM(montant_ttc) AS total_ttc,
+                SUM(CASE WHEN statut = 'payee' THEN montant_ttc ELSE 0 END) AS total_encaisse,
+                SUM(CASE WHEN statut IN ('en_attente','en_retard') THEN montant_ttc ELSE 0 END) AS total_impaye,
+                COUNT(CASE WHEN statut = 'en_retard' THEN 1 END) AS nb_retards,
+                COUNT(CASE WHEN statut = 'payee' THEN 1 END) AS nb_payees
+            FROM factures WHERE created_at BETWEEN :d AND :f
+        ");
+        $stmt->execute([':d' => $dateDebut, ':f' => $dateFin . ' 23:59:59']);
+        return $stmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    // ─── PAIEMENT EN PLUSIEURS FOIS ───
+
+    public function creerEcheancier(int $factureId, int $nbEcheances): array
+    {
+        $facture = $this->getFacture($factureId);
+        if (!$facture) throw new \RuntimeException('Facture introuvable');
+
+        $montantParEcheance = round($facture['montant_ttc'] / $nbEcheances, 2);
+        $echeances = [];
+
+        for ($i = 0; $i < $nbEcheances; $i++) {
+            $dateEcheance = date('Y-m-d', strtotime("+{$i} months", strtotime($facture['date_echeance'] ?? date('Y-m-d'))));
+            $montant = ($i === $nbEcheances - 1) ? $facture['montant_ttc'] - ($montantParEcheance * ($nbEcheances - 1)) : $montantParEcheance;
+
+            $stmt = $this->pdo->prepare("INSERT INTO facture_echeancier (facture_id, numero_echeance, montant, date_echeance, statut) VALUES (:f, :n, :m, :d, 'en_attente')");
+            $stmt->execute([':f' => $factureId, ':n' => $i + 1, ':m' => $montant, ':d' => $dateEcheance]);
+            $echeances[] = ['echeance' => $i + 1, 'montant' => $montant, 'date' => $dateEcheance];
+        }
+        return $echeances;
+    }
+
+    public function getEcheancier(int $factureId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM facture_echeancier WHERE facture_id = :f ORDER BY numero_echeance");
+        $stmt->execute([':f' => $factureId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 }

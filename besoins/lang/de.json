@@ -1,0 +1,16 @@
+{
+    "besoins.title": "Sonderpaedagogische Beduerfnisse",
+    "besoins.pap": "PAP",
+    "besoins.ppre": "PPRE",
+    "besoins.pps": "PPS",
+    "besoins.pai": "PAI",
+    "besoins.add": "Akte hinzufuegen",
+    "besoins.student": "Schueler",
+    "besoins.type": "Foerderart",
+    "besoins.start_date": "Startdatum",
+    "besoins.end_date": "Enddatum",
+    "besoins.referent": "Referent",
+    "besoins.adaptations": "Anpassungen",
+    "besoins.follow_up": "Nachverfolgung",
+    "besoins.no_records": "Keine Akten erfasst."
+}

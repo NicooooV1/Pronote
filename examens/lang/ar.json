@@ -1,0 +1,15 @@
+{
+    "examens.title": "الامتحانات",
+    "examens.planning": "Exam Schedule",
+    "examens.add": "Schedule an Exam",
+    "examens.edit": "Edit",
+    "examens.delete": "Delete",
+    "examens.subject": "Subject",
+    "examens.date": "Date",
+    "examens.duration": "Duration",
+    "examens.room": "Room",
+    "examens.supervisor": "Supervisor",
+    "examens.convocation": "Summons",
+    "examens.results": "Results",
+    "examens.no_exams": "No exams scheduled."
+}

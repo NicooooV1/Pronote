@@ -1,0 +1,14 @@
+{
+    "facturation.title": "Facturation",
+    "facturation.invoices": "Factures",
+    "facturation.create": "Créer une facture",
+    "facturation.payments": "Paiements",
+    "facturation.reminders": "Relances",
+    "facturation.amount": "Montant",
+    "facturation.due_date": "Échéance",
+    "facturation.paid": "Payée",
+    "facturation.pending": "En attente",
+    "facturation.overdue": "En retard",
+    "facturation.export": "Export comptable",
+    "facturation.no_invoices": "Aucune facture enregistrée."
+}

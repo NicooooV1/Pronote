@@ -1,0 +1,12 @@
+{
+    "profil.title": "Mi perfil",
+    "profil.edit": "Modificar perfil",
+    "profil.avatar": "Foto de perfil",
+    "profil.name": "Nombre completo",
+    "profil.email": "Correo electronico",
+    "profil.phone": "Telefono",
+    "profil.class": "Clase",
+    "profil.role": "Rol",
+    "profil.change_password": "Cambiar contrasena",
+    "profil.saved": "Perfil actualizado."
+}

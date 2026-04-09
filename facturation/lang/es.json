@@ -1,0 +1,14 @@
+{
+    "facturation.title": "Facturación",
+    "facturation.invoices": "Facturas",
+    "facturation.create": "Crear factura",
+    "facturation.payments": "Pagos",
+    "facturation.reminders": "Recordatorios",
+    "facturation.amount": "Importe",
+    "facturation.due_date": "Vencimiento",
+    "facturation.paid": "Pagada",
+    "facturation.pending": "Pendiente",
+    "facturation.overdue": "Vencida",
+    "facturation.accounting_export": "Exportación contable",
+    "facturation.no_invoices": "Ninguna factura registrada."
+}

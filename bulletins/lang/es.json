@@ -1,0 +1,17 @@
+{
+    "bulletins.title": "Boletines",
+    "bulletins.generate": "Generar boletines",
+    "bulletins.preview": "Vista previa",
+    "bulletins.print": "Imprimir",
+    "bulletins.download": "Descargar",
+    "bulletins.batch": "Generación por lotes",
+    "bulletins.trimester": "Trimestre",
+    "bulletins.classe": "Clase",
+    "bulletins.eleve": "Alumno",
+    "bulletins.appreciation": "Apreciación",
+    "bulletins.appreciation_generale": "Apreciación general",
+    "bulletins.teacher_comment": "Comentario del profesor",
+    "bulletins.council_decision": "Decisión del consejo",
+    "bulletins.progress": "Progreso",
+    "bulletins.no_bulletins": "Ningún boletín generado."
+}

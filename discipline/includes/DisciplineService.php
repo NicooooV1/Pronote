@@ -460,6 +460,116 @@ class DisciplineService
         ];
     }
 
+    // ─── Points system ─────────────────────────────────────────
+
+    /**
+     * Add or remove discipline points for a student.
+     * Negative values = penalty, positive = reward.
+     */
+    public function ajouterPoints(int $eleveId, int $valeur, string $motif, int $profId): int
+    {
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO discipline_points (eleve_id, valeur, motif, prof_id, date_creation)
+             VALUES (?, ?, ?, ?, NOW())"
+        );
+        $stmt->execute([$eleveId, $valeur, $motif, $profId]);
+
+        // Update cached total on élève
+        $this->pdo->prepare(
+            "UPDATE eleves SET points_discipline = COALESCE(points_discipline, 0) + ? WHERE id = ?"
+        )->execute([$valeur, $eleveId]);
+
+        // Check auto-sanction thresholds
+        $this->checkAutoSanctions($eleveId, $profId);
+
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Get points history for a student.
+     */
+    public function getPointsEleve(int $eleveId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT dp.*, CONCAT(p.prenom, ' ', p.nom) AS prof_nom
+            FROM discipline_points dp
+            LEFT JOIN professeurs p ON dp.prof_id = p.id
+            WHERE dp.eleve_id = ?
+            ORDER BY dp.date_creation DESC
+        ");
+        $stmt->execute([$eleveId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get total discipline points for a student.
+     */
+    public function getTotalPoints(int $eleveId): int
+    {
+        $stmt = $this->pdo->prepare("SELECT COALESCE(SUM(valeur), 0) FROM discipline_points WHERE eleve_id = ?");
+        $stmt->execute([$eleveId]);
+        return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * Check auto-sanction thresholds and apply if needed.
+     */
+    private function checkAutoSanctions(int $eleveId, int $decidePar): void
+    {
+        $total = $this->getTotalPoints($eleveId);
+
+        $seuils = $this->pdo->query(
+            "SELECT * FROM discipline_seuils ORDER BY points_min DESC"
+        )->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($seuils as $seuil) {
+            if ($total <= $seuil['points_min']) {
+                // Check if sanction already applied for this threshold
+                $check = $this->pdo->prepare("
+                    SELECT id FROM sanctions
+                    WHERE eleve_id = ? AND type_sanction = ? AND auto_seuil_id = ?
+                ");
+                $check->execute([$eleveId, $seuil['sanction_type'], $seuil['id']]);
+                if ($check->fetch()) continue;
+
+                $this->createSanction([
+                    'eleve_id' => $eleveId,
+                    'type_sanction' => $seuil['sanction_type'],
+                    'motif' => "Sanction automatique : seuil de {$seuil['points_min']} points atteint ({$total} points)",
+                    'date_sanction' => date('Y-m-d'),
+                    'decide_par_id' => $decidePar,
+                    'decide_par_type' => 'vie_scolaire',
+                    'auto_seuil_id' => $seuil['id'],
+                ]);
+                break; // Only apply highest threshold
+            }
+        }
+    }
+
+    /**
+     * Get discipline timeline for a student (incidents + sanctions + points, chronological).
+     */
+    public function getTimeline(int $eleveId): array
+    {
+        $incidents = $this->getIncidents(['eleve_id' => $eleveId]);
+        $sanctions = $this->getSanctionsEleve($eleveId);
+        $points = $this->getPointsEleve($eleveId);
+
+        $timeline = [];
+        foreach ($incidents as $i) {
+            $timeline[] = ['type' => 'incident', 'date' => $i['date_incident'], 'data' => $i];
+        }
+        foreach ($sanctions as $s) {
+            $timeline[] = ['type' => 'sanction', 'date' => $s['date_sanction'], 'data' => $s];
+        }
+        foreach ($points as $p) {
+            $timeline[] = ['type' => 'points', 'date' => $p['date_creation'], 'data' => $p];
+        }
+
+        usort($timeline, fn($a, $b) => strtotime($b['date']) - strtotime($a['date']));
+        return $timeline;
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────
 
     public function getClasses(): array
@@ -479,6 +589,49 @@ class DisciplineService
         );
         $q = '%' . $query . '%';
         $stmt->execute([$q, $q]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ─── WORKFLOW ESCALADE ───
+
+    public function escalerIncident(int $incidentId): void
+    {
+        $incident = $this->pdo->prepare("SELECT gravite, eleve_id FROM incidents WHERE id = :id");
+        $incident->execute([':id' => $incidentId]);
+        $inc = $incident->fetch(PDO::FETCH_ASSOC);
+
+        $regle = $this->pdo->prepare("SELECT action_suivante FROM discipline_regles_escalade WHERE gravite = :g ORDER BY seuil_incidents ASC LIMIT 1");
+        $regle->execute([':g' => $inc['gravite']]);
+        $action = $regle->fetchColumn();
+
+        if ($action) {
+            $this->pdo->prepare("UPDATE incidents SET escalade = 1, action_escalade = :a WHERE id = :id")
+                ->execute([':a' => $action, ':id' => $incidentId]);
+        }
+    }
+
+    // ─── CONTRAT COMPORTEMENT ───
+
+    public function creerContratComportement(int $eleveId, string $contenu, array $objectifs, int $createurId): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO discipline_contrats (eleve_id, contenu, objectifs, createur_id, statut) VALUES (:eid, :c, :o, :cid, 'actif')");
+        $stmt->execute([':eid' => $eleveId, ':c' => $contenu, ':o' => json_encode($objectifs), ':cid' => $createurId]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getContrats(int $eleveId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM discipline_contrats WHERE eleve_id = :eid ORDER BY created_at DESC");
+        $stmt->execute([':eid' => $eleveId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ─── EXPORT STATS ACADÉMIE ───
+
+    public function exportStatistiquesAcademie(int $etabId, string $annee): array
+    {
+        $stmt = $this->pdo->prepare("SELECT type, gravite, COUNT(*) AS nb FROM incidents WHERE etablissement_id = :eid AND YEAR(date_incident) = :a GROUP BY type, gravite ORDER BY type, gravite");
+        $stmt->execute([':eid' => $etabId, ':a' => $annee]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

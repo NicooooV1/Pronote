@@ -1,0 +1,13 @@
+{
+    "diplomes.title": "Diplomas",
+    "diplomes.list": "Lista de diplomas",
+    "diplomes.add": "Añadir diploma",
+    "diplomes.edit": "Modificar",
+    "diplomes.print": "Imprimir",
+    "diplomes.eleve": "Alumno",
+    "diplomes.type": "Tipo de diploma",
+    "diplomes.date": "Fecha de obtención",
+    "diplomes.mention": "Mención",
+    "diplomes.success_stats": "Estadísticas de éxito",
+    "diplomes.no_diplomas": "Ningún diploma registrado."
+}

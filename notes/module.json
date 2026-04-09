@@ -1,19 +1,49 @@
 {
     "key": "notes",
     "version": "1.0.0",
-    "name": { "fr": "Notes", "en": "Grades" },
-    "description": { "fr": "Gestion des notes et moyennes", "en": "Grade and average management" },
+    "name": {
+        "fr": "Notes",
+        "en": "Grades"
+    },
+    "description": {
+        "fr": "Gestion des notes et moyennes",
+        "en": "Grade and average management"
+    },
     "icon": "fas fa-chart-bar",
     "category": "scolaire",
     "core": false,
     "requires_php": ">=8.0",
     "dependencies": [],
     "permissions": {
-        "view": { "default_roles": ["*"] },
-        "manage": { "default_roles": ["administrateur", "professeur", "vie_scolaire"] },
-        "edit": { "default_roles": ["administrateur", "professeur"] },
-        "delete": { "default_roles": ["administrateur"] },
-        "export": { "default_roles": ["administrateur", "vie_scolaire"] }
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "professeur",
+                "vie_scolaire"
+            ]
+        },
+        "edit": {
+            "default_roles": [
+                "administrateur",
+                "professeur"
+            ]
+        },
+        "delete": {
+            "default_roles": [
+                "administrateur"
+            ]
+        },
+        "export": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire"
+            ]
+        }
     },
     "routes": {
         "main": "notes.php",
@@ -22,12 +52,25 @@
     "widgets": [
         {
             "key": "dernieres_notes",
-            "name": { "fr": "Dernières notes", "en": "Latest grades" },
-            "description": { "fr": "Notes les plus récentes", "en": "Most recent grades" },
+            "name": {
+                "fr": "Dernières notes",
+                "en": "Latest grades"
+            },
+            "description": {
+                "fr": "Notes les plus récentes",
+                "en": "Most recent grades"
+            },
             "type": "list",
             "icon": "fas fa-chart-bar",
-            "roles": ["eleve", "parent", "professeur"],
-            "default_size": { "width": 2, "height": 1 },
+            "roles": [
+                "eleve",
+                "parent",
+                "professeur"
+            ],
+            "default_size": {
+                "width": 2,
+                "height": 1
+            },
             "min_width": 1,
             "max_width": 4,
             "is_default": true,
@@ -37,12 +80,25 @@
         }
     ],
     "establishment_types": null,
-    "sidebar": { "sort_order": 10 },
+    "sidebar": {
+        "sort_order": 10
+    },
     "settings_schema": {
         "lock_after_days": {
             "type": "integer",
             "default": 30,
-            "label": { "fr": "Verrouiller après (jours)", "en": "Lock after (days)" }
+            "label": {
+                "fr": "Verrouiller après (jours)",
+                "en": "Lock after (days)"
+            }
         }
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "scolaire",
+        "sort_order": 10
     }
 }

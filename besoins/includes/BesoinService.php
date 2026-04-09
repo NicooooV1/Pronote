@@ -108,6 +108,66 @@ class BesoinService
         $stmt->execute([$planId, $auteurId, $observations, $progres]);
     }
 
+    /* ───── EVALUATIONS PERIODIQUES ───── */
+
+    /**
+     * Add a periodic evaluation to a plan.
+     */
+    public function ajouterEvaluation(int $planId, array $data): void
+    {
+        $plan = $this->getPlan($planId);
+        if (!$plan) return;
+
+        $evaluations = !empty($plan['evaluations']) ? json_decode($plan['evaluations'], true) : [];
+        $evaluations[] = [
+            'date' => $data['date'] ?? date('Y-m-d'),
+            'evaluateur_id' => $data['evaluateur_id'],
+            'objectifs_atteints' => $data['objectifs_atteints'] ?? [],
+            'commentaire' => $data['commentaire'] ?? '',
+            'progres_global' => $data['progres_global'] ?? 'satisfaisant',
+            'prochaine_evaluation' => $data['prochaine_evaluation'] ?? null,
+        ];
+
+        $this->pdo->prepare("UPDATE plans_accompagnement SET evaluations = ? WHERE id = ?")
+                   ->execute([json_encode($evaluations, JSON_UNESCAPED_UNICODE), $planId]);
+    }
+
+    /**
+     * Get evaluations for a plan.
+     */
+    public function getEvaluations(int $planId): array
+    {
+        $plan = $this->getPlan($planId);
+        if (!$plan || empty($plan['evaluations'])) return [];
+        return json_decode($plan['evaluations'], true) ?: [];
+    }
+
+    /**
+     * Get plans needing periodic evaluation (last evaluation > 3 months ago or none).
+     */
+    public function getPlansAEvaluer(): array
+    {
+        $plans = $this->getPlans(['statut' => 'actif']);
+        $result = [];
+        $threshold = strtotime('-3 months');
+
+        foreach ($plans as $p) {
+            $evals = !empty($p['evaluations']) ? json_decode($p['evaluations'], true) : [];
+            $lastEvalDate = null;
+            if (!empty($evals)) {
+                $lastEval = end($evals);
+                $lastEvalDate = strtotime($lastEval['date'] ?? '');
+            }
+
+            if ($lastEvalDate === null || $lastEvalDate < $threshold) {
+                $p['derniere_evaluation'] = $lastEvalDate ? date('Y-m-d', $lastEvalDate) : null;
+                $p['nb_evaluations'] = count($evals);
+                $result[] = $p;
+            }
+        }
+        return $result;
+    }
+
     /* ───── HELPERS ───── */
 
     public function getEleves(): array
@@ -154,5 +214,89 @@ class BesoinService
     {
         $m = ['insuffisant' => 'danger', 'en_difficulte' => 'warning', 'satisfaisant' => 'info', 'tres_bien' => 'success'];
         return '<span class="badge badge-' . ($m[$p] ?? 'secondary') . '">' . ucfirst(str_replace('_', ' ', $p)) . '</span>';
+    }
+
+    // ─── NOTES MULTI-INTERVENANTS ───
+
+    /**
+     * Ajoute une observation d'un intervenant sur un plan d'accompagnement.
+     */
+    public function ajouterObservation(int $planId, int $auteurId, string $auteurType, string $texte): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO besoins_observations (plan_id, auteur_id, auteur_type, texte, date_observation) VALUES (:pid, :aid, :at, :t, NOW())");
+        $stmt->execute([':pid' => $planId, ':aid' => $auteurId, ':at' => $auteurType, ':t' => $texte]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getObservations(int $planId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT o.*, CASE WHEN o.auteur_type = 'professeur' THEN (SELECT CONCAT(pr.prenom,' ',pr.nom) FROM professeurs pr WHERE pr.id = o.auteur_id) ELSE CONCAT(o.auteur_type,'#',o.auteur_id) END AS auteur_nom FROM besoins_observations o WHERE o.plan_id = :pid ORDER BY o.date_observation DESC");
+        $stmt->execute([':pid' => $planId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ─── VISUALISATION PROGRESSION ───
+
+    /**
+     * Données de progression d'un plan au fil du temps.
+     */
+    public function getProgressionChart(int $planId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT date_evaluation, progres FROM plan_evaluations WHERE plan_id = :pid ORDER BY date_evaluation ASC");
+        $stmt->execute([':pid' => $planId]);
+        $evals = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $niveaux = ['insuffisant' => 1, 'en_difficulte' => 2, 'satisfaisant' => 3, 'tres_bien' => 4];
+        $dates = [];
+        $values = [];
+        foreach ($evals as $e) {
+            $dates[] = $e['date_evaluation'];
+            $values[] = $niveaux[$e['progres']] ?? 0;
+        }
+
+        return ['dates' => $dates, 'values' => $values, 'labels' => self::niveauxProgres()];
+    }
+
+    // ─── TEMPLATES PLANS ───
+
+    /**
+     * Récupère les modèles de plan disponibles.
+     */
+    public function getModelesPlan(string $typePlan = ''): array
+    {
+        $sql = "SELECT * FROM besoins_modeles";
+        $params = [];
+        if ($typePlan) { $sql .= " WHERE type_plan = :tp"; $params[':tp'] = $typePlan; }
+        $sql .= " ORDER BY type_plan, titre";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Crée un plan à partir d'un modèle.
+     */
+    public function creerDepuisModele(int $modeleId, int $eleveId, int $createurId): int
+    {
+        $modele = $this->pdo->prepare("SELECT * FROM besoins_modeles WHERE id = :id");
+        $modele->execute([':id' => $modeleId]);
+        $m = $modele->fetch(PDO::FETCH_ASSOC);
+        if (!$m) throw new \RuntimeException('Modèle introuvable');
+
+        $stmt = $this->pdo->prepare("INSERT INTO plans_accompagnement (eleve_id, type_plan, description, amenagements, objectifs, createur_id, statut) VALUES (:eid, :tp, :d, :a, :o, :cid, 'actif')");
+        $stmt->execute([':eid' => $eleveId, ':tp' => $m['type_plan'], ':d' => $m['description'], ':a' => $m['amenagements_defaut'], ':o' => $m['objectifs_defaut'] ?? '', ':cid' => $createurId]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    // ─── ALERTES EXPIRATION ───
+
+    /**
+     * Retourne les plans qui expirent prochainement (pour cron).
+     */
+    public function alertExpiringSoon(int $daysBefore = 30): array
+    {
+        $stmt = $this->pdo->prepare("SELECT pa.*, CONCAT(e.prenom,' ',e.nom) AS eleve_nom, e.classe FROM plans_accompagnement pa JOIN eleves e ON pa.eleve_id = e.id WHERE pa.statut = 'actif' AND pa.date_fin BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL :d DAY) ORDER BY pa.date_fin ASC");
+        $stmt->execute([':d' => $daysBefore]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

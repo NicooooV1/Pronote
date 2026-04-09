@@ -151,6 +151,30 @@ class SettingsService {
         ];
     }
 
+    /* ───── PRIVACY ───── */
+
+    /**
+     * Get privacy level for a user (public/private).
+     */
+    public function getPrivacyLevel(int $userId, string $userType): string
+    {
+        $stmt = $this->pdo->prepare("SELECT privacy_level FROM user_settings WHERE user_id = ? AND user_type = ?");
+        $stmt->execute([$userId, $userType]);
+        return $stmt->fetchColumn() ?: 'public';
+    }
+
+    /**
+     * Set privacy level.
+     */
+    public function setPrivacyLevel(int $userId, string $userType, string $level): void
+    {
+        $this->pdo->prepare("
+            INSERT INTO user_settings (user_id, user_type, privacy_level, date_modification)
+            VALUES (?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE privacy_level = VALUES(privacy_level), date_modification = NOW()
+        ")->execute([$userId, $userType, $level]);
+    }
+
     // ─── Accueil config ──────────────────────────────────────────────
 
     /**
@@ -197,5 +221,81 @@ class SettingsService {
 
     public static function fontSizes(): array {
         return ['small' => 'Petit', 'normal' => 'Normal', 'large' => 'Grand', 'xlarge' => 'Très grand'];
+    }
+
+    // ─── RACCOURCIS CLAVIER ───
+
+    public function getKeybindings(int $userId, string $userType): array
+    {
+        $stmt = $this->pdo->prepare("SELECT keybindings FROM user_settings WHERE user_id = :u AND user_type = :t");
+        $stmt->execute([':u' => $userId, ':t' => $userType]);
+        $json = $stmt->fetchColumn();
+        return $json ? (json_decode($json, true) ?: []) : self::defaultKeybindings();
+    }
+
+    public function saveKeybindings(int $userId, string $userType, array $bindings): void
+    {
+        $json = json_encode($bindings, JSON_UNESCAPED_UNICODE);
+        $this->pdo->prepare("
+            INSERT INTO user_settings (user_id, user_type, keybindings, date_modification) VALUES (:u, :t, :k, NOW())
+            ON DUPLICATE KEY UPDATE keybindings = VALUES(keybindings), date_modification = NOW()
+        ")->execute([':u' => $userId, ':t' => $userType, ':k' => $json]);
+    }
+
+    public static function defaultKeybindings(): array
+    {
+        return [
+            'go_accueil' => 'Alt+H', 'go_notes' => 'Alt+N', 'go_agenda' => 'Alt+A',
+            'go_messages' => 'Alt+M', 'search' => 'Ctrl+K', 'toggle_sidebar' => 'Ctrl+B',
+        ];
+    }
+
+    // ─── SESSIONS ACTIVES ───
+
+    public function getSessionsActives(int $userId, string $userType): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM session_security WHERE user_id = :u AND user_type = :t AND expired = 0 ORDER BY created_at DESC");
+        $stmt->execute([':u' => $userId, ':t' => $userType]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function revoquerSession(int $sessionId, int $userId, string $userType): bool
+    {
+        $stmt = $this->pdo->prepare("UPDATE session_security SET expired = 1 WHERE id = :s AND user_id = :u AND user_type = :t");
+        return $stmt->execute([':s' => $sessionId, ':u' => $userId, ':t' => $userType]);
+    }
+
+    public function revoquerToutesSessions(int $userId, string $userType, ?int $exceptId = null): int
+    {
+        $sql = "UPDATE session_security SET expired = 1 WHERE user_id = :u AND user_type = :t AND expired = 0";
+        $params = [':u' => $userId, ':t' => $userType];
+        if ($exceptId) { $sql .= " AND id != :e"; $params[':e'] = $exceptId; }
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->rowCount();
+    }
+
+    // ─── EXPORT SETTINGS ───
+
+    public function exportSettings(int $userId, string $userType): array
+    {
+        $settings = $this->getSettings($userId, $userType);
+        $accueil = $this->getAccueilConfig($userId, $userType);
+        return [
+            'export_date' => date('Y-m-d H:i:s'),
+            'settings' => $settings,
+            'accueil_config' => $accueil,
+        ];
+    }
+
+    public function importSettings(int $userId, string $userType, array $data): bool
+    {
+        if (!empty($data['settings'])) {
+            $this->saveSettings($userId, $userType, $data['settings']);
+        }
+        if (!empty($data['accueil_config'])) {
+            $this->saveAccueilConfig($userId, $userType, $data['accueil_config']);
+        }
+        return true;
     }
 }

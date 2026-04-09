@@ -1,0 +1,15 @@
+{
+    "clubs.title": "Clubs et activités",
+    "clubs.add": "Créer un club",
+    "clubs.edit": "Modifier le club",
+    "clubs.delete": "Supprimer le club",
+    "clubs.name": "Nom du club",
+    "clubs.description": "Description",
+    "clubs.instructor": "Intervenant",
+    "clubs.schedule": "Planning",
+    "clubs.members": "Membres",
+    "clubs.register": "S'inscrire",
+    "clubs.unregister": "Se désinscrire",
+    "clubs.capacity": "Places disponibles",
+    "clubs.no_clubs": "Aucun club disponible."
+}

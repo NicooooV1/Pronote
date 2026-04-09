@@ -1,0 +1,15 @@
+{
+    "reunions.title": "الاجتмاعات",
+    "reunions.schedule": "Schedule a Meeting",
+    "reunions.calendar": "Calendar",
+    "reunions.date": "Date",
+    "reunions.time": "Time",
+    "reunions.location": "Location",
+    "reunions.participants": "Participants",
+    "reunions.agenda": "Agenda",
+    "reunions.minutes": "Minutes",
+    "reunions.reminders": "Automatic Reminders",
+    "reunions.video": "Video Conference",
+    "reunions.book_slot": "Book a Slot",
+    "reunions.no_meetings": "No meetings scheduled."
+}

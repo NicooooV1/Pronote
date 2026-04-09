@@ -1,0 +1,14 @@
+{
+    "cahierdetextes.title": "Klassenbuch",
+    "cahierdetextes.add": "Eintrag hinzufuegen",
+    "cahierdetextes.edit": "Bearbeiten",
+    "cahierdetextes.delete": "Loeschen",
+    "cahierdetextes.subject": "Fach",
+    "cahierdetextes.date": "Datum",
+    "cahierdetextes.content": "Unterrichtsinhalt",
+    "cahierdetextes.homework": "Hausaufgaben",
+    "cahierdetextes.attachments": "Anhaenge",
+    "cahierdetextes.class": "Klasse",
+    "cahierdetextes.week_view": "Wochenansicht",
+    "cahierdetextes.no_entries": "Keine Eintraege im Klassenbuch."
+}

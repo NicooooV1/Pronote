@@ -1,0 +1,65 @@
+{
+    "key": "intelligence",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Analyse Prédictive & IA",
+        "en": "Predictive Analytics & AI"
+    },
+    "description": {
+        "fr": "Score de risque décrochage, dashboard RAG, détection patterns, recommandations personnalisées",
+        "en": "Dropout risk scoring, RAG dashboard, pattern detection, personalized recommendations"
+    },
+    "icon": "fas fa-brain",
+    "category": "scolaire",
+    "core": false,
+    "requires_php": ">=8.0",
+    "dependencies": ["notes", "absences", "discipline"],
+    "permissions": {
+        "view": { "default_roles": ["administrateur", "vie_scolaire"] },
+        "manage": { "default_roles": ["administrateur"] },
+        "consulter": { "default_roles": ["professeur"] },
+        "export": { "default_roles": ["administrateur"] }
+    },
+    "routes": { "main": "intelligence.php" },
+    "widgets": [
+        {
+            "key": "intelligence_alertes_risque",
+            "name": { "fr": "Alertes risque décrochage", "en": "Dropout risk alerts" },
+            "description": { "fr": "Élèves par niveau de risque (RAG)", "en": "Students by risk level (RAG)" },
+            "type": "chart",
+            "icon": "fas fa-brain",
+            "roles": ["administrateur", "vie_scolaire"],
+            "default_size": { "width": 2, "height": 2 },
+            "is_default": false,
+            "sort_order": 70,
+            "data_provider": "includes/IntelligenceWidgetProvider.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 57 },
+    "topbar": { "category": "scolaire", "sort_order": 57 },
+    "settings_schema": {
+        "calcul_quotidien": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "Calcul quotidien automatique", "en": "Automatic daily calculation" }
+        },
+        "alertes_auto": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "Alertes automatiques CPE/PP", "en": "Auto alerts to counselors" }
+        },
+        "seuil_rouge": {
+            "type": "integer",
+            "default": 70,
+            "label": { "fr": "Seuil alerte rouge (score)", "en": "Red alert threshold (score)" }
+        },
+        "seuil_orange": {
+            "type": "integer",
+            "default": 50,
+            "label": { "fr": "Seuil alerte orange (score)", "en": "Orange alert threshold (score)" }
+        }
+    },
+    "author": "Fronote Team",
+    "license": "MIT"
+}

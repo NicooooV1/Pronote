@@ -281,6 +281,145 @@ class CompetenceService {
         return "<span class=\"comp-dot\" style=\"background:{$color}\" title=\"" . htmlspecialchars(self::niveauxLabels()[$niveau] ?? '') . "\"></span>";
     }
 
+    /* ==================== RADAR CHART DATA ==================== */
+
+    /**
+     * Get radar chart data for a student: one axis per domain, value = average level (1-4).
+     */
+    public function getRadarData(int $eleveId, ?int $periodeId = null): array
+    {
+        $bilan = $this->getBilanEleve($eleveId, $periodeId);
+        $niveaux = self::niveauxValues();
+
+        $labels = [];
+        $values = [];
+        foreach ($bilan as $domaine => $data) {
+            $labels[] = $domaine;
+            $values[] = $data['count'] > 0 ? round($data['total'] / $data['count'], 2) : 0;
+        }
+
+        return ['labels' => $labels, 'values' => $values, 'max' => 4];
+    }
+
+    /**
+     * Get radar chart data for a class (average per domain across all students).
+     */
+    public function getRadarClasseData(int $classeId, ?int $periodeId = null): array
+    {
+        $sql = "
+            SELECT c.domaine, ce.niveau_acquis
+            FROM competence_evaluations ce
+            JOIN competences c ON ce.competence_id = c.id
+            JOIN eleves e ON ce.eleve_id = e.id
+            WHERE e.classe_id = ?
+        ";
+        $params = [$classeId];
+        if ($periodeId) {
+            $sql .= " AND ce.periode_id = ?";
+            $params[] = $periodeId;
+        }
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $niveaux = self::niveauxValues();
+        $domaines = [];
+        foreach ($rows as $r) {
+            $d = $r['domaine'] ?: 'Autre';
+            if (!isset($domaines[$d])) $domaines[$d] = ['total' => 0, 'count' => 0];
+            if (isset($niveaux[$r['niveau_acquis']])) {
+                $domaines[$d]['total'] += $niveaux[$r['niveau_acquis']];
+                $domaines[$d]['count']++;
+            }
+        }
+
+        $labels = [];
+        $values = [];
+        foreach ($domaines as $d => $data) {
+            $labels[] = $d;
+            $values[] = $data['count'] > 0 ? round($data['total'] / $data['count'], 2) : 0;
+        }
+
+        return ['labels' => $labels, 'values' => $values, 'max' => 4];
+    }
+
+    /* ==================== REFERENTIEL CRUD ==================== */
+
+    /**
+     * Create a new competence in the referentiel.
+     */
+    public function createCompetence(array $data): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO competences (code, nom, description, domaine, parent_id, ordre, niveau_attendu)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $data['code'],
+            $data['nom'],
+            $data['description'] ?? '',
+            $data['domaine'] ?? '',
+            $data['parent_id'] ?: null,
+            $data['ordre'] ?? 0,
+            $data['niveau_attendu'] ?? 'acquis',
+        ]);
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    /**
+     * Update a competence.
+     */
+    public function updateCompetence(int $id, array $data): bool
+    {
+        $stmt = $this->pdo->prepare("
+            UPDATE competences SET code = ?, nom = ?, description = ?, domaine = ?, parent_id = ?, ordre = ?, niveau_attendu = ?
+            WHERE id = ?
+        ");
+        return $stmt->execute([
+            $data['code'],
+            $data['nom'],
+            $data['description'] ?? '',
+            $data['domaine'] ?? '',
+            $data['parent_id'] ?: null,
+            $data['ordre'] ?? 0,
+            $data['niveau_attendu'] ?? 'acquis',
+            $id,
+        ]);
+    }
+
+    /**
+     * Delete a competence (and its children).
+     */
+    public function deleteCompetence(int $id): bool
+    {
+        $this->pdo->beginTransaction();
+        try {
+            // Delete child evaluations
+            $this->pdo->prepare("DELETE FROM competence_evaluations WHERE competence_id IN (SELECT id FROM competences WHERE parent_id = ?)")->execute([$id]);
+            // Delete own evaluations
+            $this->pdo->prepare("DELETE FROM competence_evaluations WHERE competence_id = ?")->execute([$id]);
+            // Delete children
+            $this->pdo->prepare("DELETE FROM competences WHERE parent_id = ?")->execute([$id]);
+            // Delete self
+            $this->pdo->prepare("DELETE FROM competences WHERE id = ?")->execute([$id]);
+            $this->pdo->commit();
+            return true;
+        } catch (\Exception $e) {
+            $this->pdo->rollBack();
+            return false;
+        }
+    }
+
+    /**
+     * Get a competence by ID.
+     */
+    public function getCompetenceById(int $id): ?array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM competences WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+    }
+
     /* ==================== EXPORT ==================== */
 
     public function getEvaluationsForExport(int $classeId, ?int $periodeId = null): array
@@ -334,5 +473,149 @@ class CompetenceService {
             }
         }
         return $rows;
+    }
+
+    /* ==================== ÉVALUATION EN MASSE ==================== */
+
+    /**
+     * Évaluer en masse : tous les élèves d'une classe sur une compétence.
+     */
+    public function evaluerEnMasse(int $competenceId, int $classeId, array $evals, int $profId, ?int $matiereId = null, ?int $periodeId = null): int
+    {
+        $count = 0;
+        foreach ($evals as $eleveId => $niveau) {
+            if (empty($niveau)) continue;
+            $this->evaluer([
+                'eleve_id' => (int)$eleveId,
+                'competence_id' => $competenceId,
+                'professeur_id' => $profId,
+                'matiere_id' => $matiereId,
+                'niveau_acquis' => $niveau,
+                'periode_id' => $periodeId,
+            ]);
+            $count++;
+        }
+        return $count;
+    }
+
+    /* ==================== CROSS-REFERENCE NOTES ==================== */
+
+    /**
+     * Suggère des niveaux de compétence basés sur les notes de l'élève.
+     * Mapping : < 8/20 => non_acquis, 8-12 => en_cours, 12-16 => acquis, > 16 => depasse
+     */
+    public function suggestFromNotes(int $eleveId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT m.id AS matiere_id, m.nom AS matiere, ROUND(AVG(n.note / n.note_sur * 20),2) AS moyenne FROM notes n JOIN matieres m ON n.id_matiere = m.id WHERE n.id_eleve = :eid GROUP BY m.id ORDER BY m.nom");
+        $stmt->execute([':eid' => $eleveId]);
+        $moyennes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $suggestions = [];
+        foreach ($moyennes as $m) {
+            $moy = (float)$m['moyenne'];
+            if ($moy >= 16) $niveau = 'depasse';
+            elseif ($moy >= 12) $niveau = 'acquis';
+            elseif ($moy >= 8) $niveau = 'en_cours';
+            else $niveau = 'non_acquis';
+
+            // Trouver les compétences liées à cette matière
+            $comps = $this->pdo->prepare("SELECT DISTINCT ce.competence_id, c.code, c.nom FROM competence_evaluations ce JOIN competences c ON ce.competence_id = c.id WHERE ce.matiere_id = :mid LIMIT 20");
+            $comps->execute([':mid' => $m['matiere_id']]);
+
+            foreach ($comps as $comp) {
+                $suggestions[] = [
+                    'competence_id' => $comp['competence_id'],
+                    'competence' => $comp['code'] . ' - ' . $comp['nom'],
+                    'matiere' => $m['matiere'],
+                    'moyenne' => $moy,
+                    'niveau_suggere' => $niveau
+                ];
+            }
+        }
+
+        return $suggestions;
+    }
+
+    /* ==================== EXPORT LSU ==================== */
+
+    /**
+     * Export au format LSU (Livret Scolaire Unique) — données structurées.
+     */
+    public function exportLSU(int $classeId, int $periodeId): array
+    {
+        $eleves = $this->getElevesClasse($classeId);
+        $lsu = [];
+
+        foreach ($eleves as $e) {
+            $bilan = $this->getBilanEleve($e['id'], $periodeId);
+            $eleveData = [
+                'eleve' => ['nom' => $e['nom'], 'prenom' => $e['prenom'], 'id' => $e['id']],
+                'domaines' => []
+            ];
+
+            foreach ($bilan as $domaine => $data) {
+                $eleveData['domaines'][] = [
+                    'intitule' => $domaine,
+                    'niveau' => $data['niveau_moyen'],
+                    'nb_evaluations' => $data['count'],
+                    'elements' => array_map(fn($ev) => [
+                        'competence' => $ev['competence_nom'],
+                        'code' => $ev['code'],
+                        'niveau' => $ev['niveau_acquis']
+                    ], $data['evaluations'])
+                ];
+            }
+
+            $lsu[] = $eleveData;
+        }
+
+        return ['classe_id' => $classeId, 'periode_id' => $periodeId, 'export_date' => date('Y-m-d'), 'eleves' => $lsu];
+    }
+
+    /* ==================== TEMPLATES PAR CYCLE ==================== */
+
+    /**
+     * Importe un référentiel pré-construit pour un cycle (3 ou 4).
+     */
+    public function importerReferentielCycle(int $cycle): int
+    {
+        $referentiels = [
+            3 => [
+                ['code' => 'D1.1', 'nom' => 'Comprendre, s\'exprimer en utilisant la langue française à l\'oral et à l\'écrit', 'domaine' => 'D1 - Les langages'],
+                ['code' => 'D1.2', 'nom' => 'Comprendre, s\'exprimer en utilisant une langue étrangère', 'domaine' => 'D1 - Les langages'],
+                ['code' => 'D1.3', 'nom' => 'Comprendre, s\'exprimer en utilisant les langages mathématiques, scientifiques et informatiques', 'domaine' => 'D1 - Les langages'],
+                ['code' => 'D1.4', 'nom' => 'Comprendre, s\'exprimer en utilisant les langages des arts et du corps', 'domaine' => 'D1 - Les langages'],
+                ['code' => 'D2', 'nom' => 'Les méthodes et outils pour apprendre', 'domaine' => 'D2 - Méthodes et outils'],
+                ['code' => 'D3', 'nom' => 'La formation de la personne et du citoyen', 'domaine' => 'D3 - Formation personne/citoyen'],
+                ['code' => 'D4', 'nom' => 'Les systèmes naturels et les systèmes techniques', 'domaine' => 'D4 - Systèmes naturels/techniques'],
+                ['code' => 'D5', 'nom' => 'Les représentations du monde et l\'activité humaine', 'domaine' => 'D5 - Représentations du monde'],
+            ],
+            4 => [
+                ['code' => 'D1.1', 'nom' => 'Langue française à l\'oral et à l\'écrit', 'domaine' => 'D1 - Les langages'],
+                ['code' => 'D1.2', 'nom' => 'Langues étrangères et régionales', 'domaine' => 'D1 - Les langages'],
+                ['code' => 'D1.3', 'nom' => 'Langages mathématiques, scientifiques et informatiques', 'domaine' => 'D1 - Les langages'],
+                ['code' => 'D1.4', 'nom' => 'Langages des arts et du corps', 'domaine' => 'D1 - Les langages'],
+                ['code' => 'D2', 'nom' => 'Organisation du travail personnel', 'domaine' => 'D2 - Méthodes et outils'],
+                ['code' => 'D3', 'nom' => 'Expression de la sensibilité et des opinions, respect des autres', 'domaine' => 'D3 - Formation personne/citoyen'],
+                ['code' => 'D4', 'nom' => 'Démarches scientifiques, conception, création, réalisation', 'domaine' => 'D4 - Systèmes naturels/techniques'],
+                ['code' => 'D5', 'nom' => 'Raisonnement, imagination, engagement, esprit critique', 'domaine' => 'D5 - Représentations du monde'],
+            ]
+        ];
+
+        $items = $referentiels[$cycle] ?? [];
+        $count = 0;
+        foreach ($items as $idx => $item) {
+            $this->createCompetence([
+                'code' => $item['code'],
+                'nom' => $item['nom'],
+                'domaine' => $item['domaine'],
+                'description' => "Cycle {$cycle} - Socle commun",
+                'parent_id' => null,
+                'ordre' => $idx + 1,
+                'niveau_attendu' => 'acquis'
+            ]);
+            $count++;
+        }
+        return $count;
     }
 }

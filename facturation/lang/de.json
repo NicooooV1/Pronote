@@ -1,0 +1,14 @@
+{
+    "facturation.title": "Abrechnung",
+    "facturation.invoices": "Rechnungen",
+    "facturation.create": "Rechnung erstellen",
+    "facturation.payments": "Zahlungen",
+    "facturation.reminders": "Mahnungen",
+    "facturation.amount": "Betrag",
+    "facturation.due_date": "Faelligkeitsdatum",
+    "facturation.paid": "Bezahlt",
+    "facturation.pending": "Ausstehend",
+    "facturation.overdue": "Ueberfaellig",
+    "facturation.export": "Buchhaltungsexport",
+    "facturation.no_invoices": "Keine Rechnungen erfasst."
+}

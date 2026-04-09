@@ -10,9 +10,14 @@ $niveaux = CompetenceService::niveauxLabels();
 ?>
 
 <div class="main-content">
-    <div class="page-header">
-        <h1><i class="fas fa-clipboard-list"></i> Référentiel de compétences</h1>
-        <p class="page-subtitle">Socle commun de connaissances et de compétences</p>
+    <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+            <h1><i class="fas fa-clipboard-list"></i> Référentiel de compétences</h1>
+            <p class="page-subtitle">Socle commun de connaissances et de compétences</p>
+        </div>
+        <?php if (isAdmin()): ?>
+        <a href="referentiel_admin.php" class="btn btn-primary"><i class="fas fa-cogs"></i> Gérer le référentiel</a>
+        <?php endif; ?>
     </div>
 
     <!-- Légende -->

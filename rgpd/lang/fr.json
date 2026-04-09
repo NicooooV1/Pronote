@@ -1,0 +1,13 @@
+{
+    "rgpd.title": "RGPD",
+    "rgpd.registry": "Registre des traitements",
+    "rgpd.consent": "Consentements",
+    "rgpd.purge": "Purge automatique",
+    "rgpd.export": "Export des données",
+    "rgpd.data_subject": "Personne concernée",
+    "rgpd.purpose": "Finalité",
+    "rgpd.legal_basis": "Base légale",
+    "rgpd.retention": "Durée de conservation",
+    "rgpd.dpo": "Délégué à la protection des données",
+    "rgpd.no_records": "Aucun traitement enregistré."
+}

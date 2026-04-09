@@ -1,0 +1,17 @@
+{
+    "bulletins.title": "Табели успеваемости",
+    "bulletins.generate": "Generate Report Cards",
+    "bulletins.preview": "Preview",
+    "bulletins.print": "Print",
+    "bulletins.download": "Download",
+    "bulletins.batch": "Batch Generation",
+    "bulletins.trimester": "Term",
+    "bulletins.class": "Class",
+    "bulletins.student": "Student",
+    "bulletins.appreciation": "Comment",
+    "bulletins.general_appreciation": "General Comment",
+    "bulletins.teacher_comment": "Teacher Comment",
+    "bulletins.council_decision": "Council Decision",
+    "bulletins.progress": "Progress",
+    "bulletins.no_bulletins": "No report cards generated."
+}

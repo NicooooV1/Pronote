@@ -1,0 +1,16 @@
+{
+    "salles.title": "Raeume",
+    "salles.list": "Raumliste",
+    "salles.add": "Raum hinzufuegen",
+    "salles.edit": "Bearbeiten",
+    "salles.plan": "Belegungsplan",
+    "salles.reserve": "Reservieren",
+    "salles.name": "Name",
+    "salles.capacity": "Kapazitaet",
+    "salles.equipment": "Ausstattung",
+    "salles.building": "Gebaeude",
+    "salles.floor": "Stockwerk",
+    "salles.available": "Verfuegbar",
+    "salles.occupied": "Belegt",
+    "salles.no_rooms": "Keine Raeume erfasst."
+}

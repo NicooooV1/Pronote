@@ -1,0 +1,17 @@
+{
+    "agenda.title": "Agenda",
+    "agenda.add": "Añadir evento",
+    "agenda.edit": "Modificar evento",
+    "agenda.delete": "Eliminar evento",
+    "agenda.today": "Hoy",
+    "agenda.month": "Mes",
+    "agenda.week": "Semana",
+    "agenda.day": "Día",
+    "agenda.event_title": "Título",
+    "agenda.event_date": "Fecha",
+    "agenda.event_time": "Hora",
+    "agenda.event_location": "Lugar",
+    "agenda.event_description": "Descripción",
+    "agenda.no_events": "Ningún evento programado.",
+    "agenda.confirm_delete": "¿Está seguro de querer eliminar este evento?"
+}

@@ -1,0 +1,14 @@
+{
+    "cahierdetextes.title": "Cuaderno de textos",
+    "cahierdetextes.add": "Añadir una entrada",
+    "cahierdetextes.edit": "Modificar",
+    "cahierdetextes.delete": "Eliminar",
+    "cahierdetextes.subject": "Asignatura",
+    "cahierdetextes.date": "Fecha",
+    "cahierdetextes.course_content": "Contenido del curso",
+    "cahierdetextes.homework": "Deberes",
+    "cahierdetextes.attachments": "Archivos adjuntos",
+    "cahierdetextes.classe": "Clase",
+    "cahierdetextes.weekly_view": "Vista semanal",
+    "cahierdetextes.no_entries": "Ninguna entrada en el cuaderno de textos."
+}

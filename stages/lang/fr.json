@@ -1,0 +1,13 @@
+{
+    "stages.title": "Stages",
+    "stages.convention": "Convention de stage",
+    "stages.add": "Ajouter un stage",
+    "stages.student": "Stagiaire",
+    "stages.company": "Entreprise",
+    "stages.tutor": "Tuteur",
+    "stages.start_date": "Date de début",
+    "stages.end_date": "Date de fin",
+    "stages.evaluation": "Évaluation",
+    "stages.report": "Rapport de stage",
+    "stages.no_internships": "Aucun stage enregistré."
+}

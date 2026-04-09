@@ -1,0 +1,16 @@
+{
+    "personnel.title": "Staff",
+    "personnel.list": "Staff List",
+    "personnel.add": "Add Staff Member",
+    "personnel.edit": "Edit",
+    "personnel.delete": "Delete",
+    "personnel.name": "Name",
+    "personnel.role": "Role",
+    "personnel.email": "Email",
+    "personnel.phone": "Phone",
+    "personnel.department": "Department",
+    "personnel.leave": "Leave",
+    "personnel.schedule": "Schedule",
+    "personnel.directory": "Directory",
+    "personnel.no_staff": "No staff recorded."
+}

@@ -1,8 +1,10 @@
 {
-  "version": "1.4",
-  "build": "2026-04-04",
+  "version": "2.0.0",
+  "build": "2026-04-09",
   "channel": "stable",
-  "codename": "Horizon",
+  "codename": "Nova",
   "min_php": "8.0",
-  "min_mysql": "8.0"
+  "min_mysql": "8.0",
+  "modules": 60,
+  "features": "200+"
 }

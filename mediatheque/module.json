@@ -1,0 +1,60 @@
+{
+    "key": "mediatheque",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Médiathèque Numérique",
+        "en": "Digital Media Library"
+    },
+    "description": {
+        "fr": "Bibliothèque contenus numériques, streaming vidéo, playlists, suivi visionnage et quotas",
+        "en": "Digital content library, video streaming, playlists, viewing tracking and quotas"
+    },
+    "icon": "fas fa-photo-video",
+    "category": "scolaire",
+    "core": false,
+    "requires_php": ">=8.0",
+    "dependencies": ["cahierdetextes"],
+    "permissions": {
+        "view": { "default_roles": ["administrateur", "professeur", "eleve"] },
+        "manage": { "default_roles": ["administrateur"] },
+        "upload": { "default_roles": ["professeur"] },
+        "consulter": { "default_roles": ["eleve"] }
+    },
+    "routes": { "main": "mediatheque.php" },
+    "widgets": [
+        {
+            "key": "mediatheque_recents",
+            "name": { "fr": "Contenus récents", "en": "Recent content" },
+            "description": { "fr": "Derniers contenus ajoutés à la médiathèque", "en": "Latest content added to media library" },
+            "type": "list",
+            "icon": "fas fa-photo-video",
+            "roles": ["professeur", "eleve"],
+            "default_size": { "width": 2, "height": 1 },
+            "is_default": false,
+            "sort_order": 92,
+            "data_provider": "includes/MediathequeWidgetProvider.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 60 },
+    "topbar": { "category": "scolaire", "sort_order": 60 },
+    "settings_schema": {
+        "quota_prof_mo": {
+            "type": "integer",
+            "default": 500,
+            "label": { "fr": "Quota par professeur (Mo)", "en": "Quota per teacher (MB)" }
+        },
+        "streaming_adaptatif": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "Streaming adaptatif", "en": "Adaptive streaming" }
+        },
+        "formats_autorises": {
+            "type": "text",
+            "default": "mp4,mp3,pdf,jpg,png,webm",
+            "label": { "fr": "Formats autorisés", "en": "Allowed formats" }
+        }
+    },
+    "author": "Fronote Team",
+    "license": "MIT"
+}

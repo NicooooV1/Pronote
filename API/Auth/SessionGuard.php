@@ -55,6 +55,13 @@ class SessionGuard {
         $_SESSION['user_type'] = $user['type'];
         $_SESSION['user'] = $safeUser;
 
+        // Store establishment scope in session
+        $etabId = $user['etablissement_id'] ?? ($_SESSION['etablissement_id'] ?? 1);
+        $_SESSION['etablissement_id'] = (int) $etabId;
+
+        // Set the global context
+        \API\Core\EstablishmentContext::set((int) $etabId);
+
         $this->user = $safeUser;
     }
 

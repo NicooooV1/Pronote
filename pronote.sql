@@ -207,6 +207,8 @@ DROP TABLE IF EXISTS `parents`;
 DROP TABLE IF EXISTS `professeurs`;
 DROP TABLE IF EXISTS `eleves`;
 DROP TABLE IF EXISTS `administrateurs`;
+DROP TABLE IF EXISTS `super_admins`;
+DROP TABLE IF EXISTS `etablissements`;
 DROP TABLE IF EXISTS `etablissement_info`;
 DROP TABLE IF EXISTS `periodes`;
 
@@ -214,9 +216,11 @@ DROP TABLE IF EXISTS `periodes`;
 -- 1. TABLES RÉFÉRENTIELLES
 -- ============================================================
 
-CREATE TABLE `etablissement_info` (
+CREATE TABLE `etablissements` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nom` varchar(255) NOT NULL DEFAULT 'Établissement Scolaire',
+  `code` varchar(50) NOT NULL COMMENT 'Code unique court (ex: lycee-hugo)',
+  `type` enum('college','lycee','superieur','primaire','polyvalent') NOT NULL DEFAULT 'college',
   `adresse` varchar(255) DEFAULT NULL,
   `code_postal` varchar(10) DEFAULT NULL,
   `ville` varchar(100) DEFAULT NULL,
@@ -226,19 +230,38 @@ CREATE TABLE `etablissement_info` (
   `chef_etablissement` varchar(150) DEFAULT NULL,
   `academie` varchar(100) DEFAULT NULL,
   `code_uai` varchar(20) DEFAULT NULL,
-  `type` varchar(30) DEFAULT 'college',
   `annee_scolaire` varchar(10) DEFAULT '2025-2026',
   `logo` varchar(255) DEFAULT NULL,
-  `couleur_primaire` varchar(7) DEFAULT '#003366' COMMENT 'Couleur principale de l''établissement (hex)',
-  `couleur_secondaire` varchar(7) DEFAULT '#0066cc' COMMENT 'Couleur d''accent (hex)',
-  `css_personnalise` text DEFAULT NULL COMMENT 'CSS custom injecté en fin de <head>',
-  `favicon` varchar(255) DEFAULT NULL COMMENT 'Chemin vers le favicon personnalisé',
-  `pied_de_page` text DEFAULT NULL COMMENT 'Texte du footer (mentions légales)',
+  `couleur_primaire` varchar(7) DEFAULT '#003366',
+  `couleur_secondaire` varchar(7) DEFAULT '#0066cc',
+  `css_personnalise` text DEFAULT NULL,
+  `favicon` varchar(255) DEFAULT NULL,
+  `pied_de_page` text DEFAULT NULL,
+  `default_locale` varchar(10) NOT NULL DEFAULT 'fr',
+  `actif` tinyint(1) NOT NULL DEFAULT 1,
   `date_creation` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_code` (`code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `etablissement_info` (`id`, `nom`) VALUES (1, 'Établissement Scolaire');
+INSERT INTO `etablissements` (`id`, `nom`, `code`, `type`) VALUES (1, 'Établissement Scolaire', 'default', 'college');
+
+CREATE TABLE `super_admins` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `nom` varchar(100) NOT NULL,
+  `prenom` varchar(100) NOT NULL,
+  `mail` varchar(150) NOT NULL,
+  `identifiant` varchar(50) NOT NULL,
+  `mot_de_passe` varchar(255) NOT NULL,
+  `actif` tinyint(1) NOT NULL DEFAULT 1,
+  `two_factor_enabled` tinyint(1) DEFAULT 0,
+  `two_factor_secret` varchar(32) DEFAULT NULL,
+  `date_creation` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_login` datetime NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `identifiant` (`identifiant`),
+  UNIQUE KEY `mail` (`mail`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `periodes` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -2213,12 +2236,17 @@ CREATE TABLE `modules_config` (
   `label` varchar(100) NOT NULL,
   `description` text DEFAULT NULL,
   `icon` varchar(50) NOT NULL DEFAULT 'fas fa-puzzle-piece',
+  `route_path` varchar(100) DEFAULT NULL,
   `category` varchar(50) NOT NULL DEFAULT 'general',
   `enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `establishment_types` JSON DEFAULT NULL COMMENT 'null = tous types d''établissement',
   `config_json` text DEFAULT NULL,
   `roles_autorises` json DEFAULT NULL COMMENT 'Rôles autorisés à voir ce module (null = tous)',
   `sort_order` int(11) NOT NULL DEFAULT 100,
+  `sidebar_sort` int(11) NOT NULL DEFAULT 100,
   `is_core` tinyint(1) NOT NULL DEFAULT 0,
+  `topbar_category` varchar(50) DEFAULT NULL COMMENT 'Catégorie dans la topbar (Pédagogie, Vie scol., etc.)',
+  `topbar_sort_order` int(11) NOT NULL DEFAULT 50 COMMENT 'Ordre de tri dans la catégorie topbar',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_module_key` (`module_key`)
@@ -2939,10 +2967,6 @@ CREATE TABLE `translations` (
   KEY `idx_trans_lookup` (`translatable_type`, `translatable_id`, `locale`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Ajouter la colonne default_locale à etablissement_info
-ALTER TABLE `etablissement_info`
-  ADD COLUMN IF NOT EXISTS `default_locale` varchar(10) NOT NULL DEFAULT 'fr' COMMENT 'Locale par défaut de l''établissement';
-
 -- ============================================================
 -- FEATURE FLAGS (multi-établissement)
 -- ============================================================
@@ -2980,6 +3004,96 @@ INSERT INTO `feature_flags` (`flag_key`, `label`, `establishment_types`, `enable
 ('agenda.recurrence',         'Événements récurrents',       NULL,                          1),
 ('annonces.attachments',      'Pièces jointes dans les annonces', NULL,                     1);
 
+-- Feature flags granulaires par module
+INSERT INTO `feature_flags` (`flag_key`, `label`, `description`, `establishment_types`, `enabled`, `config`) VALUES
+('notes.export_pdf',           'Export PDF des notes',              'Permet l\'export des notes en PDF',                    NULL, 1, NULL),
+('notes.lock_after_deadline',  'Verrouillage apres deadline',      'Verrouille les notes apres la date limite de saisie',  NULL, 0, NULL),
+('notes.parent_notifications', 'Notif. parents pour notes',        'Envoie un email aux parents quand une note est saisie', NULL, 1, NULL),
+('notes.class_statistics',     'Statistiques par classe',          'Affiche les stats de classe',                          NULL, 1, NULL),
+('notes.coefficient_display',  'Affichage des coefficients',       'Affiche les coefficients des evaluations',             NULL, 1, NULL),
+('absences.sms_alerts',        'Alertes SMS absences',             'Envoie des SMS aux parents en cas d\'absence',         NULL, 0, '{"provider": "ovh"}'),
+('absences.qr_presence',       'Presence par QR code',             'Permet la saisie de presence par scan QR',             NULL, 0, NULL),
+('absences.auto_justify',      'Justification automatique',        'Justifie automatiquement certaines absences',          NULL, 0, NULL),
+('absences.export_pdf',        'Export PDF absences',              'Permet l\'export des absences en PDF',                 NULL, 1, NULL),
+('absences.parental_justify',  'Justification par parents',        'Permet aux parents de justifier en ligne',             NULL, 1, NULL),
+('messagerie.file_attachments','Pieces jointes messagerie',        'Permet d\'envoyer des fichiers en piece jointe',       NULL, 1, '{"max_size_mb": 10}'),
+('messagerie.typing_indicators','Indicateur de saisie',            'Affiche quand l\'interlocuteur ecrit',                 NULL, 0, NULL),
+('messagerie.read_receipts',   'Accuses de lecture',               'Affiche quand un message a ete lu',                    NULL, 1, NULL),
+('messagerie.broadcast',       'Diffusion massive',                'Permet l\'envoi de messages a des groupes entiers',    NULL, 1, NULL),
+('messagerie.reactions',       'Reactions emoji',                   'Permet de reagir aux messages avec des emojis',        NULL, 0, NULL),
+('agenda.ical_export',         'Export iCal',                      'Permet l\'export du calendrier au format iCal',        NULL, 1, NULL),
+('agenda.conflict_detection',  'Detection de conflits',            'Detecte les conflits d\'horaires dans l\'agenda',      NULL, 1, NULL),
+('agenda.reminders',           'Rappels automatiques',             'Envoie des rappels avant les evenements',              NULL, 1, '{"minutes_before": 30}'),
+('cahierdetextes.rich_editor', 'Editeur riche',                    'Active l\'editeur de texte enrichi',                   NULL, 1, NULL),
+('cahierdetextes.attachments', 'Pieces jointes',                   'Permet d\'ajouter des fichiers au cahier de textes',   NULL, 1, NULL),
+('cahierdetextes.drag_reorder','Reordonnement drag-drop',          'Permet de reordonner les entrees par glisser-deposer', NULL, 0, NULL),
+('devoirs.online_submission',  'Rendu en ligne',                   'Permet aux eleves de soumettre leurs devoirs en ligne', NULL, 1, NULL),
+('devoirs.auto_reminders',     'Rappels automatiques',             'Envoie des rappels avant la date limite',              NULL, 1, NULL),
+('devoirs.annotation',         'Annotation des copies',            'Permet au professeur d\'annoter les copies rendues',   NULL, 0, NULL),
+('devoirs.plagiarism_check',   'Verification de plagiat',          'Active la verification de plagiat sur les rendus',     NULL, 0, NULL),
+('competences.radar_chart',    'Graphe radar',                     'Affiche un graphe radar des competences par eleve',    NULL, 1, NULL),
+('competences.lsu_export',     'Export LSU',                       'Permet l\'export des competences au format LSU',       '["college"]', 1, NULL),
+('competences.auto_link',      'Liaison notes-competences',        'Lie automatiquement les notes aux competences',        NULL, 0, NULL),
+('bulletins.batch_generation', 'Generation par lot',               'Permet de generer tous les bulletins d\'une classe',   NULL, 1, NULL),
+('bulletins.live_preview',     'Apercu en direct',                 'Affiche un apercu du bulletin pendant la saisie',      NULL, 1, NULL),
+('bulletins.auto_suggestion',  'Appreciation auto-suggeree',       'Suggere des appreciations basees sur les resultats',   NULL, 0, NULL),
+('emploi_du_temps.drag_edit',  'Edition drag-drop',                'Permet de modifier l\'emploi du temps par drag-drop',  NULL, 0, NULL),
+('emploi_du_temps.conflict',   'Detection conflits',               'Detecte les conflits de salles et enseignants',        NULL, 1, NULL),
+('emploi_du_temps.substitution','Gestion remplacements',           'Active le module de remplacement d\'enseignants',      NULL, 1, NULL),
+('emploi_du_temps.ical_sync',  'Synchronisation iCal',             'Synchronise l\'emploi du temps avec les agendas',      NULL, 1, NULL),
+('appel.realtime',             'Appel temps reel',                 'Transmet l\'appel en temps reel via WebSocket',        NULL, 1, NULL),
+('appel.qr_scan',              'Scan QR appel',                    'Permet l\'appel par scan de QR code eleve',            NULL, 0, NULL),
+('appel.batch_entry',          'Saisie groupee',                   'Permet de saisir l\'appel pour plusieurs cours',       NULL, 0, NULL),
+('discipline.points_system',   'Systeme de points',                'Active le systeme de points de comportement',          NULL, 0, NULL),
+('discipline.graduated_sanctions','Sanctions graduees',             'Propose des sanctions proportionnelles aux incidents', NULL, 0, NULL),
+('discipline.statistics',      'Statistiques discipline',          'Affiche les statistiques d\'incidents',                NULL, 1, NULL),
+('vie_scolaire.dropout_alerts','Alertes decrochage',               'Detecte les eleves a risque de decrochage',            NULL, 1, NULL),
+('vie_scolaire.consolidated',  'Dashboard consolide',              'Consolide absences + discipline dans un tableau de bord', NULL, 1, NULL),
+('signalements.anonymous',     'Signalement anonyme',              'Permet les signalements anonymes',                     NULL, 1, NULL),
+('signalements.notifications', 'Notifications signalements',       'Notifie les responsables des nouveaux signalements',   NULL, 1, NULL),
+('cantine.online_booking',     'Reservation en ligne',             'Permet la reservation des repas en ligne',             NULL, 1, NULL),
+('cantine.menu_display',       'Affichage du menu',                'Affiche le menu de la semaine aux utilisateurs',       NULL, 1, NULL),
+('cantine.allergen_alerts',    'Alertes allergenes',               'Affiche les alertes allergenes sur les menus',         NULL, 1, NULL),
+('bibliotheque.barcode_scan',  'Scan code-barres',                 'Permet le scan de code-barres pour les prets',         NULL, 0, NULL),
+('bibliotheque.online_catalog','Catalogue en ligne',               'Rend le catalogue accessible aux eleves/parents',      NULL, 1, NULL),
+('bibliotheque.overdue_alerts','Alertes retard prets',             'Envoie des alertes pour les prets en retard',          NULL, 1, NULL),
+('reunions.auto_reminders',    'Rappels reunions',                 'Envoie des rappels automatiques avant les reunions',   NULL, 1, NULL),
+('reunions.video_conference',  'Visioconference',                  'Integre un lien de visioconference aux reunions',      NULL, 0, NULL),
+('reunions.online_booking',    'Reservation en ligne',             'Permet aux parents de reserver un creneau',            NULL, 1, NULL),
+('annonces.scheduled_publish', 'Publication programmee',            'Permet de programmer la publication d\'annonces',      NULL, 1, NULL),
+('annonces.read_receipts',     'Accuses de lecture annonces',      'Affiche les accuses de lecture des annonces',           NULL, 0, NULL),
+('annonces.target_by_role',    'Ciblage par role',                 'Permet de cibler les annonces par role/classe',         NULL, 1, NULL),
+('notifications.push',         'Notifications push',               'Active les notifications push navigateur',             NULL, 1, NULL),
+('notifications.email_digest', 'Resume email quotidien',           'Envoie un resume quotidien par email',                 NULL, 0, '{"hour": 18}'),
+('notifications.per_module',   'Preferences par module',           'Permet de configurer les notifs par module',            NULL, 1, NULL),
+('documents.versioning',       'Versionnement documents',          'Active le versionnement des documents uploades',       NULL, 0, NULL),
+('documents.sharing',          'Partage de documents',             'Permet le partage de documents entre utilisateurs',    NULL, 1, NULL),
+('facturation.online_payment', 'Paiement en ligne',                'Permet le paiement en ligne des factures',             NULL, 0, NULL),
+('facturation.auto_reminders', 'Relances automatiques',            'Envoie des relances pour les factures impayees',       NULL, 1, NULL),
+('inscriptions.online_form',   'Formulaire en ligne',              'Permet l\'inscription en ligne',                       NULL, 1, NULL),
+('inscriptions.document_upload','Upload documents inscription',    'Permet le telechargement de documents pour inscription', NULL, 1, NULL),
+('reporting.scheduled_reports','Rapports programmes',              'Permet de programmer la generation de rapports',        NULL, 0, NULL),
+('reporting.custom_templates', 'Modeles personnalises',            'Permet de creer des modeles de rapports personnalises', NULL, 0, NULL),
+('rgpd.auto_purge',           'Purge automatique',                 'Purge automatiquement les donnees expirees',           NULL, 0, '{"retention_years": 5}'),
+('rgpd.consent_tracking',     'Suivi consentements',               'Suit les consentements des utilisateurs',              NULL, 1, NULL),
+('rgpd.data_export',          'Export donnees personnelles',       'Permet aux utilisateurs d\'exporter leurs donnees',    NULL, 1, NULL),
+('transports.delay_alerts',   'Alertes retard transport',          'Envoie des alertes en cas de retard de bus',           NULL, 0, NULL),
+('transports.online_register','Inscription transport en ligne',    'Permet l\'inscription au transport en ligne',          NULL, 1, NULL),
+('infirmerie.vaccination_tracking','Suivi vaccinal',               'Active le suivi des vaccinations',                     NULL, 1, NULL),
+('infirmerie.emergency_protocols','Protocoles urgence',            'Active les protocoles d\'urgence integres',            NULL, 1, NULL),
+('support.sla_tracking',      'Suivi SLA',                         'Suit les delais de resolution des tickets',            NULL, 0, NULL),
+('support.knowledge_base',    'Base de connaissances',              'Active la base de connaissances publique',             NULL, 1, NULL),
+('profil.avatar_upload',      'Upload avatar',                     'Permet le telechargement d\'une photo de profil',      NULL, 1, NULL),
+('profil.social_links',       'Liens reseaux sociaux',             'Permet d\'ajouter des liens vers les reseaux sociaux', NULL, 0, NULL),
+('parametres.export_data',    'Export donnees utilisateur',        'Permet a l\'utilisateur d\'exporter ses donnees',      NULL, 1, NULL),
+('examens.auto_convocation',  'Convocations automatiques',        'Genere les convocations automatiquement',              NULL, 1, NULL),
+('examens.room_allocation',   'Attribution de salles',             'Attribue automatiquement les salles d\'examen',        NULL, 0, NULL),
+('stages.online_evaluation',  'Evaluation en ligne',               'Permet l\'evaluation en ligne par le tuteur',          '["lycee","superieur"]', 1, NULL),
+('stages.convention_pdf',     'Generation convention PDF',         'Genere les conventions de stage en PDF',               '["lycee","superieur"]', 1, NULL),
+('trombinoscope.pdf_export',  'Export PDF trombinoscope',          'Permet l\'export du trombinoscope en PDF',             NULL, 1, NULL),
+('archivage.auto_archive',    'Archivage automatique',             'Archive automatiquement en fin d\'annee scolaire',     NULL, 0, NULL),
+('parcours.portfolio',        'Portfolio eleve',                    'Active le portfolio numerique de l\'eleve',            NULL, 0, NULL);
+
 -- ============================================================
 -- API TOKENS (authentification externe)
 -- ============================================================
@@ -3015,10 +3129,6 @@ CREATE TABLE `webhooks` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Ajouter establishment_types aux modules
-ALTER TABLE `modules_config`
-  ADD COLUMN IF NOT EXISTS `establishment_types` JSON DEFAULT NULL COMMENT 'null = tous types d''établissement';
 
 -- ============================================================
 -- OAuth SSO bindings
@@ -3102,15 +3212,6 @@ CREATE TABLE `app_metrics` (
   `recorded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_key_date` (`metric_key`, `recorded_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ============================================================
--- Routes & tri sidebar dans modules_config (D6)
--- ============================================================
-ALTER TABLE `modules_config`
-  ADD COLUMN IF NOT EXISTS `route_path` VARCHAR(100) DEFAULT NULL AFTER `icon`,
-  ADD COLUMN IF NOT EXISTS `sidebar_sort` INT NOT NULL DEFAULT 100 AFTER `route_path`;
-
--- (Table event_exceptions supprimée — doublon de evenement_exceptions définie plus haut)
 
 -- ============================================================
 -- Seeds : modules_config.route_path — chemins de routage par module
@@ -3529,6 +3630,2096 @@ CREATE TABLE `signatures` (
   INDEX `idx_sig_document` (`document_type`, `document_id`),
   INDEX `idx_sig_signer` (`signer_id`, `signer_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- MULTI-ÉTABLISSEMENT : ajout etablissement_id sur les tables scopées
+-- Toutes les tables sont scopées par défaut sur l'établissement 1
+-- ============================================================
+
+-- Utilisateurs (5 tables)
+ALTER TABLE `administrateurs`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_administrateurs_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `eleves`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_eleves_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `professeurs`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_professeurs_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `parents`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_parents_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `vie_scolaire`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_vie_scolaire_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Référentiels scolaires (3 tables)
+ALTER TABLE `periodes`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_periodes_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `matieres`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_matieres_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `classes`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_classes_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Évaluations et notes (4 tables)
+ALTER TABLE `notes`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_notes_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `competences`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_competences_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `competence_evaluations`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_competence_eval_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `bulletins`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_bulletins_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Absences et vie scolaire (6 tables)
+ALTER TABLE `absences`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_absences_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `retards`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_retards_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `justificatifs`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_justificatifs_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `appels`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_appels_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `incidents`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_incidents_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `sanctions`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_sanctions_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `retenues`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_retenues_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Emploi du temps (3 tables)
+ALTER TABLE `creneaux_horaires`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_creneaux_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `emploi_du_temps`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_edt_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `salles`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_salles_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Devoirs (1 table)
+ALTER TABLE `devoirs`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_devoirs_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Communication (7 tables)
+ALTER TABLE `conversations`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_conversations_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `annonces`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_annonces_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `sondages`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_sondages_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `notifications_globales`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_notif_globales_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `evenements`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_evenements_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `documents`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_documents_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `signalements`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_signalements_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Réunions et support (4 tables)
+ALTER TABLE `reunions`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_reunions_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `convocations`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_convocations_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `tickets_support`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_tickets_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `faq_articles`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_faq_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Inscriptions et orientation (3 tables)
+ALTER TABLE `inscriptions`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_inscriptions_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `orientation_fiches`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_orient_fiches_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `orientation_voeux`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_orient_voeux_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Bibliothèque et clubs (4 tables)
+ALTER TABLE `livres`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_livres_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `emprunts`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_emprunts_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `clubs`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_clubs_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `club_inscriptions`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_club_insc_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Santé (2 tables)
+ALTER TABLE `fiches_sante`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_fiches_sante_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `passages_infirmerie`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_passages_inf_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- RGPD (2 tables)
+ALTER TABLE `rgpd_consentements`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_rgpd_consent_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `rgpd_demandes`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_rgpd_demandes_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Examens (2 tables)
+ALTER TABLE `examens`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_examens_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `epreuves`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_epreuves_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Besoins, personnel, remplacements (3 tables)
+ALTER TABLE `plans_accompagnement`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_plans_acc_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `personnel_absences`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_perso_abs_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `remplacements`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_remplacements_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Salles et matériels (2 tables)
+ALTER TABLE `reservations_salles`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_resa_salles_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `materiels`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_materiels_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Périscolaire (2 tables)
+ALTER TABLE `services_periscolaires`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_periscolaire_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `menus_cantine`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_menus_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `cantine_reservations`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_cantine_resa_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `cantine_tarifs`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_cantine_tarifs_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `garderie_creneaux`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_garderie_cren_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `garderie_inscriptions`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_garderie_insc_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Stages et transport (3 tables)
+ALTER TABLE `stages`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_stages_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `lignes_transport`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_lignes_transp_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `inscriptions_transport`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_insc_transp_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Internat (2 tables)
+ALTER TABLE `internat_chambres`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_internat_ch_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `internat_affectations`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_internat_aff_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Facturation (2 tables)
+ALTER TABLE `factures`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_factures_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `paiements`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_paiements_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Ressources, diplômes (2 tables)
+ALTER TABLE `ressources_pedagogiques`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_ress_peda_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `diplomes`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_diplomes_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Projets, parcours, associations (3 tables)
+ALTER TABLE `projets_pedagogiques`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_projets_peda_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `parcours_educatifs`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_parcours_educ_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `associations`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_associations_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Archives (1 table)
+ALTER TABLE `archives_annuelles`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_archives_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Configuration scopée par établissement (6 tables)
+ALTER TABLE `modules_config`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_modules_config_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `feature_flags`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_feature_flags_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `user_settings`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_user_settings_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `user_profiles`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_user_profiles_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `rbac_permissions`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_rbac_perm_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `notification_preferences`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_notif_prefs_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Sécurité et audit (2 tables)
+ALTER TABLE `audit_log`
+  ADD COLUMN `etablissement_id` INT DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_audit_etab` (`etablissement_id`);
+
+ALTER TABLE `api_tokens`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_api_tokens_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `webhooks`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_webhooks_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `pdf_templates`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_pdf_templates_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `smtp_config`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_smtp_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+ALTER TABLE `dashboard_layouts`
+  ADD COLUMN `etablissement_id` INT NOT NULL DEFAULT 1 AFTER `id`,
+  ADD INDEX `idx_etab` (`etablissement_id`),
+  ADD CONSTRAINT `fk_dash_layouts_etab` FOREIGN KEY (`etablissement_id`) REFERENCES `etablissements` (`id`);
+
+-- Rendre les UNIQUE keys compatibles multi-établissement
+-- (identifiant unique PAR établissement, pas globalement)
+ALTER TABLE `administrateurs` DROP INDEX `identifiant`, ADD UNIQUE KEY `uk_admin_ident_etab` (`identifiant`, `etablissement_id`);
+ALTER TABLE `eleves` DROP INDEX `identifiant`, ADD UNIQUE KEY `uk_eleve_ident_etab` (`identifiant`, `etablissement_id`);
+ALTER TABLE `professeurs` DROP INDEX `identifiant`, ADD UNIQUE KEY `uk_prof_ident_etab` (`identifiant`, `etablissement_id`);
+ALTER TABLE `parents` DROP INDEX `identifiant`, ADD UNIQUE KEY `uk_parent_ident_etab` (`identifiant`, `etablissement_id`);
+ALTER TABLE `vie_scolaire` DROP INDEX `identifiant`, ADD UNIQUE KEY `uk_vs_ident_etab` (`identifiant`, `etablissement_id`);
+ALTER TABLE `classes` DROP INDEX `nom_annee`, ADD UNIQUE KEY `uk_classe_etab` (`nom`, `annee_scolaire`, `etablissement_id`);
+ALTER TABLE `matieres` DROP INDEX `code`, ADD UNIQUE KEY `uk_matiere_etab` (`code`, `etablissement_id`);
+ALTER TABLE `modules_config` DROP INDEX `uk_module_key`, ADD UNIQUE KEY `uk_module_etab` (`module_key`, `etablissement_id`);
+ALTER TABLE `feature_flags` DROP INDEX `uk_flag`, ADD UNIQUE KEY `uk_flag_etab` (`flag_key`, `etablissement_id`);
+
+-- ============================================================
+-- V1.5.0 MODULE IMPROVEMENTS — New tables and columns
+-- ============================================================
+
+-- Phase 6: Notes — locked notes, calculation cache
+ALTER TABLE `notes`
+  ADD COLUMN IF NOT EXISTS `locked_at` DATETIME DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `locked_by` INT DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS `note_calculations` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `classe_id` INT NOT NULL,
+  `matiere_id` INT NOT NULL,
+  `periode_id` INT NOT NULL,
+  `type` ENUM('moyenne','mediane','min','max') NOT NULL,
+  `value` DECIMAL(5,2) NOT NULL,
+  `etablissement_id` INT NOT NULL DEFAULT 1,
+  `calculated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_calc` (`classe_id`, `matiere_id`, `periode_id`, `type`, `etablissement_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 6: Competences — referentiel
+CREATE TABLE IF NOT EXISTS `referentiel_competences` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `domaine` VARCHAR(200) NOT NULL,
+  `sous_domaine` VARCHAR(200) DEFAULT NULL,
+  `item` VARCHAR(500) NOT NULL,
+  `niveau_attendu` TINYINT DEFAULT 3,
+  `etablissement_id` INT NOT NULL DEFAULT 1,
+  INDEX `idx_etab` (`etablissement_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `competence_evaluations`
+  ADD COLUMN IF NOT EXISTS `referentiel_id` INT DEFAULT NULL;
+
+-- Phase 6: Bulletins — templates and appreciations
+CREATE TABLE IF NOT EXISTS `bulletin_templates` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(100) NOT NULL,
+  `html_template` TEXT NOT NULL,
+  `etablissement_id` INT NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `bulletin_appreciations` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `bulletin_id` INT NOT NULL,
+  `prof_id` INT DEFAULT NULL,
+  `matiere_id` INT DEFAULT NULL,
+  `texte` TEXT NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_bulletin` (`bulletin_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 6: Devoirs — rendus
+CREATE TABLE IF NOT EXISTS `devoir_rendus` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `devoir_id` INT NOT NULL,
+  `eleve_id` INT NOT NULL,
+  `fichier_path` VARCHAR(500) DEFAULT NULL,
+  `rendu_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `is_late` TINYINT(1) NOT NULL DEFAULT 0,
+  `note` DECIMAL(5,2) DEFAULT NULL,
+  `commentaire_prof` TEXT DEFAULT NULL,
+  `etablissement_id` INT NOT NULL DEFAULT 1,
+  UNIQUE KEY `uk_devoir_eleve` (`devoir_id`, `eleve_id`),
+  INDEX `idx_etab` (`etablissement_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 6: Cahier de textes — pieces jointes
+CREATE TABLE IF NOT EXISTS `cahier_pieces_jointes` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `entree_id` INT NOT NULL,
+  `fichier_path` VARCHAR(500) NOT NULL,
+  `nom_original` VARCHAR(255) NOT NULL,
+  `taille` INT DEFAULT 0,
+  `etablissement_id` INT NOT NULL DEFAULT 1,
+  INDEX `idx_entree` (`entree_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 6: Emploi du temps — remplacement enhancement
+ALTER TABLE `remplacements`
+  ADD COLUMN IF NOT EXISTS `motif` TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `notifie_at` DATETIME DEFAULT NULL;
+
+-- Phase 6: Examens — new tables
+CREATE TABLE IF NOT EXISTS `examen_salles` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `examen_id` INT NOT NULL,
+  `salle_id` INT NOT NULL,
+  `nb_places` INT NOT NULL DEFAULT 30,
+  INDEX `idx_examen` (`examen_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `examen_surveillants` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `examen_id` INT NOT NULL,
+  `prof_id` INT NOT NULL,
+  `salle_id` INT DEFAULT NULL,
+  INDEX `idx_examen` (`examen_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `examen_convocations` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `examen_id` INT NOT NULL,
+  `eleve_id` INT NOT NULL,
+  `salle_id` INT DEFAULT NULL,
+  `place` VARCHAR(20) DEFAULT NULL,
+  `pdf_path` VARCHAR(500) DEFAULT NULL,
+  INDEX `idx_examen` (`examen_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 6: Agenda — recurrence
+ALTER TABLE `evenements`
+  ADD COLUMN IF NOT EXISTS `rrule` VARCHAR(255) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `recurrence_end` DATE DEFAULT NULL;
+
+-- Phase 7: Absences — pattern detection
+ALTER TABLE `absences`
+  ADD COLUMN IF NOT EXISTS `pattern_alert_sent` TINYINT(1) DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS `absence_patterns` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `eleve_id` INT NOT NULL,
+  `pattern_type` VARCHAR(50) NOT NULL,
+  `details_json` JSON DEFAULT NULL,
+  `detected_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `etablissement_id` INT NOT NULL DEFAULT 1,
+  INDEX `idx_eleve` (`eleve_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 7: Appel — completion tracking
+ALTER TABLE `appels`
+  ADD COLUMN IF NOT EXISTS `completed_at` DATETIME DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `duration_seconds` INT DEFAULT NULL;
+
+-- Phase 7: Discipline — points system
+ALTER TABLE `eleves`
+  ADD COLUMN IF NOT EXISTS `discipline_points` INT DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS `discipline_points` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `eleve_id` INT NOT NULL,
+  `valeur` INT NOT NULL,
+  `motif` TEXT DEFAULT NULL,
+  `prof_id` INT DEFAULT NULL,
+  `date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `etablissement_id` INT NOT NULL DEFAULT 1,
+  INDEX `idx_eleve` (`eleve_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `discipline_seuils` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `points_min` INT NOT NULL,
+  `sanction_type` VARCHAR(100) NOT NULL,
+  `etablissement_id` INT NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 7: Vie scolaire — suivi decrochage
+CREATE TABLE IF NOT EXISTS `suivi_eleves` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `eleve_id` INT NOT NULL,
+  `risque_decrochage` DECIMAL(3,2) DEFAULT 0.00,
+  `derniere_analyse` DATE DEFAULT NULL,
+  `notes_json` JSON DEFAULT NULL,
+  `etablissement_id` INT NOT NULL DEFAULT 1,
+  UNIQUE KEY `uk_eleve` (`eleve_id`, `etablissement_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 7: Reporting — custom report templates
+CREATE TABLE IF NOT EXISTS `report_templates` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `nom` VARCHAR(200) NOT NULL,
+  `config_json` JSON NOT NULL,
+  `schedule_cron` VARCHAR(50) DEFAULT NULL,
+  `email_to` VARCHAR(500) DEFAULT NULL,
+  `created_by` INT DEFAULT NULL,
+  `etablissement_id` INT NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 7: Signalements — tracking
+ALTER TABLE `signalements`
+  ADD COLUMN IF NOT EXISTS `tracking_token` VARCHAR(64) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `resolved_at` DATETIME DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `resolution_note` TEXT DEFAULT NULL;
+
+-- Phase 7: Messagerie — threads, reactions, archive
+ALTER TABLE `messages`
+  ADD COLUMN IF NOT EXISTS `thread_id` INT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `archived_at` DATETIME DEFAULT NULL;
+
+-- Phase 7: Annonces — scheduled publish, read receipts
+ALTER TABLE `annonces`
+  ADD COLUMN IF NOT EXISTS `scheduled_at` DATETIME DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS `annonce_lectures` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `annonce_id` INT NOT NULL,
+  `user_id` INT NOT NULL,
+  `user_type` VARCHAR(30) NOT NULL,
+  `read_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_lecture` (`annonce_id`, `user_id`, `user_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 7: Reunions — creneaux, PV
+CREATE TABLE IF NOT EXISTS `reunion_pv` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `reunion_id` INT NOT NULL,
+  `creneau_id` INT DEFAULT NULL,
+  `contenu` TEXT NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 7: Documents — versioning
+CREATE TABLE IF NOT EXISTS `document_versions` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `document_id` INT NOT NULL,
+  `version` INT NOT NULL DEFAULT 1,
+  `fichier_path` VARCHAR(500) NOT NULL,
+  `uploaded_by` INT DEFAULT NULL,
+  `uploaded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_doc` (`document_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `documents`
+  ADD COLUMN IF NOT EXISTS `category` VARCHAR(50) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `shared_with` JSON DEFAULT NULL;
+
+-- Phase 7: Notifications — preferences
+CREATE TABLE IF NOT EXISTS `notification_user_preferences` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `user_type` VARCHAR(30) NOT NULL,
+  `category` VARCHAR(50) NOT NULL,
+  `channel` VARCHAR(20) NOT NULL DEFAULT 'web',
+  `enabled` TINYINT(1) NOT NULL DEFAULT 1,
+  `etablissement_id` INT NOT NULL DEFAULT 1,
+  UNIQUE KEY `uk_pref` (`user_id`, `user_type`, `category`, `channel`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 8: Inscriptions — workflow steps
+ALTER TABLE `inscriptions`
+  ADD COLUMN IF NOT EXISTS `step_current` INT DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS `decision_at` DATETIME DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `decision_by` INT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `waitlist_position` INT DEFAULT NULL;
+
+-- Phase 8: Facturation — relance tracking
+ALTER TABLE `factures`
+  ADD COLUMN IF NOT EXISTS `relance_count` INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS `derniere_relance` DATE DEFAULT NULL;
+
+-- Phase 8: Stages — journal, evaluations, entreprises
+CREATE TABLE IF NOT EXISTS `stage_journal` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `stage_id` INT NOT NULL,
+  `semaine` INT NOT NULL,
+  `contenu` TEXT NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_stage` (`stage_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `stage_evaluations` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `stage_id` INT NOT NULL,
+  `token` VARCHAR(64) NOT NULL,
+  `grille_json` JSON DEFAULT NULL,
+  `submitted_at` DATETIME DEFAULT NULL,
+  UNIQUE KEY `uk_token` (`token`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `entreprises` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `nom` VARCHAR(200) NOT NULL,
+  `adresse` VARCHAR(500) DEFAULT NULL,
+  `contact_nom` VARCHAR(150) DEFAULT NULL,
+  `contact_email` VARCHAR(150) DEFAULT NULL,
+  `secteur` VARCHAR(100) DEFAULT NULL,
+  `etablissement_id` INT NOT NULL DEFAULT 1,
+  INDEX `idx_etab` (`etablissement_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 8: Transports — delay alerts
+ALTER TABLE `lignes_transport`
+  ADD COLUMN IF NOT EXISTS `retard_signale_at` DATETIME DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `retard_motif` TEXT DEFAULT NULL;
+
+-- Phase 8: Salles — equipment tracking
+ALTER TABLE `salles`
+  ADD COLUMN IF NOT EXISTS `equipements` JSON DEFAULT NULL;
+
+-- Phase 8: Cantine — allergen alerts
+CREATE TABLE IF NOT EXISTS `eleve_allergies` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `eleve_id` INT NOT NULL,
+  `allergene` VARCHAR(100) NOT NULL,
+  `severity` ENUM('low','medium','high','critical') DEFAULT 'medium',
+  `etablissement_id` INT NOT NULL DEFAULT 1,
+  UNIQUE KEY `uk_allergie` (`eleve_id`, `allergene`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 8: Garderie — attendance
+ALTER TABLE `garderie_inscriptions`
+  ADD COLUMN IF NOT EXISTS `pointage_arrivee` DATETIME DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `pointage_depart` DATETIME DEFAULT NULL;
+
+-- Phase 8: Periscolaire — waitlist
+ALTER TABLE `services_periscolaires`
+  ADD COLUMN IF NOT EXISTS `places_max` INT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `waitlist_enabled` TINYINT(1) DEFAULT 0;
+
+-- Phase 8: Bibliotheque — ISBN, reservations
+ALTER TABLE `livres`
+  ADD COLUMN IF NOT EXISTS `isbn` VARCHAR(20) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `reservation_queue` JSON DEFAULT NULL;
+
+-- Phase 8: Infirmerie — vaccination, protocols
+ALTER TABLE `fiches_sante`
+  ADD COLUMN IF NOT EXISTS `vaccinations` JSON DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `protocole_ids` JSON DEFAULT NULL;
+
+-- Phase 8: Trombinoscope — photo consent
+ALTER TABLE `eleves`
+  ADD COLUMN IF NOT EXISTS `photo_consent` TINYINT(1) DEFAULT 0;
+ALTER TABLE `professeurs`
+  ADD COLUMN IF NOT EXISTS `photo_consent` TINYINT(1) DEFAULT 0;
+
+-- Phase 8: Diplomes — PDF
+ALTER TABLE `diplomes`
+  ADD COLUMN IF NOT EXISTS `pdf_path` VARCHAR(255) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `statistiques_cache` JSON DEFAULT NULL;
+
+-- Phase 8: Internat — attendance tracking
+ALTER TABLE `internat_affectations`
+  ADD COLUMN IF NOT EXISTS `presence_soir` DATETIME DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `presence_matin` DATETIME DEFAULT NULL;
+
+-- Phase 8: Ressources — sharing
+ALTER TABLE `ressources_pedagogiques`
+  ADD COLUMN IF NOT EXISTS `shared_with` JSON DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `downloads` INT DEFAULT 0;
+
+-- Phase 9: User settings — privacy
+ALTER TABLE `user_settings`
+  ADD COLUMN IF NOT EXISTS `privacy_level` ENUM('public','private') DEFAULT 'public';
+
+-- Phase 9: Plans accompagnement — type
+ALTER TABLE `plans_accompagnement`
+  ADD COLUMN IF NOT EXISTS `type` ENUM('PAP','PPRE','PPS','PAI') DEFAULT 'PAP',
+  ADD COLUMN IF NOT EXISTS `evaluations` JSON DEFAULT NULL;
+
+-- Phase 9: Orientation — avis conseil
+ALTER TABLE `orientation_voeux`
+  ADD COLUMN IF NOT EXISTS `avis_conseil` TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `rdv_conseiller_at` DATETIME DEFAULT NULL;
+
+-- Phase 9: Parcours educatifs — portfolio
+ALTER TABLE `parcours_educatifs`
+  ADD COLUMN IF NOT EXISTS `portfolio_entries` JSON DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `validated_by` INT DEFAULT NULL;
+
+-- Phase 9: Projets pedagogiques — budget, status
+ALTER TABLE `projets_pedagogiques`
+  ADD COLUMN IF NOT EXISTS `budget_prevu` DECIMAL(10,2) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `budget_depense` DECIMAL(10,2) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `statut` ENUM('idee','valide','en_cours','termine','annule') DEFAULT 'idee';
+
+-- Phase 9: Vie associative — budget
+ALTER TABLE `associations`
+  ADD COLUMN IF NOT EXISTS `budget_recettes` DECIMAL(10,2) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `budget_depenses` DECIMAL(10,2) DEFAULT NULL;
+
+-- Phase 9: RGPD — purge tracking
+ALTER TABLE `rgpd_demandes`
+  ADD COLUMN IF NOT EXISTS `purge_completed_at` DATETIME DEFAULT NULL;
+
+-- Phase 9: Support — SLA
+ALTER TABLE `tickets_support`
+  ADD COLUMN IF NOT EXISTS `sla_deadline` DATETIME DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `first_response_at` DATETIME DEFAULT NULL;
+
+-- Phase 9: Archivage — archives table
+CREATE TABLE IF NOT EXISTS `archives` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `annee_scolaire` VARCHAR(10) NOT NULL,
+  `type` VARCHAR(50) NOT NULL,
+  `data_json` JSON DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `etablissement_id` INT NOT NULL DEFAULT 1,
+  INDEX `idx_annee` (`annee_scolaire`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Phase 9: Personnel — leave management
+CREATE TABLE IF NOT EXISTS `personnel_conges` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `personnel_id` INT NOT NULL,
+  `type` VARCHAR(50) NOT NULL,
+  `date_debut` DATE NOT NULL,
+  `date_fin` DATE NOT NULL,
+  `statut` ENUM('demande','valide','refuse') DEFAULT 'demande',
+  `justificatif_path` VARCHAR(500) DEFAULT NULL,
+  `valide_par` INT DEFAULT NULL,
+  `etablissement_id` INT NOT NULL DEFAULT 1,
+  INDEX `idx_personnel` (`personnel_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- V1.5.0 Feature Flags (new granular flags for module improvements)
+INSERT IGNORE INTO `feature_flags` (`flag_key`, `label`, `description`, `establishment_types`, `enabled`, `config`) VALUES
+-- Notes
+('notes.batch_entry',         'Saisie par lot',          'Grille de saisie multi-eleves', NULL, 1, NULL),
+('notes.statistics_graphs',   'Graphiques statistiques', 'Histogrammes et courbes de notes', NULL, 1, NULL),
+-- Competences
+('competences.radar_graph',   'Graphe radar competences',   'Radar chart par eleve',        NULL, 1, NULL),
+('competences.link_to_grades','Liaison notes-competences',   'Lier evaluations aux competences', NULL, 0, NULL),
+-- Bulletins
+('bulletins.custom_templates','Templates personnalises',     'Choix de template PDF',        NULL, 0, NULL),
+-- Emploi du temps
+('emploi_du_temps.drag_drop_editor','Editeur drag-drop EDT', 'Deplacer creneaux par glisser', NULL, 0, NULL),
+('emploi_du_temps.ical_export',     'Export iCal EDT',       'Synchroniser avec calendrier externe', NULL, 1, NULL),
+('emploi_du_temps.replacements',    'Gestion remplacements', 'Affecter remplacants', NULL, 1, NULL),
+-- Absences
+('absences.pattern_detection','Detection de patterns',       'Analyse automatique des tendances', NULL, 0, NULL),
+('absences.grouped_entry',   'Saisie groupee absences',     'Cocher plusieurs eleves en lot', NULL, 1, NULL),
+-- Discipline
+('discipline.auto_sanctions', 'Sanctions automatiques',      'Sanctions basees sur les points', NULL, 0, NULL),
+('discipline.pdf_report',    'Rapport PDF discipline',       'Generer un rapport PDF par eleve', NULL, 1, NULL),
+-- Vie scolaire
+('vie_scolaire.dropout_detection','Detection decrochage',    'Algorithme de detection risque', NULL, 0, NULL),
+('vie_scolaire.consolidated_dashboard','Dashboard consolide','Vue unifiee absences+discipline', NULL, 1, NULL),
+-- Messagerie
+('messagerie.threads',       'Fils de discussion',          'Reponses imbriquees', NULL, 0, NULL),
+('messagerie.search',        'Recherche messagerie',        'Recherche full-text', NULL, 1, NULL),
+-- Annonces
+('annonces.polls',           'Sondages dans annonces',      'Questions integrees', NULL, 1, NULL),
+-- Reunions
+('reunions.meeting_notes',   'PV de reunion',               'Compte-rendu apres reunion', NULL, 0, NULL),
+-- Documents
+('documents.versioning',     'Versionnement documents',     'Historique des versions', NULL, 0, NULL),
+('documents.search',         'Recherche documents',         'Filtrer par nom/type/date', NULL, 1, NULL),
+-- Notifications
+('notifications.digest_mode','Resume quotidien notifs',     'Regrouper en email quotidien', NULL, 0, '{"hour": 18}'),
+('notifications.preferences_page','Preferences par module','Configurer notifs par module', NULL, 1, NULL),
+-- Reporting
+('reporting.custom_builder', 'Rapports personnalises',      'Builder de rapports', NULL, 0, NULL),
+('reporting.scheduled_reports','Rapports programmes',        'Envoi automatique', NULL, 0, NULL),
+('reporting.xlsx_export',    'Export XLSX',                   'Export au format Excel', NULL, 0, NULL),
+-- Cantine
+('cantine.statistics',       'Statistiques cantine',        'Frequentation et previsions', NULL, 1, NULL),
+-- Garderie
+('garderie.auto_billing',   'Facturation garderie auto',    'Heures -> facture', NULL, 0, NULL),
+-- Stages
+('stages.journal',          'Journal de bord stage',        'Entrees hebdomadaires', NULL, 1, NULL),
+('stages.external_evaluation','Evaluation tuteur',          'Formulaire en ligne', NULL, 0, NULL),
+-- Personnel
+('personnel.leave_management','Gestion conges',             'Demande et validation', NULL, 1, NULL),
+('personnel.conflict_detection','Detection conflits',       'Alerter absence sans remplacant', NULL, 0, NULL),
+('personnel.directory',      'Annuaire personnel',          'Fiches completes', NULL, 1, NULL),
+-- Besoins
+('besoins.pap',             'Plan PAP',                     'Plan Accompagnement Personnalise', NULL, 1, NULL),
+('besoins.ppre',            'Programme PPRE',               'Programme Reussite Educative', NULL, 1, NULL),
+('besoins.pps',             'Projet PPS',                   'Projet Personnalise Scolarisation', NULL, 1, NULL),
+-- Orientation
+('orientation.career_catalog','Catalogue metiers',          'Fiches metiers/formations', NULL, 1, NULL),
+('orientation.wishes',       'Voeux orientation',           'Saisie voeux par eleve', NULL, 1, NULL),
+('orientation.counselor_booking','RDV conseiller',          'Prise de RDV orientation', NULL, 0, NULL),
+-- Parcours
+('parcours.validation',     'Validation parcours',          'Prof valide les entries', NULL, 1, NULL),
+-- Projets
+('projets.budget_tracking', 'Suivi budget projets',         'Budget prevu vs depense', NULL, 0, NULL),
+('projets.kanban',          'Kanban projets',               'Vue kanban du cycle de vie', NULL, 0, NULL),
+-- Vie associative
+('vie_associative.budget',  'Budget associations',          'Recettes/depenses', NULL, 0, NULL),
+('vie_associative.events',  'Evenements associatifs',       'Organisation evenements', NULL, 1, NULL),
+-- Accueil
+('accueil.drag_drop',       'Widgets drag-drop',            'Repositionner les widgets', NULL, 0, NULL),
+('accueil.custom_widgets',  'Widgets configurables',        'Options par widget', NULL, 1, NULL),
+-- Profil
+('profil.activity_timeline','Timeline activite',            'Historique actions recentes', NULL, 0, NULL),
+('profil.data_export',      'Export donnees profil',        'Telecharger ses donnees (RGPD)', NULL, 1, NULL),
+-- Archivage
+('archivage.student_transfer','Transfert eleve',            'Export dossier pour transfert', NULL, 0, NULL),
+-- Internat
+('internat.room_management','Gestion chambres',             'Plan et capacite', NULL, 1, NULL),
+('internat.attendance',     'Pointage internat',            'Presence soir/matin', NULL, 1, NULL)
+ON DUPLICATE KEY UPDATE label = VALUES(label);
+
+-- ============================================================
+-- v2.0.0 "Nova" — Global Infrastructure Tables
+-- ============================================================
+
+-- Annees scolaires
+CREATE TABLE IF NOT EXISTS annees_scolaires (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    code VARCHAR(10) NOT NULL,
+    libelle VARCHAR(50) NOT NULL,
+    date_debut DATE NOT NULL,
+    date_fin DATE NOT NULL,
+    actif TINYINT(1) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_annee_etab (etablissement_id, actif)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Champs personnalises
+CREATE TABLE IF NOT EXISTS custom_fields (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    entity_type VARCHAR(50) NOT NULL,
+    field_key VARCHAR(50) NOT NULL,
+    field_type ENUM('text','number','date','select','checkbox','textarea') DEFAULT 'text',
+    label VARCHAR(100) NOT NULL,
+    options JSON,
+    required TINYINT(1) DEFAULT 0,
+    sort_order INT DEFAULT 0,
+    actif TINYINT(1) DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_cf_entity_key (etablissement_id, entity_type, field_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS custom_field_values (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    field_id INT NOT NULL,
+    entity_id INT NOT NULL,
+    value TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_cfv (field_id, entity_id),
+    INDEX idx_cfv_entity (entity_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Calendrier academique
+CREATE TABLE IF NOT EXISTS calendrier_academique (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    date DATE NOT NULL,
+    type ENUM('cours','vacances','ferie','pont','formation','examen') NOT NULL,
+    libelle VARCHAR(100),
+    annee_scolaire VARCHAR(10),
+    INDEX idx_cal_etab_date (etablissement_id, date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Routage notifications avance
+CREATE TABLE IF NOT EXISTS notification_routing (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    event_type VARCHAR(50) NOT NULL,
+    canal ENUM('email','sms','push','websocket') NOT NULL,
+    enabled TINYINT(1) DEFAULT 1,
+    template_id INT,
+    roles_cibles JSON,
+    UNIQUE KEY uk_nr_event_canal (event_type, canal)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Module 1 : Evaluations en Ligne
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS evaluation_banques (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    titre VARCHAR(200) NOT NULL,
+    matiere_id INT,
+    professeur_id INT NOT NULL,
+    description TEXT,
+    tags JSON,
+    statut ENUM('brouillon','publiee','archivee') DEFAULT 'brouillon',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_eb_prof (professeur_id),
+    INDEX idx_eb_mat (matiere_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS evaluation_questions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    banque_id INT NOT NULL,
+    type_question ENUM('qcm','vrai_faux','trous','association','courte','longue') NOT NULL,
+    enonce TEXT NOT NULL,
+    reponses_possibles JSON,
+    reponse_correcte JSON,
+    points DECIMAL(5,2) DEFAULT 1.00,
+    difficulte ENUM('facile','moyen','difficile') DEFAULT 'moyen',
+    explication TEXT,
+    media_path VARCHAR(255),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_eq_banque (banque_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS evaluations_en_ligne (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    titre VARCHAR(200) NOT NULL,
+    professeur_id INT NOT NULL,
+    matiere_id INT,
+    classe VARCHAR(20),
+    questions_config JSON NOT NULL,
+    duree_minutes INT DEFAULT 60,
+    date_ouverture DATETIME,
+    date_fermeture DATETIME,
+    mode ENUM('examen','entrainement','devoir') DEFAULT 'examen',
+    anti_triche TINYINT(1) DEFAULT 1,
+    melanger_questions TINYINT(1) DEFAULT 0,
+    melanger_reponses TINYINT(1) DEFAULT 0,
+    note_sur DECIMAL(5,2) DEFAULT 20.00,
+    statut ENUM('brouillon','ouverte','fermee','archivee') DEFAULT 'brouillon',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_eel_prof (professeur_id),
+    INDEX idx_eel_classe (classe),
+    INDEX idx_eel_dates (date_ouverture, date_fermeture)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS evaluation_sessions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    evaluation_id INT NOT NULL,
+    eleve_id INT NOT NULL,
+    date_debut DATETIME,
+    date_fin DATETIME,
+    score DECIMAL(5,2),
+    note_sur DECIMAL(5,2),
+    statut ENUM('en_cours','soumis','corrige','abandonne') DEFAULT 'en_cours',
+    ip_address VARCHAR(45),
+    user_agent VARCHAR(255),
+    events_log JSON,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_es_eval_eleve (evaluation_id, eleve_id),
+    INDEX idx_es_eleve (eleve_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS evaluation_reponses (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id INT NOT NULL,
+    question_id INT NOT NULL,
+    reponse_donnee JSON,
+    correct TINYINT(1),
+    points_obtenus DECIMAL(5,2) DEFAULT 0,
+    correction_manuelle TEXT,
+    corrige_par INT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_er_session_q (session_id, question_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS evaluation_statistiques (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    evaluation_id INT NOT NULL,
+    question_id INT,
+    nb_reponses INT DEFAULT 0,
+    nb_correct INT DEFAULT 0,
+    taux_reussite DECIMAL(5,2) DEFAULT 0,
+    indice_discrimination DECIMAL(5,4),
+    temps_moyen_secondes INT,
+    UNIQUE KEY uk_estat (evaluation_id, question_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Module 2 : Conseil de Classe
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS conseil_classe_sessions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    classe_id VARCHAR(20) NOT NULL,
+    periode_id INT,
+    annee_scolaire VARCHAR(10),
+    date_conseil DATETIME NOT NULL,
+    lieu VARCHAR(100),
+    president_id INT,
+    president_type VARCHAR(30),
+    secretaire_id INT,
+    secretaire_type VARCHAR(30),
+    statut ENUM('planifie','en_cours','termine','archive') DEFAULT 'planifie',
+    pv_path VARCHAR(255),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ccs_classe (classe_id, annee_scolaire)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS conseil_classe_participants (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id INT NOT NULL,
+    user_id INT NOT NULL,
+    user_type VARCHAR(30) NOT NULL,
+    role ENUM('president','secretaire','professeur','delegue_parent','delegue_eleve','CPE','direction','invite') DEFAULT 'professeur',
+    present TINYINT(1) DEFAULT 0,
+    heure_arrivee TIME,
+    heure_depart TIME,
+    UNIQUE KEY uk_ccp (session_id, user_id, user_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS conseil_classe_eleve_discussions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id INT NOT NULL,
+    eleve_id INT NOT NULL,
+    ordre INT DEFAULT 0,
+    appreciation TEXT,
+    avis_propose ENUM('felicitations','compliments','encouragements','avertissement_travail','avertissement_conduite','aucun') DEFAULT 'aucun',
+    avis_vote_pour INT DEFAULT 0,
+    avis_vote_contre INT DEFAULT 0,
+    avis_vote_abstention INT DEFAULT 0,
+    avis_final ENUM('felicitations','compliments','encouragements','avertissement_travail','avertissement_conduite','aucun'),
+    commentaire_delegue_parent TEXT,
+    commentaire_delegue_eleve TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_cced (session_id, eleve_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS conseil_classe_votes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    discussion_id INT NOT NULL,
+    voter_id INT NOT NULL,
+    voter_type VARCHAR(30) NOT NULL,
+    vote ENUM('pour','contre','abstention') NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_ccv (discussion_id, voter_id, voter_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS conseil_classe_synthese (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id INT NOT NULL UNIQUE,
+    synthese_generale TEXT,
+    points_positifs TEXT,
+    points_amelioration TEXT,
+    decisions TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Module 3 : Portail Parents
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS portail_parents_autorisations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    parent_id INT NOT NULL,
+    eleve_id INT NOT NULL,
+    type ENUM('sortie_anticipee','sortie_scolaire','droit_image','informatique','medicale','custom') NOT NULL,
+    motif TEXT,
+    date_debut DATETIME,
+    date_fin DATETIME,
+    qr_token VARCHAR(64),
+    statut ENUM('demandee','approuvee','utilisee','expiree','refusee') DEFAULT 'demandee',
+    approuve_par INT,
+    approuve_par_type VARCHAR(30),
+    signature_id INT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ppa_parent (parent_id),
+    INDEX idx_ppa_eleve (eleve_id),
+    INDEX idx_ppa_qr (qr_token)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS portail_parents_documents_a_signer (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    titre VARCHAR(200) NOT NULL,
+    description TEXT,
+    fichier_path VARCHAR(255),
+    cible_classes JSON,
+    cible_niveaux JSON,
+    date_limite DATE,
+    obligatoire TINYINT(1) DEFAULT 0,
+    type_document VARCHAR(50),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS portail_parents_signatures_doc (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    document_id INT NOT NULL,
+    parent_id INT NOT NULL,
+    eleve_id INT NOT NULL,
+    signature_id INT,
+    signe_le DATETIME,
+    UNIQUE KEY uk_ppsd (document_id, parent_id, eleve_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS portail_parents_preferences (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    parent_id INT NOT NULL UNIQUE,
+    notifications_resume_quotidien TINYINT(1) DEFAULT 1,
+    notifications_notes TINYINT(1) DEFAULT 1,
+    notifications_absences TINYINT(1) DEFAULT 1,
+    notifications_discipline TINYINT(1) DEFAULT 1,
+    langue VARCHAR(5) DEFAULT 'fr',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Module 4 : Enquetes & Satisfaction
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS enquetes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    titre VARCHAR(200) NOT NULL,
+    description TEXT,
+    type ENUM('satisfaction','climat_scolaire','evaluation','custom') DEFAULT 'custom',
+    cible_roles JSON,
+    cible_classes JSON,
+    cible_niveaux JSON,
+    anonyme TINYINT(1) DEFAULT 0,
+    multi_pages TINYINT(1) DEFAULT 0,
+    date_ouverture DATETIME,
+    date_fermeture DATETIME,
+    statut ENUM('brouillon','ouverte','fermee','archivee') DEFAULT 'brouillon',
+    creee_par INT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_enq_statut (statut, date_ouverture)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS enquete_pages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    enquete_id INT NOT NULL,
+    titre VARCHAR(200),
+    description TEXT,
+    ordre INT DEFAULT 0,
+    INDEX idx_ep_enquete (enquete_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS enquete_questions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    page_id INT NOT NULL,
+    type ENUM('likert','nps','choix_unique','choix_multiple','texte','matrice','nombre') NOT NULL,
+    enonce TEXT NOT NULL,
+    obligatoire TINYINT(1) DEFAULT 0,
+    options JSON,
+    configuration JSON,
+    ordre INT DEFAULT 0,
+    INDEX idx_eqq_page (page_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS enquete_participations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    enquete_id INT NOT NULL,
+    participant_hash VARCHAR(64),
+    user_id INT,
+    user_type VARCHAR(30),
+    date_soumission DATETIME,
+    completed TINYINT(1) DEFAULT 0,
+    UNIQUE KEY uk_ep_hash (enquete_id, participant_hash),
+    INDEX idx_ep_enquete (enquete_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS enquete_reponses (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    participation_id INT NOT NULL,
+    question_id INT NOT NULL,
+    valeur_texte TEXT,
+    valeur_numero DECIMAL(10,2),
+    valeur_json JSON,
+    INDEX idx_er_part (participation_id),
+    INDEX idx_er_question (question_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Module 5 : Tutorat & Entraide
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tutorat_pairs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    tuteur_eleve_id INT NOT NULL,
+    tutore_eleve_id INT NOT NULL,
+    matiere_id INT,
+    professeur_validateur_id INT,
+    date_debut DATE,
+    date_fin DATE,
+    statut ENUM('propose','actif','termine','annule') DEFAULT 'propose',
+    score_amelioration DECIMAL(5,2),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_tp_tuteur (tuteur_eleve_id),
+    INDEX idx_tp_tutore (tutore_eleve_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tutorat_sessions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    pair_id INT NOT NULL,
+    date_session DATE NOT NULL,
+    heure_debut TIME,
+    heure_fin TIME,
+    salle_id INT,
+    sujet TEXT,
+    compte_rendu TEXT,
+    statut ENUM('planifiee','realisee','annulee') DEFAULT 'planifiee',
+    note_tuteur INT,
+    note_tutore INT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ts_pair (pair_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tutorat_badges (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    nom VARCHAR(100) NOT NULL,
+    description TEXT,
+    icone VARCHAR(50),
+    condition_json JSON,
+    xp_reward INT DEFAULT 0,
+    actif TINYINT(1) DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tutorat_eleve_badges (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    eleve_id INT NOT NULL,
+    badge_id INT NOT NULL,
+    date_obtention DATETIME DEFAULT CURRENT_TIMESTAMP,
+    annee_scolaire VARCHAR(10),
+    UNIQUE KEY uk_teb (eleve_id, badge_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tutorat_demandes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    eleve_id INT NOT NULL,
+    matiere_id INT,
+    description TEXT,
+    urgence ENUM('basse','moyenne','haute') DEFAULT 'moyenne',
+    statut ENUM('ouverte','matchee','fermee') DEFAULT 'ouverte',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_td_statut (statut)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Module 6 : Intelligence / Analyse Predictive
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS intelligence_scores (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    eleve_id INT NOT NULL,
+    annee_scolaire VARCHAR(10),
+    periode_id INT,
+    score_risque DECIMAL(5,2) DEFAULT 0,
+    score_absences DECIMAL(5,2) DEFAULT 0,
+    score_notes DECIMAL(5,2) DEFAULT 0,
+    score_discipline DECIMAL(5,2) DEFAULT 0,
+    score_engagement DECIMAL(5,2) DEFAULT 0,
+    niveau_alerte ENUM('vert','jaune','orange','rouge') DEFAULT 'vert',
+    facteurs_json JSON,
+    recommandations JSON,
+    date_calcul DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_is_eleve_period (eleve_id, annee_scolaire, periode_id),
+    INDEX idx_is_alerte (niveau_alerte)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS intelligence_alertes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    eleve_id INT NOT NULL,
+    type_alerte VARCHAR(50) NOT NULL,
+    message TEXT,
+    score_declencheur DECIMAL(5,2),
+    destinataire_id INT,
+    destinataire_type VARCHAR(30),
+    lu TINYINT(1) DEFAULT 0,
+    action_prise TEXT,
+    date_alerte DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ia_dest (destinataire_id, destinataire_type, lu)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS intelligence_cohortes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    type ENUM('classe','niveau','etablissement') NOT NULL,
+    reference_id INT,
+    annee_scolaire VARCHAR(10),
+    periode_id INT,
+    moyenne_generale DECIMAL(5,2),
+    taux_absenteisme DECIMAL(5,2),
+    nb_incidents INT DEFAULT 0,
+    nb_eleves_risque INT DEFAULT 0,
+    date_calcul DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ic_type (type, reference_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS intelligence_config (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL UNIQUE,
+    poids_absences DECIMAL(3,2) DEFAULT 0.30,
+    poids_notes DECIMAL(3,2) DEFAULT 0.35,
+    poids_discipline DECIMAL(3,2) DEFAULT 0.20,
+    poids_engagement DECIMAL(3,2) DEFAULT 0.15,
+    seuil_jaune DECIMAL(5,2) DEFAULT 40,
+    seuil_orange DECIMAL(5,2) DEFAULT 60,
+    seuil_rouge DECIMAL(5,2) DEFAULT 80,
+    calcul_automatique TINYINT(1) DEFAULT 0,
+    frequence_calcul ENUM('quotidien','hebdomadaire') DEFAULT 'hebdomadaire'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Module 7 : Securite & Plans d'Urgence
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS securite_plans (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    type ENUM('ppms_attentat','ppms_risques','evacuation','confinement') NOT NULL,
+    titre VARCHAR(200) NOT NULL,
+    contenu TEXT,
+    version INT DEFAULT 1,
+    fichier_path VARCHAR(255),
+    valide_par INT,
+    date_validation DATE,
+    statut ENUM('brouillon','valide','obsolete') DEFAULT 'brouillon',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_sp_etab (etablissement_id, type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS securite_exercices (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    plan_id INT,
+    type_exercice VARCHAR(50) NOT NULL,
+    date_exercice DATETIME NOT NULL,
+    duree_minutes INT,
+    nb_participants INT DEFAULT 0,
+    nb_manquants INT DEFAULT 0,
+    observations TEXT,
+    points_amelioration TEXT,
+    responsable_id INT,
+    statut ENUM('planifie','en_cours','termine') DEFAULT 'planifie',
+    temps_evacuation_secondes INT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_se_date (date_exercice)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS securite_zones (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    exercice_id INT NOT NULL,
+    nom_zone VARCHAR(100) NOT NULL,
+    responsable_id INT,
+    statut ENUM('non_verifie','securise','probleme') DEFAULT 'non_verifie',
+    heure_verification TIME,
+    commentaire TEXT,
+    INDEX idx_sz_exercice (exercice_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS securite_incidents_registre (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    date_incident DATETIME NOT NULL,
+    type_danger VARCHAR(100),
+    localisation VARCHAR(200),
+    description TEXT,
+    mesures_prises TEXT,
+    signale_par_id INT,
+    signale_par_type VARCHAR(30),
+    statut ENUM('ouvert','traite','clos') DEFAULT 'ouvert',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_sir_date (date_incident)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS securite_contacts_urgence (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    nom VARCHAR(100) NOT NULL,
+    fonction VARCHAR(100),
+    telephone VARCHAR(20),
+    email VARCHAR(150),
+    ordre_appel INT DEFAULT 0,
+    actif TINYINT(1) DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS securite_vigipirate (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    niveau ENUM('vigilance','renforce','urgence_attentat') NOT NULL,
+    date_debut DATETIME DEFAULT CURRENT_TIMESTAMP,
+    mesures_actives JSON,
+    commentaire TEXT,
+    defini_par INT,
+    INDEX idx_sv_etab (etablissement_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Module 8 : Accessibilite & Inclusion
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS accessibilite_amenagements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    eleve_id INT NOT NULL,
+    plan_id INT,
+    type_amenagement VARCHAR(100) NOT NULL,
+    description TEXT,
+    matiere_id INT,
+    applicable_examens TINYINT(1) DEFAULT 0,
+    date_debut DATE,
+    date_fin DATE,
+    statut ENUM('actif','suspendu','expire') DEFAULT 'actif',
+    notifie_professeurs TINYINT(1) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_aa_eleve (eleve_id),
+    INDEX idx_aa_statut (statut)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS accessibilite_aesh (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    nom VARCHAR(100) NOT NULL,
+    prenom VARCHAR(100) NOT NULL,
+    email VARCHAR(150),
+    telephone VARCHAR(20),
+    type_contrat ENUM('individuel','mutualise','collectif') DEFAULT 'mutualise',
+    heures_hebdo DECIMAL(5,2),
+    date_debut_contrat DATE,
+    date_fin_contrat DATE,
+    statut ENUM('actif','suspendu','termine') DEFAULT 'actif',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS accessibilite_aesh_affectations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    aesh_id INT NOT NULL,
+    eleve_id INT NOT NULL,
+    heures_hebdo DECIMAL(5,2),
+    jours JSON,
+    horaires JSON,
+    date_debut DATE,
+    date_fin DATE,
+    statut ENUM('actif','suspendu','termine') DEFAULT 'actif',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_aaa_aesh (aesh_id),
+    INDEX idx_aaa_eleve (eleve_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS accessibilite_mdph (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    eleve_id INT NOT NULL,
+    numero_dossier VARCHAR(50),
+    date_notification DATE,
+    date_expiration DATE,
+    type_decision VARCHAR(100),
+    heures_accompagnement DECIMAL(5,2),
+    document_path VARCHAR(255),
+    statut ENUM('valide','expire','en_renouvellement') DEFAULT 'valide',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_am_eleve (eleve_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS accessibilite_ess (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    eleve_id INT NOT NULL,
+    date_reunion DATE NOT NULL,
+    participants JSON,
+    compte_rendu TEXT,
+    decisions TEXT,
+    prochaine_ess DATE,
+    document_path VARCHAR(255),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ae_eleve (eleve_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS accessibilite_audit_numerique (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    module_key VARCHAR(50),
+    critere VARCHAR(100),
+    conforme TINYINT(1) DEFAULT 0,
+    commentaire TEXT,
+    date_audit DATE,
+    auditeur_id INT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Module 9 : Formation Continue
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS formations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    titre VARCHAR(200) NOT NULL,
+    description TEXT,
+    categorie VARCHAR(100),
+    type ENUM('interne','externe','en_ligne','conference') DEFAULT 'interne',
+    date_debut DATETIME,
+    date_fin DATETIME,
+    duree_heures DECIMAL(5,1),
+    lieu VARCHAR(200),
+    formateur VARCHAR(200),
+    places_max INT,
+    cout_unitaire DECIMAL(10,2) DEFAULT 0,
+    statut ENUM('planifiee','ouverte','en_cours','terminee','annulee') DEFAULT 'planifiee',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_f_dates (date_debut, date_fin)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS formation_inscriptions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    formation_id INT NOT NULL,
+    personnel_id INT NOT NULL,
+    personnel_type VARCHAR(30) NOT NULL,
+    statut ENUM('demandee','validee','refusee','annulee','realisee') DEFAULT 'demandee',
+    commentaire TEXT,
+    validee_par INT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_fi (formation_id, personnel_id, personnel_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS formation_certifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    personnel_id INT NOT NULL,
+    personnel_type VARCHAR(30) NOT NULL,
+    intitule VARCHAR(200) NOT NULL,
+    organisme VARCHAR(200),
+    date_obtention DATE,
+    date_expiration DATE,
+    fichier_path VARCHAR(255),
+    statut ENUM('valide','expire','en_renouvellement') DEFAULT 'valide',
+    INDEX idx_fc_expiration (date_expiration)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS formation_budgets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    annee_scolaire VARCHAR(10),
+    departement VARCHAR(100),
+    budget_alloue DECIMAL(10,2) DEFAULT 0,
+    budget_consomme DECIMAL(10,2) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS formation_evaluations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    inscription_id INT NOT NULL,
+    note_globale INT,
+    commentaire TEXT,
+    utilite ENUM('tres_utile','utile','peu_utile','inutile'),
+    recommandation TINYINT(1),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS formation_plan_annuel (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    annee_scolaire VARCHAR(10),
+    personnel_id INT NOT NULL,
+    personnel_type VARCHAR(30) NOT NULL,
+    objectifs TEXT,
+    formations_prevues JSON,
+    statut ENUM('brouillon','valide','en_cours','termine') DEFAULT 'brouillon',
+    valide_par INT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Module 10 : Bourses & Aides Financieres
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS bourses_types (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    nom VARCHAR(200) NOT NULL,
+    description TEXT,
+    montant_annuel DECIMAL(10,2),
+    echelons JSON,
+    criteres TEXT,
+    annee_scolaire VARCHAR(10),
+    actif TINYINT(1) DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS bourses_demandes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    eleve_id INT NOT NULL,
+    parent_id INT NOT NULL,
+    type_bourse_id INT NOT NULL,
+    annee_scolaire VARCHAR(10),
+    revenu_fiscal DECIMAL(12,2),
+    nb_parts DECIMAL(5,2),
+    nb_enfants INT,
+    echelon_calcule INT,
+    montant_calcule DECIMAL(10,2),
+    statut ENUM('brouillon','soumise','en_instruction','accordee','refusee','versee') DEFAULT 'brouillon',
+    commentaire_admin TEXT,
+    documents JSON,
+    date_soumission DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_bd_eleve (eleve_id),
+    INDEX idx_bd_statut (statut)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS bourses_documents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    demande_id INT NOT NULL,
+    type_document VARCHAR(50),
+    fichier_nom VARCHAR(200),
+    fichier_chemin VARCHAR(255),
+    valide TINYINT(1),
+    commentaire TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_bdoc_demande (demande_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS bourses_versements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    demande_id INT NOT NULL,
+    montant DECIMAL(10,2) NOT NULL,
+    date_versement DATE,
+    mode_paiement VARCHAR(50),
+    reference_comptable VARCHAR(50),
+    statut ENUM('planifie','verse','annule') DEFAULT 'planifie',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_bv_demande (demande_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS fonds_sociaux (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    eleve_id INT NOT NULL,
+    parent_id INT,
+    type_aide VARCHAR(100),
+    montant_demande DECIMAL(10,2),
+    montant_accorde DECIMAL(10,2),
+    motif TEXT,
+    statut ENUM('demandee','en_commission','accordee','refusee','versee') DEFAULT 'demandee',
+    commission_date DATE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_fs_eleve (eleve_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Module 11 : Inventaire & Patrimoine IT
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS inventaire_assets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    nom VARCHAR(200) NOT NULL,
+    categorie ENUM('ordinateur','tablette','videoprojecteur','imprimante','reseau','audiovisuel','mobilier','autre') DEFAULT 'autre',
+    marque VARCHAR(100),
+    modele VARCHAR(100),
+    numero_serie VARCHAR(100),
+    code_inventaire VARCHAR(50),
+    qr_code_token VARCHAR(64),
+    salle_id INT,
+    date_acquisition DATE,
+    valeur_achat DECIMAL(10,2),
+    duree_amortissement INT DEFAULT 5,
+    fournisseur VARCHAR(200),
+    garantie_fin DATE,
+    etat ENUM('neuf','bon','usage','en_panne','reforme','sorti') DEFAULT 'neuf',
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_ia_code (code_inventaire),
+    INDEX idx_ia_categorie (categorie),
+    INDEX idx_ia_etat (etat),
+    INDEX idx_ia_salle (salle_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS inventaire_maintenance (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    asset_id INT NOT NULL,
+    type ENUM('preventive','corrective','mise_a_jour') DEFAULT 'corrective',
+    description TEXT,
+    date_planifiee DATE,
+    date_realisee DATE,
+    technicien VARCHAR(200),
+    cout DECIMAL(10,2),
+    statut ENUM('planifiee','en_cours','realisee','annulee') DEFAULT 'planifiee',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_im_asset (asset_id),
+    INDEX idx_im_date (date_planifiee)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS inventaire_prets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    asset_id INT NOT NULL,
+    emprunteur_id INT NOT NULL,
+    emprunteur_type VARCHAR(30) NOT NULL,
+    date_pret DATE NOT NULL,
+    date_retour_prevue DATE,
+    date_retour_effective DATE,
+    etat_depart VARCHAR(50),
+    etat_retour VARCHAR(50),
+    statut ENUM('en_cours','retourne','en_retard','perdu') DEFAULT 'en_cours',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ip_asset (asset_id),
+    INDEX idx_ip_emprunteur (emprunteur_id, emprunteur_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS inventaire_incidents_tech (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    asset_id INT NOT NULL,
+    signale_par_id INT,
+    signale_par_type VARCHAR(30),
+    description TEXT,
+    gravite ENUM('basse','moyenne','haute','critique') DEFAULT 'moyenne',
+    statut ENUM('ouvert','en_cours','resolu','clos') DEFAULT 'ouvert',
+    resolu_par VARCHAR(200),
+    date_resolution DATE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_iit_asset (asset_id),
+    INDEX idx_iit_statut (statut)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS inventaire_amortissements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    asset_id INT NOT NULL,
+    annee INT NOT NULL,
+    valeur_debut_annee DECIMAL(10,2),
+    dotation DECIMAL(10,2),
+    valeur_fin_annee DECIMAL(10,2),
+    methode ENUM('lineaire','degressif') DEFAULT 'lineaire',
+    UNIQUE KEY uk_iam (asset_id, annee)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Module 12 : Echanges & Mobilite Internationale
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS echanges_programmes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    titre VARCHAR(200) NOT NULL,
+    description TEXT,
+    pays_partenaire VARCHAR(100),
+    ecole_partenaire VARCHAR(200),
+    type ENUM('echange','sejour_linguistique','erasmus','etwinning','correspondance') DEFAULT 'echange',
+    date_debut DATE,
+    date_fin DATE,
+    places INT,
+    budget DECIMAL(10,2),
+    statut ENUM('planifie','ouvert','en_cours','termine','annule') DEFAULT 'planifie',
+    responsable_id INT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS echanges_candidatures (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    programme_id INT NOT NULL,
+    eleve_id INT NOT NULL,
+    lettre_motivation TEXT,
+    niveau_langue VARCHAR(10),
+    documents JSON,
+    statut ENUM('soumise','acceptee','liste_attente','refusee') DEFAULT 'soumise',
+    commentaire TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_ec (programme_id, eleve_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS echanges_familles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    parent_id INT,
+    capacite_accueil INT DEFAULT 1,
+    langues_parlees VARCHAR(200),
+    animaux TINYINT(1) DEFAULT 0,
+    observations TEXT,
+    vetee TINYINT(1) DEFAULT 0,
+    statut ENUM('disponible','occupee','indisponible') DEFAULT 'disponible'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS echanges_hebergements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    candidature_id INT NOT NULL,
+    famille_id INT,
+    date_arrivee DATE,
+    date_depart DATE,
+    statut ENUM('planifie','en_cours','termine') DEFAULT 'planifie',
+    evaluation_note INT,
+    evaluation_commentaire TEXT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS echanges_partenariats (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    ecole_partenaire VARCHAR(200) NOT NULL,
+    pays VARCHAR(100),
+    ville VARCHAR(100),
+    contact_nom VARCHAR(200),
+    contact_email VARCHAR(150),
+    type_accord VARCHAR(100),
+    date_signature DATE,
+    date_expiration DATE,
+    document_path VARCHAR(255),
+    statut ENUM('actif','expire','en_renouvellement') DEFAULT 'actif',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS echanges_suivi_linguistique (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    eleve_id INT NOT NULL,
+    langue VARCHAR(20) NOT NULL,
+    niveau_avant VARCHAR(5),
+    niveau_apres VARCHAR(5),
+    programme_id INT,
+    date_evaluation DATE,
+    evaluateur_id INT,
+    certificat_path VARCHAR(255),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_esl_eleve (eleve_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Module 13 : Mediatheque Numerique
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS mediatheque_contenus (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    titre VARCHAR(200) NOT NULL,
+    description TEXT,
+    type ENUM('video','audio','document','interactif','lien') NOT NULL,
+    fichier_path VARCHAR(255),
+    url_externe VARCHAR(500),
+    duree_secondes INT,
+    taille_octets BIGINT,
+    miniature_path VARCHAR(255),
+    matiere_id INT,
+    niveau VARCHAR(30),
+    tags JSON,
+    auteur_id INT NOT NULL,
+    auteur_type VARCHAR(30) NOT NULL,
+    visibilite ENUM('public','classe','prive') DEFAULT 'public',
+    statut ENUM('brouillon','publie','archive') DEFAULT 'brouillon',
+    nb_vues INT DEFAULT 0,
+    note_moyenne DECIMAL(3,1),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_mc_matiere (matiere_id),
+    INDEX idx_mc_auteur (auteur_id, auteur_type),
+    INDEX idx_mc_type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mediatheque_playlists (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    etablissement_id INT NOT NULL,
+    titre VARCHAR(200) NOT NULL,
+    description TEXT,
+    auteur_id INT NOT NULL,
+    auteur_type VARCHAR(30) NOT NULL,
+    matiere_id INT,
+    niveau VARCHAR(30),
+    visibilite ENUM('public','classe','prive') DEFAULT 'public',
+    ordre_contenus JSON,
+    statut ENUM('brouillon','publiee','archivee') DEFAULT 'brouillon',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mediatheque_vues (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    contenu_id INT NOT NULL,
+    user_id INT NOT NULL,
+    user_type VARCHAR(30) NOT NULL,
+    duree_visionnee INT DEFAULT 0,
+    pourcentage_complete DECIMAL(5,2) DEFAULT 0,
+    date_visionnage DATETIME DEFAULT CURRENT_TIMESTAMP,
+    derniere_position INT DEFAULT 0,
+    INDEX idx_mv_contenu (contenu_id),
+    INDEX idx_mv_user (user_id, user_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mediatheque_notes_avis (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    contenu_id INT NOT NULL,
+    user_id INT NOT NULL,
+    user_type VARCHAR(30) NOT NULL,
+    note INT,
+    commentaire TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_mna (contenu_id, user_id, user_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mediatheque_favoris (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    user_type VARCHAR(30) NOT NULL,
+    contenu_id INT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_mf (user_id, user_type, contenu_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mediatheque_quotas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    user_type VARCHAR(30) NOT NULL,
+    espace_utilise BIGINT DEFAULT 0,
+    espace_max BIGINT DEFAULT 1073741824,
+    UNIQUE KEY uk_mq (user_id, user_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- v2.0.0 — Performance Indexes
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS idx_notes_eleve_trim_mat ON notes(id_eleve, trimestre, id_matiere);
+CREATE INDEX IF NOT EXISTS idx_notif_user_lu_date ON notifications_globales(user_id, user_type, lu, date_creation);
+
+-- ============================================================
+-- v2.0.0 — Extensions table etablissements
+-- ============================================================
+
+ALTER TABLE etablissements
+    ADD COLUMN IF NOT EXISTS slogan VARCHAR(255) AFTER nom,
+    ADD COLUMN IF NOT EXISTS charte_couleurs JSON AFTER slogan,
+    ADD COLUMN IF NOT EXISTS entete_pdf_html TEXT AFTER charte_couleurs,
+    ADD COLUMN IF NOT EXISTS pied_page_pdf_html TEXT AFTER entete_pdf_html;
+
+-- ============================================================
+-- v2.0.0 — Feature Flags pour les 13 nouveaux modules
+-- ============================================================
+
+INSERT INTO feature_flags (flag_key, label, description, establishment_types, enabled, config) VALUES
+('evaluations.enabled',         'Evaluations en ligne',       'QCM et evaluations numeriques',        NULL, 1, NULL),
+('evaluations.anti_triche',     'Anti-triche evaluations',    'Mode plein ecran et surveillance',     NULL, 1, NULL),
+('evaluations.import_gift',     'Import GIFT',                'Import banques au format Moodle GIFT', NULL, 1, NULL),
+('conseil_classe.enabled',      'Conseils de classe',         'Conseils de classe numeriques',        NULL, 1, NULL),
+('conseil_classe.vote_electronique','Vote electronique',      'Vote des avis en conseil',             NULL, 1, NULL),
+('conseil_classe.delegue_acces','Acces delegues',             'Delegues parents en lecture seule',    NULL, 1, NULL),
+('portail_parents.enabled',     'Portail Parents',            'Portail parents avance',               NULL, 1, NULL),
+('portail_parents.sortie_anticipee','Sortie anticipee',       'Autorisations sortie par QR',          NULL, 1, NULL),
+('portail_parents.e_signature', 'E-signature parents',        'Signature electronique documents',     NULL, 1, NULL),
+('enquetes.enabled',            'Enquetes & Satisfaction',    'Enquetes et climat scolaire',          NULL, 1, NULL),
+('enquetes.climat_scolaire',    'Barometre climat',           'Questionnaire standardise climat',     NULL, 1, NULL),
+('enquetes.anonyme',            'Enquetes anonymes',          'Mode anonyme cryptographique',         NULL, 1, NULL),
+('tutorat.enabled',             'Tutorat & Entraide',         'Systeme de tutorat entre pairs',       NULL, 1, NULL),
+('tutorat.gamification',        'Gamification tutorat',       'Badges, XP et leaderboard',            NULL, 1, NULL),
+('tutorat.auto_matching',       'Auto-matching tutorat',      'Algorithme de matching automatique',   NULL, 1, NULL),
+('intelligence.enabled',        'Analyse Predictive',         'Detection decrochage scolaire',        NULL, 0, NULL),
+('intelligence.alertes_auto',   'Alertes auto IA',            'Notifications automatiques risque',    NULL, 0, NULL),
+('intelligence.calcul_quotidien','Calcul quotidien IA',       'Recalcul journalier des scores',       NULL, 0, NULL),
+('securite.enabled',            'Securite & Urgence',         'PPMS et plans d urgence',              NULL, 1, NULL),
+('securite.vigipirate',         'Niveaux Vigipirate',         'Gestion niveaux Vigipirate',           NULL, 1, NULL),
+('securite.push_urgence',       'Push urgence',               'Alertes push en cas d urgence',        NULL, 1, NULL),
+('accessibilite.enabled',       'Accessibilite & Inclusion',  'Amenagements et AESH',                 NULL, 1, NULL),
+('accessibilite.aesh',          'Gestion AESH',               'Affectations et planning AESH',        NULL, 1, NULL),
+('accessibilite.audit_rgaa',    'Audit RGAA',                 'Audit accessibilite numerique',        NULL, 1, NULL),
+('formations.enabled',          'Formation Continue',         'Catalogue et suivi formations',        NULL, 1, NULL),
+('formations.budget_tracking',  'Budget formations',          'Suivi budgetaire formations',          NULL, 1, NULL),
+('bourses.enabled',             'Bourses & Aides',            'Gestion bourses et fonds sociaux', '["college","lycee"]', 1, NULL),
+('bourses.simulateur',          'Simulateur bourses',         'Simulateur eligibilite bourses',   '["college","lycee"]', 1, NULL),
+('bourses.fonds_sociaux',       'Fonds sociaux',              'Gestion du fonds social',              NULL, 1, NULL),
+('inventaire.enabled',          'Inventaire IT',              'Gestion parc informatique',            NULL, 1, NULL),
+('inventaire.amortissement',    'Amortissement',              'Calcul amortissement comptable',       NULL, 1, NULL),
+('inventaire.qr_code',          'QR Code assets',             'QR codes sur equipements',             NULL, 1, NULL),
+('echanges.enabled',            'Echanges internationaux',    'Mobilite et echanges scolaires', '["lycee","superieur"]', 1, NULL),
+('echanges.erasmus',            'Erasmus+',                   'Projets Erasmus+ et eTwinning',  '["lycee","superieur"]', 1, NULL),
+('mediatheque.enabled',         'Mediatheque Numerique',      'Contenus pedagogiques numeriques',     NULL, 1, NULL),
+('mediatheque.video_upload',    'Upload video',               'Telechargement de videos',             NULL, 1, NULL),
+('mediatheque.tracking',        'Suivi visionnage',           'Suivi de consultation des contenus',   NULL, 1, NULL)
+ON DUPLICATE KEY UPDATE label = VALUES(label);
 
 -- ============================================================
 SET SESSION FOREIGN_KEY_CHECKS = 1;

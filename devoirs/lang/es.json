@@ -1,0 +1,17 @@
+{
+    "devoirs.title": "Deberes",
+    "devoirs.add": "Añadir tarea",
+    "devoirs.edit": "Modificar tarea",
+    "devoirs.delete": "Eliminar tarea",
+    "devoirs.subject": "Asignatura",
+    "devoirs.due_date": "Fecha límite",
+    "devoirs.description": "Descripción",
+    "devoirs.submit": "Entregar tarea",
+    "devoirs.submitted": "Entregado",
+    "devoirs.not_submitted": "No entregado",
+    "devoirs.late": "Tarde",
+    "devoirs.grade": "Nota",
+    "devoirs.teacher_comment": "Comentario del profesor",
+    "devoirs.auto_reminders": "Recordatorios automáticos",
+    "devoirs.no_devoirs": "Ningún deber pendiente."
+}

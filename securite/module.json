@@ -1,0 +1,61 @@
+{
+    "key": "securite",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Sécurité & Plans d'Urgence",
+        "en": "Security & Emergency Plans"
+    },
+    "description": {
+        "fr": "PPMS, exercices évacuation, registre dangers, alertes urgence, niveaux Vigipirate",
+        "en": "Emergency plans, evacuation drills, hazard registry, emergency alerts, Vigipirate levels"
+    },
+    "icon": "fas fa-shield-alt",
+    "category": "etablissement",
+    "core": false,
+    "requires_php": ">=8.0",
+    "dependencies": [],
+    "permissions": {
+        "view": { "default_roles": ["administrateur", "vie_scolaire", "professeur"] },
+        "manage": { "default_roles": ["administrateur"] },
+        "signaler": { "default_roles": ["*"] },
+        "alerte": { "default_roles": ["administrateur"] }
+    },
+    "routes": { "main": "securite.php" },
+    "widgets": [
+        {
+            "key": "securite_niveau_vigipirate",
+            "name": { "fr": "Niveau Vigipirate", "en": "Vigipirate level" },
+            "description": { "fr": "Indicateur niveau de sécurité actuel", "en": "Current security level indicator" },
+            "type": "stats",
+            "icon": "fas fa-shield-alt",
+            "roles": ["administrateur", "vie_scolaire"],
+            "default_size": { "width": 1, "height": 1 },
+            "is_default": false,
+            "sort_order": 75,
+            "data_provider": "includes/SecuriteWidgetProvider.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 80 },
+    "topbar": { "category": "etablissement", "sort_order": 80 },
+    "settings_schema": {
+        "ppms_actif": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "PPMS activé", "en": "Emergency plan enabled" }
+        },
+        "sms_urgence": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "SMS urgence activé", "en": "Emergency SMS enabled" }
+        },
+        "frequence_exercices": {
+            "type": "select",
+            "default": "trimestriel",
+            "options": ["mensuel", "trimestriel", "semestriel", "annuel"],
+            "label": { "fr": "Fréquence exercices", "en": "Drill frequency" }
+        }
+    },
+    "author": "Fronote Team",
+    "license": "MIT"
+}

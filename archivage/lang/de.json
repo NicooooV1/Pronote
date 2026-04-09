@@ -1,0 +1,13 @@
+{
+    "archivage.title": "Archivierung",
+    "archivage.archive": "Archivieren",
+    "archivage.restore": "Wiederherstellen",
+    "archivage.year": "Schuljahr",
+    "archivage.auto": "Automatische Archivierung",
+    "archivage.manual": "Manuelle Archivierung",
+    "archivage.history": "Archivhistorie",
+    "archivage.transfer": "Aktenubertragung",
+    "archivage.consult": "Archive durchsuchen",
+    "archivage.no_archives": "Keine Archive verfuegbar.",
+    "archivage.confirm": "Archivierung bestaetigen?"
+}

@@ -48,7 +48,6 @@ $activePage = 'accueil';
 $extraCss   = ['assets/css/accueil.css'];
 
 include __DIR__ . '/../templates/shared_header.php';
-include __DIR__ . '/../templates/shared_sidebar.php';
 include __DIR__ . '/../templates/shared_topbar.php';
 ?>
 

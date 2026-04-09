@@ -1,0 +1,13 @@
+{
+    "stages.title": "การฝึกงาน",
+    "stages.convention": "Internship Agreement",
+    "stages.add": "Add Internship",
+    "stages.student": "Intern",
+    "stages.company": "Company",
+    "stages.tutor": "Tutor",
+    "stages.start_date": "Start Date",
+    "stages.end_date": "End Date",
+    "stages.evaluation": "Evaluation",
+    "stages.report": "Internship Report",
+    "stages.no_internships": "No internships recorded."
+}

@@ -619,4 +619,81 @@ class DevoirService
             // Ignore
         }
     }
+
+    // ─── TEMPLATES COURS ───
+
+    /**
+     * Sauvegarde un template de cours réutilisable.
+     */
+    public function sauverTemplate(int $profId, int $matiereId, string $titre, string $contenu, array $tags = []): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO cahier_templates (professeur_id, matiere_id, titre, contenu, tags) VALUES (:pid, :mid, :t, :c, :tags)");
+        $stmt->execute([':pid' => $profId, ':mid' => $matiereId, ':t' => $titre, ':c' => $contenu, ':tags' => json_encode($tags)]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getTemplates(int $profId, ?int $matiereId = null): array
+    {
+        $sql = "SELECT * FROM cahier_templates WHERE professeur_id = :pid";
+        $params = [':pid' => $profId];
+        if ($matiereId) { $sql .= " AND matiere_id = :mid"; $params[':mid'] = $matiereId; }
+        $sql .= " ORDER BY titre";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    // ─── SUIVI VU/NON VU ───
+
+    /**
+     * Enregistre qu'un utilisateur a vu un devoir.
+     */
+    public function marquerVu(int $devoirId, int $userId, string $userType): void
+    {
+        $this->pdo->prepare("INSERT IGNORE INTO cahier_vues (devoir_id, user_id, user_type, date_vue) VALUES (:did, :uid, :ut, NOW())")
+            ->execute([':did' => $devoirId, ':uid' => $userId, ':ut' => $userType]);
+    }
+
+    /**
+     * Retourne les stats de lecture d'un devoir (combien d'élèves ont vu).
+     */
+    public function getStatsVu(int $devoirId): array
+    {
+        $vus = $this->pdo->prepare("SELECT COUNT(DISTINCT user_id) FROM cahier_vues WHERE devoir_id = :did AND user_type = 'eleve'");
+        $vus->execute([':did' => $devoirId]);
+        $nbVus = (int)$vus->fetchColumn();
+
+        $devoir = $this->getDevoirs(0, 0, ['id' => $devoirId]);
+        $classe = $devoir[0]['classe'] ?? '';
+        $total = 0;
+        if ($classe) {
+            $t = $this->pdo->prepare("SELECT COUNT(*) FROM eleves WHERE classe = :c AND actif = 1");
+            $t->execute([':c' => $classe]);
+            $total = (int)$t->fetchColumn();
+        }
+
+        return ['vus' => $nbVus, 'total' => $total, 'taux' => $total > 0 ? round(($nbVus / $total) * 100, 1) : 0];
+    }
+
+    // ─── ALIGNEMENT PROGRAMME ───
+
+    /**
+     * Associe une référence du programme officiel à un devoir.
+     */
+    public function setReferenceProgramme(int $devoirId, string $reference): void
+    {
+        $this->pdo->prepare("UPDATE devoirs SET reference_programme = :r WHERE id = :id")
+            ->execute([':r' => $reference, ':id' => $devoirId]);
+    }
+
+    // ─── NOTES VOCALES ───
+
+    /**
+     * Attache une note vocale à un devoir.
+     */
+    public function ajouterNoteVocale(int $devoirId, string $audioPath): void
+    {
+        $this->pdo->prepare("UPDATE devoirs SET audio_path = :ap WHERE id = :id")
+            ->execute([':ap' => $audioPath, ':id' => $devoirId]);
+    }
 }

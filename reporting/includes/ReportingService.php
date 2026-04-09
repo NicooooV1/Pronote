@@ -422,6 +422,113 @@ class ReportingService {
         return $this->pdo->query("SELECT * FROM periodes ORDER BY date_debut")->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /* ==================== REPORT TEMPLATES ==================== */
+
+    /**
+     * Save a custom report template.
+     */
+    public function saveReportTemplate(array $data): int
+    {
+        $config = json_encode([
+            'type' => $data['type'] ?? 'custom',
+            'columns' => $data['columns'] ?? [],
+            'filters' => $data['filters'] ?? [],
+            'group_by' => $data['group_by'] ?? null,
+            'sort_by' => $data['sort_by'] ?? null,
+        ]);
+
+        $stmt = $this->pdo->prepare("
+            INSERT INTO report_templates (nom, config_json, schedule_cron, email_to, created_by)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $data['nom'],
+            $config,
+            $data['schedule_cron'] ?? null,
+            $data['email_to'] ?? null,
+            $data['created_by'] ?? null,
+        ]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Get all report templates.
+     */
+    public function getReportTemplates(?int $createdBy = null): array
+    {
+        $sql = "SELECT * FROM report_templates WHERE 1=1";
+        $params = [];
+        if ($createdBy) {
+            $sql .= " AND created_by = ?";
+            $params[] = $createdBy;
+        }
+        $sql .= " ORDER BY nom";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Delete a report template.
+     */
+    public function deleteReportTemplate(int $id): bool
+    {
+        return $this->pdo->prepare("DELETE FROM report_templates WHERE id = ?")->execute([$id]);
+    }
+
+    /**
+     * Execute a report from its template config.
+     * @return array rows of data
+     */
+    public function executeReport(int $templateId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM report_templates WHERE id = ?");
+        $stmt->execute([$templateId]);
+        $tpl = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$tpl) return [];
+
+        $config = json_decode($tpl['config_json'], true);
+        $type = $config['type'] ?? 'custom';
+
+        switch ($type) {
+            case 'absences':
+                $classeId = $config['filters']['classe_id'] ?? null;
+                return $classeId ? $this->exportAbsencesCSV($classeId, $config['filters']['date_debut'] ?? null, $config['filters']['date_fin'] ?? null) : [];
+            case 'notes':
+                $classeId = $config['filters']['classe_id'] ?? null;
+                return $classeId ? $this->exportNotesCSV($classeId, $config['filters']['periode_id'] ?? null) : [];
+            case 'moyennes':
+                $classeId = $config['filters']['classe_id'] ?? null;
+                return $classeId ? $this->exportMoyennesClasse($classeId, $config['filters']['periode_id'] ?? null) : [];
+            case 'incidents':
+                $classeId = $config['filters']['classe_id'] ?? null;
+                return $classeId ? $this->exportIncidents($classeId, $config['filters']['date_debut'] ?? null, $config['filters']['date_fin'] ?? null) : [];
+            default:
+                return [];
+        }
+    }
+
+    /**
+     * Get scheduled reports that need to run.
+     */
+    public function getScheduledReportsDue(): array
+    {
+        $stmt = $this->pdo->query("
+            SELECT * FROM report_templates
+            WHERE schedule_cron IS NOT NULL
+              AND (last_run IS NULL OR last_run < DATE_SUB(NOW(), INTERVAL 1 DAY))
+        ");
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Mark a scheduled report as run.
+     */
+    public function markReportRun(int $templateId): void
+    {
+        $this->pdo->prepare("UPDATE report_templates SET last_run = NOW() WHERE id = ?")->execute([$templateId]);
+    }
+
     /**
      * Génère et envoie un CSV
      */
@@ -437,5 +544,64 @@ class ReportingService {
         }
         fclose($out);
         exit;
+    }
+
+    // ─── RAPPORTS PLANIFIÉS ───
+
+    public function planifierRapport(string $typeRapport, array $parametres, string $frequence, array $destinataires): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO reporting_planification (type_rapport, parametres, frequence, destinataires, prochain_envoi) VALUES (:tr, :p, :f, :d, :pe)");
+        $prochainEnvoi = match($frequence) {
+            'quotidien' => date('Y-m-d', strtotime('+1 day')),
+            'hebdomadaire' => date('Y-m-d', strtotime('next monday')),
+            'mensuel' => date('Y-m-01', strtotime('+1 month')),
+            default => date('Y-m-d', strtotime('+1 week'))
+        };
+        $stmt->execute([':tr' => $typeRapport, ':p' => json_encode($parametres), ':f' => $frequence, ':d' => json_encode($destinataires), ':pe' => $prochainEnvoi]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getRapportsPlanifies(): array
+    {
+        return $this->pdo->query("SELECT * FROM reporting_planification ORDER BY prochain_envoi")->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    // ─── KPI DASHBOARD ───
+
+    public function getKpis(int $etabId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM reporting_kpis WHERE etablissement_id = :eid ORDER BY nom");
+        $stmt->execute([':eid' => $etabId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function updateKpi(int $kpiId, float $valeurActuelle): void
+    {
+        $this->pdo->prepare("UPDATE reporting_kpis SET valeur_actuelle = :v, date_maj = NOW() WHERE id = :id")
+            ->execute([':v' => $valeurActuelle, ':id' => $kpiId]);
+    }
+
+    // ─── BUILDER PERSONNALISÉ ───
+
+    public function creerRapportCustom(string $nom, string $description, string $requeteSafe, array $colonnes, int $createurId): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO reporting_custom (nom, description, requete_safe, colonnes, createur_id) VALUES (:n, :d, :r, :c, :cid)");
+        $stmt->execute([':n' => $nom, ':d' => $description, ':r' => $requeteSafe, ':c' => json_encode($colonnes), ':cid' => $createurId]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function executerRapportCustom(int $rapportId): array
+    {
+        $rapport = $this->pdo->prepare("SELECT requete_safe, colonnes FROM reporting_custom WHERE id = :id");
+        $rapport->execute([':id' => $rapportId]);
+        $r = $rapport->fetch(\PDO::FETCH_ASSOC);
+        if (!$r) return [];
+
+        // Only allow SELECT statements
+        $query = trim($r['requete_safe']);
+        if (!preg_match('/^SELECT\s/i', $query)) return [];
+
+        $stmt = $this->pdo->query($query);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 }

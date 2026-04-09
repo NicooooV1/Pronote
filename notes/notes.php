@@ -134,27 +134,22 @@ $activePage = 'notes';
 $isAdmin = $user_role === 'administrateur';
 $extraCss = ['assets/css/notes.css'];
 
-// Contenu sidebar spécifique au module
-ob_start();
-?>
-            <div class="sidebar-nav">
-                <a href="notes.php" class="sidebar-nav-item active">
-                    <span class="sidebar-nav-icon"><i class="fas fa-list"></i></span>
-                    <span>Liste des notes</span>
-                </a>
-                <?php if (in_array($user_role, ['professeur', 'administrateur'])): ?>
-                <a href="form_note.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-plus"></i></span>
-                    <span>Ajouter des notes</span>
-                </a>
-                <?php endif; ?>
-            </div>
-<?php
-$sidebarExtraContent = ob_get_clean();
+// Feature flags
+$features = null;
+try { $features = app('features'); } catch (\Throwable $e) {}
+$ffGraphs     = $features ? $features->isEnabled('notes.statistics_graphs') : true;
+$ffBatchEntry = $features ? $features->isEnabled('notes.batch_entry') : true;
+$ffExportPdf  = $features ? $features->isEnabled('notes.export_pdf') : true;
+$ffLock       = $features ? $features->isEnabled('notes.lock_after_deadline') : true;
+
+// Extra JS for graphs
+$extraHeadHtml = '';
+if ($ffGraphs) {
+    $extraHeadHtml = '<script src="' . $rootPrefix . 'notes/assets/js/notes-graphs.js" defer></script>';
+}
 
 // Inclusion des templates partagés
 include __DIR__ . '/../templates/shared_header.php';
-include __DIR__ . '/../templates/shared_sidebar.php';
 include __DIR__ . '/../templates/shared_topbar.php';
 ?>
 
@@ -172,12 +167,14 @@ include __DIR__ . '/../templates/shared_topbar.php';
 
                 <!-- Export + Verrouillage (prof/admin) -->
                 <?php if (in_array($user_role, ['professeur', 'administrateur'])): ?>
-                <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
-                    <a href="export.php?format=csv&trimestre=<?= $selectedTrimestre ?><?= $filterClasse ? '&classe='.urlencode($filterClasse) : '' ?><?= $filterMatiere ? '&matiere='.$filterMatiere : '' ?>" 
+                <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+                    <a href="export.php?format=csv&trimestre=<?= $selectedTrimestre ?><?= $filterClasse ? '&classe='.urlencode($filterClasse) : '' ?><?= $filterMatiere ? '&matiere='.$filterMatiere : '' ?>"
                        class="ds-btn ds-btn-outline ds-btn-sm"><i class="fas fa-file-csv"></i> Export CSV</a>
-                    <a href="export.php?format=pdf&trimestre=<?= $selectedTrimestre ?><?= $filterClasse ? '&classe='.urlencode($filterClasse) : '' ?><?= $filterMatiere ? '&matiere='.$filterMatiere : '' ?>" 
+                    <?php if ($ffExportPdf): ?>
+                    <a href="export.php?format=pdf&trimestre=<?= $selectedTrimestre ?><?= $filterClasse ? '&classe='.urlencode($filterClasse) : '' ?><?= $filterMatiere ? '&matiere='.$filterMatiere : '' ?>"
                        class="ds-btn ds-btn-outline ds-btn-sm"><i class="fas fa-file-pdf"></i> Export PDF</a>
-                    <?php if (isAdmin() && $filterClasse && $filterMatiere): ?>
+                    <?php endif; ?>
+                    <?php if ($ffLock && isAdmin() && $filterClasse && $filterMatiere): ?>
                     <form method="POST" action="lock_notes.php" style="margin-left:auto;">
                         <?= csrfField() ?>
                         <input type="hidden" name="classe" value="<?= htmlspecialchars($filterClasse) ?>">
@@ -245,6 +242,18 @@ include __DIR__ . '/../templates/shared_topbar.php';
                     </div>
                     <?php endif; ?>
 
+                    <?php if ($ffGraphs && $selectedEnfantId > 0): ?>
+                    <div class="notes-graphs-section">
+                        <h2 class="section-title"><i class="fas fa-chart-line" style="margin-right:6px;color:var(--module-color)"></i> Évolution par trimestre</h2>
+                        <div class="notes-graph-panel active"
+                             data-graph-type="evolution"
+                             data-graph-url="includes/ajax_stats.php?type=evolution&eleve_id=<?= $selectedEnfantId ?>"
+                             data-graph-canvas="canvas-evolution-parent">
+                            <canvas id="canvas-evolution-parent" class="notes-graph-canvas"></canvas>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
                     <h2 class="section-title">Détail des notes</h2>
                     <?php if (empty($notes)): ?>
                         <div class="alert alert-info"><i class="fas fa-info-circle"></i> Aucune note pour ce trimestre.</div>
@@ -309,6 +318,19 @@ include __DIR__ . '/../templates/shared_topbar.php';
                         <div class="notes-matiere-count"><?= $m['nb_notes'] ?> évaluation<?= $m['nb_notes'] > 1 ? 's' : '' ?></div>
                     </div>
                     <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($ffGraphs): ?>
+                <!-- Graphique évolution -->
+                <div class="notes-graphs-section">
+                    <h2 class="section-title"><i class="fas fa-chart-line" style="margin-right:6px;color:var(--module-color)"></i> Évolution par trimestre</h2>
+                    <div class="notes-graph-panel active"
+                         data-graph-type="evolution"
+                         data-graph-url="includes/ajax_stats.php?type=evolution&eleve_id=<?= $user['id'] ?>"
+                         data-graph-canvas="canvas-evolution-eleve">
+                        <canvas id="canvas-evolution-eleve" class="notes-graph-canvas"></canvas>
+                    </div>
                 </div>
                 <?php endif; ?>
 
@@ -411,6 +433,66 @@ include __DIR__ . '/../templates/shared_topbar.php';
                         <div class="notes-stat-label">Élèves évalués</div>
                     </div>
                 </div>
+
+                <?php if ($ffGraphs && $filterClasse && $filterMatiere): ?>
+                <!-- Graphiques statistiques -->
+                <div class="notes-graphs-section">
+                    <div class="notes-graphs-tabs">
+                        <button class="notes-graphs-tab active" data-tab="tab-histogram"><i class="fas fa-chart-bar"></i> Distribution</button>
+                        <button class="notes-graphs-tab" data-tab="tab-boxplot"><i class="fas fa-chart-area"></i> Comparaison matières</button>
+                    </div>
+                    <div id="tab-histogram" class="notes-graph-panel active"
+                         data-graph-type="histogram"
+                         data-graph-url="includes/ajax_stats.php?type=distribution&classe=<?= urlencode($filterClasse) ?>&matiere=<?= $filterMatiere ?>&trimestre=<?= $selectedTrimestre ?>"
+                         data-graph-canvas="canvas-histogram">
+                        <div class="notes-graph-title">Distribution des notes — <?= htmlspecialchars($filterClasse) ?></div>
+                        <canvas id="canvas-histogram" class="notes-graph-canvas"></canvas>
+                    </div>
+                    <div id="tab-boxplot" class="notes-graph-panel"
+                         data-graph-type="boxplot"
+                         data-graph-url="includes/ajax_stats.php?type=boxplot&classe=<?= urlencode($filterClasse) ?>&trimestre=<?= $selectedTrimestre ?>"
+                         data-graph-canvas="canvas-boxplot">
+                        <div class="notes-graph-title">Comparaison par matière — <?= htmlspecialchars($filterClasse) ?></div>
+                        <canvas id="canvas-boxplot" class="notes-graph-canvas"></canvas>
+                    </div>
+                </div>
+                <script>
+                (function() {
+                    var tabs = document.querySelectorAll('.notes-graphs-tab');
+                    for (var i = 0; i < tabs.length; i++) {
+                        tabs[i].addEventListener('click', function() {
+                            var target = this.getAttribute('data-tab');
+                            var panels = document.querySelectorAll('.notes-graph-panel');
+                            for (var j = 0; j < tabs.length; j++) tabs[j].classList.remove('active');
+                            for (var k = 0; k < panels.length; k++) panels[k].classList.remove('active');
+                            this.classList.add('active');
+                            var panel = document.getElementById(target);
+                            if (panel) {
+                                panel.classList.add('active');
+                                // Trigger graph load if not yet loaded
+                                var canvas = panel.querySelector('canvas');
+                                if (canvas && !canvas.getAttribute('data-loaded')) {
+                                    canvas.setAttribute('data-loaded', '1');
+                                    var type = panel.getAttribute('data-graph-type');
+                                    var url = panel.getAttribute('data-graph-url');
+                                    var cId = panel.getAttribute('data-graph-canvas');
+                                    var xhr = new XMLHttpRequest();
+                                    xhr.open('GET', url, true);
+                                    xhr.onload = function() {
+                                        if (xhr.status === 200) {
+                                            var data = JSON.parse(xhr.responseText);
+                                            if (type === 'histogram') FronoteGraphs.histogram(cId, data);
+                                            else if (type === 'boxplot') FronoteGraphs.boxPlot(cId, data);
+                                        }
+                                    };
+                                    xhr.send();
+                                }
+                            }
+                        });
+                    }
+                })();
+                </script>
+                <?php endif; ?>
                 <?php endif; ?>
 
                 <?php if (empty($notes)): ?>

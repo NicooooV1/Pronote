@@ -1,0 +1,20 @@
+{
+    "messagerie.title": "الرسائل",
+    "messagerie.inbox": "Inbox",
+    "messagerie.sent": "Sent Messages",
+    "messagerie.compose": "New Message",
+    "messagerie.reply": "Reply",
+    "messagerie.forward": "Forward",
+    "messagerie.delete": "Delete",
+    "messagerie.archive": "Archive",
+    "messagerie.search": "Search",
+    "messagerie.to": "Recipient",
+    "messagerie.subject": "Subject",
+    "messagerie.body": "Message",
+    "messagerie.attachments": "Attachments",
+    "messagerie.send": "Send",
+    "messagerie.broadcast": "Broadcast",
+    "messagerie.read": "Read",
+    "messagerie.unread": "Unread",
+    "messagerie.no_messages": "No messages."
+}

@@ -1,17 +1,48 @@
 {
-  "key": "transports",
-  "version": "1.0.0",
-  "name": { "fr": "Transports", "en": "Transport" },
-  "description": { "fr": "Gestion des transports scolaires", "en": "School transport management" },
-  "icon": "fas fa-bus",
-  "category": "outils",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["administrateur", "vie_scolaire", "parent"] },
-    "manage": { "default_roles": ["administrateur"] }
-  },
-  "routes": { "main": "lignes.php" },
-  "widgets": [],
-  "establishment_types": ["college", "lycee"],
-  "sidebar": { "sort_order": 61 }
+    "key": "transports",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Transports",
+        "en": "Transport"
+    },
+    "description": {
+        "fr": "Gestion des transports scolaires",
+        "en": "School transport management"
+    },
+    "icon": "fas fa-bus",
+    "category": "outils",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire",
+                "parent"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur"
+            ]
+        }
+    },
+    "routes": {
+        "main": "lignes.php"
+    },
+    "widgets": [],
+    "establishment_types": [
+        "college",
+        "lycee"
+    ],
+    "sidebar": {
+        "sort_order": 61
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "systeme",
+        "sort_order": 65
+    }
 }

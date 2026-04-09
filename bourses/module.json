@@ -1,0 +1,56 @@
+{
+    "key": "bourses",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Bourses & Aides Financières",
+        "en": "Scholarships & Financial Aid"
+    },
+    "description": {
+        "fr": "Simulateur éligibilité, demandes en ligne, instruction, versements et fonds sociaux",
+        "en": "Eligibility simulator, online applications, processing, payments and social funds"
+    },
+    "icon": "fas fa-hand-holding-usd",
+    "category": "etablissement",
+    "core": false,
+    "requires_php": ">=8.0",
+    "dependencies": ["facturation"],
+    "permissions": {
+        "view": { "default_roles": ["administrateur", "parent"] },
+        "manage": { "default_roles": ["administrateur"] },
+        "demander": { "default_roles": ["parent"] },
+        "instruire": { "default_roles": ["administrateur"] },
+        "export": { "default_roles": ["administrateur"] }
+    },
+    "routes": { "main": "bourses.php" },
+    "widgets": [
+        {
+            "key": "bourses_campagne",
+            "name": { "fr": "Campagne bourses", "en": "Scholarship campaign" },
+            "description": { "fr": "État de la campagne de bourses en cours", "en": "Current scholarship campaign status" },
+            "type": "stats",
+            "icon": "fas fa-hand-holding-usd",
+            "roles": ["administrateur"],
+            "default_size": { "width": 2, "height": 1 },
+            "is_default": false,
+            "sort_order": 85,
+            "data_provider": "includes/BoursesWidgetProvider.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 83 },
+    "topbar": { "category": "etablissement", "sort_order": 83 },
+    "settings_schema": {
+        "simulation_publique": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "Simulateur accessible aux parents", "en": "Simulator accessible to parents" }
+        },
+        "rappel_campagne_jours": {
+            "type": "integer",
+            "default": 7,
+            "label": { "fr": "Rappel avant fin campagne (jours)", "en": "Reminder before campaign end (days)" }
+        }
+    },
+    "author": "Fronote Team",
+    "license": "MIT"
+}

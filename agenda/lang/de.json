@@ -1,0 +1,17 @@
+{
+    "agenda.title": "Kalender",
+    "agenda.add": "Termin hinzufuegen",
+    "agenda.edit": "Termin bearbeiten",
+    "agenda.delete": "Termin loeschen",
+    "agenda.today": "Heute",
+    "agenda.month": "Monat",
+    "agenda.week": "Woche",
+    "agenda.day": "Tag",
+    "agenda.event_title": "Titel",
+    "agenda.event_date": "Datum",
+    "agenda.event_time": "Uhrzeit",
+    "agenda.event_location": "Ort",
+    "agenda.event_description": "Beschreibung",
+    "agenda.no_events": "Keine Termine geplant.",
+    "agenda.confirm_delete": "Sind Sie sicher, dass Sie diesen Termin loeschen moechten?"
+}

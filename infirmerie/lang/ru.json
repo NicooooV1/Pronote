@@ -1,0 +1,14 @@
+{
+    "infirmerie.title": "Медкабинет",
+    "infirmerie.visits": "Visits",
+    "infirmerie.add_visit": "Record a Visit",
+    "infirmerie.student": "Student",
+    "infirmerie.date": "Date",
+    "infirmerie.reason": "Reason",
+    "infirmerie.treatment": "Treatment Given",
+    "infirmerie.pai": "PAI",
+    "infirmerie.vaccinations": "Vaccination Records",
+    "infirmerie.protocols": "Emergency Protocols",
+    "infirmerie.stats": "Statistics",
+    "infirmerie.no_visits": "No visits recorded."
+}

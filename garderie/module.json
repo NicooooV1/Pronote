@@ -1,17 +1,48 @@
 {
     "key": "garderie",
     "version": "1.0.0",
-    "name": { "fr": "Garderie", "en": "After-school care" },
-    "description": { "fr": "Gestion de la garderie et accueil périscolaire", "en": "After-school care management" },
+    "name": {
+        "fr": "Garderie",
+        "en": "After-school care"
+    },
+    "description": {
+        "fr": "Gestion de la garderie et accueil périscolaire",
+        "en": "After-school care management"
+    },
     "icon": "fas fa-child",
     "category": "logistique",
     "core": false,
     "permissions": {
-        "view": { "default_roles": ["administrateur", "vie_scolaire", "parent"] },
-        "manage": { "default_roles": ["administrateur", "vie_scolaire"] }
+        "view": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire",
+                "parent"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire"
+            ]
+        }
     },
-    "routes": { "main": "garderie.php" },
+    "routes": {
+        "main": "garderie.php"
+    },
     "widgets": [],
-    "establishment_types": ["college"],
-    "sidebar": { "sort_order": 55 }
+    "establishment_types": [
+        "college"
+    ],
+    "sidebar": {
+        "sort_order": 55
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "logistique",
+        "sort_order": 62
+    }
 }

@@ -1,0 +1,16 @@
+{
+    "accueil.title": "Dashboard",
+    "accueil.greeting.morning": "Guten Morgen",
+    "accueil.greeting.afternoon": "Guten Tag",
+    "accueil.greeting.evening": "Guten Abend",
+    "accueil.class_of": "Klasse :class",
+    "accueil.fallback_name": "Bildungseinrichtung",
+    "accueil.customize.title": "Dashboard anpassen",
+    "accueil.customize.hint": "Aktivieren oder deaktivieren Sie Widgets und ordnen Sie sie per Drag & Drop neu an.",
+    "accueil.customize.saved": "Anpassung gespeichert.",
+    "accueil.layout.saved": "Layout gespeichert.",
+    "accueil.widget.chart_soon": "Diagramm bald verfuegbar.",
+    "accueil.widget.no_data": "Keine Elemente anzuzeigen.",
+    "accueil.widget.no_courses": "Keine Kurse heute.",
+    "accueil.widget.no_shortcuts": "Keine Verknuepfungen."
+}

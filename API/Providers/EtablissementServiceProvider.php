@@ -3,6 +3,7 @@ namespace API\Providers;
 
 use API\Core\ServiceProvider;
 use API\Services\EtablissementService;
+use API\Services\SuperAdminService;
 use API\Services\UserService;
 use API\Services\EmailService;
 use API\Services\PdfService;
@@ -21,6 +22,11 @@ class EtablissementServiceProvider extends ServiceProvider
         });
         $this->app->singleton('etablissement', function($app) {
             return $app->make('API\Services\EtablissementService');
+        });
+
+        // Super Admin Service (cross-establishment)
+        $this->app->singleton('super_admin', function($app) {
+            return new SuperAdminService($app->make('db')->getConnection());
         });
 
         // Enregistrer le service utilisateur

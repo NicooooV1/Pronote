@@ -1,0 +1,16 @@
+{
+    "accueil.title": "Panel de control",
+    "accueil.greeting.morning": "Buenos días",
+    "accueil.greeting.afternoon": "Buenas tardes",
+    "accueil.greeting.evening": "Buenas noches",
+    "accueil.class_of": "Clase de :class",
+    "accueil.fallback_name": "Centro Educativo",
+    "accueil.customize.title": "Personalizar el panel de control",
+    "accueil.customize.hint": "Active o desactive los widgets, luego reordénelos arrastrando y soltando.",
+    "accueil.customize.saved": "Personalización guardada.",
+    "accueil.layout.saved": "Diseño guardado.",
+    "accueil.widget.chart_soon": "Gráfico disponible próximamente.",
+    "accueil.widget.no_data": "No hay elementos para mostrar.",
+    "accueil.widget.no_courses": "No hay clases hoy.",
+    "accueil.widget.no_shortcuts": "No hay atajos."
+}

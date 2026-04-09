@@ -1,27 +1,66 @@
 {
     "key": "devoirs",
     "version": "1.0.0",
-    "name": { "fr": "Devoirs", "en": "Assignments" },
-    "description": { "fr": "Remise et suivi des devoirs", "en": "Assignment submission and tracking" },
+    "name": {
+        "fr": "Devoirs",
+        "en": "Assignments"
+    },
+    "description": {
+        "fr": "Remise et suivi des devoirs",
+        "en": "Assignment submission and tracking"
+    },
     "icon": "fas fa-tasks",
     "category": "scolaire",
     "core": false,
     "permissions": {
-        "view": { "default_roles": ["*"] },
-        "manage": { "default_roles": ["administrateur", "professeur"] },
-        "submit": { "default_roles": ["eleve"] },
-        "correct": { "default_roles": ["professeur", "administrateur"] }
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "professeur"
+            ]
+        },
+        "submit": {
+            "default_roles": [
+                "eleve"
+            ]
+        },
+        "correct": {
+            "default_roles": [
+                "professeur",
+                "administrateur"
+            ]
+        }
     },
-    "routes": { "main": "devoirs.php" },
+    "routes": {
+        "main": "devoirs.php"
+    },
     "widgets": [
         {
             "key": "devoirs_a_faire",
-            "name": { "fr": "Devoirs à rendre", "en": "Assignments due" },
-            "description": { "fr": "Devoirs en attente de rendu", "en": "Pending assignments" },
+            "name": {
+                "fr": "Devoirs à rendre",
+                "en": "Assignments due"
+            },
+            "description": {
+                "fr": "Devoirs en attente de rendu",
+                "en": "Pending assignments"
+            },
             "type": "list",
             "icon": "fas fa-tasks",
-            "roles": ["eleve", "parent", "professeur"],
-            "default_size": { "width": 2, "height": 1 },
+            "roles": [
+                "eleve",
+                "parent",
+                "professeur"
+            ],
+            "default_size": {
+                "width": 2,
+                "height": 1
+            },
             "is_default": true,
             "sort_order": 20,
             "data_provider": "includes/DevoirWidgetProvider.php",
@@ -29,5 +68,15 @@
         }
     ],
     "establishment_types": null,
-    "sidebar": { "sort_order": 13 }
+    "sidebar": {
+        "sort_order": 13
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "scolaire",
+        "sort_order": 13
+    }
 }

@@ -1,0 +1,17 @@
+{
+    "documents.title": "الوثائق",
+    "documents.upload": "Upload Document",
+    "documents.download": "Download",
+    "documents.delete": "Delete",
+    "documents.share": "Share",
+    "documents.search": "Search",
+    "documents.name": "File Name",
+    "documents.size": "Size",
+    "documents.type": "Type",
+    "documents.date": "Date Added",
+    "documents.owner": "Owner",
+    "documents.versions": "Versions",
+    "documents.folder": "Folder",
+    "documents.create_folder": "Create Folder",
+    "documents.no_documents": "No documents available."
+}

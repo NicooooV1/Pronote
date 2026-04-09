@@ -1,0 +1,23 @@
+{
+    "notes.title": "Notas",
+    "notes.list": "Lista de notas",
+    "notes.add": "Agregar notas",
+    "notes.edit": "Modificar nota",
+    "notes.delete": "Eliminar nota",
+    "notes.average": "Promedio: :value",
+    "notes.class_average": "Promedio de clase: :value",
+    "notes.coefficient": "Coeficiente: :value",
+    "notes.subject": "Asignatura",
+    "notes.date": "Fecha",
+    "notes.grade": "Nota",
+    "notes.out_of": "/ :max",
+    "notes.comment": "Comentario",
+    "notes.locked": "Notas bloqueadas",
+    "notes.unlock": "Desbloquear",
+    "notes.lock": "Bloquear",
+    "notes.no_grades": "Ninguna nota registrada.",
+    "notes.confirm_delete": "Esta seguro de eliminar esta nota?",
+    "notes.export_csv": "Exportar en CSV",
+    "notes.trimester": "Trimestre",
+    "notes.items_count": "Ninguna nota|:count nota|:count notas"
+}

@@ -1,0 +1,16 @@
+{
+    "emploi_du_temps.title": "Stundenplan",
+    "emploi_du_temps.week": "Woche",
+    "emploi_du_temps.day": "Tag",
+    "emploi_du_temps.today": "Heute",
+    "emploi_du_temps.subject": "Fach",
+    "emploi_du_temps.teacher": "Lehrer",
+    "emploi_du_temps.room": "Raum",
+    "emploi_du_temps.class": "Klasse",
+    "emploi_du_temps.start": "Beginn",
+    "emploi_du_temps.end": "Ende",
+    "emploi_du_temps.conflict": "Konflikt erkannt",
+    "emploi_du_temps.replacement": "Vertretung",
+    "emploi_du_temps.cancelled": "Unterricht entfaellt",
+    "emploi_du_temps.no_courses": "Kein Unterricht geplant."
+}

@@ -1,31 +1,75 @@
 {
-  "key": "cantine",
-  "version": "1.0.0",
-  "name": { "fr": "Cantine", "en": "Cafeteria" },
-  "description": { "fr": "Gestion de la cantine et des repas", "en": "Cafeteria and meal management" },
-  "icon": "fas fa-utensils",
-  "category": "outils",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["*"] },
-    "manage": { "default_roles": ["administrateur"] }
-  },
-  "routes": { "main": "reservations.php" },
-  "widgets": [
-    {
-      "key": "cantine_menu_jour",
-      "name": { "fr": "Menu du jour", "en": "Today's menu" },
-      "description": { "fr": "Menu de la cantine du jour", "en": "Today's cafeteria menu" },
-      "type": "list",
-      "icon": "fas fa-utensils",
-      "roles": ["eleve", "parent", "professeur", "vie_scolaire", "administrateur"],
-      "default_size": { "width": 2, "height": 1 },
-      "is_default": false,
-      "sort_order": 60,
-      "data_provider": "includes/CantineWidgetProvider.php",
-      "template": "widgets/cantine_menu_jour.php"
+    "key": "cantine",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Cantine",
+        "en": "Cafeteria"
+    },
+    "description": {
+        "fr": "Gestion de la cantine et des repas",
+        "en": "Cafeteria and meal management"
+    },
+    "icon": "fas fa-utensils",
+    "category": "outils",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur"
+            ]
+        }
+    },
+    "routes": {
+        "main": "reservations.php"
+    },
+    "widgets": [
+        {
+            "key": "cantine_menu_jour",
+            "name": {
+                "fr": "Menu du jour",
+                "en": "Today's menu"
+            },
+            "description": {
+                "fr": "Menu de la cantine du jour",
+                "en": "Today's cafeteria menu"
+            },
+            "type": "list",
+            "icon": "fas fa-utensils",
+            "roles": [
+                "eleve",
+                "parent",
+                "professeur",
+                "vie_scolaire",
+                "administrateur"
+            ],
+            "default_size": {
+                "width": 2,
+                "height": 1
+            },
+            "is_default": false,
+            "sort_order": 60,
+            "data_provider": "includes/CantineWidgetProvider.php",
+            "template": "widgets/cantine_menu_jour.php"
+        }
+    ],
+    "establishment_types": [
+        "college",
+        "lycee"
+    ],
+    "sidebar": {
+        "sort_order": 60
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "systeme",
+        "sort_order": 61
     }
-  ],
-  "establishment_types": ["college", "lycee"],
-  "sidebar": { "sort_order": 60 }
 }

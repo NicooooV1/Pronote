@@ -1,0 +1,16 @@
+{
+    "discipline.title": "Discipline",
+    "discipline.incidents": "Incidents",
+    "discipline.add": "Signaler un incident",
+    "discipline.sanctions": "Sanctions",
+    "discipline.add_sanction": "Ajouter une sanction",
+    "discipline.student": "Élève",
+    "discipline.date": "Date",
+    "discipline.type": "Type",
+    "discipline.description": "Description",
+    "discipline.severity": "Gravité",
+    "discipline.timeline": "Chronologie",
+    "discipline.points": "Points comportement",
+    "discipline.stats": "Statistiques",
+    "discipline.no_incidents": "Aucun incident enregistré."
+}

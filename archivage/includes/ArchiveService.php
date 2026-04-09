@@ -194,6 +194,50 @@ class ArchiveService
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
+    /* ───── STUDENT TRANSFER ───── */
+
+    /**
+     * Export a student's complete dossier for transfer to another school.
+     */
+    public function exporterDossierEleve(int $eleveId): array
+    {
+        $dossier = [];
+
+        // Student info
+        $stmt = $this->pdo->prepare("SELECT e.*, c.nom AS classe_nom FROM eleves e LEFT JOIN classes c ON e.classe_id = c.id WHERE e.id = ?");
+        $stmt->execute([$eleveId]);
+        $dossier['eleve'] = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // Notes
+        $stmt = $this->pdo->prepare("SELECT n.*, m.nom AS matiere_nom FROM notes n JOIN matieres m ON n.matiere_id = m.id WHERE n.eleve_id = ? ORDER BY n.date_evaluation DESC");
+        $stmt->execute([$eleveId]);
+        $dossier['notes'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Absences
+        $stmt = $this->pdo->prepare("SELECT * FROM absences WHERE eleve_id = ? ORDER BY date_absence DESC");
+        $stmt->execute([$eleveId]);
+        $dossier['absences'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Bulletins
+        $stmt = $this->pdo->prepare("SELECT b.* FROM bulletins b WHERE b.eleve_id = ? ORDER BY b.periode_id");
+        $stmt->execute([$eleveId]);
+        $dossier['bulletins'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Fiche santé
+        $stmt = $this->pdo->prepare("SELECT * FROM fiches_sante WHERE eleve_id = ?");
+        $stmt->execute([$eleveId]);
+        $dossier['fiche_sante'] = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        // Save as file
+        $json = json_encode($dossier, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $dir = __DIR__ . '/../exports/';
+        if (!is_dir($dir)) { mkdir($dir, 0755, true); }
+        $filename = "transfert_eleve_{$eleveId}_" . date('Ymd_His') . '.json';
+        file_put_contents($dir . $filename, $json);
+
+        return ['fichier' => $filename, 'chemin' => $dir . $filename, 'dossier' => $dossier];
+    }
+
     public static function typesArchive(): array
     {
         return [
@@ -203,5 +247,76 @@ class ArchiveService
             'devoirs' => 'Devoirs',
             'incidents' => 'Incidents',
         ];
+    }
+
+    // ─── ARCHIVAGE PLANIFIÉ ───
+
+    public function planifierArchivage(string $annee, string $dateExecution, ?int $creerPar = null): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO archives_planifiees (annee_scolaire, date_execution, cree_par, statut, created_at) VALUES (:a, :d, :c, 'planifie', NOW())");
+        $stmt->execute([':a' => $annee, ':d' => $dateExecution, ':c' => $creerPar]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function executerArchivagesPlanifies(): int
+    {
+        $stmt = $this->pdo->query("SELECT * FROM archives_planifiees WHERE statut = 'planifie' AND date_execution <= NOW()");
+        $count = 0;
+        foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $plan) {
+            $this->archiverTout($plan['annee_scolaire']);
+            $this->pdo->prepare("UPDATE archives_planifiees SET statut = 'execute', date_execution_effective = NOW() WHERE id = ?")->execute([$plan['id']]);
+            $count++;
+        }
+        return $count;
+    }
+
+    // ─── COMPARAISON INTER-ANNUELLES ───
+
+    public function comparerAnnees(string $annee1, string $annee2, string $type): array
+    {
+        $a1 = $this->getArchives($annee1, $type);
+        $a2 = $this->getArchives($annee2, $type);
+        $data1 = !empty($a1) ? json_decode($a1[0]['donnees'] ?? '[]', true) : [];
+        $data2 = !empty($a2) ? json_decode($a2[0]['donnees'] ?? '[]', true) : [];
+        return [
+            'annee_1' => ['annee' => $annee1, 'count' => is_array($data1) ? count($data1) : 0],
+            'annee_2' => ['annee' => $annee2, 'count' => is_array($data2) ? count($data2) : 0],
+            'type' => $type,
+        ];
+    }
+
+    // ─── INTÉGRITÉ ARCHIVES ───
+
+    public function verifierIntegrite(int $archiveId): array
+    {
+        $archive = $this->getArchive($archiveId);
+        if (!$archive) return ['valid' => false, 'error' => 'Archive introuvable'];
+
+        $fichierExiste = false;
+        if (!empty($archive['fichier_chemin'])) {
+            $path = __DIR__ . '/../' . $archive['fichier_chemin'];
+            $fichierExiste = file_exists($path);
+        }
+
+        $donneesValides = !empty($archive['donnees']) && json_decode($archive['donnees'], true) !== null;
+
+        return [
+            'id' => $archiveId,
+            'valid' => $fichierExiste && $donneesValides,
+            'fichier_existe' => $fichierExiste,
+            'donnees_valides' => $donneesValides,
+            'verrouille' => (bool)$archive['verrouille'],
+            'taille' => $fichierExiste ? filesize($path) : 0,
+        ];
+    }
+
+    public function verifierToutesIntegrites(): array
+    {
+        $archives = $this->getArchives();
+        $results = [];
+        foreach ($archives as $a) {
+            $results[] = $this->verifierIntegrite($a['id']);
+        }
+        return $results;
     }
 }

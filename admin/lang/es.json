@@ -1,0 +1,13 @@
+{
+    "admin.title": "Administración",
+    "admin.dashboard": "Panel de control",
+    "admin.users": "Usuarios",
+    "admin.modules": "Módulos",
+    "admin.settings": "Configuración",
+    "admin.system": "Sistema",
+    "admin.maintenance": "Mantenimiento",
+    "admin.about": "Acerca de",
+    "admin.logs": "Registros",
+    "admin.backup": "Copia de seguridad",
+    "admin.stats": "Estadísticas"
+}

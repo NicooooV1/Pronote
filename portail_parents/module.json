@@ -1,0 +1,55 @@
+{
+    "key": "portail_parents",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Portail Parents",
+        "en": "Parent Portal"
+    },
+    "description": {
+        "fr": "Vue consolidée enfant, e-signature documents, autorisations de sortie et suivi temps réel",
+        "en": "Consolidated child view, e-signatures, exit authorizations and real-time tracking"
+    },
+    "icon": "fas fa-user-shield",
+    "category": "communication",
+    "core": false,
+    "requires_php": ">=8.0",
+    "dependencies": ["notes", "absences", "emploi_du_temps", "facturation"],
+    "permissions": {
+        "view": { "default_roles": ["parent"] },
+        "manage": { "default_roles": ["administrateur", "vie_scolaire"] },
+        "signer": { "default_roles": ["parent"] },
+        "autoriser": { "default_roles": ["parent"] }
+    },
+    "routes": { "main": "portail.php" },
+    "widgets": [
+        {
+            "key": "portail_parents_resume_enfant",
+            "name": { "fr": "Résumé enfant", "en": "Child summary" },
+            "description": { "fr": "Vue consolidée de votre enfant", "en": "Consolidated child overview" },
+            "type": "custom",
+            "icon": "fas fa-user-shield",
+            "roles": ["parent"],
+            "default_size": { "width": 4, "height": 2 },
+            "is_default": true,
+            "sort_order": 5,
+            "data_provider": "includes/PortailParentsWidgetProvider.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 5 },
+    "topbar": { "category": "communication", "sort_order": 5 },
+    "settings_schema": {
+        "sortie_anticipee": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "Autorisations sortie QR", "en": "QR exit authorizations" }
+        },
+        "e_signature": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "E-signature activée", "en": "E-signature enabled" }
+        }
+    },
+    "author": "Fronote Team",
+    "license": "MIT"
+}

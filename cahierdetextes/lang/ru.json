@@ -1,0 +1,14 @@
+{
+    "cahierdetextes.title": "Классный журнал",
+    "cahierdetextes.add": "Add an Entry",
+    "cahierdetextes.edit": "Edit",
+    "cahierdetextes.delete": "Delete",
+    "cahierdetextes.subject": "Subject",
+    "cahierdetextes.date": "Date",
+    "cahierdetextes.content": "Lesson Content",
+    "cahierdetextes.homework": "Homework",
+    "cahierdetextes.attachments": "Attachments",
+    "cahierdetextes.class": "Class",
+    "cahierdetextes.week_view": "Weekly View",
+    "cahierdetextes.no_entries": "No entries in the class notebook."
+}

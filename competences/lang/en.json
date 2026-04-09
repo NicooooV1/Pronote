@@ -1,0 +1,16 @@
+{
+    "competences.title": "Skills",
+    "competences.matrix": "Skills Matrix",
+    "competences.radar": "Radar Chart",
+    "competences.add": "Add an Assessment",
+    "competences.domain": "Domain",
+    "competences.skill": "Skill",
+    "competences.level": "Level",
+    "competences.mastered": "Mastered",
+    "competences.in_progress": "In Progress",
+    "competences.not_mastered": "Not Mastered",
+    "competences.not_evaluated": "Not Evaluated",
+    "competences.student": "Student",
+    "competences.export_lsu": "LSU Export",
+    "competences.no_evaluations": "No assessments recorded."
+}

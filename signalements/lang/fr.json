@@ -1,0 +1,14 @@
+{
+    "signalements.title": "Signalements",
+    "signalements.report": "Faire un signalement",
+    "signalements.anonymous": "Signalement anonyme",
+    "signalements.category": "Catégorie",
+    "signalements.description": "Description",
+    "signalements.status": "Statut",
+    "signalements.new": "Nouveau",
+    "signalements.in_progress": "En cours",
+    "signalements.resolved": "Résolu",
+    "signalements.closed": "Fermé",
+    "signalements.follow_up": "Suivi",
+    "signalements.no_reports": "Aucun signalement enregistré."
+}

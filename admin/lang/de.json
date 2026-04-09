@@ -1,0 +1,13 @@
+{
+    "admin.title": "Verwaltung",
+    "admin.dashboard": "Dashboard",
+    "admin.users": "Benutzer",
+    "admin.modules": "Module",
+    "admin.settings": "Einstellungen",
+    "admin.system": "System",
+    "admin.maintenance": "Wartung",
+    "admin.about": "Ueber",
+    "admin.logs": "Protokolle",
+    "admin.backup": "Sicherung",
+    "admin.stats": "Statistiken"
+}

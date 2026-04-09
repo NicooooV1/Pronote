@@ -1,0 +1,13 @@
+{
+    "admin.title": "Администрирование",
+    "admin.dashboard": "Панель управления",
+    "admin.users": "Пользователи",
+    "admin.modules": "Модули",
+    "admin.settings": "Настройки",
+    "admin.system": "Система",
+    "admin.maintenance": "Обслуживание",
+    "admin.about": "О программе",
+    "admin.logs": "Журналы",
+    "admin.backup": "Резервное копирование",
+    "admin.stats": "Статистика"
+}

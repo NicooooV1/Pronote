@@ -1,0 +1,55 @@
+{
+    "key": "echanges",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Échanges & Mobilité Internationale",
+        "en": "Exchanges & International Mobility"
+    },
+    "description": {
+        "fr": "Programmes Erasmus+, eTwinning, séjours linguistiques, familles d'accueil et suivi CECRL",
+        "en": "Erasmus+, eTwinning programs, language stays, host families and CEFR tracking"
+    },
+    "icon": "fas fa-globe-europe",
+    "category": "scolaire",
+    "core": false,
+    "requires_php": ">=8.0",
+    "dependencies": [],
+    "permissions": {
+        "view": { "default_roles": ["administrateur", "professeur", "eleve", "parent"] },
+        "manage": { "default_roles": ["administrateur", "professeur"] },
+        "postuler": { "default_roles": ["eleve"] },
+        "export": { "default_roles": ["administrateur"] }
+    },
+    "routes": { "main": "echanges.php" },
+    "widgets": [
+        {
+            "key": "echanges_programmes",
+            "name": { "fr": "Programmes d'échanges", "en": "Exchange programs" },
+            "description": { "fr": "Programmes ouverts aux candidatures", "en": "Programs open for applications" },
+            "type": "list",
+            "icon": "fas fa-globe-europe",
+            "roles": ["administrateur", "professeur", "eleve"],
+            "default_size": { "width": 2, "height": 1 },
+            "is_default": false,
+            "sort_order": 90,
+            "data_provider": "includes/EchangesWidgetProvider.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 59 },
+    "topbar": { "category": "scolaire", "sort_order": 59 },
+    "settings_schema": {
+        "erasmus_actif": {
+            "type": "checkbox",
+            "default": false,
+            "label": { "fr": "Programme Erasmus+ activé", "en": "Erasmus+ program enabled" }
+        },
+        "etwinning_actif": {
+            "type": "checkbox",
+            "default": false,
+            "label": { "fr": "eTwinning activé", "en": "eTwinning enabled" }
+        }
+    },
+    "author": "Fronote Team",
+    "license": "MIT"
+}

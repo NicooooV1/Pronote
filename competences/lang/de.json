@@ -1,0 +1,16 @@
+{
+    "competences.title": "Kompetenzen",
+    "competences.matrix": "Kompetenzmatrix",
+    "competences.radar": "Radardiagramm",
+    "competences.add": "Bewertung hinzufuegen",
+    "competences.domain": "Bereich",
+    "competences.skill": "Kompetenz",
+    "competences.level": "Niveau",
+    "competences.mastered": "Beherrscht",
+    "competences.in_progress": "In Bearbeitung",
+    "competences.not_mastered": "Nicht beherrscht",
+    "competences.not_evaluated": "Nicht bewertet",
+    "competences.student": "Schueler",
+    "competences.export_lsu": "LSU-Export",
+    "competences.no_evaluations": "Keine Bewertungen erfasst."
+}

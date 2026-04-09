@@ -1,0 +1,20 @@
+{
+    "messagerie.title": "Mensajería",
+    "messagerie.inbox": "Bandeja de entrada",
+    "messagerie.sent": "Mensajes enviados",
+    "messagerie.compose": "Nuevo mensaje",
+    "messagerie.reply": "Responder",
+    "messagerie.forward": "Reenviar",
+    "messagerie.delete": "Eliminar",
+    "messagerie.archive": "Archivar",
+    "messagerie.search": "Buscar",
+    "messagerie.recipient": "Destinatario",
+    "messagerie.subject": "Asunto",
+    "messagerie.message": "Mensaje",
+    "messagerie.attachments": "Archivos adjuntos",
+    "messagerie.send": "Enviar",
+    "messagerie.broadcast": "Difusión",
+    "messagerie.read": "Leído",
+    "messagerie.unread": "No leído",
+    "messagerie.no_messages": "Ningún mensaje."
+}

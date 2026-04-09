@@ -1,0 +1,16 @@
+{
+    "emploi_du_temps.title": "Horario",
+    "emploi_du_temps.week": "Semana",
+    "emploi_du_temps.day": "Día",
+    "emploi_du_temps.today": "Hoy",
+    "emploi_du_temps.subject": "Asignatura",
+    "emploi_du_temps.teacher": "Profesor",
+    "emploi_du_temps.room": "Aula",
+    "emploi_du_temps.classe": "Clase",
+    "emploi_du_temps.start": "Inicio",
+    "emploi_du_temps.end": "Fin",
+    "emploi_du_temps.conflict": "Conflicto detectado",
+    "emploi_du_temps.substitution": "Sustitución",
+    "emploi_du_temps.cancelled": "Clase cancelada",
+    "emploi_du_temps.no_courses": "Ninguna clase programada."
+}

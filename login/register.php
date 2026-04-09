@@ -105,7 +105,6 @@ ob_start();
 $sidebarExtraContent = ob_get_clean();
 
 include __DIR__ . '/../templates/shared_header.php';
-include __DIR__ . '/../templates/shared_sidebar.php';
 include __DIR__ . '/../templates/shared_topbar.php';
 ?>
 

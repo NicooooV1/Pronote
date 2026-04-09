@@ -1,0 +1,107 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FRONOTE RTL (Right-to-Left) Support
+   Active when <html dir="rtl"> — triggered for Arabic locale.
+   Uses logical properties where possible.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+[dir="rtl"] {
+    direction: rtl;
+    text-align: right;
+}
+
+/* ─── Sidebar ───────────────────────────────────────────────────────────── */
+[dir="rtl"] .sidebar {
+    left: auto;
+    right: 0;
+}
+[dir="rtl"] .main-content {
+    margin-left: 0;
+    margin-right: var(--sidebar-width);
+}
+[dir="rtl"] .sidebar-collapsed .main-content {
+    margin-right: 0;
+}
+
+/* ─── Flexbox reversals ─────────────────────────────────────────────────── */
+[dir="rtl"] .ui-card__header,
+[dir="rtl"] .ui-alert,
+[dir="rtl"] .ui-stat-card,
+[dir="rtl"] .ui-breadcrumb ol,
+[dir="rtl"] .ui-modal__header,
+[dir="rtl"] .topbar {
+    flex-direction: row-reverse;
+}
+
+/* ─── Margin/padding logical ────────────────────────────────────────────── */
+[dir="rtl"] .ml-auto { margin-left: 0; margin-right: auto; }
+[dir="rtl"] .mr-auto { margin-right: 0; margin-left: auto; }
+
+/* ─── Table alignment ───────────────────────────────────────────────────── */
+[dir="rtl"] .ui-table th,
+[dir="rtl"] .ui-table td {
+    text-align: right;
+}
+
+/* ─── Breadcrumb separator ──────────────────────────────────────────────── */
+[dir="rtl"] .ui-breadcrumb__item:not(:last-child)::after {
+    content: '\\';
+}
+
+/* ─── Form labels ───────────────────────────────────────────────────────── */
+[dir="rtl"] .ui-form-group__label {
+    text-align: right;
+}
+
+/* ─── Dropdown positioning ──────────────────────────────────────────────── */
+[dir="rtl"] .ui-dropdown__menu--left { left: auto; right: 0; }
+[dir="rtl"] .ui-dropdown__menu--right { right: auto; left: 0; }
+
+/* ─── Toast position ───────────────────────────────────────────────────── */
+[dir="rtl"] .ui-toast-container {
+    right: auto;
+    left: 16px;
+}
+[dir="rtl"] .ui-toast {
+    border-left: none;
+    border-right: 3px solid var(--primary);
+    flex-direction: row-reverse;
+}
+
+/* ─── Pagination ────────────────────────────────────────────────────────── */
+[dir="rtl"] .ui-pagination {
+    direction: ltr; /* Keep number order LTR */
+}
+
+/* ─── Icons that imply direction ────────────────────────────────────────── */
+[dir="rtl"] .fa-chevron-right { transform: scaleX(-1); }
+[dir="rtl"] .fa-chevron-left { transform: scaleX(-1); }
+[dir="rtl"] .fa-arrow-right { transform: scaleX(-1); }
+[dir="rtl"] .fa-arrow-left { transform: scaleX(-1); }
+
+/* ─── Sidebar link padding ──────────────────────────────────────────────── */
+[dir="rtl"] .sidebar-link {
+    padding-left: 16px;
+    padding-right: 20px;
+}
+[dir="rtl"] .sidebar-link-icon {
+    margin-right: 0;
+    margin-left: 12px;
+}
+
+/* ─── Dev toolbar ───────────────────────────────────────────────────────── */
+[dir="rtl"] #fronote-dev-toolbar {
+    direction: ltr; /* Keep toolbar LTR */
+}
+
+/* ─── Mobile responsive ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    [dir="rtl"] .sidebar {
+        transform: translateX(100%);
+    }
+    [dir="rtl"] .sidebar.is-open {
+        transform: translateX(0);
+    }
+    [dir="rtl"] .main-content {
+        margin-right: 0;
+    }
+}

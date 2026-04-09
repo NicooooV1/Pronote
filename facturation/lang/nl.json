@@ -1,0 +1,14 @@
+{
+    "facturation.title": "Facturering",
+    "facturation.invoices": "Invoices",
+    "facturation.create": "Create Invoice",
+    "facturation.payments": "Payments",
+    "facturation.reminders": "Reminders",
+    "facturation.amount": "Amount",
+    "facturation.due_date": "Due Date",
+    "facturation.paid": "Paid",
+    "facturation.pending": "Pending",
+    "facturation.overdue": "Overdue",
+    "facturation.export": "Accounting Export",
+    "facturation.no_invoices": "No invoices recorded."
+}

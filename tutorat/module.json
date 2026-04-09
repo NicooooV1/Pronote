@@ -1,0 +1,60 @@
+{
+    "key": "tutorat",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Tutorat & Entraide",
+        "en": "Tutoring & Peer Help"
+    },
+    "description": {
+        "fr": "Système de tutorat entre élèves avec matching algorithmique, gamification et suivi progression",
+        "en": "Peer tutoring system with algorithmic matching, gamification and progress tracking"
+    },
+    "icon": "fas fa-hands-helping",
+    "category": "scolaire",
+    "core": false,
+    "requires_php": ">=8.0",
+    "dependencies": ["notes", "emploi_du_temps"],
+    "permissions": {
+        "view": { "default_roles": ["administrateur", "professeur", "vie_scolaire", "eleve"] },
+        "manage": { "default_roles": ["administrateur", "professeur", "vie_scolaire"] },
+        "participer": { "default_roles": ["eleve"] },
+        "export": { "default_roles": ["administrateur"] }
+    },
+    "routes": { "main": "tutorat.php" },
+    "widgets": [
+        {
+            "key": "tutorat_leaderboard",
+            "name": { "fr": "Leaderboard tutorat", "en": "Tutoring leaderboard" },
+            "description": { "fr": "Classement des meilleurs tuteurs", "en": "Top tutors ranking" },
+            "type": "list",
+            "icon": "fas fa-hands-helping",
+            "roles": ["administrateur", "professeur", "vie_scolaire", "eleve"],
+            "default_size": { "width": 2, "height": 1 },
+            "is_default": false,
+            "sort_order": 65,
+            "data_provider": "includes/TutoratWidgetProvider.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 56 },
+    "topbar": { "category": "scolaire", "sort_order": 56 },
+    "settings_schema": {
+        "auto_matching": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "Matching automatique activé", "en": "Auto-matching enabled" }
+        },
+        "gamification": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "Gamification (badges, XP)", "en": "Gamification (badges, XP)" }
+        },
+        "max_sessions_semaine": {
+            "type": "integer",
+            "default": 3,
+            "label": { "fr": "Sessions max par semaine", "en": "Max sessions per week" }
+        }
+    },
+    "author": "Fronote Team",
+    "license": "MIT"
+}

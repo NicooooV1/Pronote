@@ -1,0 +1,12 @@
+{
+    "reporting.title": "Berichte",
+    "reporting.generate": "Bericht erstellen",
+    "reporting.custom": "Benutzerdefinierter Bericht",
+    "reporting.schedule": "Planen",
+    "reporting.export_pdf": "Als PDF exportieren",
+    "reporting.export_csv": "Als CSV exportieren",
+    "reporting.export_excel": "Als Excel exportieren",
+    "reporting.date_range": "Zeitraum",
+    "reporting.filters": "Filter",
+    "reporting.no_reports": "Keine Berichte verfuegbar."
+}

@@ -1,17 +1,44 @@
 {
-  "key": "facturation",
-  "version": "1.0.0",
-  "name": { "fr": "Facturation", "en": "Billing" },
-  "description": { "fr": "Gestion de la facturation et des paiements", "en": "Billing and payments management" },
-  "icon": "fas fa-file-invoice-dollar",
-  "category": "administration",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["administrateur", "parent"] },
-    "manage": { "default_roles": ["administrateur"] }
-  },
-  "routes": { "main": "factures.php" },
-  "widgets": [],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 70 }
+    "key": "facturation",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Facturation",
+        "en": "Billing"
+    },
+    "description": {
+        "fr": "Gestion de la facturation et des paiements",
+        "en": "Billing and payments management"
+    },
+    "icon": "fas fa-file-invoice-dollar",
+    "category": "administration",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "administrateur",
+                "parent"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur"
+            ]
+        }
+    },
+    "routes": {
+        "main": "factures.php"
+    },
+    "widgets": [],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 70
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "systeme",
+        "sort_order": 66
+    }
 }

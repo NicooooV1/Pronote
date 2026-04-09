@@ -1,0 +1,14 @@
+{
+    "cantine.title": "Comedor",
+    "cantine.weekly_menu": "Menú semanal",
+    "cantine.reservation": "Reserva",
+    "cantine.allergens": "Alérgenos",
+    "cantine.attendance_stats": "Estadísticas de asistencia",
+    "cantine.meal_type": "Tipo de comida",
+    "cantine.date": "Fecha",
+    "cantine.reserved": "Reservado",
+    "cantine.cancel": "Cancelar reserva",
+    "cantine.no_menu": "Ningún menú disponible.",
+    "cantine.capacity": "Capacidad",
+    "cantine.price": "Precio"
+}

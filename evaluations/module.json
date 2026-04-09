@@ -1,0 +1,56 @@
+{
+    "key": "evaluations",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Évaluations en Ligne",
+        "en": "Online Assessments"
+    },
+    "description": {
+        "fr": "QCM et évaluations numériques avec auto-correction, banque de questions, timer et anti-triche",
+        "en": "Online quizzes and assessments with auto-grading, question banks, timer and anti-cheat"
+    },
+    "icon": "fas fa-laptop-code",
+    "category": "scolaire",
+    "core": false,
+    "requires_php": ">=8.0",
+    "dependencies": ["notes"],
+    "permissions": {
+        "view": { "default_roles": ["*"] },
+        "manage": { "default_roles": ["administrateur", "professeur"] },
+        "create": { "default_roles": ["professeur"] },
+        "correct": { "default_roles": ["professeur"] },
+        "export": { "default_roles": ["administrateur", "professeur"] }
+    },
+    "routes": { "main": "evaluations.php" },
+    "widgets": [
+        {
+            "key": "evaluations_prochaines",
+            "name": { "fr": "Évaluations à venir", "en": "Upcoming assessments" },
+            "description": { "fr": "Prochaines évaluations en ligne", "en": "Next online assessments" },
+            "type": "list",
+            "icon": "fas fa-laptop-code",
+            "roles": ["eleve", "parent", "professeur"],
+            "default_size": { "width": 2, "height": 1 },
+            "is_default": true,
+            "sort_order": 25,
+            "data_provider": "includes/EvaluationWidgetProvider.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 15 },
+    "topbar": { "category": "scolaire", "sort_order": 15 },
+    "settings_schema": {
+        "default_duration": {
+            "type": "integer",
+            "default": 60,
+            "label": { "fr": "Durée par défaut (minutes)", "en": "Default duration (minutes)" }
+        },
+        "anti_cheat_default": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "Anti-triche activé par défaut", "en": "Anti-cheat enabled by default" }
+        }
+    },
+    "author": "Fronote Team",
+    "license": "MIT"
+}

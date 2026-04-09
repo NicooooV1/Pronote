@@ -1,31 +1,71 @@
 {
-  "key": "competences",
-  "version": "1.0.0",
-  "name": { "fr": "Compétences", "en": "Skills Assessment" },
-  "description": { "fr": "Évaluation et suivi des compétences", "en": "Skills assessment and tracking" },
-  "icon": "fas fa-tasks",
-  "category": "scolaire",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["*"] },
-    "manage": { "default_roles": ["administrateur", "professeur"] }
-  },
-  "routes": { "main": "competences.php" },
-  "widgets": [
-    {
-      "key": "competences_recentes",
-      "name": { "fr": "Compétences récentes", "en": "Recent skills" },
-      "description": { "fr": "Dernières évaluations de compétences", "en": "Latest skills assessments" },
-      "type": "list",
-      "icon": "fas fa-award",
-      "roles": ["eleve", "parent", "professeur"],
-      "default_size": { "width": 2, "height": 1 },
-      "is_default": false,
-      "sort_order": 40,
-      "data_provider": "includes/CompetenceWidgetProvider.php",
-      "template": "widgets/competences_recentes.php"
+    "key": "competences",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Compétences",
+        "en": "Skills Assessment"
+    },
+    "description": {
+        "fr": "Évaluation et suivi des compétences",
+        "en": "Skills assessment and tracking"
+    },
+    "icon": "fas fa-tasks",
+    "category": "scolaire",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "professeur"
+            ]
+        }
+    },
+    "routes": {
+        "main": "competences.php"
+    },
+    "widgets": [
+        {
+            "key": "competences_recentes",
+            "name": {
+                "fr": "Compétences récentes",
+                "en": "Recent skills"
+            },
+            "description": {
+                "fr": "Dernières évaluations de compétences",
+                "en": "Latest skills assessments"
+            },
+            "type": "list",
+            "icon": "fas fa-award",
+            "roles": [
+                "eleve",
+                "parent",
+                "professeur"
+            ],
+            "default_size": {
+                "width": 2,
+                "height": 1
+            },
+            "is_default": false,
+            "sort_order": 40,
+            "data_provider": "includes/CompetenceWidgetProvider.php",
+            "template": "widgets/competences_recentes.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 22
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "scolaire",
+        "sort_order": 11
     }
-  ],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 22 }
 }

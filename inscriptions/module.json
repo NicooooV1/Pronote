@@ -1,17 +1,43 @@
 {
-  "key": "inscriptions",
-  "version": "1.0.0",
-  "name": { "fr": "Inscriptions", "en": "Registrations" },
-  "description": { "fr": "Gestion des inscriptions des élèves", "en": "Student registrations management" },
-  "icon": "fas fa-user-plus",
-  "category": "administration",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["administrateur"] },
-    "manage": { "default_roles": ["administrateur"] }
-  },
-  "routes": { "main": "inscriptions.php" },
-  "widgets": [],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 65 }
+    "key": "inscriptions",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Inscriptions",
+        "en": "Registrations"
+    },
+    "description": {
+        "fr": "Gestion des inscriptions des élèves",
+        "en": "Student registrations management"
+    },
+    "icon": "fas fa-user-plus",
+    "category": "administration",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "administrateur"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur"
+            ]
+        }
+    },
+    "routes": {
+        "main": "inscriptions.php"
+    },
+    "widgets": [],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 65
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "systeme",
+        "sort_order": 54
+    }
 }

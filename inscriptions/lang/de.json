@@ -1,0 +1,16 @@
+{
+    "inscriptions.title": "Einschreibungen",
+    "inscriptions.new": "Neue Einschreibung",
+    "inscriptions.form": "Einschreibungsformular",
+    "inscriptions.documents": "Erforderliche Dokumente",
+    "inscriptions.upload": "Dokumente hochladen",
+    "inscriptions.status": "Status",
+    "inscriptions.pending": "Ausstehend",
+    "inscriptions.approved": "Genehmigt",
+    "inscriptions.rejected": "Abgelehnt",
+    "inscriptions.workflow": "Genehmigungsworkflow",
+    "inscriptions.student": "Schueler",
+    "inscriptions.class": "Klasse",
+    "inscriptions.year": "Schuljahr",
+    "inscriptions.no_inscriptions": "Keine laufenden Einschreibungen."
+}

@@ -190,6 +190,110 @@ class CantineService
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /* ==================== ALLERGEN ALERTS ==================== */
+
+    /**
+     * Check menu allergens against student allergies.
+     * Returns list of students with allergen conflicts.
+     */
+    public function checkAllergenConflicts(string $date): array
+    {
+        $menus = $this->getMenuDuJour($date);
+        if (empty($menus)) return [];
+
+        // Collect all allergens from menus
+        $menuAllergens = [];
+        foreach ($menus as $m) {
+            $alls = json_decode($m['allergenes'] ?? '[]', true);
+            if (is_array($alls)) {
+                $menuAllergens = array_merge($menuAllergens, $alls);
+            }
+        }
+        $menuAllergens = array_unique($menuAllergens);
+        if (empty($menuAllergens)) return [];
+
+        // Find students with reservations who have matching allergies
+        $conflicts = [];
+        $stmt = $this->pdo->prepare("
+            SELECT cr.id AS reservation_id, e.id AS eleve_id,
+                   CONCAT(e.prenom, ' ', e.nom) AS eleve_nom, e.classe,
+                   ea.allergene, ea.severity
+            FROM cantine_reservations cr
+            JOIN eleves e ON cr.eleve_id = e.id
+            JOIN eleve_allergies ea ON ea.eleve_id = e.id
+            WHERE cr.date_repas = ? AND cr.statut != 'annule'
+        ");
+        $stmt->execute([$date]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($rows as $r) {
+            if (in_array($r['allergene'], $menuAllergens)) {
+                $conflicts[] = $r;
+            }
+        }
+        return $conflicts;
+    }
+
+    /**
+     * Get/set student allergies.
+     */
+    public function getAllergiesEleve(int $eleveId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM eleve_allergies WHERE eleve_id = ?");
+        $stmt->execute([$eleveId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function setAllergieEleve(int $eleveId, string $allergene, string $severity = 'modere'): void
+    {
+        $this->pdo->prepare("
+            INSERT INTO eleve_allergies (eleve_id, allergene, severity)
+            VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE severity = VALUES(severity)
+        ")->execute([$eleveId, $allergene, $severity]);
+    }
+
+    /**
+     * Frequentation forecast based on historical data.
+     */
+    public function getFrequentationPrevision(string $date): array
+    {
+        $dow = date('N', strtotime($date));
+        // Average for same day of week over last 4 weeks
+        $stmt = $this->pdo->prepare("
+            SELECT AVG(cnt) AS prevision FROM (
+                SELECT COUNT(*) AS cnt FROM cantine_reservations
+                WHERE DAYOFWEEK(date_repas) = DAYOFWEEK(?) AND date_repas >= DATE_SUB(?, INTERVAL 28 DAY)
+                  AND date_repas < ? AND statut != 'annule'
+                GROUP BY date_repas
+            ) sub
+        ");
+        $stmt->execute([$date, $date, $date]);
+        $avg = $stmt->fetchColumn();
+
+        // Current reservations
+        $stmt2 = $this->pdo->prepare("SELECT COUNT(*) FROM cantine_reservations WHERE date_repas = ? AND statut != 'annule'");
+        $stmt2->execute([$date]);
+        $actual = (int)$stmt2->fetchColumn();
+
+        return [
+            'date' => $date,
+            'prevision' => $avg ? round($avg) : null,
+            'reservations_actuelles' => $actual,
+        ];
+    }
+
+    public static function allergenesStandard(): array
+    {
+        return [
+            'gluten' => 'Gluten', 'crustaces' => 'Crustacés', 'oeufs' => 'Œufs',
+            'poisson' => 'Poisson', 'arachides' => 'Arachides', 'soja' => 'Soja',
+            'lait' => 'Lait', 'fruits_coques' => 'Fruits à coque', 'celeri' => 'Céleri',
+            'moutarde' => 'Moutarde', 'sesame' => 'Sésame', 'sulfites' => 'Sulfites',
+            'lupin' => 'Lupin', 'mollusques' => 'Mollusques',
+        ];
+    }
+
     /* ==================== HELPERS ==================== */
 
     private function getAnneeScolaire(): string
@@ -267,5 +371,100 @@ class CantineService
         ");
         $stmt->execute([$date]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ─── INFO NUTRITIONNELLE ───
+
+    public function setNutrition(int $menuId, array $nutrition): void
+    {
+        $json = json_encode($nutrition, JSON_UNESCAPED_UNICODE);
+        $this->pdo->prepare("UPDATE menus_cantine SET nutrition = :n WHERE id = :id")->execute([':n' => $json, ':id' => $menuId]);
+    }
+
+    public function getNutrition(int $menuId): ?array
+    {
+        $stmt = $this->pdo->prepare("SELECT nutrition FROM menus_cantine WHERE id = ?");
+        $stmt->execute([$menuId]);
+        $json = $stmt->fetchColumn();
+        return $json ? json_decode($json, true) : null;
+    }
+
+    // ─── ENQUÊTE SATISFACTION ───
+
+    public function evaluerMenu(int $menuId, int $eleveId, int $note, ?string $commentaire = null): void
+    {
+        $this->pdo->prepare("
+            INSERT INTO cantine_evaluations (menu_id, eleve_id, note, commentaire, created_at)
+            VALUES (:m, :e, :n, :c, NOW())
+            ON DUPLICATE KEY UPDATE note = VALUES(note), commentaire = VALUES(commentaire)
+        ")->execute([':m' => $menuId, ':e' => $eleveId, ':n' => $note, ':c' => $commentaire]);
+    }
+
+    public function getEvaluationsMenu(int $menuId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT ce.*, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom
+            FROM cantine_evaluations ce
+            JOIN eleves e ON ce.eleve_id = e.id
+            WHERE ce.menu_id = :m ORDER BY ce.created_at DESC
+        ");
+        $stmt->execute([':m' => $menuId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function getNoteMoyenneMenu(int $menuId): ?float
+    {
+        $stmt = $this->pdo->prepare("SELECT AVG(note) FROM cantine_evaluations WHERE menu_id = ?");
+        $stmt->execute([$menuId]);
+        $avg = $stmt->fetchColumn();
+        return $avg !== false ? round((float)$avg, 1) : null;
+    }
+
+    // ─── SUIVI GASPILLAGE ───
+
+    public function enregistrerGaspillage(string $date, float $quantiteKg, string $type = 'preparation', ?string $commentaire = null): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO cantine_gaspillage (date_mesure, quantite_kg, type, commentaire, created_at) VALUES (:d, :q, :t, :c, NOW())");
+        $stmt->execute([':d' => $date, ':q' => $quantiteKg, ':t' => $type, ':c' => $commentaire]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getGaspillage(string $dateDebut, string $dateFin): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM cantine_gaspillage WHERE date_mesure BETWEEN :d AND :f ORDER BY date_mesure DESC");
+        $stmt->execute([':d' => $dateDebut, ':f' => $dateFin]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function getStatsGaspillage(string $dateDebut, string $dateFin): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT SUM(quantite_kg) AS total_kg, AVG(quantite_kg) AS moyenne_kg,
+                   COUNT(*) AS nb_mesures, type
+            FROM cantine_gaspillage WHERE date_mesure BETWEEN :d AND :f
+            GROUP BY type
+        ");
+        $stmt->execute([':d' => $dateDebut, ':f' => $dateFin]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    // ─── PRÉ-COMMANDE ───
+
+    public function preCommanderMenu(int $reservationId, string $choixMenu): void
+    {
+        $this->pdo->prepare("UPDATE cantine_reservations SET choix_menu = :c WHERE id = :id")
+            ->execute([':c' => $choixMenu, ':id' => $reservationId]);
+    }
+
+    public function getPreCommandesJour(string $date): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT choix_menu, COUNT(*) AS nb
+            FROM cantine_reservations
+            WHERE date_repas = :d AND statut != 'annule' AND choix_menu IS NOT NULL
+            GROUP BY choix_menu
+        ");
+        $stmt->execute([':d' => $date]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 }

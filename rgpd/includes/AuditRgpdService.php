@@ -505,4 +505,89 @@ class AuditRgpdService
         $labels = ['en_attente' => 'En attente', 'en_cours' => 'En cours', 'traitee' => 'Traitée', 'refusee' => 'Refusée'];
         return '<span class="badge badge-' . ($map[$s] ?? 'secondary') . '">' . ($labels[$s] ?? $s) . '</span>';
     }
+
+    // ─── REGISTRE TRAITEMENTS (Art. 30) ───
+
+    public function ajouterTraitement(array $d): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO rgpd_registre_traitements (nom_traitement, finalite, base_legale, categories_donnees, destinataires, duree_conservation, mesures_securite, created_at)
+            VALUES (:n, :f, :b, :c, :d, :dur, :m, NOW())
+        ");
+        $stmt->execute([
+            ':n' => $d['nom_traitement'], ':f' => $d['finalite'], ':b' => $d['base_legale'] ?? 'consentement',
+            ':c' => $d['categories_donnees'] ?? '', ':d' => $d['destinataires'] ?? '',
+            ':dur' => $d['duree_conservation'] ?? '', ':m' => $d['mesures_securite'] ?? '',
+        ]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getRegistreTraitements(): array
+    {
+        return $this->pdo->query("SELECT * FROM rgpd_registre_traitements ORDER BY nom_traitement")->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    // ─── ANALYSE D'IMPACT (AIPD / DPIA) ───
+
+    public function creerAnalyseImpact(string $titre, string $description, int $creerPar): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO rgpd_analyses_impact (titre, description, cree_par, statut, created_at) VALUES (:t, :d, :c, 'en_cours', NOW())");
+        $stmt->execute([':t' => $titre, ':d' => $description, ':c' => $creerPar]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getAnalysesImpact(): array
+    {
+        return $this->pdo->query("SELECT * FROM rgpd_analyses_impact ORDER BY created_at DESC")->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    // ─── VIOLATIONS DE DONNÉES (Art. 33/34) ───
+
+    public function signalerViolation(array $d): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO rgpd_violations (titre, description, date_detection, nature, donnees_concernees, nb_personnes, gravite, signale_par, statut, created_at)
+            VALUES (:t, :desc, :dd, :n, :dc, :nb, :g, :sp, 'detectee', NOW())
+        ");
+        $stmt->execute([
+            ':t' => $d['titre'], ':desc' => $d['description'], ':dd' => $d['date_detection'] ?? date('Y-m-d'),
+            ':n' => $d['nature'] ?? '', ':dc' => $d['donnees_concernees'] ?? '',
+            ':nb' => $d['nb_personnes'] ?? 0, ':g' => $d['gravite'] ?? 'moyenne', ':sp' => $d['signale_par'],
+        ]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getViolations(?string $statut = null): array
+    {
+        $sql = "SELECT * FROM rgpd_violations WHERE 1=1";
+        $params = [];
+        if ($statut) { $sql .= " AND statut = :s"; $params[':s'] = $statut; }
+        $sql .= " ORDER BY date_detection DESC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function traiterViolation(int $id, string $statut, ?string $actions = null): void
+    {
+        $this->pdo->prepare("UPDATE rgpd_violations SET statut = :s, actions_correctives = :a, date_resolution = NOW() WHERE id = :id")
+            ->execute([':s' => $statut, ':a' => $actions, ':id' => $id]);
+    }
+
+    // ─── DASHBOARD CONFORMITÉ ───
+
+    public function getDashboardConformite(): array
+    {
+        $demandes = $this->pdo->query("SELECT statut, COUNT(*) AS nb FROM rgpd_demandes GROUP BY statut")->fetchAll(\PDO::FETCH_KEY_PAIR);
+        $consentements = $this->pdo->query("SELECT COUNT(*) AS total, SUM(consenti) AS consented FROM rgpd_consentements")->fetch(\PDO::FETCH_ASSOC);
+        $violations = $this->pdo->query("SELECT COUNT(*) FROM rgpd_violations WHERE statut != 'resolue'")->fetchColumn();
+
+        return [
+            'demandes' => $demandes,
+            'demandes_en_attente' => (int)($demandes['en_attente'] ?? 0),
+            'taux_consentement' => $consentements['total'] > 0 ? round($consentements['consented'] / $consentements['total'] * 100, 1) : 0,
+            'violations_ouvertes' => (int)$violations,
+            'derniere_purge' => $this->pdo->query("SELECT MAX(derniere_purge) FROM rgpd_retention_policies")->fetchColumn() ?: 'Jamais',
+        ];
+    }
 }

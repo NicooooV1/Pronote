@@ -1,0 +1,14 @@
+{
+    "cahierdetextes.title": "Cahier de textes",
+    "cahierdetextes.add": "Ajouter une entrée",
+    "cahierdetextes.edit": "Modifier",
+    "cahierdetextes.delete": "Supprimer",
+    "cahierdetextes.subject": "Matière",
+    "cahierdetextes.date": "Date",
+    "cahierdetextes.content": "Contenu du cours",
+    "cahierdetextes.homework": "Travail à faire",
+    "cahierdetextes.attachments": "Pièces jointes",
+    "cahierdetextes.class": "Classe",
+    "cahierdetextes.week_view": "Vue par semaine",
+    "cahierdetextes.no_entries": "Aucune entrée dans le cahier de textes."
+}

@@ -119,6 +119,16 @@ class MarketplaceService
             return ['success' => false, 'error' => 'Échec du téléchargement.'];
         }
 
+        // ─── SHA-256 integrity check ────────────────────────────────
+        $expectedHash = $item['sha256'] ?? null;
+        if ($expectedHash) {
+            $actualHash = hash_file('sha256', $zipPath);
+            if (!hash_equals($expectedHash, $actualHash)) {
+                @unlink($zipPath);
+                return ['success' => false, 'error' => 'Verification d\'integrite echouee (SHA-256 mismatch).'];
+            }
+        }
+
         // Extraire
         $extracted = $this->extractZip($zipPath, $targetDir);
         @unlink($zipPath);
@@ -136,6 +146,31 @@ class MarketplaceService
         if (!$manifest || empty($manifest['key'])) {
             $this->removeDirectory($targetDir);
             return ['success' => false, 'error' => 'module.json invalide.'];
+        }
+
+        // ─── Security scan ─────────────────────────────────────────
+        $modulePerms = $manifest['required_permissions'] ?? [];
+        $scanner = new \API\Security\ModuleScanner($modulePerms);
+        $scanResult = $scanner->scanDirectory($targetDir);
+
+        if (!$scanResult['safe']) {
+            // Critical violations → quarantine
+            $quarantine = new QuarantineService($this->basePath);
+            $quarantine->quarantine($key, $targetDir, $scanResult);
+            return [
+                'success' => false,
+                'error' => 'Module mis en quarantaine : code potentiellement dangereux detecte.',
+                'violations' => $scanResult['violations'],
+                'quarantined' => true,
+            ];
+        }
+
+        // ─── Backup existing module before overwrite ────────────────
+        $backupDir = $this->basePath . '/storage/backups/modules';
+        if (!is_dir($backupDir)) @mkdir($backupDir, 0755, true);
+        if (is_dir($this->basePath . '/' . $key)) {
+            $backupPath = $backupDir . '/' . $key . '_' . date('Ymd_His');
+            @rename($this->basePath . '/' . $key, $backupPath);
         }
 
         // Sync avec la base de données

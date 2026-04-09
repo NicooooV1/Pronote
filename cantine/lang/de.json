@@ -1,0 +1,14 @@
+{
+    "cantine.title": "Mensa",
+    "cantine.menu": "Wochenmenue",
+    "cantine.booking": "Reservierung",
+    "cantine.allergens": "Allergene",
+    "cantine.stats": "Besuchsstatistiken",
+    "cantine.meal_type": "Mahlzeittyp",
+    "cantine.date": "Datum",
+    "cantine.booked": "Reserviert",
+    "cantine.cancel": "Reservierung stornieren",
+    "cantine.no_menu": "Kein Menue verfuegbar.",
+    "cantine.capacity": "Kapazitaet",
+    "cantine.price": "Preis"
+}

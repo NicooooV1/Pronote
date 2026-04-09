@@ -215,4 +215,116 @@ class InternatService
             $i['suite_donnee'] ?? '-',
         ], $incidents);
     }
+
+    // ─── INSPECTIONS CHAMBRES ───
+
+    public function creerInspection(int $chambreId, int $inspecteurId, int $proprete, int $rangement, int $equipement, ?string $commentaire = null): int
+    {
+        $note = round(($proprete + $rangement + $equipement) / 3, 1);
+        $stmt = $this->pdo->prepare("
+            INSERT INTO internat_inspections (chambre_id, inspecteur_id, proprete, rangement, equipement, note_globale, commentaire, date_inspection)
+            VALUES (:ch, :ins, :p, :r, :eq, :n, :c, NOW())
+        ");
+        $stmt->execute([':ch' => $chambreId, ':ins' => $inspecteurId, ':p' => $proprete, ':r' => $rangement, ':eq' => $equipement, ':n' => $note, ':c' => $commentaire]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getInspections(int $chambreId, int $limit = 10): array
+    {
+        $stmt = $this->pdo->prepare("SELECT ii.*, CONCAT(p.prenom, ' ', p.nom) AS inspecteur_nom FROM internat_inspections ii LEFT JOIN professeurs p ON ii.inspecteur_id = p.id WHERE ii.chambre_id = :ch ORDER BY ii.date_inspection DESC LIMIT :l");
+        $stmt->bindValue(':ch', $chambreId, \PDO::PARAM_INT);
+        $stmt->bindValue(':l', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    // ─── APPEL DU SOIR ───
+
+    public function faireAppelSoir(string $date): array
+    {
+        $annee = $this->getAnneeScolaire();
+        $stmt = $this->pdo->prepare("
+            SELECT ia.id AS affectation_id, ia.eleve_id, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom,
+                   ic.numero AS chambre, ic.batiment,
+                   (SELECT id FROM internat_appels_soir WHERE affectation_id = ia.id AND date_appel = :d) AS appel_id
+            FROM internat_affectations ia
+            JOIN eleves e ON ia.eleve_id = e.id
+            JOIN internat_chambres ic ON ia.chambre_id = ic.id
+            WHERE ia.annee_scolaire = :a AND ia.statut = 'actif'
+            ORDER BY ic.batiment, ic.numero, e.nom
+        ");
+        $stmt->execute([':d' => $date, ':a' => $annee]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function enregistrerAppelSoir(int $affectationId, string $date, bool $present, ?string $motifAbsence = null): void
+    {
+        $this->pdo->prepare("
+            INSERT INTO internat_appels_soir (affectation_id, date_appel, present, motif_absence)
+            VALUES (:a, :d, :p, :m)
+            ON DUPLICATE KEY UPDATE present = VALUES(present), motif_absence = VALUES(motif_absence)
+        ")->execute([':a' => $affectationId, ':d' => $date, ':p' => $present ? 1 : 0, ':m' => $motifAbsence]);
+    }
+
+    // ─── AUTORISATIONS SORTIE ───
+
+    public function creerAutorisationSortie(int $eleveId, string $dateDebut, string $dateFin, string $motif, ?int $autoriseParId = null): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO internat_autorisations_sortie (eleve_id, date_debut, date_fin, motif, autorise_par, statut, created_at)
+            VALUES (:e, :dd, :df, :m, :a, 'en_attente', NOW())
+        ");
+        $stmt->execute([':e' => $eleveId, ':dd' => $dateDebut, ':df' => $dateFin, ':m' => $motif, ':a' => $autoriseParId]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getAutorisationsSortie(?int $eleveId = null, ?string $statut = null): array
+    {
+        $sql = "SELECT ias.*, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom FROM internat_autorisations_sortie ias JOIN eleves e ON ias.eleve_id = e.id WHERE 1=1";
+        $params = [];
+        if ($eleveId) { $sql .= " AND ias.eleve_id = :e"; $params[':e'] = $eleveId; }
+        if ($statut) { $sql .= " AND ias.statut = :s"; $params[':s'] = $statut; }
+        $sql .= " ORDER BY ias.date_debut DESC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function traiterAutorisationSortie(int $id, string $statut, int $traitePar): void
+    {
+        $this->pdo->prepare("UPDATE internat_autorisations_sortie SET statut = :s, autorise_par = :t WHERE id = :id")
+            ->execute([':s' => $statut, ':t' => $traitePar, ':id' => $id]);
+    }
+
+    // ─── ACTIVITÉS WEEK-END ───
+
+    public function creerActiviteWeekend(string $titre, string $date, ?string $description = null, ?int $responsableId = null, int $placesMax = 0): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO internat_activites_weekend (titre, date_activite, description, responsable_id, places_max, created_at)
+            VALUES (:t, :d, :desc, :r, :p, NOW())
+        ");
+        $stmt->execute([':t' => $titre, ':d' => $date, ':desc' => $description, ':r' => $responsableId, ':p' => $placesMax]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getActivitesWeekend(?string $dateDebut = null, ?string $dateFin = null): array
+    {
+        $sql = "SELECT iaw.*,
+                  (SELECT COUNT(*) FROM internat_activites_inscriptions iai WHERE iai.activite_id = iaw.id) AS nb_inscrits
+                FROM internat_activites_weekend iaw WHERE 1=1";
+        $params = [];
+        if ($dateDebut) { $sql .= " AND iaw.date_activite >= :dd"; $params[':dd'] = $dateDebut; }
+        if ($dateFin) { $sql .= " AND iaw.date_activite <= :df"; $params[':df'] = $dateFin; }
+        $sql .= " ORDER BY iaw.date_activite";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function inscrireActiviteWeekend(int $activiteId, int $eleveId): void
+    {
+        $this->pdo->prepare("INSERT IGNORE INTO internat_activites_inscriptions (activite_id, eleve_id, inscrit_at) VALUES (:a, :e, NOW())")
+            ->execute([':a' => $activiteId, ':e' => $eleveId]);
+    }
 }

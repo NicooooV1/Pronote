@@ -1,17 +1,47 @@
 {
-  "key": "internat",
-  "version": "1.0.0",
-  "name": { "fr": "Internat", "en": "Boarding" },
-  "description": { "fr": "Gestion de l'internat et des chambres", "en": "Boarding house and room management" },
-  "icon": "fas fa-bed",
-  "category": "outils",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["administrateur", "vie_scolaire"] },
-    "manage": { "default_roles": ["administrateur"] }
-  },
-  "routes": { "main": "affectations.php" },
-  "widgets": [],
-  "establishment_types": ["college", "lycee"],
-  "sidebar": { "sort_order": 63 }
+    "key": "internat",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Internat",
+        "en": "Boarding"
+    },
+    "description": {
+        "fr": "Gestion de l'internat et des chambres",
+        "en": "Boarding house and room management"
+    },
+    "icon": "fas fa-bed",
+    "category": "outils",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur"
+            ]
+        }
+    },
+    "routes": {
+        "main": "affectations.php"
+    },
+    "widgets": [],
+    "establishment_types": [
+        "college",
+        "lycee"
+    ],
+    "sidebar": {
+        "sort_order": 63
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "systeme",
+        "sort_order": 63
+    }
 }

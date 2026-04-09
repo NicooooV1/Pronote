@@ -1,6 +1,9 @@
 <?php
+/**
+ * En-tête standardisé pour le module Examens (topbar layout)
+ */
 if (session_status() === PHP_SESSION_NONE) session_start();
-require_once __DIR__ . '/../../API/Legacy/Bridge.php';
+require_once __DIR__ . '/../../API/core.php';
 requireAuth();
 
 $pdo = getPDO();
@@ -8,18 +11,19 @@ require_once __DIR__ . '/ExamenService.php';
 $examenService = new ExamenService($pdo);
 
 $activePage = $activePage ?? 'examens';
-$extraCss = ['examens/assets/css/examens.css'];
+$extraCss = ['assets/css/examens.css'];
+$isGestionnaire = isAdmin() || isVieScolaire();
 
-$isGestionnaire = isAdmin() || isPersonnelVS();
-$sidebarLinks = '<li class="sidebar-item"><a href="/examens/examens.php" class="sidebar-link ' . ($activePage === 'examens' ? 'active' : '') . '"><i class="fas fa-graduation-cap"></i><span>Examens</span></a></li>';
-if ($isGestionnaire) {
-    $sidebarLinks .= '<li class="sidebar-item"><a href="/examens/creer.php" class="sidebar-link ' . ($activePage === 'creer' ? 'active' : '') . '"><i class="fas fa-plus-circle"></i><span>Créer examen</span></a></li>';
-}
-if (isEleve()) {
-    $sidebarLinks .= '<li class="sidebar-item"><a href="/examens/mes_convocations.php" class="sidebar-link ' . ($activePage === 'mes_convocations' ? 'active' : '') . '"><i class="fas fa-file-alt"></i><span>Mes convocations</span></a></li>';
-}
+// Feature flags
+$_exFeatures = null;
+try { $_exFeatures = app('features'); } catch (\Throwable $e) {}
+$ffAutoRoom       = $_exFeatures ? $_exFeatures->isEnabled('examens.auto_room_assignment') : true;
+$ffPdfConvoc      = $_exFeatures ? $_exFeatures->isEnabled('examens.pdf_convocations') : true;
+$ffSurveillance   = $_exFeatures ? $_exFeatures->isEnabled('examens.surveillance_planning') : true;
 
-$sidebarExtraContent = $sidebarLinks;
 $pageTitle = $pageTitle ?? 'Examens';
+$user_initials = $user_initials ?? getUserInitials();
+$user_fullname = $user_fullname ?? getUserFullName();
+
 require_once __DIR__ . '/../../templates/shared_header.php';
-?>
+require_once __DIR__ . '/../../templates/shared_topbar.php';

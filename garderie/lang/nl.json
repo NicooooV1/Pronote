@@ -1,0 +1,12 @@
+{
+    "garderie.title": "Opvang",
+    "garderie.register": "Register",
+    "garderie.presence": "Attendance",
+    "garderie.schedule": "Schedule",
+    "garderie.morning": "Morning",
+    "garderie.evening": "Evening",
+    "garderie.billing": "Billing",
+    "garderie.student": "Student",
+    "garderie.date": "Date",
+    "garderie.no_registrations": "No registrations recorded."
+}

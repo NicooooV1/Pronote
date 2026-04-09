@@ -1,0 +1,60 @@
+{
+    "key": "inventaire",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Inventaire & Patrimoine IT",
+        "en": "IT Inventory & Assets"
+    },
+    "description": {
+        "fr": "Registre assets IT, QR codes, maintenance préventive, prêts, amortissement et signalement pannes",
+        "en": "IT asset registry, QR codes, preventive maintenance, loans, depreciation and fault reporting"
+    },
+    "icon": "fas fa-laptop-house",
+    "category": "etablissement",
+    "core": false,
+    "requires_php": ">=8.0",
+    "dependencies": ["salles"],
+    "permissions": {
+        "view": { "default_roles": ["administrateur", "professeur"] },
+        "manage": { "default_roles": ["administrateur"] },
+        "emprunter": { "default_roles": ["professeur", "vie_scolaire"] },
+        "signaler": { "default_roles": ["*"] }
+    },
+    "routes": { "main": "inventaire.php" },
+    "widgets": [
+        {
+            "key": "inventaire_stats",
+            "name": { "fr": "Parc informatique", "en": "IT fleet" },
+            "description": { "fr": "Statistiques du parc IT", "en": "IT fleet statistics" },
+            "type": "stats",
+            "icon": "fas fa-laptop-house",
+            "roles": ["administrateur"],
+            "default_size": { "width": 2, "height": 1 },
+            "is_default": false,
+            "sort_order": 88,
+            "data_provider": "includes/InventaireWidgetProvider.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 84 },
+    "topbar": { "category": "etablissement", "sort_order": 84 },
+    "settings_schema": {
+        "qr_codes": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "QR codes sur les assets", "en": "QR codes on assets" }
+        },
+        "duree_pret_max_jours": {
+            "type": "integer",
+            "default": 30,
+            "label": { "fr": "Durée max prêt (jours)", "en": "Max loan duration (days)" }
+        },
+        "alerte_maintenance_jours": {
+            "type": "integer",
+            "default": 30,
+            "label": { "fr": "Alerte maintenance (jours avant)", "en": "Maintenance alert (days before)" }
+        }
+    },
+    "author": "Fronote Team",
+    "license": "MIT"
+}

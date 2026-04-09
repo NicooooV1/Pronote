@@ -989,4 +989,90 @@ class EventRepository
             'user_classe'   => getCurrentUser()['classe'] ?? '',
         ];
     }
+
+    // ─── EXPORT ICS COMPLET ───
+
+    public function exportIcs(array $options = []): string
+    {
+        $events = $this->findAllWithReunions($options);
+        $ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Fronote//Agenda//FR\r\n";
+        foreach ($events as $e) {
+            $uid = 'fronote-' . ($e['id'] ?? uniqid());
+            $dtStart = date('Ymd\THis', strtotime($e['date_debut']));
+            $dtEnd = date('Ymd\THis', strtotime($e['date_fin'] ?? $e['date_debut']));
+            $ics .= "BEGIN:VEVENT\r\n";
+            $ics .= "UID:{$uid}\r\n";
+            $ics .= "DTSTART:{$dtStart}\r\n";
+            $ics .= "DTEND:{$dtEnd}\r\n";
+            $ics .= "SUMMARY:" . str_replace(["\r", "\n"], ' ', $e['titre'] ?? '') . "\r\n";
+            if (!empty($e['lieu'])) $ics .= "LOCATION:" . str_replace(["\r", "\n"], ' ', $e['lieu']) . "\r\n";
+            if (!empty($e['description'])) $ics .= "DESCRIPTION:" . str_replace(["\r", "\n"], ' ', $e['description']) . "\r\n";
+            $ics .= "END:VEVENT\r\n";
+        }
+        $ics .= "END:VCALENDAR\r\n";
+        return $ics;
+    }
+
+    // ─── RAPPELS ÉVÉNEMENTS ───
+
+    public function getEvenementsAvecRappel(int $minutesAvant = 30): array
+    {
+        $targetTime = date('Y-m-d H:i:s', strtotime("+{$minutesAvant} minutes"));
+        $stmt = $this->pdo->prepare("
+            SELECT * FROM evenements
+            WHERE statut = 'actif'
+              AND date_debut BETWEEN NOW() AND :t
+              AND rappel_envoye = 0
+            ORDER BY date_debut
+        ");
+        $stmt->execute([':t' => $targetTime]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function marquerRappelEnvoye(int $eventId): void
+    {
+        $this->pdo->prepare("UPDATE evenements SET rappel_envoye = 1 WHERE id = ?")->execute([$eventId]);
+    }
+
+    // ─── STATISTIQUES AGENDA ───
+
+    public function getStatsAgenda(string $dateDebut, string $dateFin): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT type_evenement, COUNT(*) AS nb, COUNT(DISTINCT DATE(date_debut)) AS nb_jours
+            FROM evenements
+            WHERE date_debut BETWEEN :d AND :f AND statut = 'actif'
+            GROUP BY type_evenement ORDER BY nb DESC
+        ");
+        $stmt->execute([':d' => $dateDebut, ':f' => $dateFin . ' 23:59:59']);
+        $parType = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $totalEvents = array_sum(array_column($parType, 'nb'));
+        $joursOccupes = $this->pdo->prepare("SELECT COUNT(DISTINCT DATE(date_debut)) FROM evenements WHERE date_debut BETWEEN ? AND ? AND statut = 'actif'");
+        $joursOccupes->execute([$dateDebut, $dateFin . ' 23:59:59']);
+
+        return [
+            'par_type' => $parType,
+            'total_evenements' => $totalEvents,
+            'jours_occupes' => (int)$joursOccupes->fetchColumn(),
+        ];
+    }
+
+    // ─── DUPLICATION ÉVÉNEMENT ───
+
+    public function dupliquerEvenement(int $eventId, string $nouvelleDate): int
+    {
+        $event = $this->findById($eventId);
+        if (!$event) throw new \RuntimeException('Événement introuvable');
+
+        $duration = strtotime($event['date_fin']) - strtotime($event['date_debut']);
+        $newStart = $nouvelleDate . ' ' . date('H:i:s', strtotime($event['date_debut']));
+        $newEnd = date('Y-m-d H:i:s', strtotime($newStart) + $duration);
+
+        $data = $event;
+        $data['date_debut'] = $newStart;
+        $data['date_fin'] = $newEnd;
+        unset($data['id'], $data['date_creation'], $data['date_modification']);
+        return $this->create($data);
+    }
 }

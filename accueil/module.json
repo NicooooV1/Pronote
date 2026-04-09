@@ -1,20 +1,40 @@
 {
     "key": "accueil",
     "version": "1.0.0",
-    "name": { "fr": "Accueil", "en": "Home" },
-    "description": { "fr": "Tableau de bord principal", "en": "Main dashboard" },
+    "name": {
+        "fr": "Accueil",
+        "en": "Home"
+    },
+    "description": {
+        "fr": "Tableau de bord principal",
+        "en": "Main dashboard"
+    },
     "icon": "fas fa-home",
     "category": "navigation",
     "core": true,
     "requires_php": ">=8.0",
     "dependencies": [],
     "permissions": {
-        "view": { "default_roles": ["*"] }
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        }
     },
     "routes": {
         "main": "accueil.php"
     },
     "widgets": [],
     "establishment_types": null,
-    "sidebar": { "sort_order": 1 }
+    "sidebar": {
+        "sort_order": 1
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "navigation",
+        "sort_order": 0
+    }
 }

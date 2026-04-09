@@ -1,0 +1,17 @@
+{
+    "devoirs.title": "Devoirs",
+    "devoirs.add": "Ajouter un devoir",
+    "devoirs.edit": "Modifier le devoir",
+    "devoirs.delete": "Supprimer le devoir",
+    "devoirs.subject": "Matière",
+    "devoirs.due_date": "Date limite",
+    "devoirs.description": "Description",
+    "devoirs.submit": "Rendre le devoir",
+    "devoirs.submitted": "Rendu",
+    "devoirs.not_submitted": "Non rendu",
+    "devoirs.late": "En retard",
+    "devoirs.grade": "Note",
+    "devoirs.feedback": "Commentaire du professeur",
+    "devoirs.reminders": "Rappels automatiques",
+    "devoirs.no_homework": "Aucun devoir à rendre."
+}

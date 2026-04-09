@@ -1,0 +1,19 @@
+{
+    "support.title": "Support",
+    "support.tickets": "Tickets",
+    "support.create": "Ticket erstellen",
+    "support.faq": "FAQ",
+    "support.knowledge_base": "Wissensdatenbank",
+    "support.subject": "Betreff",
+    "support.description": "Beschreibung",
+    "support.priority": "Prioritaet",
+    "support.low": "Niedrig",
+    "support.medium": "Mittel",
+    "support.high": "Hoch",
+    "support.critical": "Kritisch",
+    "support.status": "Status",
+    "support.open": "Offen",
+    "support.closed": "Geschlossen",
+    "support.sla": "SLA",
+    "support.no_tickets": "Keine Tickets erfasst."
+}

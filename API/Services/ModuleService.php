@@ -363,6 +363,71 @@ class ModuleService
     }
 
     /**
+     * Returns modules grouped by topbar category for horizontal navigation.
+     * Uses topbar_category from DB (or falls back to category mapping).
+     *
+     * @return array<string, array{label: string, icon: string, modules: array}>
+     */
+    public function getForTopbar(string $role): array
+    {
+        $all = $this->getAll();
+        $categoryMeta = self::categoryMeta();
+        $catOverrides = self::sidebarCategoryOverrides();
+
+        // Topbar category labels (display names for dropdown headers)
+        $topbarLabels = [
+            'scolaire'      => 'Pedagogie',
+            'vie_scolaire'  => 'Vie scol.',
+            'communication' => 'Communication',
+            'sante'         => 'Sante',
+            'etablissement' => 'Etablissement',
+            'logistique'    => 'Logistique',
+            'systeme'       => 'Outils',
+        ];
+
+        $grouped = [];
+
+        foreach ($all as $key => $mod) {
+            if (empty($mod['enabled'])) continue;
+            if (!$this->isVisibleForRole($key, $role)) continue;
+            if (in_array($key, ['accueil', 'parametres', 'profil', 'notifications'])) continue;
+
+            // Determine category: topbar_category (DB) > override > category (DB)
+            $cat = $mod['topbar_category'] ?? $catOverrides[$key] ?? ($mod['category'] ?? 'systeme');
+            if ($cat === 'navigation') continue; // Skip navigation items (handled separately)
+
+            $mod['route'] = $this->getRoute($key);
+            $mod['module_key'] = $key;
+
+            if (!isset($grouped[$cat])) {
+                $meta = $categoryMeta[$cat] ?? ['label' => ucfirst($cat), 'icon' => 'fas fa-folder', 'order' => 99];
+                $grouped[$cat] = [
+                    'label' => $topbarLabels[$cat] ?? $meta['label'],
+                    'icon'  => $meta['icon'],
+                    'order' => $meta['order'],
+                    'modules' => [],
+                ];
+            }
+
+            $grouped[$cat]['modules'][] = $mod;
+        }
+
+        // Sort categories by order
+        uasort($grouped, fn($a, $b) => ($a['order'] ?? 99) <=> ($b['order'] ?? 99));
+
+        // Sort modules within each category
+        foreach ($grouped as &$group) {
+            usort($group['modules'], function ($a, $b) {
+                $oa = $a['topbar_sort_order'] ?? $a['sort_order'] ?? 100;
+                $ob = $b['topbar_sort_order'] ?? $b['sort_order'] ?? 100;
+                return $oa <=> $ob;
+            });
+        }
+
+        return $grouped;
+    }
+
+    /**
      * Returns a flat list of ALL modules with route info (for admin management).
      */
     public function getAllWithRoutes(): array

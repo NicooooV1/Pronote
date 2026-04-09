@@ -33,6 +33,12 @@ Options -Indexes
     </FilesMatch>
 </IfModule>
 
+# Custom error pages
+ErrorDocument 403 /templates/errors/403.php
+ErrorDocument 404 /templates/errors/404.php
+ErrorDocument 500 /templates/errors/500.php
+ErrorDocument 503 /templates/errors/503.php
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
 

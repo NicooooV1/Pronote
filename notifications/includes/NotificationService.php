@@ -172,6 +172,146 @@ class NotificationService
         return $map[$type] ?? 'fa-bell';
     }
 
+    // ── Digest mode ──
+
+    /**
+     * Collect unsent notifications for digest (grouped email).
+     * Returns notifications grouped by user, only for users with digest_mode enabled.
+     */
+    public function getDigestPending(): array
+    {
+        $stmt = $this->pdo->query("
+            SELECT ng.*, np.canal_email
+            FROM notifications_globales ng
+            JOIN notification_preferences np
+                ON ng.user_id = np.user_id AND ng.user_type = np.user_type
+                AND np.type_notification = ng.type AND np.digest_mode = 1
+            WHERE ng.lu = 0 AND ng.digest_sent = 0
+            ORDER BY ng.user_id, ng.user_type, ng.date_creation
+        ");
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $grouped = [];
+        foreach ($rows as $r) {
+            $key = $r['user_type'] . ':' . $r['user_id'];
+            $grouped[$key][] = $r;
+        }
+        return $grouped;
+    }
+
+    /**
+     * Mark notifications as digest-sent.
+     */
+    public function markDigestSent(array $ids): void
+    {
+        if (empty($ids)) return;
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $this->pdo->prepare("UPDATE notifications_globales SET digest_sent = 1 WHERE id IN ($ph)")->execute($ids);
+    }
+
+    /**
+     * Send digest emails for all pending users.
+     * @return int number of emails sent
+     */
+    public function sendDigests(): int
+    {
+        $groups = $this->getDigestPending();
+        $count = 0;
+
+        foreach ($groups as $key => $notifications) {
+            [$userType, $userId] = explode(':', $key);
+
+            // Get user email
+            $tableMap = ['eleve' => 'eleves', 'parent' => 'parents', 'professeur' => 'professeurs',
+                         'administrateur' => 'administrateurs', 'vie_scolaire' => 'vie_scolaire'];
+            $table = $tableMap[$userType] ?? null;
+            if (!$table) continue;
+
+            $stmt = $this->pdo->prepare("SELECT mail, prenom FROM `$table` WHERE id = ?");
+            $stmt->execute([$userId]);
+            $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (!$user || empty($user['mail'])) continue;
+
+            // Build digest content
+            $lines = [];
+            $ids = [];
+            foreach ($notifications as $n) {
+                $lines[] = '- ' . $n['titre'] . ($n['contenu'] ? ' : ' . $n['contenu'] : '');
+                $ids[] = $n['id'];
+            }
+
+            try {
+                $emailPath = __DIR__ . '/../../API/Services/EmailService.php';
+                if (file_exists($emailPath)) {
+                    require_once $emailPath;
+                    $emailService = new \API\Services\EmailService();
+                    $emailService->send(
+                        $user['mail'],
+                        'Résumé de vos notifications — FRONOTE',
+                        "Bonjour " . ($user['prenom'] ?? '') . ",\n\n" .
+                        "Voici le résumé de vos " . count($notifications) . " notifications :\n\n" .
+                        implode("\n", $lines) . "\n\n" .
+                        "Connectez-vous à FRONOTE pour plus de détails."
+                    );
+                }
+            } catch (\Exception $e) {
+                // Email failure should not block
+            }
+
+            $this->markDigestSent($ids);
+            $count++;
+        }
+        return $count;
+    }
+
+    // ── Bulk delete ──
+
+    /**
+     * Delete all notifications for a user (clear center).
+     */
+    public function supprimerToutes(int $userId, string $userType): int
+    {
+        $stmt = $this->pdo->prepare("DELETE FROM notifications_globales WHERE user_id = ? AND user_type = ?");
+        $stmt->execute([$userId, $userType]);
+        return $stmt->rowCount();
+    }
+
+    // ── Filtered listing ──
+
+    /**
+     * Get notifications filtered by category/type.
+     */
+    public function getNotificationsFiltered(int $userId, string $userType, array $filters = [], int $limit = 50, int $offset = 0): array
+    {
+        $sql = "SELECT * FROM notifications_globales WHERE user_id = ? AND user_type = ?";
+        $params = [$userId, $userType];
+
+        if (!empty($filters['type'])) {
+            $sql .= " AND type = ?";
+            $params[] = $filters['type'];
+        }
+        if (!empty($filters['importance'])) {
+            $sql .= " AND importance = ?";
+            $params[] = $filters['importance'];
+        }
+        if (isset($filters['lu'])) {
+            $sql .= " AND lu = ?";
+            $params[] = (int)$filters['lu'];
+        }
+        if (!empty($filters['date_debut'])) {
+            $sql .= " AND date_creation >= ?";
+            $params[] = $filters['date_debut'];
+        }
+
+        $sql .= " ORDER BY date_creation DESC LIMIT ? OFFSET ?";
+        $params[] = $limit;
+        $params[] = $offset;
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
     public static function importanceBadge(string $imp): string
     {
         $map = [
@@ -181,5 +321,86 @@ class NotificationService
             'urgente' => '<span class="badge badge-danger">Urgente</span>',
         ];
         return $map[$imp] ?? $map['normale'];
+    }
+
+    // ─── NOTIFICATION PROGRAMMÉE ───
+
+    public function planifierNotification(int $userId, string $userType, string $type, string $titre, string $contenu, string $dateEnvoi, ?string $lien = null, string $importance = 'normale'): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO notifications_planifiees (user_id, user_type, type, titre, contenu, lien, importance, date_envoi_prevue, statut)
+            VALUES (:u, :ut, :t, :ti, :c, :l, :i, :d, 'planifiee')
+        ");
+        $stmt->execute([':u' => $userId, ':ut' => $userType, ':t' => $type, ':ti' => $titre, ':c' => $contenu, ':l' => $lien, ':i' => $importance, ':d' => $dateEnvoi]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function envoyerNotificationsPlanifiees(): int
+    {
+        $stmt = $this->pdo->query("SELECT * FROM notifications_planifiees WHERE statut = 'planifiee' AND date_envoi_prevue <= NOW()");
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $count = 0;
+        foreach ($rows as $r) {
+            $this->creer($r['user_id'], $r['user_type'], $r['type'], $r['titre'], $r['contenu'], $r['lien'], $r['importance']);
+            $this->pdo->prepare("UPDATE notifications_planifiees SET statut = 'envoyee', date_envoi_effective = NOW() WHERE id = ?")->execute([$r['id']]);
+            $count++;
+        }
+        return $count;
+    }
+
+    // ─── NOTIFICATION GROUPE ───
+
+    public function envoyerAGroupe(string $groupe, string $type, string $titre, string $contenu, ?string $lien = null, string $importance = 'normale'): int
+    {
+        $tableMap = ['eleves' => 'eleve', 'professeurs' => 'professeur', 'parents' => 'parent', 'administrateurs' => 'administrateur', 'vie_scolaire' => 'vie_scolaire'];
+        $userType = $tableMap[$groupe] ?? null;
+        if (!$userType) return 0;
+
+        $stmt = $this->pdo->query("SELECT id FROM {$groupe} WHERE actif = 1");
+        $ids = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+        $count = 0;
+        foreach ($ids as $id) {
+            $this->creer((int)$id, $userType, $type, $titre, $contenu, $lien, $importance);
+            $count++;
+        }
+        return $count;
+    }
+
+    public function envoyerAClasse(int $classeId, string $titre, string $contenu, ?string $lien = null): int
+    {
+        $stmt = $this->pdo->prepare("SELECT id FROM eleves WHERE classe_id = ? AND actif = 1");
+        $stmt->execute([$classeId]);
+        $ids = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+        $count = 0;
+        foreach ($ids as $id) {
+            $this->creer((int)$id, 'eleve', 'annonce', $titre, $contenu, $lien, 'normale');
+            $count++;
+        }
+        return $count;
+    }
+
+    // ─── HISTORIQUE / ANALYTICS ───
+
+    public function getHistorique(int $userId, string $userType, int $limit = 100): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM notifications_globales WHERE user_id = :u AND user_type = :t ORDER BY date_creation DESC LIMIT :l");
+        $stmt->bindValue(':u', $userId, \PDO::PARAM_INT);
+        $stmt->bindValue(':t', $userType);
+        $stmt->bindValue(':l', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function getAnalytics(string $dateDebut, string $dateFin): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT type, importance, COUNT(*) AS total,
+                   SUM(lu) AS lues, SUM(1 - lu) AS non_lues
+            FROM notifications_globales
+            WHERE date_creation BETWEEN :d AND :f
+            GROUP BY type, importance ORDER BY total DESC
+        ");
+        $stmt->execute([':d' => $dateDebut, ':f' => $dateFin . ' 23:59:59']);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 }

@@ -1,0 +1,13 @@
+{
+    "ressources.title": "Ressources",
+    "ressources.catalog": "Catalogue",
+    "ressources.reserve": "Réserver",
+    "ressources.maintenance": "Maintenance",
+    "ressources.name": "Nom",
+    "ressources.type": "Type",
+    "ressources.location": "Emplacement",
+    "ressources.available": "Disponible",
+    "ressources.reserved": "Réservé",
+    "ressources.in_maintenance": "En maintenance",
+    "ressources.no_resources": "Aucune ressource enregistrée."
+}

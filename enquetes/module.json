@@ -1,0 +1,56 @@
+{
+    "key": "enquetes",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Enquêtes & Satisfaction",
+        "en": "Surveys & Satisfaction"
+    },
+    "description": {
+        "fr": "Enquêtes de satisfaction, baromètre climat scolaire, sondages anonymes et rapports automatisés",
+        "en": "Satisfaction surveys, school climate barometer, anonymous polls and automated reports"
+    },
+    "icon": "fas fa-poll-h",
+    "category": "communication",
+    "core": false,
+    "requires_php": ">=8.0",
+    "dependencies": [],
+    "permissions": {
+        "view": { "default_roles": ["*"] },
+        "manage": { "default_roles": ["administrateur", "vie_scolaire"] },
+        "create": { "default_roles": ["administrateur"] },
+        "respond": { "default_roles": ["*"] },
+        "export": { "default_roles": ["administrateur"] }
+    },
+    "routes": { "main": "enquetes.php" },
+    "widgets": [
+        {
+            "key": "enquetes_en_cours",
+            "name": { "fr": "Enquêtes en cours", "en": "Active surveys" },
+            "description": { "fr": "Enquêtes en attente de réponse", "en": "Surveys pending response" },
+            "type": "stats",
+            "icon": "fas fa-poll-h",
+            "roles": ["*"],
+            "default_size": { "width": 1, "height": 1 },
+            "is_default": false,
+            "sort_order": 60,
+            "data_provider": "includes/EnquetesWidgetProvider.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 60 },
+    "topbar": { "category": "communication", "sort_order": 60 },
+    "settings_schema": {
+        "anonyme_par_defaut": {
+            "type": "checkbox",
+            "default": false,
+            "label": { "fr": "Mode anonyme par défaut", "en": "Anonymous mode by default" }
+        },
+        "rappel_jours": {
+            "type": "integer",
+            "default": 3,
+            "label": { "fr": "Rappel après (jours)", "en": "Reminder after (days)" }
+        }
+    },
+    "author": "Fronote Team",
+    "license": "MIT"
+}

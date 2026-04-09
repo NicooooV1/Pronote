@@ -1,0 +1,23 @@
+{
+    "notes.title": "Noten",
+    "notes.list": "Notenliste",
+    "notes.add": "Noten hinzufuegen",
+    "notes.edit": "Note bearbeiten",
+    "notes.delete": "Note loeschen",
+    "notes.average": "Durchschnitt: :value",
+    "notes.class_average": "Klassendurchschnitt: :value",
+    "notes.coefficient": "Koeffizient: :value",
+    "notes.subject": "Fach",
+    "notes.date": "Datum",
+    "notes.grade": "Note",
+    "notes.out_of": "/ :max",
+    "notes.comment": "Kommentar",
+    "notes.locked": "Noten gesperrt",
+    "notes.unlock": "Entsperren",
+    "notes.lock": "Sperren",
+    "notes.no_grades": "Keine Noten erfasst.",
+    "notes.confirm_delete": "Sind Sie sicher, dass Sie diese Note loeschen moechten?",
+    "notes.export_csv": "Als CSV exportieren",
+    "notes.trimester": "Halbjahr",
+    "notes.items_count": "Keine Note|:count Note|:count Noten"
+}

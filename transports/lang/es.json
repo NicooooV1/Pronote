@@ -1,0 +1,12 @@
+{
+    "transports.title": "Transporte",
+    "transports.lines": "Lineas de autobus",
+    "transports.stops": "Paradas",
+    "transports.register": "Inscripcion transporte",
+    "transports.delays": "Retrasos",
+    "transports.line_name": "Nombre de linea",
+    "transports.departure": "Salida",
+    "transports.arrival": "Llegada",
+    "transports.schedule": "Horarios",
+    "transports.no_lines": "Ninguna linea de transporte disponible."
+}

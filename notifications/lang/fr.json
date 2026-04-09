@@ -1,0 +1,13 @@
+{
+    "notifications.title": "Notifications",
+    "notifications.all": "Toutes les notifications",
+    "notifications.unread": "Non lues",
+    "notifications.mark_read": "Marquer comme lue",
+    "notifications.mark_all_read": "Tout marquer comme lu",
+    "notifications.delete": "Supprimer",
+    "notifications.preferences": "Préférences",
+    "notifications.push": "Notifications push",
+    "notifications.email": "Notifications email",
+    "notifications.digest": "Mode résumé",
+    "notifications.no_notifications": "Aucune notification."
+}

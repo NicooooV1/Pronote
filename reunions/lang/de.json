@@ -1,0 +1,15 @@
+{
+    "reunions.title": "Besprechungen",
+    "reunions.schedule": "Besprechung planen",
+    "reunions.calendar": "Kalender",
+    "reunions.date": "Datum",
+    "reunions.time": "Uhrzeit",
+    "reunions.location": "Ort",
+    "reunions.participants": "Teilnehmer",
+    "reunions.agenda": "Tagesordnung",
+    "reunions.minutes": "Protokoll",
+    "reunions.reminders": "Automatische Erinnerungen",
+    "reunions.video": "Videokonferenz",
+    "reunions.book_slot": "Termin buchen",
+    "reunions.no_meetings": "Keine Besprechungen geplant."
+}

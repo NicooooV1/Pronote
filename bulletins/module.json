@@ -1,31 +1,70 @@
 {
-  "key": "bulletins",
-  "version": "1.0.0",
-  "name": { "fr": "Bulletins", "en": "Report Cards" },
-  "description": { "fr": "Gestion des bulletins scolaires", "en": "Report cards management" },
-  "icon": "fas fa-file-alt",
-  "category": "scolaire",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["*"] },
-    "manage": { "default_roles": ["administrateur", "professeur"] }
-  },
-  "routes": { "main": "bulletins.php" },
-  "widgets": [
-    {
-      "key": "bulletins_recents",
-      "name": { "fr": "Bulletins récents", "en": "Recent report cards" },
-      "description": { "fr": "Derniers bulletins disponibles", "en": "Latest available report cards" },
-      "type": "list",
-      "icon": "fas fa-file-alt",
-      "roles": ["eleve", "parent"],
-      "default_size": { "width": 2, "height": 1 },
-      "is_default": false,
-      "sort_order": 35,
-      "data_provider": "includes/BulletinWidgetProvider.php",
-      "template": "widgets/bulletins_recents.php"
+    "key": "bulletins",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Bulletins",
+        "en": "Report Cards"
+    },
+    "description": {
+        "fr": "Gestion des bulletins scolaires",
+        "en": "Report cards management"
+    },
+    "icon": "fas fa-file-alt",
+    "category": "scolaire",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "professeur"
+            ]
+        }
+    },
+    "routes": {
+        "main": "bulletins.php"
+    },
+    "widgets": [
+        {
+            "key": "bulletins_recents",
+            "name": {
+                "fr": "Bulletins récents",
+                "en": "Recent report cards"
+            },
+            "description": {
+                "fr": "Derniers bulletins disponibles",
+                "en": "Latest available report cards"
+            },
+            "type": "list",
+            "icon": "fas fa-file-alt",
+            "roles": [
+                "eleve",
+                "parent"
+            ],
+            "default_size": {
+                "width": 2,
+                "height": 1
+            },
+            "is_default": false,
+            "sort_order": 35,
+            "data_provider": "includes/BulletinWidgetProvider.php",
+            "template": "widgets/bulletins_recents.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 20
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "scolaire",
+        "sort_order": 12
     }
-  ],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 20 }
 }

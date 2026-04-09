@@ -1,0 +1,13 @@
+{
+    "archivage.title": "การเก็บถาวร",
+    "archivage.archive": "Archive",
+    "archivage.restore": "Restore",
+    "archivage.year": "School Year",
+    "archivage.auto": "Automatic Archiving",
+    "archivage.manual": "Manual Archiving",
+    "archivage.history": "Archive History",
+    "archivage.transfer": "File Transfer",
+    "archivage.consult": "Browse Archives",
+    "archivage.no_archives": "No archives available.",
+    "archivage.confirm": "Confirm archiving?"
+}

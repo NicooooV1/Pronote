@@ -1,22 +1,56 @@
 {
     "key": "stages",
     "version": "1.0.0",
-    "name": { "fr": "Stages", "en": "Internships" },
-    "description": { "fr": "Gestion des stages et conventions", "en": "Internship and agreement management" },
+    "name": {
+        "fr": "Stages",
+        "en": "Internships"
+    },
+    "description": {
+        "fr": "Gestion des stages et conventions",
+        "en": "Internship and agreement management"
+    },
     "icon": "fas fa-briefcase",
     "category": "etablissement",
     "core": false,
     "requires_php": ">=8.0",
     "dependencies": [],
     "permissions": {
-        "view": { "default_roles": ["*"] },
-        "manage": { "default_roles": ["administrateur", "vie_scolaire", "professeur"] },
-        "create": { "default_roles": ["administrateur", "vie_scolaire"] }
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire",
+                "professeur"
+            ]
+        },
+        "create": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire"
+            ]
+        }
     },
     "routes": {
         "main": "stages.php"
     },
     "widgets": [],
-    "establishment_types": ["lycee", "superieur"],
-    "sidebar": { "sort_order": 45 }
+    "establishment_types": [
+        "lycee",
+        "superieur"
+    ],
+    "sidebar": {
+        "sort_order": 45
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "etablissement",
+        "sort_order": 64
+    }
 }

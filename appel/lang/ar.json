@@ -1,0 +1,17 @@
+{
+    "appel.title": "كشف الحضور",
+    "appel.do_call": "Take Roll Call",
+    "appel.present": "Present",
+    "appel.absent": "Absent",
+    "appel.late": "Late",
+    "appel.excused": "Excused",
+    "appel.save": "Save Roll Call",
+    "appel.history": "Roll Call History",
+    "appel.class": "Class",
+    "appel.date": "Date",
+    "appel.hour": "Time",
+    "appel.status": "Status",
+    "appel.no_students": "No students in this class.",
+    "appel.saved": "Roll call saved successfully.",
+    "appel.realtime": "Real-time Roll Call"
+}

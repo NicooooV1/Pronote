@@ -114,6 +114,58 @@ class ParcoursEducatifService
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /* ==================== PORTFOLIO ==================== */
+
+    /**
+     * Add a portfolio entry for a student's parcours.
+     */
+    public function ajouterPortfolio(int $eleveId, string $typeParcours, array $data): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO parcours_portfolio (eleve_id, type_parcours, titre, contenu, fichiers, liens, annee_scolaire, validated_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+        ");
+        $stmt->execute([
+            $eleveId, $typeParcours, $data['titre'],
+            $data['contenu'] ?? null,
+            !empty($data['fichiers']) ? json_encode($data['fichiers']) : null,
+            !empty($data['liens']) ? json_encode($data['liens']) : null,
+            $data['annee_scolaire'] ?? $this->anneeScolaire(),
+        ]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Get portfolio entries for a student.
+     */
+    public function getPortfolio(int $eleveId, ?string $typeParcours = null): array
+    {
+        $sql = "SELECT pp.*, CONCAT(p.prenom, ' ', p.nom) AS valideur_nom
+                FROM parcours_portfolio pp
+                LEFT JOIN professeurs p ON pp.validated_by = p.id
+                WHERE pp.eleve_id = ?";
+        $params = [$eleveId];
+        if ($typeParcours) { $sql .= ' AND pp.type_parcours = ?'; $params[] = $typeParcours; }
+        $sql .= ' ORDER BY pp.created_at DESC';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as &$r) {
+            $r['fichiers'] = $r['fichiers'] ? json_decode($r['fichiers'], true) : [];
+            $r['liens'] = $r['liens'] ? json_decode($r['liens'], true) : [];
+        }
+        return $rows;
+    }
+
+    /**
+     * Validate a portfolio entry.
+     */
+    public function validerPortfolio(int $portfolioId, int $profId): void
+    {
+        $this->pdo->prepare("UPDATE parcours_portfolio SET validated_by = ?, validated_at = NOW() WHERE id = ?")
+                   ->execute([$profId, $portfolioId]);
+    }
+
     /* ==================== HELPERS ==================== */
 
     public static function typesLabels(): array
@@ -131,5 +183,69 @@ class ParcoursEducatifService
         $m = (int) date('m');
         $y = (int) date('Y');
         return $m >= 9 ? "$y/" . ($y + 1) : ($y - 1) . "/$y";
+    }
+
+    // ─── PORTFOLIO PDF ───
+
+    /**
+     * Génère les données du portfolio d'un élève pour PDF.
+     */
+    public function genererPortfolio(int $eleveId): array
+    {
+        $eleve = $this->pdo->prepare("SELECT id, nom, prenom, classe FROM eleves WHERE id = :id");
+        $eleve->execute([':id' => $eleveId]);
+
+        $parcours = $this->pdo->prepare("SELECT pe.*, m.titre AS modele_titre, m.type_parcours FROM parcours_educatifs pe JOIN parcours_modeles m ON pe.modele_id = m.id WHERE pe.eleve_id = :eid ORDER BY m.type_parcours, pe.date_inscription DESC");
+        $parcours->execute([':eid' => $eleveId]);
+
+        $photos = $this->pdo->prepare("SELECT * FROM parcours_photos WHERE parcours_id IN (SELECT id FROM parcours_educatifs WHERE eleve_id = :eid) ORDER BY created_at");
+        $photos->execute([':eid' => $eleveId]);
+
+        return [
+            'eleve' => $eleve->fetch(\PDO::FETCH_ASSOC),
+            'parcours' => $parcours->fetchAll(\PDO::FETCH_ASSOC),
+            'photos' => $photos->fetchAll(\PDO::FETCH_ASSOC),
+            'date_generation' => date('Y-m-d')
+        ];
+    }
+
+    // ─── VALIDATION EN MASSE ───
+
+    /**
+     * Valide en masse un parcours pour un groupe d'élèves.
+     */
+    public function validerEnMasse(int $modeleId, array $eleveIds, int $validePar): int
+    {
+        $count = 0;
+        $stmt = $this->pdo->prepare("UPDATE parcours_educatifs SET statut = 'valide', valide_par = :vp, date_validation = NOW() WHERE modele_id = :mid AND eleve_id = :eid AND statut != 'valide'");
+        foreach ($eleveIds as $eleveId) {
+            $stmt->execute([':vp' => $validePar, ':mid' => $modeleId, ':eid' => $eleveId]);
+            $count += $stmt->rowCount();
+        }
+        return $count;
+    }
+
+    // ─── GALERIE PHOTOS ───
+
+    /**
+     * Ajoute une photo à un parcours éducatif.
+     */
+    public function ajouterPhoto(int $parcoursId, string $fichierPath, string $legende = ''): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO parcours_photos (parcours_id, fichier_path, legende) VALUES (:pid, :fp, :l)");
+        $stmt->execute([':pid' => $parcoursId, ':fp' => $fichierPath, ':l' => $legende]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    // ─── PROGRESSION CROSS-ANNÉES ───
+
+    /**
+     * Retourne la progression d'un élève à travers les années scolaires.
+     */
+    public function getProgression(int $eleveId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT pe.annee_scolaire, m.type_parcours, COUNT(*) AS nb_activites, SUM(CASE WHEN pe.statut = 'valide' THEN 1 ELSE 0 END) AS nb_valides FROM parcours_educatifs pe JOIN parcours_modeles m ON pe.modele_id = m.id WHERE pe.eleve_id = :eid GROUP BY pe.annee_scolaire, m.type_parcours ORDER BY pe.annee_scolaire, m.type_parcours");
+        $stmt->execute([':eid' => $eleveId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 }

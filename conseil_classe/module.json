@@ -1,0 +1,55 @@
+{
+    "key": "conseil_classe",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Conseils de Classe",
+        "en": "Class Councils"
+    },
+    "description": {
+        "fr": "Conseils de classe numériques avec votes électroniques, appréciations collaboratives et PV automatique",
+        "en": "Digital class councils with electronic voting, collaborative reviews and automated minutes"
+    },
+    "icon": "fas fa-users-rectangle",
+    "category": "scolaire",
+    "core": false,
+    "requires_php": ">=8.0",
+    "dependencies": ["notes", "absences", "bulletins"],
+    "permissions": {
+        "view": { "default_roles": ["administrateur", "professeur", "vie_scolaire", "parent"] },
+        "manage": { "default_roles": ["administrateur", "vie_scolaire"] },
+        "vote": { "default_roles": ["professeur", "vie_scolaire", "administrateur"] },
+        "export": { "default_roles": ["administrateur"] }
+    },
+    "routes": { "main": "conseil_classe.php" },
+    "widgets": [
+        {
+            "key": "conseil_classe_prochains",
+            "name": { "fr": "Prochains conseils", "en": "Upcoming councils" },
+            "description": { "fr": "Conseils de classe à venir", "en": "Upcoming class councils" },
+            "type": "list",
+            "icon": "fas fa-users-rectangle",
+            "roles": ["administrateur", "professeur", "vie_scolaire", "parent"],
+            "default_size": { "width": 2, "height": 1 },
+            "is_default": false,
+            "sort_order": 50,
+            "data_provider": "includes/ConseilClasseWidgetProvider.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": { "sort_order": 55 },
+    "topbar": { "category": "scolaire", "sort_order": 55 },
+    "settings_schema": {
+        "vote_electronique": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "Vote électronique activé", "en": "Electronic voting enabled" }
+        },
+        "acces_delegues": {
+            "type": "checkbox",
+            "default": true,
+            "label": { "fr": "Accès délégués parents", "en": "Parent delegate access" }
+        }
+    },
+    "author": "Fronote Team",
+    "license": "MIT"
+}

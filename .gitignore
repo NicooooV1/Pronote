@@ -9,5 +9,11 @@ install.lock
 *.bak
 storage/cache/*.cache
 storage/backups/*
+storage/tmp/*
+storage/quarantine/*
+storage/maintenance.json
 !storage/backups/.gitkeep
+!storage/tmp/.gitkeep
+!storage/quarantine/.gitkeep
 .phpunit.cache/
+.claude/

@@ -1,0 +1,16 @@
+{
+    "discipline.title": "Disziplin",
+    "discipline.incidents": "Vorfaelle",
+    "discipline.add": "Vorfall melden",
+    "discipline.sanctions": "Sanktionen",
+    "discipline.add_sanction": "Sanktion hinzufuegen",
+    "discipline.student": "Schueler",
+    "discipline.date": "Datum",
+    "discipline.type": "Typ",
+    "discipline.description": "Beschreibung",
+    "discipline.severity": "Schweregrad",
+    "discipline.timeline": "Zeitstrahl",
+    "discipline.points": "Verhaltenspunkte",
+    "discipline.stats": "Statistiken",
+    "discipline.no_incidents": "Keine Vorfaelle erfasst."
+}

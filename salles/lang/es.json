@@ -1,0 +1,16 @@
+{
+    "salles.title": "Aulas",
+    "salles.list": "Lista de aulas",
+    "salles.add": "Agregar aula",
+    "salles.edit": "Modificar",
+    "salles.plan": "Plan de ocupacion",
+    "salles.reserve": "Reservar",
+    "salles.name": "Nombre",
+    "salles.capacity": "Capacidad",
+    "salles.equipment": "Equipamiento",
+    "salles.building": "Edificio",
+    "salles.floor": "Planta",
+    "salles.available": "Disponible",
+    "salles.occupied": "Ocupada",
+    "salles.no_rooms": "Ninguna aula registrada."
+}

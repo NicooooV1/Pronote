@@ -1,0 +1,17 @@
+{
+    "devoirs.title": "การบ้าน",
+    "devoirs.add": "Add Assignment",
+    "devoirs.edit": "Edit Assignment",
+    "devoirs.delete": "Delete Assignment",
+    "devoirs.subject": "Subject",
+    "devoirs.due_date": "Due Date",
+    "devoirs.description": "Description",
+    "devoirs.submit": "Submit Assignment",
+    "devoirs.submitted": "Submitted",
+    "devoirs.not_submitted": "Not Submitted",
+    "devoirs.late": "Late",
+    "devoirs.grade": "Grade",
+    "devoirs.feedback": "Teacher Feedback",
+    "devoirs.reminders": "Automatic Reminders",
+    "devoirs.no_homework": "No assignments due."
+}

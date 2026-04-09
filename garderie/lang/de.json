@@ -1,0 +1,12 @@
+{
+    "garderie.title": "Hort",
+    "garderie.register": "Anmelden",
+    "garderie.presence": "Anwesenheit",
+    "garderie.schedule": "Zeitplan",
+    "garderie.morning": "Morgens",
+    "garderie.evening": "Abends",
+    "garderie.billing": "Abrechnung",
+    "garderie.student": "Schueler",
+    "garderie.date": "Datum",
+    "garderie.no_registrations": "Keine Anmeldungen erfasst."
+}

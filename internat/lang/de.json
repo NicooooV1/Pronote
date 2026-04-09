@@ -1,0 +1,12 @@
+{
+    "internat.title": "Internat",
+    "internat.rooms": "Zimmer",
+    "internat.assign": "Zuordnung",
+    "internat.presence": "Anwesenheit",
+    "internat.menus": "Menues",
+    "internat.student": "Internatsschueler",
+    "internat.room_number": "Zimmernummer",
+    "internat.capacity": "Kapazitaet",
+    "internat.floor": "Stockwerk",
+    "internat.no_rooms": "Keine Zimmer konfiguriert."
+}

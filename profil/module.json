@@ -1,17 +1,43 @@
 {
-  "key": "profil",
-  "version": "1.0.0",
-  "name": { "fr": "Mon profil", "en": "My Profile" },
-  "description": { "fr": "Gestion du profil utilisateur", "en": "User profile management" },
-  "icon": "fas fa-user-circle",
-  "category": "navigation",
-  "core": true,
-  "permissions": {
-    "view": { "default_roles": ["*"] },
-    "manage": { "default_roles": ["administrateur"] }
-  },
-  "routes": { "main": "index.php" },
-  "widgets": [],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 2 }
+    "key": "profil",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Mon profil",
+        "en": "My Profile"
+    },
+    "description": {
+        "fr": "Gestion du profil utilisateur",
+        "en": "User profile management"
+    },
+    "icon": "fas fa-user-circle",
+    "category": "navigation",
+    "core": true,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur"
+            ]
+        }
+    },
+    "routes": {
+        "main": "index.php"
+    },
+    "widgets": [],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 2
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "navigation",
+        "sort_order": 70
+    }
 }

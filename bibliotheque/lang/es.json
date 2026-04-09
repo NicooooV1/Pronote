@@ -1,0 +1,19 @@
+{
+    "bibliotheque.title": "Biblioteca",
+    "bibliotheque.catalog": "Catálogo",
+    "bibliotheque.loans": "Préstamos",
+    "bibliotheque.reservations": "Reservas",
+    "bibliotheque.returns": "Devoluciones",
+    "bibliotheque.overdue": "Vencido",
+    "bibliotheque.add": "Añadir un libro",
+    "bibliotheque.isbn": "ISBN",
+    "bibliotheque.author": "Autor",
+    "bibliotheque.publisher": "Editorial",
+    "bibliotheque.year": "Año",
+    "bibliotheque.category": "Categoría",
+    "bibliotheque.available": "Disponible",
+    "bibliotheque.borrowed": "Prestado",
+    "bibliotheque.search": "Buscar un libro",
+    "bibliotheque.barcode": "Código de barras",
+    "bibliotheque.no_books": "Ningún libro en el catálogo."
+}

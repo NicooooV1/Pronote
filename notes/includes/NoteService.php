@@ -611,6 +611,230 @@ class NoteService
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // ─── Statistiques avancées (Phase 6) ────────────────────────────
+
+    /**
+     * Distribution des notes d'une classe/matière/trimestre par tranches.
+     * Retourne un tableau de 10 tranches [0-2, 2-4, ..., 18-20] avec le count.
+     */
+    public function getDistribution(string $classe, int $matiereId, int $trimestre): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT ROUND(n.note / n.note_sur * 20, 2) AS note_norm
+            FROM notes n
+            JOIN eleves e ON n.id_eleve = e.id
+            WHERE e.classe = ? AND n.id_matiere = ? AND n.trimestre = ?
+        ");
+        $stmt->execute([$classe, $matiereId, $trimestre]);
+        $allNotes = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+
+        $bins = array_fill(0, 10, 0);
+        $labels = [];
+        for ($i = 0; $i < 10; $i++) {
+            $labels[] = ($i * 2) . '-' . (($i + 1) * 2);
+        }
+
+        foreach ($allNotes as $note) {
+            $bin = min(9, (int) floor($note / 2));
+            $bins[$bin]++;
+        }
+
+        return ['labels' => $labels, 'values' => $bins, 'total' => count($allNotes)];
+    }
+
+    /**
+     * Évolution des moyennes d'un élève par trimestre (courbe).
+     * Retourne par matière : [matiere_nom => [T1 => moy, T2 => moy, T3 => moy]].
+     */
+    public function getEvolutionEleve(int $eleveId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT n.trimestre, m.nom AS matiere_nom, m.couleur,
+                   ROUND(SUM(n.note / n.note_sur * 20 * n.coefficient) / SUM(n.coefficient), 2) AS moyenne
+            FROM notes n
+            LEFT JOIN matieres m ON n.id_matiere = m.id
+            WHERE n.id_eleve = ?
+            GROUP BY n.trimestre, n.id_matiere, m.nom, m.couleur
+            ORDER BY m.nom, n.trimestre
+        ");
+        $stmt->execute([$eleveId]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $result = [];
+        foreach ($rows as $r) {
+            $key = $r['matiere_nom'];
+            if (!isset($result[$key])) {
+                $result[$key] = ['couleur' => $r['couleur'] ?? '#3498db', 'trimestres' => [null, null, null]];
+            }
+            $result[$key]['trimestres'][$r['trimestre'] - 1] = (float) $r['moyenne'];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Box plot data par matière pour une classe et un trimestre.
+     * Pour chaque matière : min, Q1, médiane, Q3, max.
+     */
+    public function getBoxPlotClasse(string $classe, int $trimestre): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT n.id_matiere, m.nom AS matiere_nom, m.couleur,
+                   ROUND(n.note / n.note_sur * 20, 2) AS note_norm
+            FROM notes n
+            JOIN eleves e ON n.id_eleve = e.id
+            LEFT JOIN matieres m ON n.id_matiere = m.id
+            WHERE e.classe = ? AND n.trimestre = ?
+            ORDER BY m.nom, note_norm
+        ");
+        $stmt->execute([$classe, $trimestre]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $grouped = [];
+        foreach ($rows as $r) {
+            $key = $r['matiere_nom'] ?? 'Inconnu';
+            if (!isset($grouped[$key])) {
+                $grouped[$key] = ['couleur' => $r['couleur'] ?? '#3498db', 'notes' => []];
+            }
+            $grouped[$key]['notes'][] = (float) $r['note_norm'];
+        }
+
+        $result = [];
+        foreach ($grouped as $matiere => $data) {
+            $notes = $data['notes'];
+            $cnt = count($notes);
+            if ($cnt === 0) continue;
+            sort($notes);
+            $result[] = [
+                'matiere'  => $matiere,
+                'couleur'  => $data['couleur'],
+                'min'      => $notes[0],
+                'q1'       => $notes[(int) floor($cnt * 0.25)],
+                'median'   => $cnt % 2 === 0
+                    ? ($notes[$cnt / 2 - 1] + $notes[$cnt / 2]) / 2
+                    : $notes[(int) floor($cnt / 2)],
+                'q3'       => $notes[(int) floor($cnt * 0.75)],
+                'max'      => $notes[$cnt - 1],
+                'count'    => $cnt,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Auto-save d'un lot de notes via AJAX.
+     * Met à jour les notes existantes ou crée de nouvelles entrées.
+     *
+     * @return array ['updated' => int, 'inserted' => int]
+     */
+    public function autoSaveBatch(array $notesData, array $common): array
+    {
+        $updated = 0;
+        $inserted = 0;
+
+        $this->pdo->beginTransaction();
+        try {
+            // Check existing notes for this evaluation
+            $checkStmt = $this->pdo->prepare("
+                SELECT id FROM notes
+                WHERE id_eleve = ? AND id_matiere = ? AND id_professeur = ? AND trimestre = ? AND date_note = ?
+                LIMIT 1
+            ");
+
+            $updateStmt = $this->pdo->prepare("
+                UPDATE notes SET note = ?, coefficient = ?, commentaire = ?, date_modification = NOW()
+                WHERE id = ?
+            ");
+
+            $insertStmt = $this->pdo->prepare("
+                INSERT INTO notes (id_eleve, id_matiere, id_professeur, note, note_sur,
+                                   coefficient, type_evaluation, commentaire, trimestre, date_note, date_creation)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            ");
+
+            foreach ($notesData as $data) {
+                if (!isset($data['note']) || $data['note'] === '') continue;
+
+                $checkStmt->execute([
+                    $data['id_eleve'],
+                    $common['id_matiere'],
+                    $common['id_professeur'],
+                    $common['trimestre'],
+                    $common['date_note'],
+                ]);
+                $existingId = $checkStmt->fetchColumn();
+
+                if ($existingId) {
+                    $updateStmt->execute([
+                        $data['note'],
+                        $common['coefficient'] ?? 1,
+                        $data['commentaire'] ?? null,
+                        $existingId,
+                    ]);
+                    $updated++;
+                } else {
+                    $insertStmt->execute([
+                        $data['id_eleve'],
+                        $common['id_matiere'],
+                        $common['id_professeur'],
+                        $data['note'],
+                        $common['note_sur'] ?? 20,
+                        $common['coefficient'] ?? 1,
+                        $common['type_evaluation'] ?? 'Contrôle',
+                        $data['commentaire'] ?? null,
+                        $common['trimestre'],
+                        $common['date_note'] ?? date('Y-m-d'),
+                    ]);
+                    $inserted++;
+                }
+            }
+
+            $this->pdo->commit();
+            return ['updated' => $updated, 'inserted' => $inserted];
+        } catch (\Exception $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Cache les calculs statistiques dans la table note_calculations.
+     */
+    public function cacheCalculations(int $classeId, int $matiereId, int $periodeId, int $etabId = 1): void
+    {
+        try {
+            $className = $this->pdo->prepare("SELECT nom FROM classes WHERE id = ?");
+            $className->execute([$classeId]);
+            $classe = $className->fetchColumn();
+            if (!$classe) return;
+
+            $stats = $this->getStatsClasse($classe, $matiereId, $periodeId);
+            if (empty($stats) || !$stats['nb_notes']) return;
+
+            $upsert = $this->pdo->prepare("
+                INSERT INTO note_calculations (classe_id, matiere_id, periode_id, type, value, etablissement_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE value = VALUES(value)
+            ");
+
+            $types = [
+                'moyenne' => $stats['moyenne_classe'],
+                'mediane' => $stats['mediane'],
+                'min'     => $stats['note_min'],
+                'max'     => $stats['note_max'],
+            ];
+
+            foreach ($types as $type => $value) {
+                if ($value !== null) {
+                    $upsert->execute([$classeId, $matiereId, $periodeId, $type, $value, $etabId]);
+                }
+            }
+        } catch (\PDOException $e) {
+            // Silent fail — cache is optional
+        }
+    }
+
     /**
      * Détermine le trimestre courant basé sur le mois.
      */
@@ -620,5 +844,150 @@ class NoteService
         if ($mois >= 9 && $mois <= 12) return 1;
         if ($mois >= 1 && $mois <= 3) return 2;
         return 3;
+    }
+
+    // ─── Import CSV ─────────────────────────────────────────────────
+
+    /**
+     * Importe des notes depuis un fichier CSV.
+     * Format attendu : id_eleve;note;commentaire (une ligne par élève)
+     *
+     * @return array ['imported' => int, 'errors' => string[]]
+     */
+    public function importFromCsv(string $filePath, int $profId, array $common): array
+    {
+        if (!file_exists($filePath)) {
+            return ['imported' => 0, 'errors' => ['Fichier introuvable']];
+        }
+
+        $handle = fopen($filePath, 'r');
+        if (!$handle) {
+            return ['imported' => 0, 'errors' => ['Impossible d\'ouvrir le fichier']];
+        }
+
+        $header = fgetcsv($handle, 0, ';');
+        if (!$header) {
+            fclose($handle);
+            return ['imported' => 0, 'errors' => ['Fichier vide']];
+        }
+
+        $header = array_map('strtolower', array_map('trim', $header));
+        $colEleve = array_search('id_eleve', $header);
+        $colNote = array_search('note', $header);
+        $colComment = array_search('commentaire', $header);
+
+        if ($colEleve === false || $colNote === false) {
+            fclose($handle);
+            return ['imported' => 0, 'errors' => ['Colonnes id_eleve et note requises']];
+        }
+
+        $notesData = [];
+        $errors = [];
+        $ligne = 1;
+        while (($row = fgetcsv($handle, 0, ';')) !== false) {
+            $ligne++;
+            $eleveId = (int)($row[$colEleve] ?? 0);
+            $note = $row[$colNote] ?? '';
+
+            if ($eleveId <= 0) { $errors[] = "Ligne {$ligne}: id_eleve invalide"; continue; }
+            if ($note === '' || !is_numeric($note)) { $errors[] = "Ligne {$ligne}: note invalide"; continue; }
+            if ((float)$note < 0 || (float)$note > ($common['note_sur'] ?? 20)) { $errors[] = "Ligne {$ligne}: note hors limites"; continue; }
+
+            $notesData[] = [
+                'id_eleve' => $eleveId,
+                'note' => (float)$note,
+                'commentaire' => $colComment !== false ? ($row[$colComment] ?? '') : ''
+            ];
+        }
+        fclose($handle);
+
+        $imported = 0;
+        if (!empty($notesData)) {
+            $common['id_professeur'] = $profId;
+            $imported = $this->bulkInsert($notesData, $common);
+        }
+
+        return ['imported' => $imported, 'errors' => $errors];
+    }
+
+    // ─── Pondération configurable ───────────────────────────────────
+
+    /**
+     * Récupère la pondération par type d'évaluation pour une matière.
+     */
+    public function getConfigPonderation(int $matiereId, int $etabId): array
+    {
+        try {
+            $stmt = $this->pdo->prepare("SELECT type_evaluation, poids FROM notes_config_ponderation WHERE matiere_id = :mid AND etablissement_id = :eid ORDER BY type_evaluation");
+            $stmt->execute([':mid' => $matiereId, ':eid' => $etabId]);
+            return $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        } catch (\PDOException $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Définit la pondération d'un type d'évaluation pour une matière.
+     */
+    public function setConfigPonderation(int $matiereId, int $etabId, string $typeEvaluation, float $poids): void
+    {
+        $this->pdo->prepare("INSERT INTO notes_config_ponderation (matiere_id, etablissement_id, type_evaluation, poids) VALUES (:mid, :eid, :te, :p) ON DUPLICATE KEY UPDATE poids = VALUES(poids)")
+            ->execute([':mid' => $matiereId, ':eid' => $etabId, ':te' => $typeEvaluation, ':p' => $poids]);
+    }
+
+    /**
+     * Calcule la moyenne pondérée d'un élève en tenant compte des pondérations configurées.
+     */
+    public function getMoyennePonderee(int $eleveId, int $matiereId, int $trimestre, int $etabId): ?float
+    {
+        $ponderations = $this->getConfigPonderation($matiereId, $etabId);
+        if (empty($ponderations)) {
+            $moyennes = $this->getMoyennesParMatiere($eleveId, $trimestre);
+            foreach ($moyennes as $m) {
+                if ($m['id_matiere'] == $matiereId) return (float)$m['moyenne'];
+            }
+            return null;
+        }
+
+        $stmt = $this->pdo->prepare("SELECT type_evaluation, note, note_sur, coefficient FROM notes WHERE id_eleve = :eid AND id_matiere = :mid AND trimestre = :t");
+        $stmt->execute([':eid' => $eleveId, ':mid' => $matiereId, ':t' => $trimestre]);
+        $notes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($notes)) return null;
+
+        $totalPondere = 0;
+        $totalCoeff = 0;
+        foreach ($notes as $n) {
+            $noteNorm = ($n['note'] / ($n['note_sur'] ?: 20)) * 20;
+            $coeff = (float)$n['coefficient'];
+            $poids = $ponderations[$n['type_evaluation']] ?? 1.0;
+            $totalPondere += $noteNorm * $coeff * $poids;
+            $totalCoeff += $coeff * $poids;
+        }
+
+        return $totalCoeff > 0 ? round($totalPondere / $totalCoeff, 2) : null;
+    }
+
+    // ─── Verrouillage par matière ───────────────────────────────────
+
+    /**
+     * Verrouille les saisies de notes pour une matière/classe/trimestre.
+     */
+    public function verrouillerMatiere(int $matiereId, string $classe, int $trimestre, int $verrouillePar, int $etabId): void
+    {
+        $this->pdo->prepare("INSERT INTO notes_verrous (matiere_id, trimestre, classe, verrouille_par, etablissement_id) VALUES (:mid, :t, :c, :vp, :eid) ON DUPLICATE KEY UPDATE verrouille_par = VALUES(verrouille_par), date_verrouillage = NOW()")
+            ->execute([':mid' => $matiereId, ':t' => $trimestre, ':c' => $classe, ':vp' => $verrouillePar, ':eid' => $etabId]);
+
+        $this->bulkLockNotes($matiereId, $classe, $trimestre, $verrouillePar);
+    }
+
+    /**
+     * Vérifie si une matière est verrouillée.
+     */
+    public function isMatiereVerrouillee(int $matiereId, string $classe, int $trimestre, int $etabId): bool
+    {
+        $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM notes_verrous WHERE matiere_id = :mid AND classe = :c AND trimestre = :t AND etablissement_id = :eid");
+        $stmt->execute([':mid' => $matiereId, ':c' => $classe, ':t' => $trimestre, ':eid' => $etabId]);
+        return $stmt->fetchColumn() > 0;
     }
 }

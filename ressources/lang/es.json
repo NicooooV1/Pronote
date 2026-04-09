@@ -1,0 +1,13 @@
+{
+    "ressources.title": "Recursos",
+    "ressources.catalog": "Catalogo",
+    "ressources.reserve": "Reservar",
+    "ressources.maintenance": "Mantenimiento",
+    "ressources.name": "Nombre",
+    "ressources.type": "Tipo",
+    "ressources.location": "Ubicacion",
+    "ressources.available": "Disponible",
+    "ressources.reserved": "Reservado",
+    "ressources.in_maintenance": "En mantenimiento",
+    "ressources.no_resources": "Ningun recurso registrado."
+}

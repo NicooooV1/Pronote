@@ -1,0 +1,19 @@
+{
+    "bibliotheque.title": "Bibliothek",
+    "bibliotheque.catalog": "Katalog",
+    "bibliotheque.loans": "Ausleihen",
+    "bibliotheque.reservations": "Reservierungen",
+    "bibliotheque.returns": "Rueckgaben",
+    "bibliotheque.overdue": "Ueberfaellig",
+    "bibliotheque.add_book": "Buch hinzufuegen",
+    "bibliotheque.isbn": "ISBN",
+    "bibliotheque.author": "Autor",
+    "bibliotheque.publisher": "Verlag",
+    "bibliotheque.year": "Jahr",
+    "bibliotheque.category": "Kategorie",
+    "bibliotheque.available": "Verfuegbar",
+    "bibliotheque.borrowed": "Ausgeliehen",
+    "bibliotheque.search": "Buch suchen",
+    "bibliotheque.barcode": "Barcode",
+    "bibliotheque.no_books": "Keine Buecher im Katalog."
+}

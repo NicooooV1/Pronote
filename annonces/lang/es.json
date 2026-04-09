@@ -1,0 +1,13 @@
+{
+    "annonces.title": "Anuncios",
+    "annonces.add": "Publicar un anuncio",
+    "annonces.edit": "Modificar",
+    "annonces.delete": "Eliminar",
+    "annonces.date": "Fecha",
+    "annonces.author": "Autor",
+    "annonces.content": "Contenido",
+    "annonces.target": "Destinatarios",
+    "annonces.published": "Publicado",
+    "annonces.draft": "Borrador",
+    "annonces.no_annonces": "Ningún anuncio publicado."
+}

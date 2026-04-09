@@ -96,7 +96,6 @@ ob_start();
 $headerExtraActions = ob_get_clean();
 } // fin if (!isset($headerExtraActions))
 include __DIR__ . '/../../templates/shared_header.php';
-include __DIR__ . '/../../templates/shared_sidebar.php';
 include __DIR__ . '/../../templates/shared_topbar.php';
 ?>
 

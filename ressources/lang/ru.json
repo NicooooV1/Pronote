@@ -1,0 +1,13 @@
+{
+    "ressources.title": "Ресурсы",
+    "ressources.catalog": "Catalog",
+    "ressources.reserve": "Reserve",
+    "ressources.maintenance": "Maintenance",
+    "ressources.name": "Name",
+    "ressources.type": "Type",
+    "ressources.location": "Location",
+    "ressources.available": "Available",
+    "ressources.reserved": "Reserved",
+    "ressources.in_maintenance": "Under Maintenance",
+    "ressources.no_resources": "No resources recorded."
+}

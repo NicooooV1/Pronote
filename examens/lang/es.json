@@ -1,0 +1,15 @@
+{
+    "examens.title": "Exámenes",
+    "examens.calendar": "Calendario de exámenes",
+    "examens.schedule": "Programar examen",
+    "examens.edit": "Modificar",
+    "examens.delete": "Eliminar",
+    "examens.subject": "Asignatura",
+    "examens.date": "Fecha",
+    "examens.duration": "Duración",
+    "examens.room": "Aula",
+    "examens.supervisor": "Supervisor",
+    "examens.convocation": "Convocatoria",
+    "examens.results": "Resultados",
+    "examens.no_exams": "Ningún examen programado."
+}

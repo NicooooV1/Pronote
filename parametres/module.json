@@ -1,16 +1,38 @@
 {
     "key": "parametres",
     "version": "1.0.0",
-    "name": { "fr": "Paramètres", "en": "Settings" },
-    "description": { "fr": "Paramètres du compte utilisateur", "en": "User account settings" },
+    "name": {
+        "fr": "Paramètres",
+        "en": "Settings"
+    },
+    "description": {
+        "fr": "Paramètres du compte utilisateur",
+        "en": "User account settings"
+    },
     "icon": "fas fa-cog",
     "category": "navigation",
     "core": true,
     "permissions": {
-        "view": { "default_roles": ["*"] }
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        }
     },
-    "routes": { "main": "parametres.php" },
+    "routes": {
+        "main": "parametres.php"
+    },
     "widgets": [],
     "establishment_types": null,
-    "sidebar": { "sort_order": 99 }
+    "sidebar": {
+        "sort_order": 99
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "navigation",
+        "sort_order": 71
+    }
 }

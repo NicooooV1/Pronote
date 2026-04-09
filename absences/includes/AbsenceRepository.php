@@ -815,6 +815,141 @@ class AbsenceRepository
         }
     }
 
+    /* ================================================================
+     *  SAISIE GROUPEE (Phase 7)
+     * ================================================================ */
+
+    /**
+     * Bulk record absences for multiple students at once.
+     * @param array $eleveIds  List of student IDs
+     * @param array $common    Common fields (date_debut, date_fin, motif, cours_id, etc.)
+     * @param int   $createdBy User ID who created the absences
+     * @return int Number of absences created
+     */
+    public function bulkCreateAbsences(array $eleveIds, array $common, int $createdBy): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO absences (id_eleve, date_debut, date_fin, motif, justifie, cours_id, type, statut, created_by)
+            VALUES (?, ?, ?, ?, 0, ?, ?, 'signalee', ?)
+        ");
+
+        $count = 0;
+        foreach ($eleveIds as $eleveId) {
+            $stmt->execute([
+                (int) $eleveId,
+                $common['date_debut'],
+                $common['date_fin'] ?? $common['date_debut'],
+                $common['motif'] ?? '',
+                $common['cours_id'] ?? null,
+                $common['type'] ?? 'absence',
+                $createdBy,
+            ]);
+            $count++;
+        }
+        return $count;
+    }
+
+    /* ================================================================
+     *  PATTERN DETECTION (Phase 7)
+     * ================================================================ */
+
+    /**
+     * Detect absence patterns for a student.
+     * Returns patterns like "absent every Monday" or "absent frequently in period X".
+     */
+    public function detectPatterns(int $eleveId, int $lookbackDays = 90): array
+    {
+        $dateDebut = date('Y-m-d', strtotime("-{$lookbackDays} days"));
+        $stmt = $this->pdo->prepare("
+            SELECT a.date_debut, DAYOFWEEK(a.date_debut) AS dow, WEEK(a.date_debut) AS week_num
+            FROM absences a
+            WHERE a.id_eleve = ? AND a.date_debut >= ?
+            ORDER BY a.date_debut
+        ");
+        $stmt->execute([$eleveId, $dateDebut]);
+        $absences = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $patterns = [];
+
+        if (count($absences) < 3) return $patterns;
+
+        // Count by day of week
+        $dayCount = array_fill(1, 7, 0);
+        $dayNames = [1 => 'dimanche', 2 => 'lundi', 3 => 'mardi', 4 => 'mercredi', 5 => 'jeudi', 6 => 'vendredi', 7 => 'samedi'];
+
+        foreach ($absences as $a) {
+            $dayCount[(int) $a['dow']]++;
+        }
+
+        $totalAbsences = count($absences);
+        $avgPerDay = $totalAbsences / 5; // 5 school days
+
+        foreach ($dayCount as $dow => $count) {
+            if ($dow === 1 || $dow === 7) continue; // Skip weekends
+            if ($count >= 3 && $count > $avgPerDay * 2) {
+                $patterns[] = [
+                    'type'    => 'day_of_week',
+                    'detail'  => 'Absences fréquentes le ' . $dayNames[$dow],
+                    'count'   => $count,
+                    'severity' => $count >= 5 ? 'high' : 'medium',
+                ];
+            }
+        }
+
+        // Frequency check: more than 20% of school days absent
+        $schoolDays = $lookbackDays * 5 / 7;
+        $absenceRate = $totalAbsences / max(1, $schoolDays);
+        if ($absenceRate > 0.2) {
+            $patterns[] = [
+                'type'     => 'high_rate',
+                'detail'   => 'Taux d\'absentéisme élevé: ' . round($absenceRate * 100, 1) . '%',
+                'count'    => $totalAbsences,
+                'severity' => $absenceRate > 0.3 ? 'high' : 'medium',
+            ];
+        }
+
+        return $patterns;
+    }
+
+    /**
+     * Save detected pattern alerts to the absence_patterns table.
+     */
+    public function savePatternAlert(int $eleveId, array $pattern): void
+    {
+        try {
+            $stmt = $this->pdo->prepare("
+                INSERT INTO absence_patterns (eleve_id, pattern_type, details_json, detected_at)
+                VALUES (?, ?, ?, NOW())
+            ");
+            $stmt->execute([
+                $eleveId,
+                $pattern['type'],
+                json_encode($pattern, JSON_UNESCAPED_UNICODE),
+            ]);
+        } catch (\PDOException $e) {
+            // Table may not exist yet
+        }
+    }
+
+    /**
+     * Get absenteeism rate per class for dashboard.
+     */
+    public function getAbsenteeismByClasse(string $dateDebut, string $dateFin): array
+    {
+        $sql = "
+            SELECT e.classe,
+                   COUNT(DISTINCT a.id) AS nb_absences,
+                   COUNT(DISTINCT a.id_eleve) AS nb_eleves_absents,
+                   (SELECT COUNT(*) FROM eleves e2 WHERE e2.classe = e.classe AND e2.actif = 1) AS total_eleves
+            FROM absences a
+            JOIN eleves e ON a.id_eleve = e.id
+            WHERE a.date_debut BETWEEN ? AND ?
+            GROUP BY e.classe
+            ORDER BY nb_absences DESC
+        ";
+        return $this->executeQuery($sql, [$dateDebut, $dateFin]);
+    }
+
     /* ---------- Helpers SQL ---------- */
 
     private function buildDateFilter(string $alias, string $dateDebut, string $dateFin): string
@@ -872,5 +1007,39 @@ class AbsenceRepository
             'classes_stats' => [],
             'eleves_stats' => []
         ];
+    }
+
+    // ─── DETECTION PATTERNS ───
+
+    public function detectPatterns(int $eleveId): array
+    {
+        $parJour = $this->pdo->prepare("SELECT DAYNAME(date_absence) AS jour, COUNT(*) AS nb FROM absences WHERE id_eleve = :eid GROUP BY jour ORDER BY nb DESC");
+        $parJour->execute([':eid' => $eleveId]);
+
+        $parMatiere = $this->pdo->prepare("SELECT m.nom AS matiere, COUNT(*) AS nb FROM absences a JOIN emploi_du_temps edt ON a.date_absence = DATE(edt.date_debut) JOIN matieres m ON edt.id_matiere = m.id WHERE a.id_eleve = :eid GROUP BY m.id HAVING nb >= 2 ORDER BY nb DESC");
+        $parMatiere->execute([':eid' => $eleveId]);
+
+        return ['par_jour' => $parJour->fetchAll(\PDO::FETCH_ASSOC), 'par_matiere' => $parMatiere->fetchAll(\PDO::FETCH_ASSOC)];
+    }
+
+    public function getCumulatifHeures(int $eleveId, int $periodeId): float
+    {
+        $stmt = $this->pdo->prepare("SELECT COALESCE(SUM(duree_heures),0) FROM absences WHERE id_eleve = :eid AND periode_id = :pid");
+        $stmt->execute([':eid' => $eleveId, ':pid' => $periodeId]);
+        return (float)$stmt->fetchColumn();
+    }
+
+    public function getHeatmapData(string $classe, string $from, string $to): array
+    {
+        $stmt = $this->pdo->prepare("SELECT a.date_absence AS date, COUNT(*) AS nb FROM absences a JOIN eleves e ON a.id_eleve = e.id WHERE e.classe = :c AND a.date_absence BETWEEN :f AND :t GROUP BY a.date_absence ORDER BY a.date_absence");
+        $stmt->execute([':c' => $classe, ':f' => $from, ':t' => $to]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function comparerClasses(string $from, string $to): array
+    {
+        $stmt = $this->pdo->prepare("SELECT e.classe, COUNT(*) AS nb_absences, COUNT(DISTINCT a.id_eleve) AS nb_eleves_absents, SUM(CASE WHEN a.justifiee = 0 THEN 1 ELSE 0 END) AS non_justifiees FROM absences a JOIN eleves e ON a.id_eleve = e.id WHERE a.date_absence BETWEEN :f AND :t GROUP BY e.classe ORDER BY nb_absences DESC");
+        $stmt->execute([':f' => $from, ':t' => $to]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 }

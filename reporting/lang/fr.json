@@ -1,0 +1,12 @@
+{
+    "reporting.title": "Rapports",
+    "reporting.generate": "Générer un rapport",
+    "reporting.custom": "Rapport personnalisé",
+    "reporting.schedule": "Planifier",
+    "reporting.export_pdf": "Exporter en PDF",
+    "reporting.export_csv": "Exporter en CSV",
+    "reporting.export_excel": "Exporter en Excel",
+    "reporting.date_range": "Période",
+    "reporting.filters": "Filtres",
+    "reporting.no_reports": "Aucun rapport disponible."
+}

@@ -1,0 +1,12 @@
+{
+    "reporting.title": "Reports",
+    "reporting.generate": "Generate Report",
+    "reporting.custom": "Custom Report",
+    "reporting.schedule": "Schedule",
+    "reporting.export_pdf": "Export as PDF",
+    "reporting.export_csv": "Export as CSV",
+    "reporting.export_excel": "Export as Excel",
+    "reporting.date_range": "Date Range",
+    "reporting.filters": "Filters",
+    "reporting.no_reports": "No reports available."
+}

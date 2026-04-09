@@ -30,7 +30,6 @@ ob_start();
 $sidebarExtraContent = ob_get_clean();
 
 require_once __DIR__ . '/../../templates/shared_header.php';
-require_once __DIR__ . '/../../templates/shared_sidebar.php';
 require_once __DIR__ . '/../../templates/shared_topbar.php';
 ?>
 <div class="main-content">

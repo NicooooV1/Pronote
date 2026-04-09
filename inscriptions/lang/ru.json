@@ -1,0 +1,16 @@
+{
+    "inscriptions.title": "Запись",
+    "inscriptions.new": "New Enrollment",
+    "inscriptions.form": "Enrollment Form",
+    "inscriptions.documents": "Required Documents",
+    "inscriptions.upload": "Upload Documents",
+    "inscriptions.status": "Status",
+    "inscriptions.pending": "Pending",
+    "inscriptions.approved": "Approved",
+    "inscriptions.rejected": "Rejected",
+    "inscriptions.workflow": "Validation Workflow",
+    "inscriptions.student": "Student",
+    "inscriptions.class": "Class",
+    "inscriptions.year": "School Year",
+    "inscriptions.no_inscriptions": "No enrollments in progress."
+}

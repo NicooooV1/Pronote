@@ -1,0 +1,13 @@
+{
+    "notifications.title": "الإشعارات",
+    "notifications.all": "All Notifications",
+    "notifications.unread": "Unread",
+    "notifications.mark_read": "Mark as Read",
+    "notifications.mark_all_read": "Mark All as Read",
+    "notifications.delete": "Delete",
+    "notifications.preferences": "Preferences",
+    "notifications.push": "Push Notifications",
+    "notifications.email": "Email Notifications",
+    "notifications.digest": "Digest Mode",
+    "notifications.no_notifications": "No notifications."
+}

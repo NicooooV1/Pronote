@@ -1,0 +1,16 @@
+{
+    "personnel.title": "Personal",
+    "personnel.list": "Lista de personal",
+    "personnel.add": "Agregar miembro",
+    "personnel.edit": "Modificar",
+    "personnel.delete": "Eliminar",
+    "personnel.name": "Nombre",
+    "personnel.role": "Rol",
+    "personnel.email": "Email",
+    "personnel.phone": "Telefono",
+    "personnel.department": "Departamento",
+    "personnel.leave": "Permisos",
+    "personnel.schedule": "Horario",
+    "personnel.directory": "Directorio",
+    "personnel.no_staff": "Ningun personal registrado."
+}

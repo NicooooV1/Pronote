@@ -1,19 +1,50 @@
 {
     "key": "absences",
     "version": "1.0.0",
-    "name": { "fr": "Absences", "en": "Absences" },
-    "description": { "fr": "Gestion des absences et retards", "en": "Absence and tardiness management" },
+    "name": {
+        "fr": "Absences",
+        "en": "Absences"
+    },
+    "description": {
+        "fr": "Gestion des absences et retards",
+        "en": "Absence and tardiness management"
+    },
     "icon": "fas fa-calendar-times",
     "category": "vie_scolaire",
     "core": false,
     "requires_php": ">=8.0",
     "dependencies": [],
     "permissions": {
-        "view": { "default_roles": ["*"] },
-        "manage": { "default_roles": ["administrateur", "vie_scolaire", "professeur"] },
-        "justify": { "default_roles": ["eleve", "parent"] },
-        "validate": { "default_roles": ["administrateur", "vie_scolaire"] },
-        "export": { "default_roles": ["administrateur", "vie_scolaire"] }
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire",
+                "professeur"
+            ]
+        },
+        "justify": {
+            "default_roles": [
+                "eleve",
+                "parent"
+            ]
+        },
+        "validate": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire"
+            ]
+        },
+        "export": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire"
+            ]
+        }
     },
     "routes": {
         "main": "absences.php"
@@ -21,12 +52,25 @@
     "widgets": [
         {
             "key": "absences_du_jour",
-            "name": { "fr": "Absences du jour", "en": "Today's absences" },
-            "description": { "fr": "Absences signalées aujourd'hui", "en": "Absences reported today" },
+            "name": {
+                "fr": "Absences du jour",
+                "en": "Today's absences"
+            },
+            "description": {
+                "fr": "Absences signalées aujourd'hui",
+                "en": "Absences reported today"
+            },
             "type": "stats",
             "icon": "fas fa-calendar-times",
-            "roles": ["administrateur", "vie_scolaire", "professeur"],
-            "default_size": { "width": 1, "height": 1 },
+            "roles": [
+                "administrateur",
+                "vie_scolaire",
+                "professeur"
+            ],
+            "default_size": {
+                "width": 1,
+                "height": 1
+            },
             "min_width": 1,
             "max_width": 2,
             "is_default": true,
@@ -36,5 +80,15 @@
         }
     ],
     "establishment_types": null,
-    "sidebar": { "sort_order": 20 }
+    "sidebar": {
+        "sort_order": 20
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "vie_scolaire",
+        "sort_order": 20
+    }
 }

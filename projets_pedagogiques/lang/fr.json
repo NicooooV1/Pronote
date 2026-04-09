@@ -1,0 +1,13 @@
+{
+    "projets_pedagogiques.title": "Projets pédagogiques",
+    "projets_pedagogiques.add": "Créer un projet",
+    "projets_pedagogiques.edit": "Modifier",
+    "projets_pedagogiques.name": "Nom du projet",
+    "projets_pedagogiques.description": "Description",
+    "projets_pedagogiques.budget": "Budget",
+    "projets_pedagogiques.participants": "Participants",
+    "projets_pedagogiques.start_date": "Date de début",
+    "projets_pedagogiques.end_date": "Date de fin",
+    "projets_pedagogiques.evaluation": "Évaluation",
+    "projets_pedagogiques.no_projects": "Aucun projet enregistré."
+}

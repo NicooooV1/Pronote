@@ -1,26 +1,64 @@
 {
     "key": "discipline",
     "version": "1.0.0",
-    "name": { "fr": "Discipline", "en": "Discipline" },
-    "description": { "fr": "Gestion des incidents et sanctions", "en": "Incident and sanction management" },
+    "name": {
+        "fr": "Discipline",
+        "en": "Discipline"
+    },
+    "description": {
+        "fr": "Gestion des incidents et sanctions",
+        "en": "Incident and sanction management"
+    },
     "icon": "fas fa-gavel",
     "category": "vie_scolaire",
     "core": false,
     "permissions": {
-        "view": { "default_roles": ["administrateur", "vie_scolaire", "professeur"] },
-        "manage": { "default_roles": ["administrateur", "vie_scolaire"] },
-        "report": { "default_roles": ["administrateur", "vie_scolaire", "professeur"] }
+        "view": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire",
+                "professeur"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire"
+            ]
+        },
+        "report": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire",
+                "professeur"
+            ]
+        }
     },
-    "routes": { "main": "incidents.php" },
+    "routes": {
+        "main": "incidents.php"
+    },
     "widgets": [
         {
             "key": "discipline_recente",
-            "name": { "fr": "Discipline", "en": "Discipline" },
-            "description": { "fr": "Derniers incidents et suivi", "en": "Recent incidents and tracking" },
+            "name": {
+                "fr": "Discipline",
+                "en": "Discipline"
+            },
+            "description": {
+                "fr": "Derniers incidents et suivi",
+                "en": "Recent incidents and tracking"
+            },
             "type": "list",
             "icon": "fas fa-gavel",
-            "roles": ["administrateur", "vie_scolaire", "professeur"],
-            "default_size": { "width": 2, "height": 1 },
+            "roles": [
+                "administrateur",
+                "vie_scolaire",
+                "professeur"
+            ],
+            "default_size": {
+                "width": 2,
+                "height": 1
+            },
             "is_default": false,
             "sort_order": 55,
             "data_provider": "includes/DisciplineWidgetProvider.php",
@@ -28,5 +66,15 @@
         }
     ],
     "establishment_types": null,
-    "sidebar": { "sort_order": 22 }
+    "sidebar": {
+        "sort_order": 22
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "vie_scolaire",
+        "sort_order": 22
+    }
 }

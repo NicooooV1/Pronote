@@ -1,0 +1,13 @@
+{
+    "parametres.title": "Einstellungen",
+    "parametres.profile": "Profil",
+    "parametres.language": "Sprache",
+    "parametres.notifications": "Benachrichtigungen",
+    "parametres.privacy": "Datenschutz",
+    "parametres.appearance": "Erscheinungsbild",
+    "parametres.theme": "Design",
+    "parametres.dark_mode": "Dunkelmodus",
+    "parametres.export_data": "Meine Daten exportieren",
+    "parametres.delete_account": "Mein Konto loeschen",
+    "parametres.saved": "Einstellungen gespeichert."
+}

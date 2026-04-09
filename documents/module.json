@@ -1,17 +1,45 @@
 {
-  "key": "documents",
-  "version": "1.0.0",
-  "name": { "fr": "Documents", "en": "Documents" },
-  "description": { "fr": "Gestion et partage de documents", "en": "Document management and sharing" },
-  "icon": "fas fa-folder-open",
-  "category": "communication",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["*"] },
-    "manage": { "default_roles": ["administrateur", "professeur", "vie_scolaire"] }
-  },
-  "routes": { "main": "documents.php" },
-  "widgets": [],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 35 }
+    "key": "documents",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Documents",
+        "en": "Documents"
+    },
+    "description": {
+        "fr": "Gestion et partage de documents",
+        "en": "Document management and sharing"
+    },
+    "icon": "fas fa-folder-open",
+    "category": "communication",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "professeur",
+                "vie_scolaire"
+            ]
+        }
+    },
+    "routes": {
+        "main": "documents.php"
+    },
+    "widgets": [],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 35
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "communication",
+        "sort_order": 33
+    }
 }

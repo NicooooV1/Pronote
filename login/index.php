@@ -132,6 +132,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 
 $csrfToken = generateCSRFToken();
 
+// i18n — load translator for login page
+$translator = app('translator');
+$currentLocale = $translator->getLocale();
+$supportedLocales = $translator->getSupportedLocales();
+$localeNames = \API\Services\TranslationService::getLocaleNames();
+$localeFlags = [
+    'fr' => '🇫🇷', 'en' => '🇬🇧', 'es' => '🇪🇸', 'de' => '🇩🇪',
+    'ru' => '🇷🇺', 'nl' => '🇳🇱', 'ar' => '🇸🇦', 'th' => '🇹🇭',
+];
+
 $profilLabels = [
     'administrateur' => ['label' => 'Administrateur', 'icon' => 'fa-user-shield'],
     'vie_scolaire'   => ['label' => 'Vie scolaire',   'icon' => 'fa-user-tie'],
@@ -139,13 +149,15 @@ $profilLabels = [
     'eleve'          => ['label' => 'Élève',           'icon' => 'fa-user-graduate'],
     'parent'         => ['label' => 'Parent',          'icon' => 'fa-users'],
 ];
+
+$_loginDir = $translator->isRtl() ? 'rtl' : 'ltr';
 ?>
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="<?= htmlspecialchars($currentLocale) ?>" dir="<?= $_loginDir ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connexion - FRONOTE</title>
+    <title><?= htmlspecialchars(__('login.title')) ?></title>
     <link rel="stylesheet" href="assets/css/login.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script>
@@ -156,13 +168,46 @@ $profilLabels = [
         }
     })();
     </script>
+    <style>
+    .lang-selector { position: absolute; top: 16px; right: 16px; z-index: 10; }
+    .lang-selector .lang-toggle { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 6px 12px; cursor: pointer; color: inherit; font-size: 14px; display: flex; align-items: center; gap: 6px; transition: background 0.2s; }
+    .lang-selector .lang-toggle:hover { background: rgba(255,255,255,0.2); }
+    .lang-selector .lang-dropdown { display: none; position: absolute; top: calc(100% + 4px); right: 0; background: var(--bg-white, #fff); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); min-width: 180px; overflow: hidden; z-index: 20; }
+    .lang-selector.open .lang-dropdown { display: block; }
+    .lang-dropdown a { display: flex; align-items: center; gap: 8px; padding: 10px 14px; text-decoration: none; color: #333; font-size: 13px; transition: background 0.15s; }
+    .lang-dropdown a:hover { background: #f0f0f0; }
+    .lang-dropdown a.active { background: #667eea; color: #fff; }
+    [data-theme="dark"] .lang-dropdown { background: #1e1e2e; }
+    [data-theme="dark"] .lang-dropdown a { color: #cdd6f4; }
+    [data-theme="dark"] .lang-dropdown a:hover { background: #313244; }
+    [data-theme="dark"] .lang-dropdown a.active { background: #667eea; color: #fff; }
+    [dir="rtl"] .lang-selector { right: auto; left: 16px; }
+    [dir="rtl"] .lang-dropdown { right: auto; left: 0; }
+    </style>
 </head>
 <body>
+    <div class="lang-selector" id="langSelector">
+        <button type="button" class="lang-toggle" onclick="document.getElementById('langSelector').classList.toggle('open')">
+            <i class="fas fa-globe"></i>
+            <span><?= $localeFlags[$currentLocale] ?? '' ?> <?= strtoupper($currentLocale) ?></span>
+            <i class="fas fa-chevron-down" style="font-size:10px;opacity:0.7;"></i>
+        </button>
+        <div class="lang-dropdown">
+            <?php foreach ($supportedLocales as $loc): ?>
+            <a href="?lang=<?= htmlspecialchars($loc) ?>" class="<?= $loc === $currentLocale ? 'active' : '' ?>">
+                <span><?= $localeFlags[$loc] ?? '' ?></span>
+                <span><?= htmlspecialchars($localeNames[$loc] ?? $loc) ?></span>
+                <span style="margin-left:auto;opacity:0.5;font-size:11px;"><?= strtoupper($loc) ?></span>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
     <div class="auth-container">
         <div class="auth-header">
             <div class="app-logo">F</div>
             <h1 class="app-title">FRONOTE</h1>
-            <p class="app-subtitle">Espace de connexion</p>
+            <p class="app-subtitle"><?= htmlspecialchars(__('login.subtitle')) ?></p>
         </div>
 
         <?php if (!empty($error)): ?>
@@ -183,7 +228,7 @@ $profilLabels = [
             <!-- Plusieurs comptes pour le même identifiant → choix du profil -->
             <div class="alert alert-info" role="alert">
                 <i class="fas fa-info-circle" aria-hidden="true"></i>
-                <div>Plusieurs profils correspondent à cet identifiant. Veuillez choisir le vôtre.</div>
+                <div><?= htmlspecialchars(__('login.multiple_profiles')) ?></div>
             </div>
             <form method="post" action="" id="loginForm" novalidate>
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
@@ -201,9 +246,9 @@ $profilLabels = [
                         </label>
                     <?php endforeach; ?>
                 </div>
-                <p class="help-text">Ressaisissez votre mot de passe pour confirmer.</p>
+                <p class="help-text"><?= htmlspecialchars(__('login.confirm_password')) ?></p>
                 <div class="form-group">
-                    <label for="password2" class="required-field">Mot de passe</label>
+                    <label for="password2" class="required-field"><?= htmlspecialchars(__('login.password_label')) ?></label>
                     <div class="input-group">
                         <i class="input-group-icon fas fa-lock" aria-hidden="true"></i>
                         <input type="password" id="password2" name="password" class="form-control input-with-icon"
@@ -212,11 +257,11 @@ $profilLabels = [
                 </div>
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary" id="loginBtn">
-                        <span class="btn-text"><i class="fas fa-sign-in-alt" aria-hidden="true"></i> Confirmer</span>
+                        <span class="btn-text"><i class="fas fa-sign-in-alt" aria-hidden="true"></i> <?= htmlspecialchars(__('btn.confirm')) ?></span>
                     </button>
                 </div>
                 <div class="help-links">
-                    <a href="index.php">Retour</a>
+                    <a href="index.php"><?= htmlspecialchars(__('btn.back')) ?></a>
                 </div>
             </form>
         <?php else: ?>
@@ -226,22 +271,22 @@ $profilLabels = [
                 <input type="hidden" name="login" value="1">
 
                 <div class="form-group">
-                    <label for="username" class="required-field">Identifiant ou e-mail</label>
+                    <label for="username" class="required-field"><?= htmlspecialchars(__('login.username_label')) ?></label>
                     <div class="input-group">
                         <i class="input-group-icon fas fa-user" aria-hidden="true"></i>
                         <input type="text" id="username" name="username" class="form-control input-with-icon"
                                value="<?= htmlspecialchars($lastUsername) ?>" required autofocus
-                               autocomplete="username" placeholder="votre.identifiant ou email">
+                               autocomplete="username" placeholder="<?= htmlspecialchars(__('login.username_placeholder')) ?>">
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="password" class="required-field">Mot de passe</label>
+                    <label for="password" class="required-field"><?= htmlspecialchars(__('login.password_label')) ?></label>
                     <div class="input-group">
                         <i class="input-group-icon fas fa-lock" aria-hidden="true"></i>
                         <input type="password" id="password" name="password" class="form-control input-with-icon"
                                required autocomplete="current-password">
-                        <button type="button" class="visibility-toggle" aria-label="Afficher ou masquer le mot de passe">
+                        <button type="button" class="visibility-toggle" aria-label="<?= htmlspecialchars(__('login.toggle_password')) ?>">
                             <i class="fas fa-eye" aria-hidden="true"></i>
                         </button>
                     </div>
@@ -250,25 +295,30 @@ $profilLabels = [
                 <div class="form-group">
                     <label class="checkbox-group">
                         <input type="checkbox" name="remember_me" id="remember_me">
-                        <span>Se souvenir de moi</span>
+                        <span><?= htmlspecialchars(__('login.remember_me')) ?></span>
                     </label>
                 </div>
 
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary" id="loginBtn">
-                        <span class="btn-text"><i class="fas fa-sign-in-alt" aria-hidden="true"></i> Se connecter</span>
-                        <span class="btn-loading-text" style="display:none;"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Connexion…</span>
+                        <span class="btn-text"><i class="fas fa-sign-in-alt" aria-hidden="true"></i> <?= htmlspecialchars(__('login.submit')) ?></span>
+                        <span class="btn-loading-text" style="display:none;"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> <?= htmlspecialchars(__('login.loading')) ?></span>
                     </button>
                 </div>
 
                 <div class="help-links">
-                    <a href="reset_password.php">Mot de passe oublié ?</a>
+                    <a href="reset_password.php"><?= htmlspecialchars(__('login.forgot_password')) ?></a>
                 </div>
             </form>
         <?php endif; ?>
     </div>
 
     <script>
+    // Close lang dropdown on outside click
+    document.addEventListener('click', function(e) {
+        var sel = document.getElementById('langSelector');
+        if (sel && !sel.contains(e.target)) sel.classList.remove('open');
+    });
     document.addEventListener('DOMContentLoaded', function() {
         // Toggle password visibility
         var toggle = document.querySelector('.visibility-toggle');

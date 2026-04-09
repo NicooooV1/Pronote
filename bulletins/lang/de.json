@@ -1,0 +1,17 @@
+{
+    "bulletins.title": "Zeugnisse",
+    "bulletins.generate": "Zeugnisse erstellen",
+    "bulletins.preview": "Vorschau",
+    "bulletins.print": "Drucken",
+    "bulletins.download": "Herunterladen",
+    "bulletins.batch": "Sammelgenerierung",
+    "bulletins.trimester": "Halbjahr",
+    "bulletins.class": "Klasse",
+    "bulletins.student": "Schueler",
+    "bulletins.appreciation": "Bewertung",
+    "bulletins.general_appreciation": "Gesamtbewertung",
+    "bulletins.teacher_comment": "Lehrerkommentar",
+    "bulletins.council_decision": "Konferenzbeschluss",
+    "bulletins.progress": "Fortschritt",
+    "bulletins.no_bulletins": "Keine Zeugnisse erstellt."
+}

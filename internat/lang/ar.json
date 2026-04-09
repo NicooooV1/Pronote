@@ -1,0 +1,12 @@
+{
+    "internat.title": "الداخلية",
+    "internat.rooms": "Rooms",
+    "internat.assign": "Assignment",
+    "internat.presence": "Attendance",
+    "internat.menus": "Menus",
+    "internat.student": "Boarder",
+    "internat.room_number": "Room Number",
+    "internat.capacity": "Capacity",
+    "internat.floor": "Floor",
+    "internat.no_rooms": "No rooms configured."
+}

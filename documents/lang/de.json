@@ -1,0 +1,17 @@
+{
+    "documents.title": "Dokumente",
+    "documents.upload": "Dokument hochladen",
+    "documents.download": "Herunterladen",
+    "documents.delete": "Loeschen",
+    "documents.share": "Teilen",
+    "documents.search": "Suchen",
+    "documents.name": "Dateiname",
+    "documents.size": "Groesse",
+    "documents.type": "Typ",
+    "documents.date": "Hinzugefuegt am",
+    "documents.owner": "Eigentuemer",
+    "documents.versions": "Versionen",
+    "documents.folder": "Ordner",
+    "documents.create_folder": "Ordner erstellen",
+    "documents.no_documents": "Keine Dokumente verfuegbar."
+}

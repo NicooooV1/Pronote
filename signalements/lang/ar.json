@@ -1,0 +1,14 @@
+{
+    "signalements.title": "البلاغات",
+    "signalements.report": "Make a Report",
+    "signalements.anonymous": "Anonymous Report",
+    "signalements.category": "Category",
+    "signalements.description": "Description",
+    "signalements.status": "Status",
+    "signalements.new": "New",
+    "signalements.in_progress": "In Progress",
+    "signalements.resolved": "Resolved",
+    "signalements.closed": "Closed",
+    "signalements.follow_up": "Follow-up",
+    "signalements.no_reports": "No reports recorded."
+}

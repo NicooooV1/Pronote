@@ -1,0 +1,15 @@
+{
+    "examens.title": "Examens",
+    "examens.planning": "Planning des examens",
+    "examens.add": "Programmer un examen",
+    "examens.edit": "Modifier",
+    "examens.delete": "Supprimer",
+    "examens.subject": "Matière",
+    "examens.date": "Date",
+    "examens.duration": "Durée",
+    "examens.room": "Salle",
+    "examens.supervisor": "Surveillant",
+    "examens.convocation": "Convocation",
+    "examens.results": "Résultats",
+    "examens.no_exams": "Aucun examen programmé."
+}

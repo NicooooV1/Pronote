@@ -1,0 +1,13 @@
+{
+    "stages.title": "Praktika",
+    "stages.convention": "Praktikumsvertrag",
+    "stages.add": "Praktikum hinzufuegen",
+    "stages.student": "Praktikant",
+    "stages.company": "Unternehmen",
+    "stages.tutor": "Betreuer",
+    "stages.start_date": "Startdatum",
+    "stages.end_date": "Enddatum",
+    "stages.evaluation": "Bewertung",
+    "stages.report": "Praktikumsbericht",
+    "stages.no_internships": "Keine Praktika erfasst."
+}

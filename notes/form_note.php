@@ -294,7 +294,7 @@ include 'includes/header.php';
                         <a href="form_note.php" class="btn btn-secondary" style="font-size:13px;"><i class="fas fa-arrow-left"></i> Changer de classe</a>
                     </div>
 
-                    <form method="post" action="">
+                    <form method="post" action="" id="batch-entry-form">
                         <input type="hidden" name="action" value="save_notes">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
                         <input type="hidden" name="classe" value="<?= htmlspecialchars($selectedClasse) ?>">
@@ -396,7 +396,8 @@ include 'includes/header.php';
                             </div>
                         </div>
 
-                        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px; padding-top:15px; border-top:1px solid #edf2f7;">
+                        <div style="display:flex; gap:10px; justify-content:flex-end; align-items:center; margin-top:20px; padding-top:15px; border-top:1px solid #edf2f7;">
+                            <span id="autosave-status" class="autosave-status" style="margin-right:auto;"></span>
                             <a href="notes.php" class="btn btn-secondary">Annuler</a>
                             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Enregistrer les notes</button>
                         </div>
@@ -468,6 +469,8 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <?php
     $extraScriptHtml = ob_get_clean();
+    // Add batch auto-save script
+    $extraScriptHtml .= '<script src="assets/js/notes-batch.js" defer></script>';
 endif;
 
 include 'includes/footer.php';

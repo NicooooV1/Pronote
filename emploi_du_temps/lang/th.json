@@ -1,0 +1,16 @@
+{
+    "emploi_du_temps.title": "ตารางเรียน",
+    "emploi_du_temps.week": "Week",
+    "emploi_du_temps.day": "Day",
+    "emploi_du_temps.today": "Today",
+    "emploi_du_temps.subject": "Subject",
+    "emploi_du_temps.teacher": "Teacher",
+    "emploi_du_temps.room": "Room",
+    "emploi_du_temps.class": "Class",
+    "emploi_du_temps.start": "Start",
+    "emploi_du_temps.end": "End",
+    "emploi_du_temps.conflict": "Conflict Detected",
+    "emploi_du_temps.replacement": "Substitute",
+    "emploi_du_temps.cancelled": "Class Cancelled",
+    "emploi_du_temps.no_courses": "No classes scheduled."
+}

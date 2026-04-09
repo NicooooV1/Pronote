@@ -488,4 +488,292 @@ class EdtService
 
         return $stats;
     }
+
+    // ─── Détection conflits horaires ─────────────────────────────
+
+    /**
+     * Détecte les chevauchements horaires pour une classe sur un jour donné.
+     * Compare les plages heure_debut/heure_fin pour trouver les cours qui se superposent.
+     *
+     * @return array Liste des paires de cours en conflit avec détails.
+     */
+    public function detectConflicts(string $classeId, string $jour): array
+    {
+        $sql = "SELECT e.id, e.heure_debut, e.heure_fin,
+                       m.nom AS matiere_nom,
+                       CONCAT(p.prenom, ' ', p.nom) AS professeur_nom,
+                       s.nom AS salle_nom
+                FROM emploi_du_temps e
+                JOIN matieres m ON e.matiere_id = m.id
+                JOIN professeurs p ON e.professeur_id = p.id
+                LEFT JOIN salles s ON e.salle_id = s.id
+                WHERE e.classe_id = :classeId AND e.jour = :jour AND e.actif = 1
+                ORDER BY e.heure_debut ASC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':classeId' => $classeId, ':jour' => $jour]);
+        $cours = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $conflits = [];
+        $count = count($cours);
+        for ($i = 0; $i < $count; $i++) {
+            for ($j = $i + 1; $j < $count; $j++) {
+                // Chevauchement : A commence avant la fin de B ET B commence avant la fin de A
+                if ($cours[$i]['heure_debut'] < $cours[$j]['heure_fin']
+                    && $cours[$j]['heure_debut'] < $cours[$i]['heure_fin']) {
+                    $conflits[] = [
+                        'cours_a' => $cours[$i],
+                        'cours_b' => $cours[$j],
+                        'description' => "{$cours[$i]['matiere_nom']} ({$cours[$i]['heure_debut']}-{$cours[$i]['heure_fin']}) "
+                            . "chevauche {$cours[$j]['matiere_nom']} ({$cours[$j]['heure_debut']}-{$cours[$j]['heure_fin']})",
+                    ];
+                }
+            }
+        }
+
+        return $conflits;
+    }
+
+    // ─── Créneaux libres ─────────────────────────────────────────
+
+    /**
+     * Retourne les créneaux horaires disponibles pour une classe sur un jour donné.
+     * Calcule les « trous » entre les cours existants dans la plage horaire spécifiée.
+     *
+     * @return array Liste de créneaux libres ['heure_debut' => ..., 'heure_fin' => ...].
+     */
+    public function findFreeSlots(string $classeId, string $jour, string $heureMin = '08:00', string $heureMax = '18:00'): array
+    {
+        $sql = "SELECT e.heure_debut, e.heure_fin
+                FROM emploi_du_temps e
+                WHERE e.classe_id = :classeId AND e.jour = :jour AND e.actif = 1
+                ORDER BY e.heure_debut ASC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':classeId' => $classeId, ':jour' => $jour]);
+        $occupied = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Fusionner les créneaux qui se chevauchent
+        $merged = [];
+        foreach ($occupied as $slot) {
+            $debut = max($slot['heure_debut'], $heureMin);
+            $fin = min($slot['heure_fin'], $heureMax);
+            if ($debut >= $fin) continue;
+
+            if (empty($merged)) {
+                $merged[] = ['heure_debut' => $debut, 'heure_fin' => $fin];
+            } else {
+                $last = &$merged[count($merged) - 1];
+                if ($debut <= $last['heure_fin']) {
+                    $last['heure_fin'] = max($last['heure_fin'], $fin);
+                } else {
+                    $merged[] = ['heure_debut' => $debut, 'heure_fin' => $fin];
+                }
+                unset($last);
+            }
+        }
+
+        // Calculer les trous
+        $free = [];
+        $cursor = $heureMin;
+        foreach ($merged as $slot) {
+            if ($cursor < $slot['heure_debut']) {
+                $free[] = ['heure_debut' => $cursor, 'heure_fin' => $slot['heure_debut']];
+            }
+            $cursor = $slot['heure_fin'];
+        }
+        if ($cursor < $heureMax) {
+            $free[] = ['heure_debut' => $cursor, 'heure_fin' => $heureMax];
+        }
+
+        return $free;
+    }
+
+    // ─── Semaines A/B ────────────────────────────────────────────
+
+    /**
+     * Détermine le type de semaine (A ou B) à partir d'une date.
+     * Basé sur le numéro de semaine ISO : impair = A, pair = B.
+     *
+     * @param string $date Date au format Y-m-d.
+     * @return string 'A' ou 'B'.
+     */
+    public function getWeekType(string $date): string
+    {
+        $weekNumber = (int)(new \DateTime($date))->format('W');
+        return ($weekNumber % 2 !== 0) ? 'A' : 'B';
+    }
+
+    // ─── Export ICS ──────────────────────────────────────────────
+
+    /**
+     * Génère une chaîne ICS (iCalendar) à partir de l'EDT d'un utilisateur.
+     * Compatible avec Outlook, Google Calendar, Apple Calendar.
+     *
+     * @param int    $userId   Identifiant de l'utilisateur.
+     * @param string $userType Type : 'professeur', 'eleve', 'parent'.
+     * @return string Contenu ICS complet.
+     */
+    public function exportIcs(int $userId, string $userType): string
+    {
+        $cours = $this->getEdtByRole($userType, $userId);
+
+        $ics  = "BEGIN:VCALENDAR\r\n";
+        $ics .= "VERSION:2.0\r\n";
+        $ics .= "PRODID:-//Fronote//EDT//FR\r\n";
+        $ics .= "CALSCALE:GREGORIAN\r\n";
+        $ics .= "METHOD:PUBLISH\r\n";
+        $ics .= "X-WR-CALNAME:Emploi du temps Fronote\r\n";
+
+        $joursMap = [
+            'lundi' => 'MO', 'mardi' => 'TU', 'mercredi' => 'WE',
+            'jeudi' => 'TH', 'vendredi' => 'FR', 'samedi' => 'SA',
+        ];
+
+        // Calculer le lundi de la semaine courante pour ancrer les événements
+        $now = new \DateTime();
+        $dayOfWeek = (int)$now->format('N'); // 1=lundi
+        $monday = (clone $now)->modify('-' . ($dayOfWeek - 1) . ' days');
+
+        foreach ($cours as $c) {
+            $jourOffset = array_search($c['jour'], array_keys($joursMap));
+            if ($jourOffset === false) continue;
+
+            $dateJour = (clone $monday)->modify('+' . $jourOffset . ' days')->format('Ymd');
+            $heureDebut = str_replace(':', '', $c['heure_debut'] ?? $c['creneau_heure_debut'] ?? '0800');
+            $heureFin   = str_replace(':', '', $c['heure_fin'] ?? $c['creneau_heure_fin'] ?? '0900');
+
+            $summary = $c['matiere_nom'] ?? 'Cours';
+            $location = $c['salle_nom'] ?? '';
+            $description = '';
+            if (!empty($c['professeur_nom'])) $description .= 'Prof: ' . $c['professeur_nom'];
+            if (!empty($c['classe_nom'])) $description .= ($description ? ' | ' : '') . 'Classe: ' . $c['classe_nom'];
+
+            $uid = 'fronote-edt-' . ($c['id'] ?? uniqid()) . '@fronote';
+
+            $ics .= "BEGIN:VEVENT\r\n";
+            $ics .= "UID:{$uid}\r\n";
+            $ics .= "DTSTART:{$dateJour}T{$heureDebut}00\r\n";
+            $ics .= "DTEND:{$dateJour}T{$heureFin}00\r\n";
+            $ics .= "SUMMARY:{$summary}\r\n";
+            if ($location) $ics .= "LOCATION:{$location}\r\n";
+            if ($description) $ics .= "DESCRIPTION:{$description}\r\n";
+            $ics .= "RRULE:FREQ=WEEKLY;BYDAY={$joursMap[$c['jour']]}\r\n";
+            $ics .= "END:VEVENT\r\n";
+        }
+
+        $ics .= "END:VCALENDAR\r\n";
+
+        return $ics;
+    }
+
+    // ─── Notifications remplacement ──────────────────────────────
+
+    /**
+     * Récupère les données nécessaires pour notifier une modification d'EDT.
+     * Retourne les informations de la modification, du cours original,
+     * et la liste des destinataires (élèves + parents de la classe).
+     *
+     * @param int $modificationId Identifiant de la modification dans edt_modifications.
+     * @return array Données structurées pour le dispatch de notifications.
+     */
+    public function notifyModification(int $modificationId): array
+    {
+        // Récupérer la modification avec le cours original
+        $sql = "SELECT mod.*, mod.type_modification, mod.date_cours, mod.motif,
+                       e.classe_id, e.matiere_id, e.professeur_id, e.jour,
+                       e.heure_debut, e.heure_fin,
+                       m.nom AS matiere_nom,
+                       CONCAT(p.prenom, ' ', p.nom) AS professeur_nom,
+                       cl.nom AS classe_nom,
+                       s.nom AS salle_nom
+                FROM edt_modifications mod
+                JOIN emploi_du_temps e ON mod.edt_id = e.id
+                JOIN matieres m ON e.matiere_id = m.id
+                JOIN professeurs p ON e.professeur_id = p.id
+                JOIN classes cl ON e.classe_id = cl.id
+                LEFT JOIN salles s ON e.salle_id = s.id
+                WHERE mod.id = :modificationId";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':modificationId' => $modificationId]);
+        $modification = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$modification) {
+            return [];
+        }
+
+        // Nouveau professeur (si remplacement)
+        $nouveauProf = null;
+        if (!empty($modification['nouveau_professeur_id'])) {
+            $stmt = $this->pdo->prepare(
+                "SELECT id, CONCAT(prenom, ' ', nom) AS nom_complet
+                 FROM professeurs WHERE id = :profId"
+            );
+            $stmt->execute([':profId' => $modification['nouveau_professeur_id']]);
+            $nouveauProf = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+
+        // Nouvelle salle (si déplacement)
+        $nouvelleSalle = null;
+        if (!empty($modification['nouvelle_salle_id'])) {
+            $stmt = $this->pdo->prepare(
+                "SELECT id, nom FROM salles WHERE id = :salleId"
+            );
+            $stmt->execute([':salleId' => $modification['nouvelle_salle_id']]);
+            $nouvelleSalle = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+
+        // Récupérer les élèves de la classe concernée
+        $stmt = $this->pdo->prepare(
+            "SELECT e.id, e.nom, e.prenom, e.email
+             FROM eleves e
+             JOIN classes cl ON e.classe = cl.nom
+             WHERE cl.id = :classeId AND e.actif = 1"
+        );
+        $stmt->execute([':classeId' => $modification['classe_id']]);
+        $eleves = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Récupérer les parents des élèves
+        $parents = [];
+        if (!empty($eleves)) {
+            $eleveIds = array_column($eleves, 'id');
+            $placeholders = implode(',', array_fill(0, count($eleveIds), '?'));
+            $stmt = $this->pdo->prepare(
+                "SELECT DISTINCT pa.id, pa.nom, pa.prenom, pa.email
+                 FROM parents pa
+                 JOIN parent_eleve pe ON pa.id = pe.id_parent
+                 WHERE pe.id_eleve IN ({$placeholders})"
+            );
+            $stmt->execute($eleveIds);
+            $parents = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        // Construire le message de notification
+        $typeLabels = [
+            'annulation'   => 'Cours annulé',
+            'deplacement'  => 'Cours déplacé',
+            'remplacement' => 'Remplacement de professeur',
+        ];
+        $label = $typeLabels[$modification['type_modification']] ?? 'Modification EDT';
+
+        $message = "{$label} : {$modification['matiere_nom']} du {$modification['date_cours']}";
+        if ($modification['motif']) {
+            $message .= " — {$modification['motif']}";
+        }
+        if ($nouveauProf) {
+            $message .= " (Remplaçant : {$nouveauProf['nom_complet']})";
+        }
+        if ($nouvelleSalle) {
+            $message .= " (Nouvelle salle : {$nouvelleSalle['nom']})";
+        }
+
+        return [
+            'modification'    => $modification,
+            'nouveau_prof'    => $nouveauProf,
+            'nouvelle_salle'  => $nouvelleSalle,
+            'message'         => $message,
+            'destinataires'   => [
+                'eleves'  => $eleves,
+                'parents' => $parents,
+            ],
+        ];
+    }
 }

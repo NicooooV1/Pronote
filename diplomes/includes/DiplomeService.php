@@ -93,6 +93,40 @@ class DiplomeService
         return ['total' => $total, 'annee_courante' => $annee];
     }
 
+    /* ───── STATISTICS ───── */
+
+    /**
+     * Get success rates by diploma type and year.
+     */
+    public function getTauxReussite(?int $annee = null): array
+    {
+        $sql = "SELECT type,
+                       COUNT(*) AS total,
+                       SUM(CASE WHEN mention IS NOT NULL AND mention != 'sans' THEN 1 ELSE 0 END) AS avec_mention,
+                       YEAR(date_obtention) AS annee
+                FROM diplomes WHERE 1=1";
+        $params = [];
+        if ($annee) { $sql .= ' AND YEAR(date_obtention) = ?'; $params[] = $annee; }
+        $sql .= ' GROUP BY type, YEAR(date_obtention) ORDER BY annee DESC, type';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get mention distribution for a diploma type.
+     */
+    public function getRepartitionMentions(string $type, ?int $annee = null): array
+    {
+        $sql = "SELECT mention, COUNT(*) AS total FROM diplomes WHERE type = ?";
+        $params = [$type];
+        if ($annee) { $sql .= ' AND YEAR(date_obtention) = ?'; $params[] = $annee; }
+        $sql .= ' GROUP BY mention ORDER BY total DESC';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     /* ───── STATIC ───── */
 
     public static function typesDiplome(): array
@@ -136,5 +170,96 @@ class DiplomeService
             $mentions[$d['mention']] ?? ($d['mention'] ?? '-'),
             $d['date_obtention'],
         ], $diplomes);
+    }
+
+    // ─── DIPLOME NUMÉRIQUE QR VÉRIFIABLE ───
+
+    public function genererDiplomeVerifiable(int $diplomeId): string
+    {
+        $token = bin2hex(random_bytes(16));
+        $this->pdo->prepare("UPDATE diplomes SET verification_token = :t WHERE id = :id")
+            ->execute([':t' => $token, ':id' => $diplomeId]);
+        return $token;
+    }
+
+    public function verifierDiplome(string $token): ?array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT d.*, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom, c.nom AS classe_nom
+            FROM diplomes d
+            JOIN eleves e ON d.eleve_id = e.id
+            LEFT JOIN classes c ON e.classe_id = c.id
+            WHERE d.verification_token = :t
+        ");
+        $stmt->execute([':t' => $token]);
+        return $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+    }
+
+    // ─── GÉNÉRATION PAR LOT ───
+
+    public function genererEnMasse(string $classe, string $type, string $intitule, ?string $mention = null): int
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT e.id FROM eleves e
+            JOIN classes c ON e.classe_id = c.id
+            WHERE c.nom = :c AND e.id NOT IN (
+                SELECT eleve_id FROM diplomes WHERE type = :t AND YEAR(date_obtention) = YEAR(CURDATE())
+            )
+        ");
+        $stmt->execute([':c' => $classe, ':t' => $type]);
+        $eleves = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+
+        $maxNum = (int)$this->pdo->query("SELECT COALESCE(MAX(numero_registre), 0) FROM diplomes WHERE YEAR(date_obtention) = YEAR(CURDATE())")->fetchColumn();
+        $count = 0;
+        $ins = $this->pdo->prepare("
+            INSERT INTO diplomes (eleve_id, type, intitule, mention, date_obtention, numero_registre, registre_annee)
+            VALUES (:eid, :t, :i, :m, CURDATE(), :nr, YEAR(CURDATE()))
+        ");
+
+        foreach ($eleves as $eleveId) {
+            $maxNum++;
+            $ins->execute([':eid' => $eleveId, ':t' => $type, ':i' => $intitule, ':m' => $mention, ':nr' => $maxNum]);
+            $count++;
+        }
+        return $count;
+    }
+
+    // ─── REGISTRE OFFICIEL ───
+
+    public function getRegistreOfficiel(?int $annee = null): array
+    {
+        $sql = "SELECT d.*, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom, c.nom AS classe_nom
+                FROM diplomes d
+                JOIN eleves e ON d.eleve_id = e.id
+                LEFT JOIN classes c ON e.classe_id = c.id
+                WHERE d.numero_registre IS NOT NULL";
+        $params = [];
+        if ($annee) { $sql .= " AND d.registre_annee = :a"; $params[':a'] = $annee; }
+        $sql .= " ORDER BY d.registre_annee DESC, d.numero_registre ASC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    // ─── SUIVI TÉLÉCHARGEMENTS ───
+
+    public function enregistrerTelechargement(int $diplomeId, int $userId, string $userType): void
+    {
+        $this->pdo->prepare("INSERT INTO diplomes_telechargements (diplome_id, user_id, user_type, downloaded_at) VALUES (:d, :u, :ut, NOW())")
+            ->execute([':d' => $diplomeId, ':u' => $userId, ':ut' => $userType]);
+    }
+
+    public function getTelechargements(int $diplomeId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM diplomes_telechargements WHERE diplome_id = :d ORDER BY downloaded_at DESC");
+        $stmt->execute([':d' => $diplomeId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function getNbTelechargements(int $diplomeId): int
+    {
+        $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM diplomes_telechargements WHERE diplome_id = ?");
+        $stmt->execute([$diplomeId]);
+        return (int)$stmt->fetchColumn();
     }
 }

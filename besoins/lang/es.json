@@ -1,0 +1,16 @@
+{
+    "besoins.title": "Necesidades educativas especiales",
+    "besoins.pap": "PAP",
+    "besoins.ppre": "PPRE",
+    "besoins.pps": "PPS",
+    "besoins.pai": "PAI",
+    "besoins.add": "Añadir un expediente",
+    "besoins.eleve": "Alumno",
+    "besoins.type": "Tipo de dispositivo",
+    "besoins.date_debut": "Fecha inicio",
+    "besoins.date_fin": "Fecha fin",
+    "besoins.referent": "Referente",
+    "besoins.adaptations": "Adaptaciones",
+    "besoins.suivi": "Seguimiento",
+    "besoins.no_records": "Ningún expediente registrado."
+}

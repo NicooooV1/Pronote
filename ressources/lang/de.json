@@ -1,0 +1,13 @@
+{
+    "ressources.title": "Ressourcen",
+    "ressources.catalog": "Katalog",
+    "ressources.reserve": "Reservieren",
+    "ressources.maintenance": "Wartung",
+    "ressources.name": "Name",
+    "ressources.type": "Typ",
+    "ressources.location": "Standort",
+    "ressources.available": "Verfuegbar",
+    "ressources.reserved": "Reserviert",
+    "ressources.in_maintenance": "In Wartung",
+    "ressources.no_resources": "Keine Ressourcen erfasst."
+}

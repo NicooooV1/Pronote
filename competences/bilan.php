@@ -94,6 +94,29 @@ $niveaux = CompetenceService::niveauxLabels();
     <?php if (empty($bilan)): ?>
         <div class="empty-state"><p>Aucune évaluation trouvée.</p></div>
     <?php else: ?>
+
+        <?php if ($ffRadarGraph && $eleveId): ?>
+        <!-- Radar chart -->
+        <div class="comp-radar-section" style="margin-bottom:24px;">
+            <div style="background:white;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+                <h3 style="font-size:14px;font-weight:600;color:#2d3748;margin-bottom:12px;">
+                    <i class="fas fa-chart-pie" style="margin-right:6px;color:#667eea;"></i> Vue radar des compétences
+                </h3>
+                <div data-radar-url="includes/ajax_radar.php?type=eleve&eleve_id=<?= $eleveId ?><?= $periodeId ? '&periode_id=' . $periodeId : '' ?>"
+                     data-radar-canvas="canvas-radar-eleve"
+                     data-radar-overlay-url="<?php
+                        // Get classe_id for overlay
+                        $stmtCl = getPDO()->prepare("SELECT classe_id FROM eleves WHERE id = ?");
+                        $stmtCl->execute([$eleveId]);
+                        $clId = $stmtCl->fetchColumn();
+                        if ($clId) echo 'includes/ajax_radar.php?type=classe&classe_id=' . $clId . ($periodeId ? '&periode_id=' . $periodeId : '');
+                     ?>">
+                    <canvas id="canvas-radar-eleve" style="width:100%;height:350px;max-height:400px;"></canvas>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div class="bilan-grid">
             <?php foreach ($bilan as $domaine => $data): ?>
                 <div class="bilan-domain-card">

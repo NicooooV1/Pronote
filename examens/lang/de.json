@@ -1,0 +1,15 @@
+{
+    "examens.title": "Pruefungen",
+    "examens.planning": "Pruefungsplan",
+    "examens.add": "Pruefung planen",
+    "examens.edit": "Bearbeiten",
+    "examens.delete": "Loeschen",
+    "examens.subject": "Fach",
+    "examens.date": "Datum",
+    "examens.duration": "Dauer",
+    "examens.room": "Raum",
+    "examens.supervisor": "Aufsicht",
+    "examens.convocation": "Einladung",
+    "examens.results": "Ergebnisse",
+    "examens.no_exams": "Keine Pruefungen geplant."
+}

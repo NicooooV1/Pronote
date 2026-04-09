@@ -1,0 +1,16 @@
+{
+    "accueil.title": "لوحة التحكم",
+    "accueil.greeting.morning": "Good morning",
+    "accueil.greeting.afternoon": "Good afternoon",
+    "accueil.greeting.evening": "Good evening",
+    "accueil.class_of": "Class :class",
+    "accueil.fallback_name": "School",
+    "accueil.customize.title": "Customize dashboard",
+    "accueil.customize.hint": "Enable or disable widgets, then reorder them by drag and drop.",
+    "accueil.customize.saved": "Customization saved.",
+    "accueil.layout.saved": "Layout saved.",
+    "accueil.widget.chart_soon": "Chart coming soon.",
+    "accueil.widget.no_data": "No items to display.",
+    "accueil.widget.no_courses": "No classes today.",
+    "accueil.widget.no_shortcuts": "No shortcuts."
+}

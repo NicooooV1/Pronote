@@ -1,7 +1,7 @@
 <?php
 /**
  * En-tête standardisé pour le module Notes
- * Utilise les templates partagés Fronote
+ * Utilise les templates partagés Fronote (topbar layout)
  */
 
 // S'assurer que l'API est chargée
@@ -26,27 +26,8 @@ $activePage = 'notes';
 $isAdmin = ($user_role ?? '') === 'administrateur';
 $extraCss = $extraCss ?? ['assets/css/notes.css'];
 
-// Contenu supplémentaire sidebar
-ob_start();
-?>
-            <div class="sidebar-nav">
-                <a href="notes.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-list"></i></span>
-                    <span>Liste des notes</span>
-                </a>
-                <?php if (in_array($user_role ?? '', ['professeur', 'administrateur'])): ?>
-                <a href="form_note.php" class="sidebar-nav-item">
-                    <span class="sidebar-nav-icon"><i class="fas fa-plus"></i></span>
-                    <span>Ajouter des notes</span>
-                </a>
-                <?php endif; ?>
-            </div>
-<?php
-$sidebarExtraContent = ob_get_clean();
-
 // Inclure les templates partagés
 include __DIR__ . '/../../templates/shared_header.php';
-include __DIR__ . '/../../templates/shared_sidebar.php';
 include __DIR__ . '/../../templates/shared_topbar.php';
 ?>
 

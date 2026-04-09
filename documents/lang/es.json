@@ -1,0 +1,17 @@
+{
+    "documents.title": "Documentos",
+    "documents.upload": "Subir documento",
+    "documents.download": "Descargar",
+    "documents.delete": "Eliminar",
+    "documents.share": "Compartir",
+    "documents.search": "Buscar",
+    "documents.filename": "Nombre del archivo",
+    "documents.size": "Tamaño",
+    "documents.type": "Tipo",
+    "documents.date_added": "Fecha de añadido",
+    "documents.owner": "Propietario",
+    "documents.versions": "Versiones",
+    "documents.folder": "Carpeta",
+    "documents.create_folder": "Crear carpeta",
+    "documents.no_documents": "Ningún documento disponible."
+}

@@ -92,6 +92,106 @@ class StageService
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /* ───── JOURNAL DE BORD ───── */
+
+    /**
+     * Add a journal entry for a stage.
+     */
+    public function ajouterJournal(int $stageId, int $semaine, string $contenu): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO stage_journal (stage_id, semaine, contenu, created_at)
+            VALUES (?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE contenu = VALUES(contenu), created_at = NOW()
+        ");
+        $stmt->execute([$stageId, $semaine, $contenu]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Get all journal entries for a stage.
+     */
+    public function getJournal(int $stageId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM stage_journal WHERE stage_id = ? ORDER BY semaine");
+        $stmt->execute([$stageId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /* ───── EXTERNAL EVALUATION ───── */
+
+    /**
+     * Generate a unique token for external tutor evaluation.
+     */
+    public function genererTokenEvaluation(int $stageId): string
+    {
+        $token = bin2hex(random_bytes(32));
+        $this->pdo->prepare("
+            INSERT INTO stage_evaluations (stage_id, token, created_at)
+            VALUES (?, ?, NOW())
+            ON DUPLICATE KEY UPDATE token = VALUES(token), created_at = NOW()
+        ")->execute([$stageId, $token]);
+        return $token;
+    }
+
+    /**
+     * Get evaluation by token (for external tutor access).
+     */
+    public function getEvaluationByToken(string $token): ?array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT se.*, s.eleve_id, s.entreprise_nom, s.tuteur_nom,
+                   CONCAT(e.prenom, ' ', e.nom) AS eleve_nom
+            FROM stage_evaluations se
+            JOIN stages s ON se.stage_id = s.id
+            JOIN eleves e ON s.eleve_id = e.id
+            WHERE se.token = ?
+        ");
+        $stmt->execute([$token]);
+        return $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /**
+     * Submit external evaluation (tutor fills in the form via token).
+     */
+    public function soumettrEvaluation(string $token, array $grille): bool
+    {
+        $json = json_encode($grille, JSON_UNESCAPED_UNICODE);
+        $stmt = $this->pdo->prepare("UPDATE stage_evaluations SET grille_json = ?, submitted_at = NOW() WHERE token = ?");
+        return $stmt->execute([$json, $token]);
+    }
+
+    /* ───── ENTREPRISES ───── */
+
+    /**
+     * Get or create an enterprise in the directory.
+     */
+    public function getEntreprises(?string $search = null): array
+    {
+        $sql = "SELECT * FROM entreprises WHERE 1=1";
+        $params = [];
+        if ($search) {
+            $sql .= " AND (nom LIKE ? OR secteur LIKE ?)";
+            $like = '%' . $search . '%';
+            $params[] = $like;
+            $params[] = $like;
+        }
+        $sql .= " ORDER BY nom";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function creerEntreprise(array $d): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO entreprises (nom, adresse, contact_nom, contact_email, secteur)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$d['nom'], $d['adresse'] ?? null, $d['contact_nom'] ?? null, $d['contact_email'] ?? null, $d['secteur'] ?? null]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
     /* ───── HELPERS ───── */
 
     public function getEleves(): array
@@ -146,5 +246,108 @@ class StageService
             $s['date_fin'],
             $statuts[$s['statut']] ?? $s['statut'],
         ], $stages);
+    }
+
+    // ─── CONVENTION PDF DATA ───
+
+    public function genererConventionData(int $stageId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT s.*, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom, e.date_naissance,
+                   c.nom AS classe_nom, CONCAT(p.prenom, ' ', p.nom) AS prof_nom,
+                   ent.nom AS entreprise_nom_full, ent.adresse AS entreprise_adresse,
+                   ent.contact_nom AS tuteur_nom_full, ent.contact_email AS tuteur_email
+            FROM stages s
+            JOIN eleves e ON s.eleve_id = e.id
+            LEFT JOIN classes c ON e.classe_id = c.id
+            LEFT JOIN professeurs p ON s.prof_referent_id = p.id
+            LEFT JOIN entreprises ent ON s.entreprise_id = ent.id
+            WHERE s.id = :id
+        ");
+        $stmt->execute([':id' => $stageId]);
+        $stage = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$stage) throw new \RuntimeException('Stage introuvable');
+
+        return [
+            'titre' => 'Convention de stage',
+            'date_generation' => date('d/m/Y'),
+            'eleve' => $stage['eleve_nom'],
+            'date_naissance' => $stage['date_naissance'],
+            'classe' => $stage['classe_nom'],
+            'entreprise' => $stage['entreprise_nom_full'] ?? $stage['entreprise_nom'] ?? '',
+            'adresse_entreprise' => $stage['entreprise_adresse'] ?? '',
+            'tuteur' => $stage['tuteur_nom_full'] ?? $stage['tuteur_nom'] ?? '',
+            'tuteur_email' => $stage['tuteur_email'] ?? '',
+            'professeur_referent' => $stage['prof_nom'] ?? '',
+            'date_debut' => $stage['date_debut'],
+            'date_fin' => $stage['date_fin'],
+            'type' => $stage['type'],
+            'sujet' => $stage['sujet'] ?? '',
+        ];
+    }
+
+    // ─── MARKETPLACE STAGES (OFFRES) ───
+
+    public function getOffresStage(?string $search = null, ?string $secteur = null): array
+    {
+        $sql = "SELECT * FROM stages_offres WHERE actif = 1";
+        $params = [];
+        if ($search) { $sql .= " AND (titre LIKE :s OR description LIKE :s2 OR entreprise LIKE :s3)"; $params[':s'] = "%{$search}%"; $params[':s2'] = "%{$search}%"; $params[':s3'] = "%{$search}%"; }
+        if ($secteur) { $sql .= " AND secteur = :sec"; $params[':sec'] = $secteur; }
+        $sql .= " ORDER BY created_at DESC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function creerOffreStage(array $d): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO stages_offres (entreprise, titre, description, lieu, secteur, competences, date_debut, date_fin, places, actif, created_at)
+            VALUES (:ent, :t, :desc, :lieu, :sec, :comp, :dd, :df, :pl, 1, NOW())
+        ");
+        $stmt->execute([
+            ':ent' => $d['entreprise'], ':t' => $d['titre'], ':desc' => $d['description'] ?? '',
+            ':lieu' => $d['lieu'] ?? null, ':sec' => $d['secteur'] ?? null,
+            ':comp' => $d['competences'] ?? null, ':dd' => $d['date_debut'] ?? null,
+            ':df' => $d['date_fin'] ?? null, ':pl' => $d['places'] ?? 1,
+        ]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    // ─── PLANNING VISITES ───
+
+    public function planifierVisite(int $stageId, int $professeurId, string $date, ?string $commentaire = null): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO stages_visites (stage_id, professeur_id, date_visite, commentaire, created_at) VALUES (:s, :p, :d, :c, NOW())");
+        $stmt->execute([':s' => $stageId, ':p' => $professeurId, ':d' => $date, ':c' => $commentaire]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getVisites(int $stageId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT sv.*, CONCAT(p.prenom, ' ', p.nom) AS professeur_nom
+            FROM stages_visites sv
+            LEFT JOIN professeurs p ON sv.professeur_id = p.id
+            WHERE sv.stage_id = :s ORDER BY sv.date_visite
+        ");
+        $stmt->execute([':s' => $stageId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function getVisitesAPlanifier(): array
+    {
+        $stmt = $this->pdo->query("
+            SELECT s.id, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom, s.entreprise_nom,
+                   s.date_debut, s.date_fin, CONCAT(p.prenom, ' ', p.nom) AS prof_nom,
+                   (SELECT COUNT(*) FROM stages_visites sv WHERE sv.stage_id = s.id) AS nb_visites
+            FROM stages s
+            JOIN eleves e ON s.eleve_id = e.id
+            LEFT JOIN professeurs p ON s.prof_referent_id = p.id
+            WHERE s.statut = 'en_cours'
+            ORDER BY nb_visites ASC, s.date_debut ASC
+        ");
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 }

@@ -22,17 +22,17 @@ class UserProvider
     public function retrieveById($userId, $userType)
     {
         $table = $this->getTableForUserType($userType);
-        
+
         if (!$table) {
             return null;
         }
 
         $stmt = $this->pdo->prepare("
-            SELECT id, nom, prenom, mail AS email
+            SELECT id, nom, prenom, mail AS email, etablissement_id
             FROM `{$table}` WHERE id = ?
         ");
         $stmt->execute([$userId]);
-        
+
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($user) {
             $user['type'] = $userType;
@@ -58,14 +58,15 @@ class UserProvider
             return null;
         }
 
-        // Lookup by email OR identifiant
+        // Lookup by email OR identifiant, scoped to current establishment
+        $etabId = \API\Core\EstablishmentContext::id();
         $stmt = $this->pdo->prepare("
-            SELECT id, nom, prenom, mail AS email, mot_de_passe
-            FROM `{$table}` 
-            WHERE mail = ? OR identifiant = ?
+            SELECT id, nom, prenom, mail AS email, mot_de_passe, etablissement_id
+            FROM `{$table}`
+            WHERE (mail = ? OR identifiant = ?) AND etablissement_id = ?
             LIMIT 1
         ");
-        $stmt->execute([$login, $login]);
+        $stmt->execute([$login, $login, $etabId]);
 
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($user) {
@@ -103,16 +104,17 @@ class UserProvider
             'parent'         => 'parents',
         ];
 
+        $etabId = \API\Core\EstablishmentContext::id();
         $found = [];
         foreach ($types as $type => $table) {
             try {
                 $stmt = $this->pdo->prepare("
-                    SELECT id, nom, prenom, mail AS email, mot_de_passe, identifiant
+                    SELECT id, nom, prenom, mail AS email, mot_de_passe, identifiant, etablissement_id
                     FROM `{$table}`
-                    WHERE mail = ? OR identifiant = ?
+                    WHERE (mail = ? OR identifiant = ?) AND etablissement_id = ?
                     LIMIT 1
                 ");
-                $stmt->execute([$login, $login]);
+                $stmt->execute([$login, $login, $etabId]);
                 $user = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($user) {
                     $user['type'] = $type;

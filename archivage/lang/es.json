@@ -1,0 +1,13 @@
+{
+    "archivage.title": "Archivo",
+    "archivage.archive": "Archivar",
+    "archivage.restore": "Restaurar",
+    "archivage.school_year": "Año escolar",
+    "archivage.auto": "Archivo automático",
+    "archivage.manual": "Archivo manual",
+    "archivage.history": "Historial de archivos",
+    "archivage.transfer": "Transferencia de expediente",
+    "archivage.browse": "Consultar archivos",
+    "archivage.no_archives": "Ningún archivo disponible.",
+    "archivage.confirm": "¿Confirmar el archivo?"
+}

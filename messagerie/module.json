@@ -1,18 +1,41 @@
 {
     "key": "messagerie",
     "version": "1.0.0",
-    "name": { "fr": "Messagerie", "en": "Messaging" },
-    "description": { "fr": "Messagerie interne sécurisée", "en": "Secure internal messaging" },
+    "name": {
+        "fr": "Messagerie",
+        "en": "Messaging"
+    },
+    "description": {
+        "fr": "Messagerie interne sécurisée",
+        "en": "Secure internal messaging"
+    },
     "icon": "fas fa-envelope",
     "category": "communication",
     "core": false,
     "requires_php": ">=8.0",
     "dependencies": [],
     "permissions": {
-        "view": { "default_roles": ["*"] },
-        "send": { "default_roles": ["*"] },
-        "manage": { "default_roles": ["administrateur", "vie_scolaire"] },
-        "broadcast": { "default_roles": ["administrateur"] }
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "send": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire"
+            ]
+        },
+        "broadcast": {
+            "default_roles": [
+                "administrateur"
+            ]
+        }
     },
     "routes": {
         "main": "index.php",
@@ -21,12 +44,21 @@
     "widgets": [
         {
             "key": "messages_non_lus",
-            "name": { "fr": "Messages non lus", "en": "Unread messages" },
-            "description": { "fr": "Messages en attente de lecture", "en": "Messages awaiting reading" },
+            "name": {
+                "fr": "Messages non lus",
+                "en": "Unread messages"
+            },
+            "description": {
+                "fr": "Messages en attente de lecture",
+                "en": "Messages awaiting reading"
+            },
             "type": "stats",
             "icon": "fas fa-envelope",
             "roles": null,
-            "default_size": { "width": 1, "height": 1 },
+            "default_size": {
+                "width": 1,
+                "height": 1
+            },
             "min_width": 1,
             "max_width": 2,
             "is_default": true,
@@ -36,5 +68,15 @@
         }
     ],
     "establishment_types": null,
-    "sidebar": { "sort_order": 15 }
+    "sidebar": {
+        "sort_order": 15
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "communication",
+        "sort_order": 30
+    }
 }

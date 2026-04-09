@@ -1,0 +1,12 @@
+{
+    "garderie.title": "Garderie",
+    "garderie.register": "Inscrire",
+    "garderie.presence": "Présences",
+    "garderie.schedule": "Horaires",
+    "garderie.morning": "Matin",
+    "garderie.evening": "Soir",
+    "garderie.billing": "Facturation",
+    "garderie.student": "Élève",
+    "garderie.date": "Date",
+    "garderie.no_registrations": "Aucune inscription enregistrée."
+}

@@ -1,0 +1,16 @@
+{
+    "competences.title": "Competencias",
+    "competences.matrix": "Matriz de competencias",
+    "competences.radar": "Gráfico radar",
+    "competences.add_evaluation": "Añadir evaluación",
+    "competences.domain": "Dominio",
+    "competences.competence": "Competencia",
+    "competences.level": "Nivel",
+    "competences.mastered": "Dominado",
+    "competences.in_progress": "En curso",
+    "competences.not_mastered": "No dominado",
+    "competences.not_evaluated": "No evaluado",
+    "competences.eleve": "Alumno",
+    "competences.export_lsu": "Exportar LSU",
+    "competences.no_evaluations": "Ninguna evaluación registrada."
+}

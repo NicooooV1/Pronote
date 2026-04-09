@@ -185,6 +185,109 @@ class OrientationService
         return $map[$statut] ?? '<span class="badge">' . $statut . '</span>';
     }
 
+    /* ───────── COUNSELOR BOOKING ───────── */
+
+    /**
+     * Book a counselor appointment for a student.
+     */
+    public function prendreRdvConseiller(int $eleveId, string $date, string $heure, ?string $motif = null): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO orientation_rdv (eleve_id, date_rdv, heure_rdv, motif, statut)
+            VALUES (?, ?, ?, ?, 'planifie')
+        ");
+        $stmt->execute([$eleveId, $date, $heure, $motif]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Get upcoming counselor appointments.
+     */
+    public function getRdvConseiller(array $filters = []): array
+    {
+        $sql = "SELECT r.*, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom, c.nom AS classe_nom
+                FROM orientation_rdv r
+                JOIN eleves e ON r.eleve_id = e.id
+                LEFT JOIN classes c ON e.classe_id = c.id
+                WHERE 1=1";
+        $params = [];
+        if (!empty($filters['eleve_id'])) { $sql .= ' AND r.eleve_id = ?'; $params[] = $filters['eleve_id']; }
+        if (!empty($filters['statut'])) { $sql .= ' AND r.statut = ?'; $params[] = $filters['statut']; }
+        if (!empty($filters['date_debut'])) { $sql .= ' AND r.date_rdv >= ?'; $params[] = $filters['date_debut']; }
+        $sql .= ' ORDER BY r.date_rdv, r.heure_rdv';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Update counselor appointment status.
+     */
+    public function traiterRdv(int $rdvId, string $statut): void
+    {
+        $this->pdo->prepare("UPDATE orientation_rdv SET statut = ? WHERE id = ?")
+                   ->execute([$statut, $rdvId]);
+    }
+
+    /* ───────── CAREER CATALOG ───────── */
+
+    /**
+     * Get career/formation catalog entries.
+     */
+    public function getFichesMetiers(?string $secteur = null, ?string $recherche = null): array
+    {
+        $sql = "SELECT * FROM orientation_fiches_metiers WHERE 1=1";
+        $params = [];
+        if ($secteur) { $sql .= ' AND secteur = ?'; $params[] = $secteur; }
+        if ($recherche) {
+            $sql .= ' AND (nom LIKE ? OR description LIKE ?)';
+            $params[] = "%$recherche%";
+            $params[] = "%$recherche%";
+        }
+        $sql .= ' ORDER BY nom';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Create a career catalog entry.
+     */
+    public function creerFicheMetier(array $d): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO orientation_fiches_metiers (nom, secteur, description, formation_requise, debouches, salaire_moyen)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$d['nom'], $d['secteur'] ?? null, $d['description'] ?? null,
+                        $d['formation_requise'] ?? null, $d['debouches'] ?? null, $d['salaire_moyen'] ?? null]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Get orientation history for a student across years.
+     */
+    public function getHistoriqueParcours(int $eleveId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT f.*, (SELECT COUNT(*) FROM orientation_voeux v WHERE v.fiche_id = f.id) AS nb_voeux
+            FROM orientation_fiches f
+            WHERE f.eleve_id = ?
+            ORDER BY f.annee_scolaire DESC
+        ");
+        $stmt->execute([$eleveId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public static function secteursMetier(): array
+    {
+        return [
+            'sante' => 'Santé', 'informatique' => 'Informatique', 'commerce' => 'Commerce',
+            'industrie' => 'Industrie', 'education' => 'Éducation', 'arts' => 'Arts & Culture',
+            'droit' => 'Droit', 'sciences' => 'Sciences', 'social' => 'Social', 'autre' => 'Autre',
+        ];
+    }
+
     /* ───────── EXPORT ───────── */
 
     public function getFichesForExport(array $filters = []): array
@@ -222,5 +325,98 @@ class OrientationService
             }
         }
         return $rows;
+    }
+
+    // ─── DONNÉES PARCOURSUP ───
+
+    public function enregistrerVoeuParcoursup(int $ficheId, string $voeu, string $formation, string $etablissement, int $rang = 0): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO orientation_parcoursup (fiche_id, voeu, formation, etablissement, rang, statut) VALUES (:fid, :v, :f, :e, :r, 'en_attente')");
+        $stmt->execute([':fid' => $ficheId, ':v' => $voeu, ':f' => $formation, ':e' => $etablissement, ':r' => $rang]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getVoeuxParcoursup(int $ficheId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM orientation_parcoursup WHERE fiche_id = :fid ORDER BY rang");
+        $stmt->execute([':fid' => $ficheId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function majStatutParcoursup(int $voeuId, string $statut, ?int $rang = null): void
+    {
+        $sql = "UPDATE orientation_parcoursup SET statut = :s";
+        $params = [':s' => $statut, ':id' => $voeuId];
+        if ($rang !== null) { $sql .= ", rang = :r"; $params[':r'] = $rang; }
+        $sql .= " WHERE id = :id";
+        $this->pdo->prepare($sql)->execute($params);
+    }
+
+    // ─── QUESTIONNAIRE INTÉRÊTS ───
+
+    public function genererQuestionnaireInterets(int $eleveId): array
+    {
+        $domaines = [
+            'sciences' => ['Mathématiques', 'Physique-Chimie', 'SVT', 'Informatique'],
+            'lettres' => ['Français', 'Philosophie', 'Langues étrangères', 'Histoire-Géo'],
+            'arts' => ['Arts plastiques', 'Musique', 'Théâtre', 'Cinéma'],
+            'technique' => ['Technologie', 'Électronique', 'Mécanique', 'BTP'],
+            'social' => ['Santé', 'Éducation', 'Social', 'Droit'],
+            'commerce' => ['Commerce', 'Marketing', 'Gestion', 'Économie'],
+        ];
+
+        $questions = [];
+        foreach ($domaines as $domaine => $exemples) {
+            $questions[] = [
+                'domaine' => $domaine,
+                'question' => "Sur une échelle de 1 à 5, quel est votre intérêt pour le domaine : " . ucfirst($domaine) . " ?",
+                'exemples' => $exemples,
+                'type' => 'likert'
+            ];
+        }
+
+        return ['eleve_id' => $eleveId, 'questions' => $questions];
+    }
+
+    // ─── SUIVI ALUMNI ───
+
+    public function enregistrerAlumni(int $ancienEleveId, string $formationActuelle, string $etablissement, string $anneeSortie): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO orientation_alumni (ancien_eleve_id, formation_actuelle, etablissement, annee_sortie) VALUES (:aeid, :fa, :e, :as) ON DUPLICATE KEY UPDATE formation_actuelle=VALUES(formation_actuelle), etablissement=VALUES(etablissement)");
+        $stmt->execute([':aeid' => $ancienEleveId, ':fa' => $formationActuelle, ':e' => $etablissement, ':as' => $anneeSortie]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getAlumni(string $anneeSortie = ''): array
+    {
+        $sql = "SELECT a.*, CONCAT(e.prenom,' ',e.nom) AS nom_complet FROM orientation_alumni a JOIN eleves e ON a.ancien_eleve_id = e.id";
+        $params = [];
+        if ($anneeSortie) { $sql .= " WHERE a.annee_sortie = :as"; $params[':as'] = $anneeSortie; }
+        $sql .= " ORDER BY a.annee_sortie DESC, e.nom";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    // ─── PLANNING ENTRETIENS ───
+
+    public function planifierEntretien(int $eleveId, int $ppId, string $dateEntretien, string $motif = ''): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO orientation_entretiens (eleve_id, pp_id, date_entretien, motif, statut) VALUES (:eid, :pid, :d, :m, 'planifie')");
+        $stmt->execute([':eid' => $eleveId, ':pid' => $ppId, ':d' => $dateEntretien, ':m' => $motif]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getEntretiens(int $ppId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT oe.*, CONCAT(e.prenom,' ',e.nom) AS eleve_nom, e.classe FROM orientation_entretiens oe JOIN eleves e ON oe.eleve_id = e.id WHERE oe.pp_id = :pid ORDER BY oe.date_entretien ASC");
+        $stmt->execute([':pid' => $ppId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function completerEntretien(int $entretienId, string $compteRendu, string $recommandations = ''): void
+    {
+        $this->pdo->prepare("UPDATE orientation_entretiens SET statut = 'realise', compte_rendu = :cr, recommandations = :r WHERE id = :id")
+            ->execute([':cr' => $compteRendu, ':r' => $recommandations, ':id' => $entretienId]);
     }
 }

@@ -99,6 +99,27 @@
   --font-lg: clamp(1.125rem, 1.05rem + 0.35vw, 1.375rem);     /* 18-22px */
   --font-xl: clamp(1.375rem, 1.25rem + 0.5vw, 1.75rem);       /* 22-28px */
   --font-2xl: clamp(1.75rem, 1.5rem + 0.8vw, 2.25rem);        /* 28-36px */
+
+  /* ── Semantic aliases (used by components.css) ── */
+  --primary: var(--ds-primary);
+  --primary-dark: var(--ds-primary-hover);
+  --bg-white: var(--ds-surface);
+  --bg-light: var(--ds-bg);
+  --text: var(--ds-text);
+  --text-muted: var(--ds-text-muted);
+  --border-color: var(--ds-border);
+  --primary-bg: rgba(37, 99, 235, 0.04);
+
+  /* ── Spacing (4px grid, used by utility classes) ── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
 }
 
 /* ===================================================================
@@ -144,4 +165,14 @@
   --ds-shadow: 0 1px 3px rgba(0,0,0,.3);
   --ds-shadow-md: 0 4px 6px rgba(0,0,0,.3);
   --ds-shadow-lg: 0 10px 15px rgba(0,0,0,.4);
+
+  /* ── Semantic aliases (dark) ── */
+  --primary: var(--ds-primary);
+  --primary-dark: var(--ds-primary-hover);
+  --bg-white: var(--ds-surface);
+  --bg-light: var(--ds-bg);
+  --text: var(--ds-text);
+  --text-muted: var(--ds-text-muted);
+  --border-color: var(--ds-border);
+  --primary-bg: rgba(59, 130, 246, 0.06);
 }

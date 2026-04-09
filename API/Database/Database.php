@@ -42,16 +42,23 @@ class Database
                 $this->config['charset'] ?? 'utf8mb4'
             );
 
-            $this->connection = new PDO(
-                $dsn,
-                $this->config['username'],
-                $this->config['password'],
-                [
+            $options = [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                     PDO::ATTR_EMULATE_PREPARES => false,
                     PDO::ATTR_TIMEOUT => 5,
-                ]
+                ];
+
+            // Persistent connections in production
+            if (($this->config['persistent'] ?? false) || (getenv('APP_ENV') === 'production' && getenv('DB_PERSISTENT') === 'true')) {
+                $options[PDO::ATTR_PERSISTENT] = true;
+            }
+
+            $this->connection = new PDO(
+                $dsn,
+                $this->config['username'],
+                $this->config['password'],
+                $options
             );
 
             return $this->connection;

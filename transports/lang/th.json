@@ -1,0 +1,12 @@
+{
+    "transports.title": "การขนส่ง",
+    "transports.lines": "Bus Lines",
+    "transports.stops": "Stops",
+    "transports.register": "Transportation Registration",
+    "transports.delays": "Delays",
+    "transports.line_name": "Line Name",
+    "transports.departure": "Departure",
+    "transports.arrival": "Arrival",
+    "transports.schedule": "Schedule",
+    "transports.no_lines": "No transportation lines available."
+}

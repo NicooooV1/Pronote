@@ -1,0 +1,13 @@
+{
+    "admin.title": "Beheer",
+    "admin.dashboard": "Dashboard",
+    "admin.users": "Users",
+    "admin.modules": "Modules",
+    "admin.settings": "Settings",
+    "admin.system": "System",
+    "admin.maintenance": "Maintenance",
+    "admin.about": "About",
+    "admin.logs": "Logs",
+    "admin.backup": "Backup",
+    "admin.stats": "Statistics"
+}

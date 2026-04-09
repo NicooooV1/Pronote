@@ -2,10 +2,11 @@
 namespace API\Services;
 
 use PDO;
+use API\Core\EstablishmentContext;
 
 /**
- * Service de gestion de l'établissement
- * Gère les classes, matières, périodes, et configuration
+ * Service de gestion des etablissements.
+ * Multi-etablissement : utilise EstablishmentContext pour scoper les requetes.
  */
 class EtablissementService
 {
@@ -18,72 +19,160 @@ class EtablissementService
     }
 
     /**
-     * Récupère toutes les données de l'établissement
+     * Recupere l'etablissement courant.
      */
-    public function getData()
+    public function getCurrent(): ?array
     {
-        return [
-            'info' => $this->getInfo(),
-            'classes' => $this->getClasses(),
-            'matieres' => $this->getMatieres(),
-            'periodes' => $this->getPeriodes()
-        ];
+        return $this->getById(EstablishmentContext::id());
     }
 
     /**
-     * Récupère les informations de l'établissement
+     * Recupere un etablissement par ID.
      */
-    public function getInfo()
+    public function getById(int $id): ?array
     {
-        if (isset($this->cache['info'])) {
-            return $this->cache['info'];
+        $key = 'etab_' . $id;
+        if (isset($this->cache[$key])) {
+            return $this->cache[$key];
         }
 
         try {
-            $stmt = $this->pdo->query("SELECT * FROM etablissement_info LIMIT 1");
+            $stmt = $this->pdo->prepare("SELECT * FROM etablissements WHERE id = ?");
+            $stmt->execute([$id]);
             $info = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$info) {
-                $info = $this->createDefaultInfo();
-            }
+            $this->cache[$key] = $info ?: null;
+            return $this->cache[$key];
         } catch (\PDOException $e) {
-            // Table might not exist yet
-            $info = [
-                'nom' => 'Établissement Scolaire',
-                'adresse' => '',
-                'code_postal' => '',
-                'ville' => '',
-                'telephone' => '',
-                'email' => '',
-                'academie' => ''
-            ];
+            return null;
         }
-
-        $this->cache['info'] = $info;
-        return $info;
     }
 
     /**
-     * Récupère toutes les classes
+     * Alias legacy — retourne les infos de l'etablissement courant.
      */
-    public function getClasses()
+    public function getInfo(): ?array
+    {
+        return $this->getCurrent();
+    }
+
+    /**
+     * Recupere tous les etablissements actifs.
+     */
+    public function getAll(bool $activeOnly = true): array
+    {
+        try {
+            $sql = "SELECT * FROM etablissements";
+            if ($activeOnly) {
+                $sql .= " WHERE actif = 1";
+            }
+            $sql .= " ORDER BY nom";
+            return $this->pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Cree un nouvel etablissement.
+     */
+    public function create(array $data): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO etablissements (nom, code, type, adresse, code_postal, ville, telephone, fax, email,
+                                        chef_etablissement, academie, code_uai, annee_scolaire, default_locale)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $data['nom'] ?? 'Nouvel Etablissement',
+            $data['code'] ?? 'etab-' . bin2hex(random_bytes(4)),
+            $data['type'] ?? 'college',
+            $data['adresse'] ?? null,
+            $data['code_postal'] ?? null,
+            $data['ville'] ?? null,
+            $data['telephone'] ?? null,
+            $data['fax'] ?? null,
+            $data['email'] ?? null,
+            $data['chef_etablissement'] ?? null,
+            $data['academie'] ?? null,
+            $data['code_uai'] ?? null,
+            $data['annee_scolaire'] ?? date('Y') . '-' . (date('Y') + 1),
+            $data['default_locale'] ?? 'fr',
+        ]);
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    /**
+     * Met a jour un etablissement.
+     */
+    public function update(int $id, array $data): bool
+    {
+        $allowed = ['nom', 'code', 'type', 'adresse', 'code_postal', 'ville', 'telephone', 'fax',
+                     'email', 'chef_etablissement', 'academie', 'code_uai', 'annee_scolaire',
+                     'logo', 'couleur_primaire', 'couleur_secondaire', 'css_personnalise',
+                     'favicon', 'pied_de_page', 'default_locale', 'actif'];
+
+        $fields = [];
+        $values = [];
+        foreach ($allowed as $field) {
+            if (array_key_exists($field, $data)) {
+                $fields[] = "`{$field}` = ?";
+                $values[] = $data[$field];
+            }
+        }
+
+        if (empty($fields)) {
+            return false;
+        }
+
+        $values[] = $id;
+        $stmt = $this->pdo->prepare("UPDATE etablissements SET " . implode(', ', $fields) . " WHERE id = ?");
+        $result = $stmt->execute($values);
+
+        unset($this->cache['etab_' . $id]);
+        return $result;
+    }
+
+    /**
+     * Desactive un etablissement (soft delete).
+     */
+    public function deactivate(int $id): bool
+    {
+        return $this->update($id, ['actif' => 0]);
+    }
+
+    // ──── Donnees scolaires scopees ────────────────────────────────
+
+    /**
+     * Recupere toutes les donnees de l'etablissement courant.
+     */
+    public function getData(): array
+    {
+        return [
+            'info' => $this->getCurrent(),
+            'classes' => $this->getClasses(),
+            'matieres' => $this->getMatieres(),
+            'periodes' => $this->getPeriodes(),
+        ];
+    }
+
+    public function getClasses(): array
     {
         if (isset($this->cache['classes'])) {
             return $this->cache['classes'];
         }
 
         try {
-            $stmt = $this->pdo->query("
-                SELECT * FROM classes 
+            $stmt = $this->pdo->prepare("
+                SELECT * FROM classes
+                WHERE etablissement_id = ?
                 ORDER BY niveau, nom
             ");
-            
+            $stmt->execute([EstablishmentContext::id()]);
             $classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (\PDOException $e) {
             $classes = [];
         }
-        
-        // Organiser par niveau
+
         $organized = [];
         foreach ($classes as $classe) {
             $niveau = $classe['niveau'];
@@ -97,22 +186,20 @@ class EtablissementService
         return $organized;
     }
 
-    /**
-     * Récupère toutes les matières
-     */
-    public function getMatieres()
+    public function getMatieres(): array
     {
         if (isset($this->cache['matieres'])) {
             return $this->cache['matieres'];
         }
 
         try {
-            $stmt = $this->pdo->query("
-                SELECT code, nom, couleur 
-                FROM matieres 
+            $stmt = $this->pdo->prepare("
+                SELECT code, nom, couleur
+                FROM matieres
+                WHERE etablissement_id = ?
                 ORDER BY nom
             ");
-            
+            $stmt->execute([EstablishmentContext::id()]);
             $this->cache['matieres'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (\PDOException $e) {
             $this->cache['matieres'] = [];
@@ -120,21 +207,19 @@ class EtablissementService
         return $this->cache['matieres'];
     }
 
-    /**
-     * Récupère toutes les périodes (trimestres/semestres)
-     */
-    public function getPeriodes()
+    public function getPeriodes(): array
     {
         if (isset($this->cache['periodes'])) {
             return $this->cache['periodes'];
         }
 
         try {
-            $stmt = $this->pdo->query("
-                SELECT * FROM periodes 
+            $stmt = $this->pdo->prepare("
+                SELECT * FROM periodes
+                WHERE etablissement_id = ?
                 ORDER BY date_debut
             ");
-            
+            $stmt->execute([EstablishmentContext::id()]);
             $this->cache['periodes'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (\PDOException $e) {
             $this->cache['periodes'] = [];
@@ -143,116 +228,69 @@ class EtablissementService
     }
 
     /**
-     * Met à jour les informations de l'établissement
+     * Met a jour les informations de l'etablissement courant.
      */
-    public function updateInfo($data)
+    public function updateInfo(array $data): bool
     {
-        try {
-            $stmt = $this->pdo->prepare("
-                UPDATE etablissement_info SET
-                    nom = ?,
-                    adresse = ?,
-                    code_postal = ?,
-                    ville = ?,
-                    telephone = ?,
-                    email = ?,
-                    academie = ?
-                WHERE id = 1
-            ");
-
-            $result = $stmt->execute([
-                $data['nom'] ?? '',
-                $data['adresse'] ?? '',
-                $data['code_postal'] ?? '',
-                $data['ville'] ?? '',
-                $data['telephone'] ?? '',
-                $data['email'] ?? '',
-                $data['academie'] ?? ''
-            ]);
-
-            unset($this->cache['info']);
-            return $result;
-        } catch (\PDOException $e) {
-            error_log("EtablissementService::updateInfo error: " . $e->getMessage());
-            return false;
-        }
+        return $this->update(EstablishmentContext::id(), $data);
     }
 
-    /**
-     * Ajoute une classe
-     */
-    public function addClasse($niveau, $nom)
+    public function addClasse(string $niveau, string $nom): bool
     {
         try {
             $stmt = $this->pdo->prepare("
-                INSERT INTO classes (niveau, nom) 
-                VALUES (?, ?)
+                INSERT INTO classes (niveau, nom, annee_scolaire, etablissement_id)
+                VALUES (?, ?, ?, ?)
             ");
-            
-            $result = $stmt->execute([$niveau, $nom]);
+            $etab = $this->getCurrent();
+            $result = $stmt->execute([$niveau, $nom, $etab['annee_scolaire'] ?? date('Y') . '-' . (date('Y') + 1), EstablishmentContext::id()]);
             unset($this->cache['classes']);
             return $result;
         } catch (\PDOException $e) {
-            error_log("EtablissementService::addClasse error: " . $e->getMessage());
             return false;
         }
     }
 
-    /**
-     * Supprime une classe
-     */
-    public function deleteClasse($id)
+    public function deleteClasse(int $id): bool
     {
-        $stmt = $this->pdo->prepare("DELETE FROM classes WHERE id = ?");
-        $result = $stmt->execute([$id]);
+        $stmt = $this->pdo->prepare("DELETE FROM classes WHERE id = ? AND etablissement_id = ?");
+        $result = $stmt->execute([$id, EstablishmentContext::id()]);
         unset($this->cache['classes']);
         return $result;
     }
 
-    /**
-     * Ajoute une matière
-     */
-    public function addMatiere($code, $nom, $couleur = '#3498db')
+    public function addMatiere(string $code, string $nom, string $couleur = '#3498db'): bool
     {
         try {
             $stmt = $this->pdo->prepare("
-                INSERT INTO matieres (code, nom, couleur) 
-                VALUES (?, ?, ?)
+                INSERT INTO matieres (code, nom, couleur, etablissement_id)
+                VALUES (?, ?, ?, ?)
             ");
-            
-            $result = $stmt->execute([$code, $nom, $couleur]);
+            $result = $stmt->execute([$code, $nom, $couleur, EstablishmentContext::id()]);
             unset($this->cache['matieres']);
             return $result;
         } catch (\PDOException $e) {
-            error_log("EtablissementService::addMatiere error: " . $e->getMessage());
             return false;
         }
     }
 
-    /**
-     * Supprime une matière
-     */
-    public function deleteMatiere($id)
+    public function deleteMatiere(int $id): bool
     {
-        $stmt = $this->pdo->prepare("DELETE FROM matieres WHERE id = ?");
-        $result = $stmt->execute([$id]);
+        $stmt = $this->pdo->prepare("DELETE FROM matieres WHERE id = ? AND etablissement_id = ?");
+        $result = $stmt->execute([$id, EstablishmentContext::id()]);
         unset($this->cache['matieres']);
         return $result;
     }
 
-    /**
-     * Configure les périodes (trimestres ou semestres)
-     */
-    public function configurePeriodes($type, $periodes)
+    public function configurePeriodes(string $type, array $periodes): bool
     {
         try {
-            // Supprimer les anciennes périodes
-            $this->pdo->exec("DELETE FROM periodes");
+            $etabId = EstablishmentContext::id();
+            $this->pdo->prepare("DELETE FROM periodes WHERE etablissement_id = ?")->execute([$etabId]);
 
-            // Ajouter les nouvelles périodes
             $stmt = $this->pdo->prepare("
-                INSERT INTO periodes (numero, nom, type, date_debut, date_fin) 
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO periodes (numero, nom, type, date_debut, date_fin, etablissement_id)
+                VALUES (?, ?, ?, ?, ?, ?)
             ");
 
             foreach ($periodes as $index => $periode) {
@@ -261,68 +299,30 @@ class EtablissementService
                     $periode['nom'],
                     $type,
                     $periode['date_debut'],
-                    $periode['date_fin']
+                    $periode['date_fin'],
+                    $etabId,
                 ]);
             }
 
             unset($this->cache['periodes']);
             return true;
         } catch (\PDOException $e) {
-            error_log("EtablissementService::configurePeriodes error: " . $e->getMessage());
             return false;
         }
     }
 
-    /**
-     * Récupère la période actuelle
-     */
-    public function getPeriodeCourante()
+    public function getPeriodeCourante(): ?array
     {
         $stmt = $this->pdo->prepare("
-            SELECT * FROM periodes 
-            WHERE CURDATE() BETWEEN date_debut AND date_fin 
+            SELECT * FROM periodes
+            WHERE CURDATE() BETWEEN date_debut AND date_fin AND etablissement_id = ?
             LIMIT 1
         ");
-        
-        $stmt->execute();
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->execute([EstablishmentContext::id()]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
-    /**
-     * Crée les informations par défaut de l'établissement
-     */
-    protected function createDefaultInfo()
-    {
-        $defaultInfo = [
-            'nom' => 'Établissement Scolaire',
-            'adresse' => '1 rue de l\'Education',
-            'code_postal' => '75001',
-            'ville' => 'Paris',
-            'telephone' => '01 23 45 67 89',
-            'email' => 'contact@etablissement.fr',
-            'academie' => 'Paris'
-        ];
-
-        try {
-            $stmt = $this->pdo->prepare("
-                INSERT INTO etablissement_info 
-                (nom, adresse, code_postal, ville, telephone, email, academie) 
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ");
-
-            $stmt->execute(array_values($defaultInfo));
-        } catch (\PDOException $e) {
-            // Table might not exist, return defaults anyway
-            error_log("EtablissementService::createDefaultInfo error: " . $e->getMessage());
-        }
-        
-        return $defaultInfo;
-    }
-
-    /**
-     * Vide le cache
-     */
-    public function clearCache()
+    public function clearCache(): void
     {
         $this->cache = [];
     }

@@ -466,12 +466,232 @@ $pdo = getPDO();
 $pdo->exec("DROP TABLE IF EXISTS `mon_module_data`");
 ```
 
+## Credits
+
+Chaque `module.json` doit inclure les informations de credits :
+
+```json
+{
+  "author": "Fronote Team",
+  "author_url": "",
+  "contributors": [],
+  "license": "MIT"
+}
+```
+
+| Champ | Type | Description |
+|---|---|---|
+| `author` | string | Nom de l'auteur principal (defaut: `"Fronote Team"`) |
+| `author_url` | string | URL du profil de l'auteur (GitHub, site web) |
+| `contributors` | array | Liste des contributeurs (`["PseudoGH", "Autre"]`) |
+| `license` | string | Licence du module (`"MIT"`, `"GPL-3.0"`, etc.) |
+
+Ces champs sont synchronises en base dans `modules_config` par le ModuleSDK et affiches dans `admin/modules/credits.php`.
+
+## Settings Schema
+
+Le champ `settings_schema` de `module.json` definit les parametres configurables par l'administrateur :
+
+```json
+{
+  "settings_schema": {
+    "note_max": {
+      "type": "number",
+      "label": { "fr": "Note maximale", "en": "Maximum grade" },
+      "default": 20,
+      "min": 0,
+      "max": 100
+    },
+    "allow_comments": {
+      "type": "checkbox",
+      "label": { "fr": "Autoriser les commentaires", "en": "Allow comments" },
+      "default": true
+    },
+    "display_mode": {
+      "type": "select",
+      "label": { "fr": "Mode d'affichage", "en": "Display mode" },
+      "options": [
+        { "value": "list", "label": { "fr": "Liste", "en": "List" } },
+        { "value": "grid", "label": { "fr": "Grille", "en": "Grid" } }
+      ],
+      "default": "list"
+    }
+  }
+}
+```
+
+### Types supportes
+
+| Type | Description | Options supplementaires |
+|---|---|---|
+| `text` | Champ texte | `maxlength`, `placeholder` |
+| `number` | Champ numerique | `min`, `max`, `step` |
+| `checkbox` | Case a cocher | — |
+| `select` | Liste deroulante | `options` (array de `{value, label}`) |
+| `textarea` | Zone de texte | `rows`, `maxlength` |
+| `color` | Selecteur couleur | — |
+
+Les parametres sont edites dans `admin/modules/configure.php` et stockes dans la table `module_settings`.
+
+## AJAX avec FronoteAjax
+
+### Client (JavaScript)
+
+Le fichier `assets/js/fronote-ajax.js` est charge globalement. Il fournit :
+
+```javascript
+// POST avec CSRF automatique
+FronoteAjax.post('/API/endpoints/mon_module.php', {
+    action: 'create',
+    title: 'Mon titre'
+}).then(function(data) {
+    FronoteToast.success(data.message);
+}).catch(function(err) {
+    // Erreur deja affichee en toast par defaut
+});
+
+// GET
+FronoteAjax.get('/API/endpoints/mon_module.php', { action: 'list' });
+
+// Soumettre un formulaire
+FronoteAjax.submitForm(document.getElementById('myForm'));
+
+// Suppression avec confirmation
+FronoteAjax.confirmDelete(
+    '/API/endpoints/mon_module.php',
+    { action: 'delete', id: 42 },
+    'Supprimer cet element ?'
+);
+
+// Upload avec progression
+FronoteAjax.upload('/API/endpoints/upload.php', file, 'fichier', {}, function(pct) {
+    console.log(pct + '% uploaded');
+});
+```
+
+### Serveur (PHP)
+
+```php
+<?php
+// API/endpoints/mon_module.php
+require_once dirname(__DIR__) . '/core.php';
+requireAuth();
+
+use API\Core\AjaxResponse;
+
+// Valider AJAX + CSRF
+AjaxResponse::guard();
+
+$action = $_POST['action'] ?? $_GET['action'] ?? '';
+
+switch ($action) {
+    case 'list':
+        $items = getItems($pdo);
+        AjaxResponse::success('OK', ['items' => $items]);
+        break;
+
+    case 'create':
+        $title = trim($_POST['title'] ?? '');
+        if (empty($title)) {
+            AjaxResponse::error('Le titre est requis', ['title' => 'Champ obligatoire'], 422);
+        }
+        $id = createItem($pdo, $title);
+        AjaxResponse::success('Element cree', ['id' => $id]);
+        break;
+
+    case 'delete':
+        requireRole('administrateur');
+        $id = (int)($_POST['id'] ?? 0);
+        deleteItem($pdo, $id);
+        AjaxResponse::success('Element supprime');
+        break;
+
+    default:
+        AjaxResponse::error('Action inconnue', [], 404);
+}
+```
+
+### Methodes AjaxResponse
+
+| Methode | Description |
+|---|---|
+| `AjaxResponse::success($message, $data, $code)` | Reponse JSON succes |
+| `AjaxResponse::error($message, $errors, $code)` | Reponse JSON erreur |
+| `AjaxResponse::redirect($url, $message)` | Instruction de redirection |
+| `AjaxResponse::paginated($items, $total, $page, $perPage)` | Reponse paginee |
+| `AjaxResponse::guard()` | Valide AJAX + CSRF (combine `requireAjax()` + `requireCsrf()`) |
+
+## Composants UI
+
+`API/UI/Components.php` fournit 17 composants PHP accessibles globalement :
+
+```php
+// Card
+echo ui_card('Titre', '<p>Contenu</p>', ['icon' => 'fas fa-star', 'collapsible' => true]);
+
+// Table triable
+echo ui_table(
+    [['label' => 'Nom', 'width' => '40%'], ['label' => 'Note', 'align' => 'center']],
+    [['Jean Dupont', '15/20'], ['Marie Martin', '18/20']]
+);
+
+// Modal
+echo ui_modal('modal-confirm', 'Confirmation', '<p>Etes-vous sur ?</p>');
+
+// Form group
+echo ui_form_group('Email', '<input type="email" name="email" class="form-control">');
+
+// Badge
+echo ui_badge('Actif', 'success');  // variantes: success, danger, warning, info, primary
+
+// Pagination
+echo ui_pagination($currentPage, $totalItems, $perPage, '/notes?page=');
+
+// Stat card (dashboard)
+echo ui_stat_card('Eleves', '342', ['icon' => 'fas fa-users', 'color' => 'primary']);
+
+// Empty state
+echo ui_empty_state('Aucun resultat', 'fas fa-search', 'Creer', '/notes/create');
+
+// Alert
+echo ui_alert('Operation reussie', 'success');
+
+// Breadcrumb
+echo ui_breadcrumb([['label' => 'Accueil', 'url' => '/'], ['label' => 'Notes']]);
+
+// Avatar
+echo ui_avatar('JD', ['size' => 'lg', 'color' => 'primary']);
+
+// Tabs
+echo ui_tabs(['general' => 'General', 'advanced' => 'Avance'], 'general');
+
+// Dropdown
+echo ui_dropdown('<button>Menu</button>', [
+    ['label' => 'Modifier', 'url' => '#', 'icon' => 'fas fa-edit'],
+    ['label' => 'Supprimer', 'url' => '#', 'icon' => 'fas fa-trash', 'class' => 'text-danger'],
+]);
+
+// Button
+echo ui_button('Sauvegarder', ['type' => 'submit', 'variant' => 'primary', 'icon' => 'fas fa-save']);
+
+// Toast container (une fois par page, deja dans shared_footer)
+echo ui_toast_container();
+
+// Skeleton (placeholder de chargement)
+echo ui_skeleton('card');  // types: card, table, text, avatar
+```
+
+Tous les composants suivent la convention CSS BEM (`.ui-card`, `.ui-card__header`, `.ui-card--collapsed`).
+
 ## Bonnes pratiques
 
-1. **Nommage** : Utilisez le `key` du module comme préfixe pour vos tables SQL, clés de cache, et clés de traduction
-2. **Sécurité** : Toujours valider les inputs, utiliser des requêtes préparées, vérifier le CSRF sur les mutations
-3. **Performance** : Utilisez le cache pour les données coûteuses, évitez les requêtes N+1
-4. **i18n** : Ne hardcodez jamais de texte en français — utilisez `__()` partout
-5. **RBAC** : Vérifiez les permissions avant chaque action sensible
-6. **Audit** : Loggez les créations, modifications et suppressions de données
-7. **CSP** : N'utilisez pas d'inline styles ni de scripts inline — utilisez des classes CSS et des fichiers JS séparés
+1. **Nommage** : Utilisez le `key` du module comme prefixe pour vos tables SQL, cles de cache, et cles de traduction
+2. **Securite** : Toujours valider les inputs, utiliser des requetes preparees, verifier le CSRF sur les mutations
+3. **Performance** : Utilisez le cache pour les donnees couteuses, evitez les requetes N+1
+4. **i18n** : Ne hardcodez jamais de texte en francais — utilisez `__()` partout
+5. **RBAC** : Verifiez les permissions avant chaque action sensible
+6. **Audit** : Loggez les creations, modifications et suppressions de donnees
+7. **CSP** : N'utilisez pas d'inline styles ni de scripts inline — utilisez des classes CSS et des fichiers JS separes
+8. **AJAX** : Utilisez `FronoteAjax` + `AjaxResponse` pour toutes les operations asynchrones
+9. **Composants UI** : Utilisez les composants PHP (`ui_card`, `ui_table`, etc.) plutot que du HTML brut
+10. **Feature flags** : Enveloppez les fonctionnalites optionnelles dans `app('features')->isEnabled('module.feature')`

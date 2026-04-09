@@ -1,0 +1,17 @@
+{
+    "appel.title": "Anwesenheit",
+    "appel.do_call": "Anwesenheit pruefen",
+    "appel.present": "Anwesend",
+    "appel.absent": "Abwesend",
+    "appel.late": "Verspaetet",
+    "appel.excused": "Entschuldigt",
+    "appel.save": "Anwesenheit speichern",
+    "appel.history": "Anwesenheitshistorie",
+    "appel.class": "Klasse",
+    "appel.date": "Datum",
+    "appel.hour": "Uhrzeit",
+    "appel.status": "Status",
+    "appel.no_students": "Keine Schueler in dieser Klasse.",
+    "appel.saved": "Anwesenheit erfolgreich gespeichert.",
+    "appel.realtime": "Echtzeit-Anwesenheit"
+}

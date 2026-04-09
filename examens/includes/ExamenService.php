@@ -202,6 +202,107 @@ class ExamenService
         return '<span class="badge badge-' . ($map[$s] ?? 'secondary') . '">' . ucfirst(str_replace('_', ' ', $s)) . '</span>';
     }
 
+    /* ───────── AUTO ROOM ASSIGNMENT ───────── */
+
+    /**
+     * Automatically assign students to rooms for an exam based on room capacity.
+     * @return array ['assigned' => int, 'rooms' => [...]]
+     */
+    public function autoAssignRooms(int $epreuveId): array
+    {
+        $epreuve = $this->getEpreuve($epreuveId);
+        if (!$epreuve) throw new \Exception("Épreuve introuvable");
+
+        // Get all convocated students
+        $convocations = $this->getConvocations($epreuveId);
+        if (empty($convocations)) return ['assigned' => 0, 'rooms' => []];
+
+        // Get available rooms sorted by capacity
+        $salles = $this->pdo->query("SELECT * FROM salles WHERE actif = 1 ORDER BY capacite DESC")->fetchAll(\PDO::FETCH_ASSOC);
+        if (empty($salles)) throw new \Exception("Aucune salle disponible");
+
+        $assigned = 0;
+        $roomAssignments = [];
+        $studentIndex = 0;
+        $totalStudents = count($convocations);
+
+        foreach ($salles as $salle) {
+            if ($studentIndex >= $totalStudents) break;
+
+            $capacity = (int) ($salle['capacite'] ?? 30);
+            $roomStudents = 0;
+
+            while ($studentIndex < $totalStudents && $roomStudents < $capacity) {
+                $conv = $convocations[$studentIndex];
+                $place = $roomStudents + 1;
+
+                // Update convocation with room and place
+                $stmt = $this->pdo->prepare("
+                    UPDATE epreuve_convocations SET salle_id = ?, place = ? WHERE id = ?
+                ");
+                $stmt->execute([$salle['id'], (string) $place, $conv['id']]);
+
+                $roomStudents++;
+                $studentIndex++;
+                $assigned++;
+            }
+
+            $roomAssignments[] = [
+                'salle_id'   => $salle['id'],
+                'salle_nom'  => $salle['nom'],
+                'nb_places'  => $roomStudents,
+                'capacite'   => $capacity,
+            ];
+        }
+
+        return ['assigned' => $assigned, 'rooms' => $roomAssignments];
+    }
+
+    /**
+     * Generate surveillance planning for an exam (rotate profs across rooms/epreuves).
+     */
+    public function generateSurveillancePlanning(int $examenId): array
+    {
+        $epreuves = $this->getEpreuves($examenId);
+        $profs = $this->getProfesseurs();
+        if (empty($epreuves) || empty($profs)) return [];
+
+        $planning = [];
+        $profIndex = 0;
+        $totalProfs = count($profs);
+
+        foreach ($epreuves as $ep) {
+            // Need at least 1 surveillant per 30 students
+            $nbConvocations = $ep['nb_convocations'] ?? 0;
+            $nbSurveillants = max(1, (int) ceil($nbConvocations / 30));
+
+            $epPlanRow = [
+                'epreuve_id' => $ep['id'],
+                'intitule'   => $ep['intitule'],
+                'date'       => $ep['date_epreuve'],
+                'surveillants' => [],
+            ];
+
+            for ($i = 0; $i < $nbSurveillants && $i < $totalProfs; $i++) {
+                $prof = $profs[$profIndex % $totalProfs];
+                $role = ($i === 0) ? 'responsable' : 'surveillant';
+
+                $this->ajouterSurveillant($ep['id'], $prof['id'], $role);
+
+                $epPlanRow['surveillants'][] = [
+                    'prof_id'  => $prof['id'],
+                    'prof_nom' => $prof['prenom'] . ' ' . $prof['nom'],
+                    'role'     => $role,
+                ];
+                $profIndex++;
+            }
+
+            $planning[] = $epPlanRow;
+        }
+
+        return $planning;
+    }
+
     /* ───────── STATISTIQUES RÉSULTATS ───────── */
 
     /**
@@ -268,5 +369,135 @@ class ExamenService
             ];
         }
         return $rows;
+    }
+
+    // ─── PLAN DE SALLE AUTO ───
+
+    /**
+     * Génère un plan de salle automatique pour une épreuve.
+     * Méthodes : 'alphabetique', 'aleatoire', 'alterne' (une place sur deux).
+     */
+    public function genererPlanSalle(int $epreuveId, string $methode = 'alphabetique'): array
+    {
+        $convocations = $this->getConvocations($epreuveId);
+        if (empty($convocations)) return [];
+
+        $eleves = $convocations;
+        switch ($methode) {
+            case 'aleatoire': shuffle($eleves); break;
+            case 'alterne':
+                usort($eleves, fn($a, $b) => strcmp($a['eleve_nom'] ?? $a['nom'] ?? '', $b['eleve_nom'] ?? $b['nom'] ?? ''));
+                break;
+            default: // alphabetique
+                usort($eleves, fn($a, $b) => strcmp($a['eleve_nom'] ?? $a['nom'] ?? '', $b['eleve_nom'] ?? $b['nom'] ?? ''));
+        }
+
+        $places = [];
+        $numero = 1;
+        $increment = $methode === 'alterne' ? 2 : 1;
+        foreach ($eleves as $e) {
+            $place = str_pad((string)$numero, 3, '0', STR_PAD_LEFT);
+            $places[] = ['convocation_id' => $e['id'], 'eleve_nom' => ($e['eleve_prenom'] ?? $e['prenom'] ?? '') . ' ' . ($e['eleve_nom'] ?? $e['nom'] ?? ''), 'place' => $place];
+
+            $this->pdo->prepare("INSERT INTO examen_places (epreuve_id, convocation_id, numero_place) VALUES (:eid, :cid, :np) ON DUPLICATE KEY UPDATE numero_place = VALUES(numero_place)")
+                ->execute([':eid' => $epreuveId, ':cid' => $e['id'], ':np' => $place]);
+
+            $numero += $increment;
+        }
+
+        return $places;
+    }
+
+    // ─── CONVOCATIONS PDF PAR LOT ───
+
+    /**
+     * Génère les données de convocations pour PDF en lot.
+     */
+    public function genererConvocationsPdfData(int $examenId): array
+    {
+        $examen = $this->pdo->prepare("SELECT * FROM examens WHERE id = :id");
+        $examen->execute([':id' => $examenId]);
+        $ex = $examen->fetch(\PDO::FETCH_ASSOC);
+
+        $epreuves = $this->pdo->prepare("SELECT * FROM epreuves WHERE examen_id = :eid ORDER BY date_epreuve, heure_debut");
+        $epreuves->execute([':eid' => $examenId]);
+
+        $convocationsData = [];
+        foreach ($epreuves as $ep) {
+            $convocations = $this->getConvocations($ep['id']);
+            foreach ($convocations as $c) {
+                $convocationsData[] = [
+                    'examen' => $ex,
+                    'epreuve' => $ep,
+                    'eleve' => $c,
+                    'numero_copie' => $c['numero_copie'] ?? null
+                ];
+            }
+        }
+
+        return $convocationsData;
+    }
+
+    // ─── NUMÉROS COPIES ANONYMES ───
+
+    /**
+     * Attribue des numéros de copie anonymes pour une épreuve.
+     */
+    public function attribuerNumerosCopies(int $epreuveId): int
+    {
+        $convocations = $this->getConvocations($epreuveId);
+        $numeros = range(1, count($convocations));
+        shuffle($numeros);
+
+        $count = 0;
+        foreach ($convocations as $idx => $c) {
+            $num = str_pad((string)$numeros[$idx], 4, '0', STR_PAD_LEFT);
+            $this->pdo->prepare("UPDATE epreuve_convocations SET numero_copie = :nc WHERE id = :id")
+                ->execute([':nc' => $num, ':id' => $c['id']]);
+            $count++;
+        }
+
+        return $count;
+    }
+
+    // ─── IMPORT RÉSULTATS CSV ───
+
+    /**
+     * Importe les résultats d'une épreuve depuis un CSV.
+     * Format : numero_copie;note ou id_eleve;note
+     */
+    public function importResultats(int $epreuveId, string $filePath): array
+    {
+        if (!file_exists($filePath)) return ['imported' => 0, 'errors' => ['Fichier introuvable']];
+
+        $handle = fopen($filePath, 'r');
+        $header = fgetcsv($handle, 0, ';');
+        $header = array_map('strtolower', array_map('trim', $header));
+
+        $errors = [];
+        $imported = 0;
+        $ligne = 1;
+
+        while (($row = fgetcsv($handle, 0, ';')) !== false) {
+            $ligne++;
+            $identifiant = $row[0] ?? '';
+            $note = $row[1] ?? '';
+
+            if (!is_numeric($note)) { $errors[] = "Ligne {$ligne}: note invalide"; continue; }
+
+            // Trouver la convocation par numéro de copie ou par ID élève
+            $conv = $this->pdo->prepare("SELECT id FROM epreuve_convocations WHERE epreuve_id = :eid AND (numero_copie = :nc OR eleve_id = :elid) LIMIT 1");
+            $conv->execute([':eid' => $epreuveId, ':nc' => $identifiant, ':elid' => is_numeric($identifiant) ? (int)$identifiant : 0]);
+            $convId = $conv->fetchColumn();
+
+            if (!$convId) { $errors[] = "Ligne {$ligne}: élève non trouvé ({$identifiant})"; continue; }
+
+            $this->pdo->prepare("UPDATE epreuve_convocations SET note = :n WHERE id = :id")
+                ->execute([':n' => (float)$note, ':id' => $convId]);
+            $imported++;
+        }
+
+        fclose($handle);
+        return ['imported' => $imported, 'errors' => $errors];
     }
 }

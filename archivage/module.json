@@ -1,17 +1,43 @@
 {
-  "key": "archivage",
-  "version": "1.0.0",
-  "name": { "fr": "Archivage", "en": "Archiving" },
-  "description": { "fr": "Gestion de l'archivage des données", "en": "Data archiving management" },
-  "icon": "fas fa-archive",
-  "category": "administration",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["administrateur"] },
-    "manage": { "default_roles": ["administrateur"] }
-  },
-  "routes": { "main": "archivage.php" },
-  "widgets": [],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 80 }
+    "key": "archivage",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Archivage",
+        "en": "Archiving"
+    },
+    "description": {
+        "fr": "Gestion de l'archivage des données",
+        "en": "Data archiving management"
+    },
+    "icon": "fas fa-archive",
+    "category": "administration",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "administrateur"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur"
+            ]
+        }
+    },
+    "routes": {
+        "main": "archivage.php"
+    },
+    "widgets": [],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 80
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "systeme",
+        "sort_order": 72
+    }
 }

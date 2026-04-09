@@ -3,6 +3,9 @@
  * Fonctions helper globales
  */
 
+// UI Component Library
+require_once __DIR__ . '/../UI/Components.php';
+
 if (!function_exists('e')) {
     /**
      * Échappe une valeur pour affichage HTML sécurisé

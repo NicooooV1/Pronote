@@ -1,0 +1,19 @@
+{
+    "support.title": "Support",
+    "support.tickets": "Tickets",
+    "support.create": "Créer un ticket",
+    "support.faq": "FAQ",
+    "support.knowledge_base": "Base de connaissances",
+    "support.subject": "Sujet",
+    "support.description": "Description",
+    "support.priority": "Priorité",
+    "support.low": "Basse",
+    "support.medium": "Moyenne",
+    "support.high": "Haute",
+    "support.critical": "Critique",
+    "support.status": "Statut",
+    "support.open": "Ouvert",
+    "support.closed": "Fermé",
+    "support.sla": "SLA",
+    "support.no_tickets": "Aucun ticket enregistré."
+}

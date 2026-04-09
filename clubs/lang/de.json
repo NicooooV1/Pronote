@@ -1,0 +1,15 @@
+{
+    "clubs.title": "AGs & Aktivitaeten",
+    "clubs.add": "AG erstellen",
+    "clubs.edit": "AG bearbeiten",
+    "clubs.delete": "AG loeschen",
+    "clubs.name": "AG-Name",
+    "clubs.description": "Beschreibung",
+    "clubs.instructor": "Leiter",
+    "clubs.schedule": "Zeitplan",
+    "clubs.members": "Mitglieder",
+    "clubs.register": "Anmelden",
+    "clubs.unregister": "Abmelden",
+    "clubs.capacity": "Verfuegbare Plaetze",
+    "clubs.no_clubs": "Keine AGs verfuegbar."
+}

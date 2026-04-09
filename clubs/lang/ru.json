@@ -1,0 +1,15 @@
+{
+    "clubs.title": "Клубы и активности",
+    "clubs.add": "Create a Club",
+    "clubs.edit": "Edit Club",
+    "clubs.delete": "Delete Club",
+    "clubs.name": "Club Name",
+    "clubs.description": "Description",
+    "clubs.instructor": "Instructor",
+    "clubs.schedule": "Schedule",
+    "clubs.members": "Members",
+    "clubs.register": "Register",
+    "clubs.unregister": "Unregister",
+    "clubs.capacity": "Available Spots",
+    "clubs.no_clubs": "No clubs available."
+}

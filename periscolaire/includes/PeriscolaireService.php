@@ -103,6 +103,57 @@ class PeriscolaireService
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /* ───── WAITLIST ───── */
+
+    /**
+     * Add student to waitlist when service is full.
+     */
+    public function ajouterListeAttente(int $serviceId, int $eleveId, string $jour): int
+    {
+        $pos = (int)$this->pdo->prepare("SELECT COALESCE(MAX(position), 0) + 1 FROM periscolaire_waitlist WHERE service_id = ? AND jour = ?")
+                              ->execute([$serviceId, $jour]) ? $this->pdo->query("SELECT COALESCE(MAX(position), 0) + 1 FROM periscolaire_waitlist WHERE service_id = {$serviceId}")->fetchColumn() : 1;
+
+        $stmt = $this->pdo->prepare("INSERT INTO periscolaire_waitlist (service_id, eleve_id, jour, position, created_at) VALUES (?, ?, ?, ?, NOW())");
+        $stmt->execute([$serviceId, $eleveId, $jour, $pos]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Get waitlist for a service.
+     */
+    public function getListeAttente(int $serviceId, ?string $jour = null): array
+    {
+        $sql = "SELECT pw.*, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom
+                FROM periscolaire_waitlist pw
+                JOIN eleves e ON pw.eleve_id = e.id
+                WHERE pw.service_id = ?";
+        $params = [$serviceId];
+        if ($jour) { $sql .= ' AND pw.jour = ?'; $params[] = $jour; }
+        $sql .= ' ORDER BY pw.position ASC';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Promote next student from waitlist when a spot opens.
+     */
+    public function promoteFromWaitlist(int $serviceId, string $jour): bool
+    {
+        $next = $this->pdo->prepare("SELECT * FROM periscolaire_waitlist WHERE service_id = ? AND jour = ? ORDER BY position LIMIT 1");
+        $next->execute([$serviceId, $jour]);
+        $entry = $next->fetch(PDO::FETCH_ASSOC);
+        if (!$entry) return false;
+
+        try {
+            $this->inscrire($serviceId, $entry['eleve_id'], $jour);
+            $this->pdo->prepare("DELETE FROM periscolaire_waitlist WHERE id = ?")->execute([$entry['id']]);
+            return true;
+        } catch (\RuntimeException $e) {
+            return false;
+        }
+    }
+
     /* ───── MENUS CANTINE ───── */
 
     public function getMenus(string $dateDebut = null, string $dateFin = null): array
@@ -198,5 +249,95 @@ class PeriscolaireService
             $s['places_max'] ?? 'Illimité',
             $s['nb_inscrits'] ?? 0,
         ], $services);
+    }
+
+    // ─── CATALOGUE ILLUSTRÉ ───
+
+    public function getCatalogue(?string $type = null): array
+    {
+        $services = $this->getServices($type);
+        return array_map(fn($s) => [
+            'id' => $s['id'],
+            'nom' => $s['nom'],
+            'type' => $s['type'],
+            'type_label' => self::typesService()[$s['type']] ?? $s['type'],
+            'icone' => self::iconeType($s['type']),
+            'description' => $s['description'] ?? '',
+            'horaires' => $s['horaires'] ?? '',
+            'tarif' => $s['tarif'] ?? 0,
+            'places_max' => $s['places_max'],
+            'nb_inscrits' => $s['nb_inscrits'] ?? 0,
+            'places_restantes' => ($s['places_max'] ?? 999) - ($s['nb_inscrits'] ?? 0),
+            'image' => $s['image'] ?? null,
+        ], $services);
+    }
+
+    // ─── FACTURATION AUTO ───
+
+    public function genererFacturationMois(string $mois): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT ip.eleve_id, CONCAT(e.prenom, ' ', e.nom) AS eleve_nom,
+                   sp.nom AS service_nom, sp.tarif,
+                   COUNT(pp.id) AS nb_presences
+            FROM inscriptions_periscolaire ip
+            JOIN eleves e ON ip.eleve_id = e.id
+            JOIN services_periscolaires sp ON ip.service_id = sp.id
+            LEFT JOIN presences_periscolaire pp ON pp.inscription_id = ip.id
+                  AND pp.present = 1
+                  AND DATE_FORMAT(pp.date, '%Y-%m') = :m
+            WHERE ip.statut = 'active'
+            GROUP BY ip.eleve_id, sp.id
+            HAVING nb_presences > 0
+            ORDER BY e.nom
+        ");
+        $stmt->execute([':m' => $mois]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $factures = [];
+        foreach ($rows as $r) {
+            $montant = ((float)$r['tarif']) * (int)$r['nb_presences'];
+            $factures[] = [
+                'eleve_id' => $r['eleve_id'],
+                'eleve_nom' => $r['eleve_nom'],
+                'service' => $r['service_nom'],
+                'tarif_unitaire' => (float)$r['tarif'],
+                'nb_presences' => (int)$r['nb_presences'],
+                'montant_total' => round($montant, 2),
+            ];
+        }
+        return $factures;
+    }
+
+    // ─── RAPPORT MENSUEL ───
+
+    public function getRapportMensuel(string $mois): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT sp.nom AS service, sp.type,
+                   COUNT(DISTINCT ip.eleve_id) AS nb_inscrits,
+                   COUNT(pp.id) AS nb_presences_total,
+                   SUM(pp.present) AS nb_presents,
+                   COUNT(pp.id) - COALESCE(SUM(pp.present), 0) AS nb_absents
+            FROM services_periscolaires sp
+            LEFT JOIN inscriptions_periscolaire ip ON ip.service_id = sp.id AND ip.statut = 'active'
+            LEFT JOIN presences_periscolaire pp ON pp.inscription_id = ip.id AND DATE_FORMAT(pp.date, '%Y-%m') = :m
+            GROUP BY sp.id
+            ORDER BY sp.nom
+        ");
+        $stmt->execute([':m' => $mois]);
+        $services = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $totalInscrits = array_sum(array_column($services, 'nb_inscrits'));
+        $totalPresences = array_sum(array_column($services, 'nb_presents'));
+
+        return [
+            'mois' => $mois,
+            'services' => $services,
+            'total_inscrits' => $totalInscrits,
+            'total_presences' => $totalPresences,
+            'taux_presence_global' => $totalPresences > 0 && array_sum(array_column($services, 'nb_presences_total')) > 0
+                ? round($totalPresences / array_sum(array_column($services, 'nb_presences_total')) * 100, 1) : 0,
+        ];
     }
 }

@@ -198,13 +198,114 @@ $audit->log('mon_module.action', $model, [
 ], \Pronote\Services\AuditService::WARNING);
 ```
 
-## Checklist sécurité pour les modules
+## Marketplace Security
 
-- [ ] Requêtes SQL préparées (jamais d'interpolation)
-- [ ] CSRF vérifié sur toutes les mutations
-- [ ] Permissions RBAC vérifiées
-- [ ] Inputs validés et échappés (`htmlspecialchars()`, `intval()`)
+### SHA-256 Integrity Verification
+
+All modules downloaded from the marketplace are verified against a SHA-256 hash before installation:
+
+```php
+// In MarketplaceService::installModule()
+$expectedHash = $catalogItem['sha256'];
+$actualHash = hash_file('sha256', $zipPath);
+if ($expectedHash !== $actualHash) {
+    // Reject — file has been tampered with
+}
+```
+
+### Static Analysis Scanner
+
+`API/Security/ModuleScanner.php` performs static analysis on module code before installation using `token_get_all()`:
+
+**Blocked functions:**
+- `eval`, `exec`, `system`, `shell_exec`, `passthru`, `proc_open`, `popen`
+- Backtick operator
+
+**Blocked patterns:**
+- Variable variables (`$$var`)
+- `preg_replace` with `/e` modifier
+- `base64_decode` combined with `eval`
+- `file_get_contents` with URLs (unless module declares `network` permission)
+- `curl_exec` (unless module declares `network` permission)
+
+### Quarantine System
+
+If the scanner finds minor issues, the module is placed in quarantine (`storage/quarantine/{key}/`) instead of being rejected outright. Quarantined modules:
+- Are not routed or loaded
+- Can be reviewed by admins in `admin/modules/marketplace.php`
+- Can be approved (moved to production) or rejected (deleted)
+
+### Automatic Backup & Rollback
+
+Before installing or updating a module, `MarketplaceService` creates a backup in `storage/backups/modules/{key}_{timestamp}/`. Admins can rollback to the previous version from the marketplace admin page.
+
+## Module Permissions
+
+Modules must declare their required permissions in `module.json`:
+
+```json
+{
+  "required_permissions": ["db_read", "db_write"],
+  "optional_permissions": ["network"]
+}
+```
+
+`API/Security/ModulePermissionGuard.php` enforces these declarations. Permissions are displayed to the admin before installation.
+
+| Permission | Description |
+|---|---|
+| `db_read` | Read access to database |
+| `db_write` | Write access to database |
+| `network` | Make outbound HTTP requests |
+| `filesystem` | Read/write to storage directory |
+| `cron` | Register scheduled tasks |
+
+## WebSocket Security
+
+### JWT Authentication
+
+WebSocket connections require a JWT token issued by the PHP backend. The token contains user ID, role, and expiration time.
+
+```javascript
+// Client (ws-global.js)
+socket = io(wsUrl, {
+    auth: { token: window.WS_TOKEN }
+});
+```
+
+### Token Rotation
+
+JWT tokens are rotated every 20 minutes. The client handles the `token:refresh` event and requests a new token via AJAX (`API/endpoints/ws_token_refresh.php`).
+
+### Rate Limiting
+
+Each WebSocket connection is limited to 30 events per minute. Exceeding this limit triggers automatic disconnection.
+
+### Room Membership Verification
+
+When a client attempts to join a room (e.g., `class:42`), the server makes an HTTP callback to `API/endpoints/ws_verify_room.php` to verify the user belongs to that class.
+
+### Heartbeat
+
+- Server sends ping every 30 seconds
+- Client must respond within 90 seconds
+- No response triggers automatic disconnection
+
+### Connection Logging
+
+All WebSocket connections are logged with: user ID, IP address, user agent, connection/disconnection timestamps.
+
+## Checklist securite pour les modules
+
+- [ ] Requetes SQL preparees (jamais d'interpolation)
+- [ ] CSRF verifie sur toutes les mutations
+- [ ] Permissions RBAC verifiees
+- [ ] Inputs valides et echappes (`htmlspecialchars()`, `intval()`)
 - [ ] Pas d'inline styles ni scripts
-- [ ] Uploads : vérifier type MIME, limiter la taille, stocker hors du webroot
-- [ ] Données sensibles redactées dans les logs
+- [ ] Uploads : verifier type MIME, limiter la taille, stocker hors du webroot
+- [ ] Donnees sensibles redactees dans les logs
 - [ ] Rate limiting sur les endpoints publics
+- [ ] Module declares ses permissions dans `module.json`
+- [ ] Pas de fonctions dangereuses (`eval`, `exec`, `system`, etc.)
+- [ ] Pas de variable variables (`$$var`)
+- [ ] Outbound HTTP only with `network` permission declared

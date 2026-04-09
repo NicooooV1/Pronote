@@ -1,0 +1,17 @@
+{
+    "devoirs.title": "Aufgaben",
+    "devoirs.add": "Aufgabe hinzufuegen",
+    "devoirs.edit": "Aufgabe bearbeiten",
+    "devoirs.delete": "Aufgabe loeschen",
+    "devoirs.subject": "Fach",
+    "devoirs.due_date": "Abgabedatum",
+    "devoirs.description": "Beschreibung",
+    "devoirs.submit": "Aufgabe abgeben",
+    "devoirs.submitted": "Abgegeben",
+    "devoirs.not_submitted": "Nicht abgegeben",
+    "devoirs.late": "Verspaetet",
+    "devoirs.grade": "Note",
+    "devoirs.feedback": "Lehrerkommentar",
+    "devoirs.reminders": "Automatische Erinnerungen",
+    "devoirs.no_homework": "Keine Aufgaben faellig."
+}

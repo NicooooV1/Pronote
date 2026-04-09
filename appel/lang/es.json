@@ -1,0 +1,17 @@
+{
+    "appel.title": "Llamada a lista",
+    "appel.do": "Pasar lista",
+    "appel.present": "Presente",
+    "appel.absent": "Ausente",
+    "appel.late": "Tarde",
+    "appel.excused": "Excusado",
+    "appel.save": "Guardar la lista",
+    "appel.history": "Historial",
+    "appel.classe": "Clase",
+    "appel.date": "Fecha",
+    "appel.time": "Hora",
+    "appel.status": "Estado",
+    "appel.no_students": "Ningún alumno en esta clase.",
+    "appel.saved": "Lista guardada con éxito.",
+    "appel.realtime": "Lista en tiempo real"
+}

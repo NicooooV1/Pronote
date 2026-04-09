@@ -1,0 +1,14 @@
+{
+    "signalements.title": "Denuncias",
+    "signalements.report": "Hacer una denuncia",
+    "signalements.anonymous": "Denuncia anonima",
+    "signalements.category": "Categoria",
+    "signalements.description": "Descripcion",
+    "signalements.status": "Estado",
+    "signalements.new": "Nuevo",
+    "signalements.in_progress": "En curso",
+    "signalements.resolved": "Resuelto",
+    "signalements.closed": "Cerrado",
+    "signalements.follow_up": "Seguimiento",
+    "signalements.no_reports": "Ninguna denuncia registrada."
+}

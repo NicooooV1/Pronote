@@ -1,0 +1,16 @@
+{
+    "inscriptions.title": "Inscriptions",
+    "inscriptions.new": "Nouvelle inscription",
+    "inscriptions.form": "Formulaire d'inscription",
+    "inscriptions.documents": "Documents requis",
+    "inscriptions.upload": "Télécharger des documents",
+    "inscriptions.status": "Statut",
+    "inscriptions.pending": "En attente",
+    "inscriptions.approved": "Validée",
+    "inscriptions.rejected": "Refusée",
+    "inscriptions.workflow": "Workflow de validation",
+    "inscriptions.student": "Élève",
+    "inscriptions.class": "Classe",
+    "inscriptions.year": "Année scolaire",
+    "inscriptions.no_inscriptions": "Aucune inscription en cours."
+}

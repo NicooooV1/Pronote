@@ -175,6 +175,70 @@ class ClientCache
         return $value;
     }
 
+    // ─── User cache population ────────────────────────────────────────
+
+    /**
+     * Populates client cache with user-scoped data after login.
+     * Called once after authentication. Stores: role, permissions, modules, locale, etab info, badges.
+     */
+    public function populateUserCache(): void
+    {
+        $user = $_SESSION['user'] ?? null;
+        if (!$user) {
+            return;
+        }
+
+        $ttl = 1800; // 30 minutes
+
+        // User role
+        $this->set('user_role', $user['type'] ?? 'eleve', $ttl);
+
+        // Establishment ID & info
+        $etabId = \API\Core\EstablishmentContext::id();
+        $this->set('user_etab_id', $etabId, $ttl);
+
+        try {
+            $etabService = app('etablissement');
+            $etabInfo = $etabService->getById($etabId);
+            if ($etabInfo) {
+                $this->set('user_etab_info', [
+                    'nom' => $etabInfo['nom'] ?? '',
+                    'type' => $etabInfo['type'] ?? 'college',
+                    'code' => $etabInfo['code'] ?? 'default',
+                ], $ttl);
+            }
+        } catch (\Throwable $e) {
+            // Non-critical
+        }
+
+        // Locale
+        try {
+            $locale = app('translator')->locale();
+            $this->set('user_locale', $locale, $ttl);
+        } catch (\Throwable $e) {
+            $this->set('user_locale', 'fr', $ttl);
+        }
+
+        // RBAC permissions (compact list)
+        try {
+            $rbac = app('rbac');
+            $permissions = $rbac->getAllPermissions();
+            $this->set('user_permissions', $permissions, $ttl);
+        } catch (\Throwable $e) {
+            // Non-critical
+        }
+
+        // Enabled modules for this user
+        try {
+            $modules = app('modules');
+            $role = $user['type'] ?? 'eleve';
+            $enabledModules = $modules->getEnabledForRole($role);
+            $this->set('user_modules', array_column($enabledModules, 'module_key'), $ttl);
+        } catch (\Throwable $e) {
+            // Non-critical
+        }
+    }
+
     // ─── Cookie helpers ─────────────────────────────────────────────
 
     /**

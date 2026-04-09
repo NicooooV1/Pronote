@@ -1,17 +1,43 @@
 {
-  "key": "personnel",
-  "version": "1.0.0",
-  "name": { "fr": "Personnel", "en": "Staff Management" },
-  "description": { "fr": "Gestion du personnel de l'établissement", "en": "Staff management for the establishment" },
-  "icon": "fas fa-id-badge",
-  "category": "administration",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["administrateur"] },
-    "manage": { "default_roles": ["administrateur"] }
-  },
-  "routes": { "main": "absences.php" },
-  "widgets": [],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 68 }
+    "key": "personnel",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Personnel",
+        "en": "Staff Management"
+    },
+    "description": {
+        "fr": "Gestion du personnel de l'établissement",
+        "en": "Staff management for the establishment"
+    },
+    "icon": "fas fa-id-badge",
+    "category": "administration",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "administrateur"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur"
+            ]
+        }
+    },
+    "routes": {
+        "main": "absences.php"
+    },
+    "widgets": [],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 68
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "systeme",
+        "sort_order": 68
+    }
 }

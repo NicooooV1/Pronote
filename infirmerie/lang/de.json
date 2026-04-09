@@ -1,0 +1,14 @@
+{
+    "infirmerie.title": "Krankenzimmer",
+    "infirmerie.visits": "Besuche",
+    "infirmerie.add_visit": "Besuch erfassen",
+    "infirmerie.student": "Schueler",
+    "infirmerie.date": "Datum",
+    "infirmerie.reason": "Grund",
+    "infirmerie.treatment": "Behandlung",
+    "infirmerie.pai": "PAI",
+    "infirmerie.vaccinations": "Impfnachweis",
+    "infirmerie.protocols": "Notfallprotokolle",
+    "infirmerie.stats": "Statistiken",
+    "infirmerie.no_visits": "Keine Besuche erfasst."
+}

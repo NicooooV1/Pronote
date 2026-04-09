@@ -1,17 +1,47 @@
 {
-  "key": "appel",
-  "version": "1.0.0",
-  "name": { "fr": "Appel", "en": "Roll Call" },
-  "description": { "fr": "Gestion de l'appel et des présences", "en": "Roll call and attendance management" },
-  "icon": "fas fa-clipboard-check",
-  "category": "scolaire",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["administrateur", "professeur", "vie_scolaire"] },
-    "manage": { "default_roles": ["administrateur", "professeur", "vie_scolaire"] }
-  },
-  "routes": { "main": "appel.php" },
-  "widgets": [],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 15 }
+    "key": "appel",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Appel",
+        "en": "Roll Call"
+    },
+    "description": {
+        "fr": "Gestion de l'appel et des présences",
+        "en": "Roll call and attendance management"
+    },
+    "icon": "fas fa-clipboard-check",
+    "category": "scolaire",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "administrateur",
+                "professeur",
+                "vie_scolaire"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "professeur",
+                "vie_scolaire"
+            ]
+        }
+    },
+    "routes": {
+        "main": "appel.php"
+    },
+    "widgets": [],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 15
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "scolaire",
+        "sort_order": 21
+    }
 }

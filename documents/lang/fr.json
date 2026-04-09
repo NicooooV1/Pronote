@@ -1,0 +1,17 @@
+{
+    "documents.title": "Documents",
+    "documents.upload": "Télécharger un document",
+    "documents.download": "Télécharger",
+    "documents.delete": "Supprimer",
+    "documents.share": "Partager",
+    "documents.search": "Rechercher",
+    "documents.name": "Nom du fichier",
+    "documents.size": "Taille",
+    "documents.type": "Type",
+    "documents.date": "Date d'ajout",
+    "documents.owner": "Propriétaire",
+    "documents.versions": "Versions",
+    "documents.folder": "Dossier",
+    "documents.create_folder": "Créer un dossier",
+    "documents.no_documents": "Aucun document disponible."
+}

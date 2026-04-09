@@ -1,17 +1,38 @@
 {
     "key": "agenda",
     "version": "1.0.0",
-    "name": { "fr": "Agenda", "en": "Calendar" },
-    "description": { "fr": "Agenda et événements scolaires", "en": "School calendar and events" },
+    "name": {
+        "fr": "Agenda",
+        "en": "Calendar"
+    },
+    "description": {
+        "fr": "Agenda et événements scolaires",
+        "en": "School calendar and events"
+    },
     "icon": "fas fa-calendar-alt",
     "category": "scolaire",
     "core": false,
     "requires_php": ">=8.0",
     "dependencies": [],
     "permissions": {
-        "view": { "default_roles": ["*"] },
-        "manage": { "default_roles": ["administrateur", "professeur", "vie_scolaire"] },
-        "create": { "default_roles": ["administrateur", "professeur"] }
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "professeur",
+                "vie_scolaire"
+            ]
+        },
+        "create": {
+            "default_roles": [
+                "administrateur",
+                "professeur"
+            ]
+        }
     },
     "routes": {
         "main": "agenda.php"
@@ -19,12 +40,21 @@
     "widgets": [
         {
             "key": "prochains_evenements",
-            "name": { "fr": "Prochains événements", "en": "Upcoming events" },
-            "description": { "fr": "Événements à venir cette semaine", "en": "Events coming up this week" },
+            "name": {
+                "fr": "Prochains événements",
+                "en": "Upcoming events"
+            },
+            "description": {
+                "fr": "Événements à venir cette semaine",
+                "en": "Events coming up this week"
+            },
             "type": "list",
             "icon": "fas fa-calendar",
             "roles": null,
-            "default_size": { "width": 2, "height": 1 },
+            "default_size": {
+                "width": 2,
+                "height": 1
+            },
             "min_width": 1,
             "max_width": 4,
             "is_default": true,
@@ -34,5 +64,15 @@
         }
     ],
     "establishment_types": null,
-    "sidebar": { "sort_order": 12 }
+    "sidebar": {
+        "sort_order": 12
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "scolaire",
+        "sort_order": 17
+    }
 }

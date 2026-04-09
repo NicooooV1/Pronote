@@ -1,0 +1,13 @@
+{
+    "rgpd.title": "GDPR",
+    "rgpd.registry": "Processing Registry",
+    "rgpd.consent": "Consents",
+    "rgpd.purge": "Automatic Purge",
+    "rgpd.export": "Data Export",
+    "rgpd.data_subject": "Data Subject",
+    "rgpd.purpose": "Purpose",
+    "rgpd.legal_basis": "Legal Basis",
+    "rgpd.retention": "Retention Period",
+    "rgpd.dpo": "Data Protection Officer",
+    "rgpd.no_records": "No processing records."
+}

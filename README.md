@@ -1,12 +1,26 @@
 # Fronote — Documentation Développeur
 
-![PHP 8+](https://img.shields.io/badge/PHP-8%2B-blue) ![MySQL 5.7+](https://img.shields.io/badge/MySQL-5.7%2B-orange) ![Version](https://img.shields.io/badge/version-2.0.0-green) ![Licence](https://img.shields.io/badge/licence-MIT-lightgrey)
+![PHP 8+](https://img.shields.io/badge/PHP-8%2B-blue) ![MySQL 8+](https://img.shields.io/badge/MySQL-8%2B-orange) ![Version](https://img.shields.io/badge/version-2.0.0_Nova-green) ![Licence](https://img.shields.io/badge/licence-MIT-lightgrey) ![i18n](https://img.shields.io/badge/i18n-8%20locales-blueviolet) ![Modules](https://img.shields.io/badge/modules-60-brightgreen)
 
-> **Deux documents disponibles :**
-> - **README.md** (ce fichier) — Documentation technique pour les développeurs
-> - **[INSTALL.md](INSTALL.md)** — Guide d'installation pour les utilisateurs finaux (établissements scolaires)
+> **Documentation complète :**
+> - **[README.md](README.md)** (ce fichier) — Documentation technique développeur
+> - **[INSTALL.md](INSTALL.md)** — Guide d'installation complet pas à pas
+> - **[CONTRIBUTING.md](CONTRIBUTING.md)** — Guide de contribution
+> - **[SECURITY.md](SECURITY.md)** — Politique de sécurité
+> - **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** — Code de conduite
+> - **[CHANGELOG.md](CHANGELOG.md)** — Historique des versions
+> - **[docs/api-reference.md](docs/api-reference.md)** — Référence API REST
+> - **[docs/module-sdk.md](docs/module-sdk.md)** — Guide création de modules
+> - **[docs/database.md](docs/database.md)** — Schéma et conventions BDD
+> - **[docs/security.md](docs/security.md)** — Guide sécurité développeur
+> - **[docs/translation-guide.md](docs/translation-guide.md)** — Guide traduction (8 langues)
+> - **[docs/theme-development.md](docs/theme-development.md)** — Création de thèmes
+> - **[docs/deployment-guide.md](docs/deployment-guide.md)** — Déploiement production
+> - **[docs/hook-reference.md](docs/hook-reference.md)** — Référence événements/hooks
+> - **[docs/widget-api.md](docs/widget-api.md)** — API widgets dashboard
+> - **[docs/feature-specs.md](docs/feature-specs.md)** — Cahier des charges modules
 
-Fronote est un système de gestion scolaire en **PHP vanilla** (sans framework) : 47 modules, 140+ tables SQL, architecture IoC/PSR-4, API centralisée, WebSocket temps réel, design system tokens + thèmes (classic/glass).
+Fronote est un système de gestion scolaire en **PHP vanilla** (sans framework) : 60 modules, 200+ tables SQL, architecture IoC/PSR-4, API centralisée, WebSocket temps réel, design system tokens + thèmes (classic/glass).
 
 ---
 
@@ -83,6 +97,8 @@ Fronote est un système de gestion scolaire en **PHP vanilla** (sans framework) 
 | **Facades** | `API/Core/Facades/` — CSRF, Auth, DB, Log |
 | **Templates partagés** | `templates/` — header (nonce CSP, CSRF), sidebar, topbar, footer |
 | **Services centralisés** | Upload, auth, rate limiting, modules, WebSocket |
+| **Feature Flags** | `API/Services/FeatureFlagService.php` — ~80 flags granulaires, toggle par sous-fonctionnalité |
+| **i18n (8 langues)** | `API/Services/TranslationService.php` — FR, EN, ES, DE, RU, NL, AR, TH + RTL |
 
 ### Cycle de requête
 
@@ -1081,12 +1097,25 @@ composer dump-autoload --optimize
 3. Rôle autorisé (`roles_autorises` dans DB ou `$roleVisibility` dans le code)
 4. Clé pas dans la liste d'exclusion de `getForSidebar()` (`accueil`, `parametres`)
 
----
-
-## Licence
-
-MIT — voir [LICENSE](LICENSE)
 
 ---
 
-*Fronote v2.0.0 — PHP vanilla · PSR-4 · IoC · 47 modules · 140+ tables · WebSocket · Design system tokens*
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style guide, and pull request process.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for our security policy and how to report vulnerabilities.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the full version history.
+
+## License
+
+Fronote is licensed under the MIT License.
+
+---
+
+*Fronote v2.0.0 "Nova" — PHP vanilla · PSR-4 · IoC · 60 modules · 200+ tables · 8 locales · WebSocket · Design system tokens*

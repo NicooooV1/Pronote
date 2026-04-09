@@ -1,17 +1,43 @@
 {
-  "key": "rgpd",
-  "version": "1.0.0",
-  "name": { "fr": "RGPD", "en": "GDPR" },
-  "description": { "fr": "Gestion de la conformité RGPD", "en": "GDPR compliance management" },
-  "icon": "fas fa-user-shield",
-  "category": "administration",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["administrateur"] },
-    "manage": { "default_roles": ["administrateur"] }
-  },
-  "routes": { "main": "anonymiser.php" },
-  "widgets": [],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 85 }
+    "key": "rgpd",
+    "version": "1.0.0",
+    "name": {
+        "fr": "RGPD",
+        "en": "GDPR"
+    },
+    "description": {
+        "fr": "Gestion de la conformité RGPD",
+        "en": "GDPR compliance management"
+    },
+    "icon": "fas fa-user-shield",
+    "category": "administration",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "administrateur"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur"
+            ]
+        }
+    },
+    "routes": {
+        "main": "anonymiser.php"
+    },
+    "widgets": [],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 85
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "systeme",
+        "sort_order": 73
+    }
 }

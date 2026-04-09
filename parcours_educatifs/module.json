@@ -1,17 +1,44 @@
 {
-  "key": "parcours_educatifs",
-  "version": "1.0.0",
-  "name": { "fr": "Parcours éducatifs", "en": "Educational Pathways" },
-  "description": { "fr": "Gestion des parcours éducatifs des élèves", "en": "Student educational pathways management" },
-  "icon": "fas fa-route",
-  "category": "scolaire",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["*"] },
-    "manage": { "default_roles": ["administrateur", "professeur"] }
-  },
-  "routes": { "main": "parcours.php" },
-  "widgets": [],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 42 }
+    "key": "parcours_educatifs",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Parcours éducatifs",
+        "en": "Educational Pathways"
+    },
+    "description": {
+        "fr": "Gestion des parcours éducatifs des élèves",
+        "en": "Student educational pathways management"
+    },
+    "icon": "fas fa-route",
+    "category": "scolaire",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "professeur"
+            ]
+        }
+    },
+    "routes": {
+        "main": "parcours.php"
+    },
+    "widgets": [],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 42
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "scolaire",
+        "sort_order": 76
+    }
 }

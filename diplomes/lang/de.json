@@ -1,0 +1,13 @@
+{
+    "diplomes.title": "Abschluesse",
+    "diplomes.list": "Abschlussliste",
+    "diplomes.add": "Abschluss hinzufuegen",
+    "diplomes.edit": "Bearbeiten",
+    "diplomes.print": "Drucken",
+    "diplomes.student": "Schueler",
+    "diplomes.type": "Abschlussart",
+    "diplomes.date": "Ausstellungsdatum",
+    "diplomes.mention": "Praedikat",
+    "diplomes.stats": "Erfolgsstatistiken",
+    "diplomes.no_diplomas": "Keine Abschluesse erfasst."
+}

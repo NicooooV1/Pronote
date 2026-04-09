@@ -126,7 +126,16 @@ if (!headers_sent()) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="<?= htmlspecialchars(function_exists('currentLocale') ? currentLocale() : 'fr') ?>" data-theme="<?= htmlspecialchars($_hdr_effective_dark) ?>" data-theme-pref="<?= htmlspecialchars($_hdr_dark_mode) ?>" data-css-theme="<?= htmlspecialchars($_hdr_theme) ?>">
+<?php
+$_hdr_locale = 'fr';
+$_hdr_dir = 'ltr';
+try {
+    $translator = app('translator');
+    $_hdr_locale = $translator->getLocale();
+    $_hdr_dir = $translator->isRtl() ? 'rtl' : 'ltr';
+} catch (\Throwable $_e) {}
+?>
+<html lang="<?= htmlspecialchars($_hdr_locale) ?>" dir="<?= $_hdr_dir ?>" data-theme="<?= htmlspecialchars($_hdr_effective_dark) ?>" data-theme-pref="<?= htmlspecialchars($_hdr_dark_mode) ?>" data-css-theme="<?= htmlspecialchars($_hdr_theme) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -138,11 +147,17 @@ if (!headers_sent()) {
     <link rel="apple-touch-icon" href="<?= $rootPrefix ?>assets/icons/icon-192.png">
     <title><?= htmlspecialchars($pageTitle) ?> - FRONOTE</title>
     <!-- CSS : base + tokens + classic (always) + glass overlay (if selected) -->
+    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/cookie-consent.css">
+    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/topbar.css">
     <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/base.css">
     <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/tokens.css">
+    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/components.css">
     <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/theme-classic.css">
     <?php if ($_hdr_theme === 'glass' || $_hdr_theme === 'auto-glass'): ?>
     <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/theme-glass.css">
+    <?php endif; ?>
+    <?php if ($_hdr_dir === 'rtl'): ?>
+    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/rtl.css">
     <?php endif; ?>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" integrity="sha384-KYJrkGWuVHP9YZ/0sczGQMYGaxGpGXsmEA45LR7IdhQOXFMGqaY6eATZMAi/ROHK" crossorigin="anonymous">
     <?php foreach ($extraCss as $css): ?>
@@ -152,6 +167,9 @@ if (!headers_sent()) {
     <!-- WebSocket global -->
     <script nonce="<?= $_hdr_nonce ?>">window.FRONOTE_WS = <?= $_hdr_ws_config ?>;</script>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-6yMGWMk4R+xj0LHjwXCpNHnM80CKhp9OLRL4e0s5eWzWD2mSKhQOgvD1OuE+ALU" crossorigin="anonymous"></script>
+    <script src="<?= $rootPrefix ?>assets/js/topbar.js" defer></script>
+    <script src="<?= $rootPrefix ?>assets/js/components.js" defer></script>
+    <script src="<?= $rootPrefix ?>assets/js/fronote-ajax.js" defer></script>
     <script src="<?= $rootPrefix ?>assets/js/ws-global.js" defer></script>
     <script src="<?= $rootPrefix ?>assets/js/push-manager.js" defer></script>
     <script nonce="<?= $_hdr_nonce ?>">
@@ -178,5 +196,7 @@ if (!headers_sent()) {
     </script>
 </head>
 <body>
+
+<?php include __DIR__ . '/cookie_consent.php'; ?>
 
 <div class="app-container">

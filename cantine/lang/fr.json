@@ -1,0 +1,14 @@
+{
+    "cantine.title": "Cantine",
+    "cantine.menu": "Menu de la semaine",
+    "cantine.booking": "Réservation",
+    "cantine.allergens": "Allergènes",
+    "cantine.stats": "Statistiques de fréquentation",
+    "cantine.meal_type": "Type de repas",
+    "cantine.date": "Date",
+    "cantine.booked": "Réservé",
+    "cantine.cancel": "Annuler la réservation",
+    "cantine.no_menu": "Aucun menu disponible.",
+    "cantine.capacity": "Capacité",
+    "cantine.price": "Tarif"
+}

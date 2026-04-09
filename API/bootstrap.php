@@ -57,6 +57,7 @@ try {
 
 // Sécurité : forcer display_errors off en production
 $_appEnv = getenv('APP_ENV') ?: 'production';
+$_isDebug = $_appEnv !== 'production' || getenv('APP_DEBUG') === 'true';
 if ($_appEnv === 'production') {
 	ini_set('display_errors', '0');
 	ini_set('display_startup_errors', '0');
@@ -65,7 +66,11 @@ if ($_appEnv === 'production') {
 	ini_set('display_errors', '1');
 	error_reporting(E_ALL);
 }
-unset($_appEnv);
+
+// Register global error handler (friendly pages in prod, traces in dev)
+$_errorHandler = new \API\Core\ErrorHandler(BASE_PATH, $_isDebug);
+$_errorHandler->register();
+unset($_appEnv, $_isDebug, $_errorHandler);
 
 // Définir BASE_URL si pas défini
 if (!defined('BASE_URL')) {
@@ -94,6 +99,41 @@ if (!defined('BASE_URL')) {
 	$baseUrl = $protocol . '://' . $host . rtrim($webPath, '/');
 	define('BASE_URL', $baseUrl);
 }
+
+// ─── Maintenance mode check (file-based, no DB needed) ────────────────────
+$_maintFile = BASE_PATH . '/storage/maintenance.json';
+if (file_exists($_maintFile) && php_sapi_name() !== 'cli') {
+	$_maintData = json_decode(file_get_contents($_maintFile), true);
+	if (($_maintData['active'] ?? false) === true) {
+		$_maintIp = $_SERVER['REMOTE_ADDR'] ?? '';
+		$_maintAllowed = false;
+		foreach ($_maintData['allowed_ips'] ?? [] as $_maintRule) {
+			if ($_maintRule === $_maintIp) { $_maintAllowed = true; break; }
+			if (strpos($_maintRule, '/') !== false) {
+				[$_s, $_b] = explode('/', $_maintRule);
+				if ((ip2long($_maintIp) & (-1 << (32 - (int)$_b))) === (ip2long($_s) & (-1 << (32 - (int)$_b)))) {
+					$_maintAllowed = true; break;
+				}
+			}
+		}
+		// Allow admin system pages through
+		$_maintUri = $_SERVER['REQUEST_URI'] ?? '';
+		$_maintIsAdmin = strpos($_maintUri, '/admin/systeme/maintenance') !== false;
+		if (!$_maintAllowed && !$_maintIsAdmin) {
+			// API requests get JSON 503
+			if (strpos($_maintUri, '/API/') !== false || (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)) {
+				http_response_code(503);
+				header('Content-Type: application/json');
+				echo json_encode(['error' => 'maintenance', 'message' => $_maintData['message'] ?? 'Maintenance']);
+				exit;
+			}
+			require BASE_PATH . '/templates/maintenance.php';
+			exit;
+		}
+	}
+	unset($_maintData, $_maintIp, $_maintAllowed, $_maintRule, $_s, $_b, $_maintUri, $_maintIsAdmin);
+}
+unset($_maintFile);
 
 // Request ID unique pour traçabilité (J1)
 $requestId = bin2hex(random_bytes(8));
@@ -259,11 +299,49 @@ $app->singleton('updates', function($app) {
 	return new \API\Services\UpdateService(BASE_PATH);
 });
 
+// Environment detection
+$app->singleton('environment', function($app) {
+	return new \API\Core\Environment();
+});
+
+// Maintenance Service (file-based, no DB)
+$app->singleton('maintenance', function($app) {
+	return new \API\Services\MaintenanceService(BASE_PATH);
+});
+
+// Health Check Service
+$app->singleton('health', function($app) {
+	return new \API\Services\HealthCheckService($app->make('db')->getConnection(), BASE_PATH);
+});
+
+// Quarantine Service (marketplace security)
+$app->singleton('quarantine', function($app) {
+	return new \API\Services\QuarantineService(BASE_PATH);
+});
+
+// Global Search Service (cross-module search)
+$app->singleton('global_search', function($app) {
+	return new \API\Services\GlobalSearchService($app->make('db')->getConnection());
+});
+
+// Activity Feed Service (cross-module activity timeline)
+$app->singleton('activity_feed', function($app) {
+	return new \API\Services\ActivityFeedService($app->make('db')->getConnection());
+});
+
+// Cross-Module Analytics Service (correlations, trends)
+$app->singleton('cross_analytics', function($app) {
+	return new \API\Services\CrossModuleAnalyticsService($app->make('db')->getConnection());
+});
+
 // Lier l'application aux Facades
 \API\Core\Facade::setApplication($app);
 
 // Démarrer les services
 $app->boot();
+
+// Establishment context (multi-establishment scoping)
+\API\Middleware\EstablishmentScope::handle();
 
 // Legacy bridge (compat helpers)
 require_once API_PATH . '/Legacy/Bridge.php';

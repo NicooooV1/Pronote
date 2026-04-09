@@ -85,5 +85,82 @@ try {
 	$log("Rate limit cleanup error: " . $e->getMessage());
 }
 
+// 7. Temp file cleanup (files older than 24h in storage/tmp)
+try {
+    $tmpDir = BASE_PATH . '/storage/tmp';
+    $cleaned = 0;
+    if (is_dir($tmpDir)) {
+        $cutoff = time() - 86400;
+        foreach (new \DirectoryIterator($tmpDir) as $f) {
+            if ($f->isDot() || $f->isDir()) continue;
+            if ($f->getMTime() < $cutoff) {
+                @unlink($f->getPathname());
+                $cleaned++;
+            }
+        }
+    }
+    $log("Temp files: removed {$cleaned} old files from storage/tmp");
+} catch (\Throwable $e) {
+    $log("Temp cleanup error: " . $e->getMessage());
+}
+
+// 8. Expired sessions purge
+try {
+    $pdo = getPDO();
+    $sessionLifetime = 1800; // 30 minutes
+    $stmt = $pdo->prepare("DELETE FROM sessions WHERE last_activity < ?");
+    $stmt->execute([time() - $sessionLifetime]);
+    $purged = $stmt->rowCount();
+    $log("Sessions: purged {$purged} expired sessions");
+} catch (\Throwable $e) {
+    $log("Session purge error: " . $e->getMessage());
+}
+
+// 9. Old notifications purge (> 90 days)
+try {
+    $pdo = getPDO();
+    $stmt = $pdo->prepare("DELETE FROM notifications WHERE is_read = 1 AND created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)");
+    $stmt->execute();
+    $purged = $stmt->rowCount();
+    $log("Notifications: purged {$purged} old read notifications");
+} catch (\Throwable $e) {
+    $log("Notification purge error: " . $e->getMessage());
+}
+
+// 10. Orphan upload cleanup (files not referenced in any table)
+try {
+    $uploadDir = BASE_PATH . '/uploads/tmp';
+    $cleaned = 0;
+    if (is_dir($uploadDir)) {
+        $cutoff = time() - 86400;
+        foreach (new \DirectoryIterator($uploadDir) as $f) {
+            if ($f->isDot() || $f->isDir()) continue;
+            if ($f->getMTime() < $cutoff) {
+                @unlink($f->getPathname());
+                $cleaned++;
+            }
+        }
+    }
+    $log("Orphan uploads: removed {$cleaned} files from uploads/tmp");
+} catch (\Throwable $e) {
+    $log("Orphan upload cleanup error: " . $e->getMessage());
+}
+
+// 11. Translation coverage report
+try {
+    $langPath = BASE_PATH . '/lang';
+    $frDir = $langPath . '/fr/modules';
+    $locales = ['en', 'es', 'de', 'ru', 'nl', 'ar', 'th'];
+    $frCount = count(glob($frDir . '/*.json'));
+    foreach ($locales as $locale) {
+        $localeDir = $langPath . '/' . $locale . '/modules';
+        $count = is_dir($localeDir) ? count(glob($localeDir . '/*.json')) : 0;
+        $pct = $frCount > 0 ? round($count / $frCount * 100) : 0;
+        $log("i18n [{$locale}]: {$count}/{$frCount} modules ({$pct}%)");
+    }
+} catch (\Throwable $e) {
+    $log("Translation report error: " . $e->getMessage());
+}
+
 $duration = round(microtime(true) - $startTime, 2);
 $log("=== Maintenance completed in {$duration}s ===");

@@ -1,0 +1,16 @@
+{
+    "emploi_du_temps.title": "Emploi du temps",
+    "emploi_du_temps.week": "Semaine",
+    "emploi_du_temps.day": "Jour",
+    "emploi_du_temps.today": "Aujourd'hui",
+    "emploi_du_temps.subject": "Matière",
+    "emploi_du_temps.teacher": "Professeur",
+    "emploi_du_temps.room": "Salle",
+    "emploi_du_temps.class": "Classe",
+    "emploi_du_temps.start": "Début",
+    "emploi_du_temps.end": "Fin",
+    "emploi_du_temps.conflict": "Conflit détecté",
+    "emploi_du_temps.replacement": "Remplacement",
+    "emploi_du_temps.cancelled": "Cours annulé",
+    "emploi_du_temps.no_courses": "Aucun cours programmé."
+}

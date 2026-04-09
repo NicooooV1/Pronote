@@ -607,4 +607,35 @@ class AnnonceService
         }
         return $result;
     }
+
+    // ─── ACQUITTEMENT OBLIGATOIRE ───
+
+    public function acquitter(int $annonceId, int $userId): void
+    {
+        $this->pdo->prepare("INSERT INTO annonces_acquittements (annonce_id, user_id, acquitte, date_acquittement) VALUES (:aid, :uid, 1, NOW()) ON DUPLICATE KEY UPDATE acquitte = 1, date_acquittement = NOW()")
+            ->execute([':aid' => $annonceId, ':uid' => $userId]);
+    }
+
+    public function getAcquittements(int $annonceId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT aa.*, CONCAT(u.prenom,' ',u.nom) AS user_nom FROM annonces_acquittements aa LEFT JOIN utilisateurs u ON aa.user_id = u.id WHERE aa.annonce_id = :aid ORDER BY aa.date_acquittement");
+        $stmt->execute([':aid' => $annonceId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    // ─── ANALYTICS ───
+
+    public function getAnalytics(int $annonceId): array
+    {
+        $vues = $this->pdo->prepare("SELECT COUNT(*) FROM annonce_lectures WHERE annonce_id = :aid");
+        $vues->execute([':aid' => $annonceId]);
+
+        $acquittes = $this->pdo->prepare("SELECT COUNT(*) FROM annonces_acquittements WHERE annonce_id = :aid AND acquitte = 1");
+        $acquittes->execute([':aid' => $annonceId]);
+
+        return [
+            'nb_vues' => (int)$vues->fetchColumn(),
+            'nb_acquittements' => (int)$acquittes->fetchColumn()
+        ];
+    }
 }

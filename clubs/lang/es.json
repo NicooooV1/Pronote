@@ -1,0 +1,15 @@
+{
+    "clubs.title": "Clubes y actividades",
+    "clubs.create": "Crear un club",
+    "clubs.edit": "Modificar club",
+    "clubs.delete": "Eliminar club",
+    "clubs.name": "Nombre del club",
+    "clubs.description": "Descripción",
+    "clubs.instructor": "Instructor",
+    "clubs.schedule": "Horario",
+    "clubs.members": "Miembros",
+    "clubs.join": "Inscribirse",
+    "clubs.leave": "Darse de baja",
+    "clubs.available_spots": "Plazas disponibles",
+    "clubs.no_clubs": "Ningún club disponible."
+}

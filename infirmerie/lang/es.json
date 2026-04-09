@@ -1,0 +1,14 @@
+{
+    "infirmerie.title": "Enfermería",
+    "infirmerie.visits": "Visitas",
+    "infirmerie.add_visit": "Registrar visita",
+    "infirmerie.eleve": "Alumno",
+    "infirmerie.date": "Fecha",
+    "infirmerie.reason": "Motivo",
+    "infirmerie.treatment": "Tratamiento administrado",
+    "infirmerie.pai": "PAI",
+    "infirmerie.vaccinations": "Registro de vacunas",
+    "infirmerie.emergency_protocols": "Protocolos de emergencia",
+    "infirmerie.stats": "Estadísticas",
+    "infirmerie.no_visits": "Ninguna visita registrada."
+}

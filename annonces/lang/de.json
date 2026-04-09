@@ -1,0 +1,13 @@
+{
+    "annonces.title": "Ankuendigungen",
+    "annonces.add": "Ankuendigung veroeffentlichen",
+    "annonces.edit": "Bearbeiten",
+    "annonces.delete": "Loeschen",
+    "annonces.date": "Datum",
+    "annonces.author": "Autor",
+    "annonces.content": "Inhalt",
+    "annonces.target": "Empfaenger",
+    "annonces.published": "Veroeffentlicht",
+    "annonces.draft": "Entwurf",
+    "annonces.no_annonces": "Keine Ankuendigungen veroeffentlicht."
+}

@@ -34,7 +34,7 @@ class TranslationService
     private array $loaded = [];
 
     /** @var string[] Locales supportées */
-    private array $supportedLocales = ['fr', 'en'];
+    private array $supportedLocales = ['fr', 'en', 'es', 'de', 'ru', 'nl', 'ar', 'th'];
 
     public function __construct(string $langPath, string $defaultLocale = 'fr', string $fallbackLocale = 'fr')
     {
@@ -310,9 +310,27 @@ class TranslationService
             return $this->loaded[$cacheKey];
         }
 
-        $path = $this->langPath . '/' . $locale . '/' . $domain . '.json';
+        $path = null;
 
-        if (!file_exists($path)) {
+        // Per-module translations: modules/{key} → {basePath}/{key}/lang/{locale}.json
+        if (strpos($domain, 'modules/') === 0) {
+            $moduleKey = substr($domain, 8); // Remove 'modules/' prefix
+            $basePath = defined('BASE_PATH') ? BASE_PATH : dirname($this->langPath);
+            $modulePath = $basePath . '/' . $moduleKey . '/lang/' . $locale . '.json';
+            if (file_exists($modulePath)) {
+                $path = $modulePath;
+            }
+        }
+
+        // Fallback: global lang/{locale}/{domain}.json
+        if ($path === null) {
+            $globalPath = $this->langPath . '/' . $locale . '/' . $domain . '.json';
+            if (file_exists($globalPath)) {
+                $path = $globalPath;
+            }
+        }
+
+        if ($path === null) {
             $this->loaded[$cacheKey] = [];
             return [];
         }
@@ -336,5 +354,95 @@ class TranslationService
     public function clearCache(): void
     {
         $this->loaded = [];
+    }
+
+    /**
+     * Retourne la locale active.
+     */
+    public function getLocale(): string
+    {
+        return $this->locale;
+    }
+
+    /**
+     * Retourne true si la locale est RTL (arabe).
+     */
+    public function isRtl(): bool
+    {
+        return in_array($this->locale, ['ar', 'he', 'fa'], true);
+    }
+
+    /**
+     * Formate une date selon la locale active.
+     */
+    public function formatDate($date, string $format = 'medium'): string
+    {
+        if (is_string($date)) {
+            $ts = strtotime($date);
+        } elseif ($date instanceof \DateTimeInterface) {
+            $ts = $date->getTimestamp();
+        } else {
+            $ts = (int) $date;
+        }
+
+        if ($ts === false || $ts === 0) return (string) $date;
+
+        if (class_exists('IntlDateFormatter')) {
+            $styles = [
+                'short'  => \IntlDateFormatter::SHORT,
+                'medium' => \IntlDateFormatter::MEDIUM,
+                'long'   => \IntlDateFormatter::LONG,
+                'full'   => \IntlDateFormatter::FULL,
+            ];
+            $style = $styles[$format] ?? \IntlDateFormatter::MEDIUM;
+            $fmt = new \IntlDateFormatter($this->locale, $style, \IntlDateFormatter::NONE);
+            return $fmt->format($ts) ?: date('d/m/Y', $ts);
+        }
+
+        return date('d/m/Y', $ts);
+    }
+
+    /**
+     * Formate un nombre selon la locale active.
+     */
+    public function formatNumber(float $number, int $decimals = 0): string
+    {
+        if (class_exists('NumberFormatter')) {
+            $fmt = new \NumberFormatter($this->locale, \NumberFormatter::DECIMAL);
+            $fmt->setAttribute(\NumberFormatter::MAX_FRACTION_DIGITS, $decimals);
+            return $fmt->format($number) ?: number_format($number, $decimals);
+        }
+
+        return number_format($number, $decimals, ',', ' ');
+    }
+
+    /**
+     * Formate un montant en devise selon la locale active.
+     */
+    public function formatCurrency(float $amount, string $currency = 'EUR'): string
+    {
+        if (class_exists('NumberFormatter')) {
+            $fmt = new \NumberFormatter($this->locale, \NumberFormatter::CURRENCY);
+            return $fmt->formatCurrency($amount, $currency) ?: number_format($amount, 2) . ' ' . $currency;
+        }
+
+        return number_format($amount, 2, ',', ' ') . ' ' . $currency;
+    }
+
+    /**
+     * Noms des locales pour affichage.
+     */
+    public static function getLocaleNames(): array
+    {
+        return [
+            'fr' => 'Francais',
+            'en' => 'English',
+            'es' => 'Espanol',
+            'de' => 'Deutsch',
+            'ru' => 'Russkiy',
+            'nl' => 'Nederlands',
+            'ar' => 'العربية',
+            'th' => 'ไทย',
+        ];
     }
 }

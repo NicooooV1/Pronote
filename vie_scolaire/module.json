@@ -1,31 +1,71 @@
 {
-  "key": "vie_scolaire",
-  "version": "1.0.0",
-  "name": { "fr": "Vie scolaire", "en": "Student Life" },
-  "description": { "fr": "Gestion de la vie scolaire", "en": "Student life management" },
-  "icon": "fas fa-user-graduate",
-  "category": "scolaire",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["administrateur", "vie_scolaire"] },
-    "manage": { "default_roles": ["administrateur", "vie_scolaire"] }
-  },
-  "routes": { "main": "dashboard.php" },
-  "widgets": [
-    {
-      "key": "vie_scolaire_stats",
-      "name": { "fr": "Tableau de bord vie scolaire", "en": "Student life dashboard" },
-      "description": { "fr": "Absences, retards, incidents du jour", "en": "Today's absences, tardiness, incidents" },
-      "type": "stats",
-      "icon": "fas fa-user-graduate",
-      "roles": ["administrateur", "vie_scolaire"],
-      "default_size": { "width": 4, "height": 1 },
-      "is_default": true,
-      "sort_order": 5,
-      "data_provider": "includes/VieScolaireWidgetProvider.php",
-      "template": "widgets/vie_scolaire_stats.php"
+    "key": "vie_scolaire",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Vie scolaire",
+        "en": "Student Life"
+    },
+    "description": {
+        "fr": "Gestion de la vie scolaire",
+        "en": "Student life management"
+    },
+    "icon": "fas fa-user-graduate",
+    "category": "scolaire",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire"
+            ]
+        }
+    },
+    "routes": {
+        "main": "dashboard.php"
+    },
+    "widgets": [
+        {
+            "key": "vie_scolaire_stats",
+            "name": {
+                "fr": "Tableau de bord vie scolaire",
+                "en": "Student life dashboard"
+            },
+            "description": {
+                "fr": "Absences, retards, incidents du jour",
+                "en": "Today's absences, tardiness, incidents"
+            },
+            "type": "stats",
+            "icon": "fas fa-user-graduate",
+            "roles": [
+                "administrateur",
+                "vie_scolaire"
+            ],
+            "default_size": {
+                "width": 4,
+                "height": 1
+            },
+            "is_default": true,
+            "sort_order": 5,
+            "data_provider": "includes/VieScolaireWidgetProvider.php",
+            "template": "widgets/vie_scolaire_stats.php"
+        }
+    ],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 16
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "scolaire",
+        "sort_order": 23
     }
-  ],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 16 }
 }

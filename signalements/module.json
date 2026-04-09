@@ -1,17 +1,46 @@
 {
-  "key": "signalements",
-  "version": "1.0.0",
-  "name": { "fr": "Signalements", "en": "Incident Reports" },
-  "description": { "fr": "Gestion des signalements et incidents", "en": "Incident reports management" },
-  "icon": "fas fa-exclamation-triangle",
-  "category": "outils",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["administrateur", "vie_scolaire", "professeur"] },
-    "manage": { "default_roles": ["administrateur", "vie_scolaire"] }
-  },
-  "routes": { "main": "signalements.php" },
-  "widgets": [],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 64 }
+    "key": "signalements",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Signalements",
+        "en": "Incident Reports"
+    },
+    "description": {
+        "fr": "Gestion des signalements et incidents",
+        "en": "Incident reports management"
+    },
+    "icon": "fas fa-exclamation-triangle",
+    "category": "outils",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire",
+                "professeur"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "vie_scolaire"
+            ]
+        }
+    },
+    "routes": {
+        "main": "signalements.php"
+    },
+    "widgets": [],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 64
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "systeme",
+        "sort_order": 25
+    }
 }

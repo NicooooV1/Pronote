@@ -163,6 +163,86 @@ class BibliothequeService
         return array_merge($livres, $emprunts);
     }
 
+    /* ───────── RESERVATIONS ───────── */
+
+    /**
+     * Reserve a book that is currently borrowed.
+     */
+    public function reserverLivre(int $livreId, int $userId, string $userType): int
+    {
+        // Check the book exists and is fully borrowed
+        $livre = $this->getLivre($livreId);
+        if (!$livre) throw new \RuntimeException('Livre introuvable.');
+        if ($livre['exemplaires_disponibles'] > 0) throw new \RuntimeException('Des exemplaires sont disponibles, pas besoin de réserver.');
+
+        // Check not already reserved by this user
+        $check = $this->pdo->prepare("SELECT id FROM livre_reservations WHERE livre_id = ? AND user_id = ? AND user_type = ? AND statut = 'en_attente'");
+        $check->execute([$livreId, $userId, $userType]);
+        if ($check->fetch()) throw new \RuntimeException('Vous avez déjà une réservation en attente.');
+
+        // Get position in queue
+        $posStmt = $this->pdo->prepare("SELECT MAX(position_queue) FROM livre_reservations WHERE livre_id = ? AND statut = 'en_attente'");
+        $posStmt->execute([$livreId]);
+        $pos = ((int)$posStmt->fetchColumn()) + 1;
+
+        $stmt = $this->pdo->prepare("
+            INSERT INTO livre_reservations (livre_id, user_id, user_type, position_queue, statut, created_at)
+            VALUES (?, ?, ?, ?, 'en_attente', NOW())
+        ");
+        $stmt->execute([$livreId, $userId, $userType, $pos]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Get reservations for a book.
+     */
+    public function getReservationsLivre(int $livreId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT lr.*,
+                COALESCE(
+                    (SELECT CONCAT(el.prenom, ' ', el.nom) FROM eleves el WHERE el.id = lr.user_id AND lr.user_type = 'eleve'),
+                    (SELECT CONCAT(p.prenom, ' ', p.nom) FROM professeurs p WHERE p.id = lr.user_id AND lr.user_type = 'professeur')
+                ) AS user_nom
+            FROM livre_reservations lr
+            WHERE lr.livre_id = ? AND lr.statut = 'en_attente'
+            ORDER BY lr.position_queue
+        ");
+        $stmt->execute([$livreId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Notify next in queue when a book is returned.
+     */
+    public function notifierProchainReservation(int $livreId): void
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT * FROM livre_reservations
+            WHERE livre_id = ? AND statut = 'en_attente'
+            ORDER BY position_queue LIMIT 1
+        ");
+        $stmt->execute([$livreId]);
+        $next = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$next) return;
+
+        $livre = $this->getLivre($livreId);
+
+        try {
+            require_once __DIR__ . '/../../notifications/includes/NotificationService.php';
+            $notif = new \NotificationService($this->pdo);
+            $notif->creer(
+                $next['user_id'], $next['user_type'], 'bibliotheque',
+                'Livre disponible',
+                "Le livre « {$livre['titre']} » est maintenant disponible. Venez le chercher au CDI.",
+                '/bibliotheque/detail.php?id=' . $livreId, 'haute'
+            );
+        } catch (\Exception $e) {}
+
+        $this->pdo->prepare("UPDATE livre_reservations SET statut = 'notifie', notified_at = NOW() WHERE id = ?")
+                   ->execute([$next['id']]);
+    }
+
     /* ───────── RETARDS & RELANCES ───────── */
 
     /**
@@ -261,5 +341,87 @@ class BibliothequeService
             'dictionnaire' => 'Dictionnaire', 'encyclopedie' => 'Encyclopédie',
             'revue' => 'Revue / Magazine', 'general' => 'Général',
         ];
+    }
+
+    // ─── SCAN ISBN ───
+
+    public function lookupIsbn(string $isbn): ?array
+    {
+        $isbn = preg_replace('/[^0-9X]/', '', strtoupper($isbn));
+        $stmt = $this->pdo->prepare("SELECT * FROM livres WHERE isbn = ?");
+        $stmt->execute([$isbn]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    // ─── LISTES DE LECTURE ───
+
+    public function creerListeLecture(string $titre, int $professeurId, ?string $classe = null, array $livreIds = []): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO bibliotheque_listes_lecture (titre, professeur_id, classe, livres_ids, created_at) VALUES (:t, :p, :c, :l, NOW())");
+        $stmt->execute([':t' => $titre, ':p' => $professeurId, ':c' => $classe, ':l' => json_encode($livreIds)]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getListesLecture(?int $professeurId = null, ?string $classe = null): array
+    {
+        $sql = "SELECT ll.*, CONCAT(p.prenom, ' ', p.nom) AS professeur_nom FROM bibliotheque_listes_lecture ll LEFT JOIN professeurs p ON ll.professeur_id = p.id WHERE 1=1";
+        $params = [];
+        if ($professeurId) { $sql .= " AND ll.professeur_id = :p"; $params[':p'] = $professeurId; }
+        if ($classe) { $sql .= " AND ll.classe = :c"; $params[':c'] = $classe; }
+        $sql .= " ORDER BY ll.created_at DESC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getLivresListe(int $listeId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT livres_ids FROM bibliotheque_listes_lecture WHERE id = ?");
+        $stmt->execute([$listeId]);
+        $ids = json_decode($stmt->fetchColumn() ?: '[]', true);
+        if (empty($ids)) return [];
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt2 = $this->pdo->prepare("SELECT * FROM livres WHERE id IN ($placeholders) ORDER BY titre");
+        $stmt2->execute($ids);
+        return $stmt2->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function ajouterLivreAListe(int $listeId, int $livreId): void
+    {
+        $stmt = $this->pdo->prepare("SELECT livres_ids FROM bibliotheque_listes_lecture WHERE id = ?");
+        $stmt->execute([$listeId]);
+        $ids = json_decode($stmt->fetchColumn() ?: '[]', true);
+        if (!in_array($livreId, $ids)) {
+            $ids[] = $livreId;
+            $this->pdo->prepare("UPDATE bibliotheque_listes_lecture SET livres_ids = ? WHERE id = ?")->execute([json_encode($ids), $listeId]);
+        }
+    }
+
+    // ─── HISTORIQUE LECTEUR ───
+
+    public function getHistoriqueEleve(int $eleveId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT e.*, l.titre, l.auteur, l.isbn, l.categorie
+            FROM emprunts e
+            JOIN livres l ON e.livre_id = l.id
+            WHERE e.emprunteur_id = :eid AND e.emprunteur_type = 'eleve'
+            ORDER BY e.date_emprunt DESC
+        ");
+        $stmt->execute([':eid' => $eleveId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getStatsLecteur(int $eleveId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT COUNT(*) AS total_emprunts,
+                   COUNT(CASE WHEN statut = 'retourne' THEN 1 END) AS retournes,
+                   COUNT(CASE WHEN statut = 'emprunte' THEN 1 END) AS en_cours,
+                   COUNT(CASE WHEN statut = 'emprunte' AND date_retour_prevue < CURDATE() THEN 1 END) AS en_retard
+            FROM emprunts WHERE emprunteur_id = ? AND emprunteur_type = 'eleve'
+        ");
+        $stmt->execute([$eleveId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
     }
 }

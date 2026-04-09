@@ -343,6 +343,109 @@ class BulletinService {
         return $id !== false ? (int)$id : null;
     }
 
+    // ─── LIVE PREVIEW ───
+
+    /**
+     * Generate HTML preview of a bulletin (for live preview AJAX).
+     */
+    public function generatePreviewHtml(int $bulletinId): string
+    {
+        $bulletin = $this->getBulletin($bulletinId);
+        if (!$bulletin) return '<p>Bulletin introuvable.</p>';
+
+        $lignes = $this->getLignesMatieres($bulletinId);
+        $compBilan = $this->getCompetencesBulletin($bulletinId);
+
+        $html = '<div class="bulletin-preview">';
+        $html .= '<div class="bp-header">';
+        $html .= '<h2>' . htmlspecialchars($bulletin['eleve_prenom'] . ' ' . $bulletin['eleve_nom']) . '</h2>';
+        $html .= '<p>Classe: ' . htmlspecialchars($bulletin['classe_nom'] ?? $bulletin['classe'] ?? '') . ' — ' . htmlspecialchars($bulletin['periode_nom'] ?? '') . '</p>';
+        if ($bulletin['moyenne_generale']) {
+            $html .= '<div class="bp-moyenne">Moyenne générale: <strong>' . $bulletin['moyenne_generale'] . '/20</strong></div>';
+        }
+        if ($bulletin['rang']) {
+            $html .= '<div class="bp-rang">Rang: ' . $bulletin['rang'] . '</div>';
+        }
+        $html .= '</div>';
+
+        // Matières
+        if (!empty($lignes)) {
+            $html .= '<table class="bp-table"><thead><tr><th>Matière</th><th>Moyenne</th><th>Classe</th><th>Min</th><th>Max</th><th>Appréciation</th></tr></thead><tbody>';
+            foreach ($lignes as $l) {
+                $html .= '<tr>';
+                $html .= '<td><strong>' . htmlspecialchars($l['matiere_nom']) . '</strong><br><small>' . htmlspecialchars($l['professeur_nom'] ?? '') . '</small></td>';
+                $html .= '<td>' . ($l['moyenne_eleve'] ?? '-') . '</td>';
+                $html .= '<td>' . ($l['moyenne_classe'] ?? '-') . '</td>';
+                $html .= '<td>' . ($l['moyenne_min'] ?? '-') . '</td>';
+                $html .= '<td>' . ($l['moyenne_max'] ?? '-') . '</td>';
+                $html .= '<td>' . htmlspecialchars($l['appreciation'] ?? '') . '</td>';
+                $html .= '</tr>';
+            }
+            $html .= '</tbody></table>';
+        }
+
+        // Compétences
+        if (!empty($compBilan)) {
+            $html .= '<div class="bp-section"><h4>Bilan de compétences</h4>';
+            foreach ($compBilan as $cb) {
+                $html .= '<div class="bp-comp-row">';
+                $html .= '<span>' . htmlspecialchars($cb['domaine']) . '</span>';
+                $html .= '<span class="badge badge-sm">' . htmlspecialchars($cb['niveau_moyen'] ?? '') . '</span>';
+                $html .= '</div>';
+            }
+            $html .= '</div>';
+        }
+
+        // Appréciations
+        if (!empty($bulletin['appreciation_generale'])) {
+            $html .= '<div class="bp-section"><h4>Appréciation générale</h4><p>' . htmlspecialchars($bulletin['appreciation_generale']) . '</p></div>';
+        }
+        if (!empty($bulletin['avis_conseil']) && $bulletin['avis_conseil'] !== 'aucun') {
+            $avisLabels = self::avisLabels();
+            $html .= '<div class="bp-section"><h4>Avis du conseil</h4><p>' . htmlspecialchars($avisLabels[$bulletin['avis_conseil']] ?? $bulletin['avis_conseil']) . '</p></div>';
+        }
+
+        // Absences/retards
+        $html .= '<div class="bp-footer">';
+        $html .= 'Absences: ' . ($bulletin['nb_absences'] ?? 0) . ' — Retards: ' . ($bulletin['nb_retards'] ?? 0);
+        $html .= '</div>';
+
+        $html .= '</div>';
+        return $html;
+    }
+
+    /**
+     * Get appreciation progress for a class (how many profs have filled their appreciation).
+     */
+    public function getAppreciationProgress(int $classeId, int $periodeId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT bm.professeur_id, CONCAT(p.prenom, ' ', p.nom) AS prof_nom,
+                   COUNT(*) AS total_lignes,
+                   SUM(CASE WHEN bm.appreciation IS NOT NULL AND bm.appreciation != '' THEN 1 ELSE 0 END) AS avec_appreciation
+            FROM bulletin_matieres bm
+            JOIN bulletins b ON bm.bulletin_id = b.id
+            JOIN professeurs p ON bm.professeur_id = p.id
+            WHERE b.classe_id = ? AND b.periode_id = ?
+            GROUP BY bm.professeur_id, p.prenom, p.nom
+            ORDER BY p.nom
+        ");
+        $stmt->execute([$classeId, $periodeId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get available bulletin templates.
+     */
+    public function getTemplates(): array
+    {
+        try {
+            return $this->pdo->query("SELECT * FROM bulletin_templates ORDER BY name")->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            return [];
+        }
+    }
+
     // ─── LABELS ───
     public static function avisLabels(): array {
         return [
@@ -374,5 +477,174 @@ class BulletinService {
         $label = self::statutLabels()[$statut] ?? $statut;
         $class = $map[$statut] ?? 'badge-secondary';
         return "<span class=\"badge {$class}\">{$label}</span>";
+    }
+
+    // ─── MULTI-TEMPLATE PDF ───
+
+    /**
+     * Fetch bulletin data and template config for PDF rendering.
+     */
+    public function generatePdfWithTemplate(int $bulletinId, string $templateKey): array
+    {
+        $bulletin = $this->getBulletin($bulletinId);
+        if (!$bulletin) {
+            throw new Exception("Bulletin introuvable");
+        }
+
+        $stmt = $this->pdo->prepare("
+            SELECT * FROM bulletin_templates WHERE template_key = :template_key LIMIT 1
+        ");
+        $stmt->execute([':template_key' => $templateKey]);
+        $template = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$template) {
+            throw new Exception("Template introuvable : " . $templateKey);
+        }
+
+        $lignes = $this->getLignesMatieres($bulletinId);
+        $competences = $this->getCompetencesBulletin($bulletinId);
+
+        return [
+            'bulletin'    => $bulletin,
+            'template'    => $template,
+            'matieres'    => $lignes,
+            'competences' => $competences,
+        ];
+    }
+
+    // ─── SIGNATURE NUMÉRIQUE WORKFLOW ───
+
+    /**
+     * Récupère toutes les signatures associées à un bulletin.
+     */
+    public function getSignatures(int $bulletinId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT bs.*, CONCAT(u.prenom, ' ', u.nom) AS signataire_nom
+            FROM bulletin_signatures bs
+            LEFT JOIN utilisateurs u ON bs.signataire_id = u.id
+            WHERE bs.bulletin_id = :bulletin_id
+            ORDER BY bs.date_signature DESC
+        ");
+        $stmt->execute([':bulletin_id' => $bulletinId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Enregistre ou met à jour la signature d'un signataire sur un bulletin.
+     */
+    public function signerBulletin(int $bulletinId, int $signataire_id, string $role, int $signatureId): void
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT id FROM bulletin_signatures
+            WHERE bulletin_id = :bulletin_id AND signataire_id = :signataire_id AND role = :role
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':bulletin_id'   => $bulletinId,
+            ':signataire_id' => $signataire_id,
+            ':role'          => $role,
+        ]);
+        $existing = $stmt->fetchColumn();
+
+        if ($existing) {
+            $stmt = $this->pdo->prepare("
+                UPDATE bulletin_signatures
+                SET signature_id = :signature_id, date_signature = NOW()
+                WHERE id = :id
+            ");
+            $stmt->execute([
+                ':signature_id' => $signatureId,
+                ':id'           => $existing,
+            ]);
+        } else {
+            $stmt = $this->pdo->prepare("
+                INSERT INTO bulletin_signatures (bulletin_id, signataire_id, role, signature_id, date_signature)
+                VALUES (:bulletin_id, :signataire_id, :role, :signature_id, NOW())
+            ");
+            $stmt->execute([
+                ':bulletin_id'   => $bulletinId,
+                ':signataire_id' => $signataire_id,
+                ':role'          => $role,
+                ':signature_id'  => $signatureId,
+            ]);
+        }
+    }
+
+    // ─── ACQUITTEMENT PARENT ───
+
+    /**
+     * Marque un bulletin comme consulté par le parent.
+     */
+    public function acquitterParent(int $bulletinId, int $parentId): void
+    {
+        $stmt = $this->pdo->prepare("
+            UPDATE bulletins
+            SET consulte_par_parent = 1, date_consultation_parent = NOW()
+            WHERE id = :bulletin_id AND eleve_id IN (
+                SELECT eleve_id FROM eleve_parents WHERE parent_id = :parent_id
+            )
+        ");
+        $stmt->execute([
+            ':bulletin_id' => $bulletinId,
+            ':parent_id'   => $parentId,
+        ]);
+    }
+
+    // ─── ANALYTICS COMPARATIFS ───
+
+    /**
+     * Retourne la distribution des moyennes générales pour une classe et une période.
+     */
+    public function getDistributionClasse(int $classeId, int $periodeId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT
+                CASE
+                    WHEN moyenne_generale < 5  THEN '00-05'
+                    WHEN moyenne_generale < 8  THEN '05-08'
+                    WHEN moyenne_generale < 10 THEN '08-10'
+                    WHEN moyenne_generale < 12 THEN '10-12'
+                    WHEN moyenne_generale < 14 THEN '12-14'
+                    WHEN moyenne_generale < 16 THEN '14-16'
+                    WHEN moyenne_generale < 18 THEN '16-18'
+                    ELSE '18-20'
+                END AS tranche,
+                COUNT(*) AS nb_eleves
+            FROM bulletins
+            WHERE classe_id = :classe_id AND periode_id = :periode_id AND moyenne_generale IS NOT NULL
+            GROUP BY tranche
+            ORDER BY tranche
+        ");
+        $stmt->execute([
+            ':classe_id'  => $classeId,
+            ':periode_id' => $periodeId,
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ─── GÉNÉRATION PAR LOT ASYNC ───
+
+    /**
+     * Insère un job de génération en lot pour traitement asynchrone.
+     * Retourne l'identifiant du job créé.
+     */
+    public function queueBulkGeneration(int $classeId, int $periodeId): int
+    {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO jobs (queue, payload, status, created_at)
+            VALUES (:queue, :payload, 'pending', NOW())
+        ");
+        $payload = json_encode([
+            'action'     => 'bulk_generation_bulletins',
+            'classe_id'  => $classeId,
+            'periode_id' => $periodeId,
+        ], JSON_UNESCAPED_UNICODE);
+
+        $stmt->execute([
+            ':queue'   => 'bulletins',
+            ':payload' => $payload,
+        ]);
+
+        return (int) $this->pdo->lastInsertId();
     }
 }

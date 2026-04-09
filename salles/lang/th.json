@@ -1,0 +1,16 @@
+{
+    "salles.title": "ห้องเรียน",
+    "salles.list": "Room List",
+    "salles.add": "Add Room",
+    "salles.edit": "Edit",
+    "salles.plan": "Occupancy Plan",
+    "salles.reserve": "Reserve",
+    "salles.name": "Name",
+    "salles.capacity": "Capacity",
+    "salles.equipment": "Equipment",
+    "salles.building": "Building",
+    "salles.floor": "Floor",
+    "salles.available": "Available",
+    "salles.occupied": "Occupied",
+    "salles.no_rooms": "No rooms recorded."
+}

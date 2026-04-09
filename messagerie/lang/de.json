@@ -1,0 +1,20 @@
+{
+    "messagerie.title": "Nachrichten",
+    "messagerie.inbox": "Posteingang",
+    "messagerie.sent": "Gesendete Nachrichten",
+    "messagerie.compose": "Neue Nachricht",
+    "messagerie.reply": "Antworten",
+    "messagerie.forward": "Weiterleiten",
+    "messagerie.delete": "Loeschen",
+    "messagerie.archive": "Archivieren",
+    "messagerie.search": "Suchen",
+    "messagerie.to": "Empfaenger",
+    "messagerie.subject": "Betreff",
+    "messagerie.body": "Nachricht",
+    "messagerie.attachments": "Anhaenge",
+    "messagerie.send": "Senden",
+    "messagerie.broadcast": "Rundschreiben",
+    "messagerie.read": "Gelesen",
+    "messagerie.unread": "Ungelesen",
+    "messagerie.no_messages": "Keine Nachrichten."
+}

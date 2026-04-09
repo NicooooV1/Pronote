@@ -1,17 +1,44 @@
 {
-  "key": "cahierdetextes",
-  "version": "1.0.0",
-  "name": { "fr": "Cahier de textes", "en": "Homework Log" },
-  "description": { "fr": "Gestion du cahier de textes et des devoirs", "en": "Homework log and assignments management" },
-  "icon": "fas fa-book-open",
-  "category": "scolaire",
-  "core": false,
-  "permissions": {
-    "view": { "default_roles": ["*"] },
-    "manage": { "default_roles": ["administrateur", "professeur"] }
-  },
-  "routes": { "main": "cahierdetextes.php" },
-  "widgets": [],
-  "establishment_types": null,
-  "sidebar": { "sort_order": 14 }
+    "key": "cahierdetextes",
+    "version": "1.0.0",
+    "name": {
+        "fr": "Cahier de textes",
+        "en": "Homework Log"
+    },
+    "description": {
+        "fr": "Gestion du cahier de textes et des devoirs",
+        "en": "Homework log and assignments management"
+    },
+    "icon": "fas fa-book-open",
+    "category": "scolaire",
+    "core": false,
+    "permissions": {
+        "view": {
+            "default_roles": [
+                "*"
+            ]
+        },
+        "manage": {
+            "default_roles": [
+                "administrateur",
+                "professeur"
+            ]
+        }
+    },
+    "routes": {
+        "main": "cahierdetextes.php"
+    },
+    "widgets": [],
+    "establishment_types": null,
+    "sidebar": {
+        "sort_order": 14
+    },
+    "author": "Fronote Team",
+    "author_url": "",
+    "contributors": [],
+    "license": "MIT",
+    "topbar": {
+        "category": "scolaire",
+        "sort_order": 14
+    }
 }

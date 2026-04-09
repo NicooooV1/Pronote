@@ -1,0 +1,16 @@
+{
+    "besoins.title": "Besoins éducatifs particuliers",
+    "besoins.pap": "PAP",
+    "besoins.ppre": "PPRE",
+    "besoins.pps": "PPS",
+    "besoins.pai": "PAI",
+    "besoins.add": "Ajouter un dossier",
+    "besoins.student": "Élève",
+    "besoins.type": "Type de dispositif",
+    "besoins.start_date": "Date de début",
+    "besoins.end_date": "Date de fin",
+    "besoins.referent": "Référent",
+    "besoins.adaptations": "Aménagements",
+    "besoins.follow_up": "Suivi",
+    "besoins.no_records": "Aucun dossier enregistré."
+}

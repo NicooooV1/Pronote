@@ -1,0 +1,17 @@
+{
+    "appel.title": "Appel",
+    "appel.do_call": "Faire l'appel",
+    "appel.present": "Présent",
+    "appel.absent": "Absent",
+    "appel.late": "En retard",
+    "appel.excused": "Excusé",
+    "appel.save": "Enregistrer l'appel",
+    "appel.history": "Historique des appels",
+    "appel.class": "Classe",
+    "appel.date": "Date",
+    "appel.hour": "Heure",
+    "appel.status": "Statut",
+    "appel.no_students": "Aucun élève dans cette classe.",
+    "appel.saved": "Appel enregistré avec succès.",
+    "appel.realtime": "Appel en temps réel"
+}

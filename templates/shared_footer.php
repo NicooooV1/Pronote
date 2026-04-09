@@ -97,5 +97,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?= $extraScriptHtml ?>
 
+<?php // Dev toolbar (non-production only)
+require_once __DIR__ . '/dev_toolbar.php';
+?>
+
 </body>
 </html>

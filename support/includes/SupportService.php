@@ -179,6 +179,80 @@ class SupportService
         return $map[$p] ?? $p;
     }
 
+    /* ───── SLA TRACKING ───── */
+
+    /**
+     * SLA targets by priority (in hours).
+     */
+    public static function slaTargets(): array
+    {
+        return [
+            'urgente' => ['first_response' => 1, 'resolution' => 4],
+            'haute'   => ['first_response' => 4, 'resolution' => 24],
+            'normale' => ['first_response' => 24, 'resolution' => 72],
+            'basse'   => ['first_response' => 48, 'resolution' => 168],
+        ];
+    }
+
+    /**
+     * Calculate SLA status for a ticket.
+     */
+    public function getSlaStatus(array $ticket): array
+    {
+        $targets = self::slaTargets();
+        $priority = $ticket['priorite'] ?? 'normale';
+        $target = $targets[$priority] ?? $targets['normale'];
+
+        $createdAt = strtotime($ticket['date_creation']);
+        $now = time();
+        $firstResponse = !empty($ticket['first_response_at']) ? strtotime($ticket['first_response_at']) : null;
+        $resolved = !empty($ticket['date_reponse']) ? strtotime($ticket['date_reponse']) : null;
+
+        $responseDeadline = $createdAt + ($target['first_response'] * 3600);
+        $resolutionDeadline = $createdAt + ($target['resolution'] * 3600);
+
+        return [
+            'priority' => $priority,
+            'first_response_target_hours' => $target['first_response'],
+            'resolution_target_hours' => $target['resolution'],
+            'response_deadline' => date('Y-m-d H:i', $responseDeadline),
+            'resolution_deadline' => date('Y-m-d H:i', $resolutionDeadline),
+            'response_met' => $firstResponse ? ($firstResponse <= $responseDeadline) : ($now <= $responseDeadline),
+            'resolution_met' => $resolved ? ($resolved <= $resolutionDeadline) : ($now <= $resolutionDeadline),
+            'response_overdue' => !$firstResponse && ($now > $responseDeadline),
+            'resolution_overdue' => !$resolved && ($now > $resolutionDeadline) && in_array($ticket['statut'], ['ouvert', 'en_cours']),
+        ];
+    }
+
+    /**
+     * Get SLA dashboard metrics.
+     */
+    public function getSlaMetrics(): array
+    {
+        $tickets = $this->getTousTickets();
+        $metrics = ['total' => count($tickets), 'response_met' => 0, 'response_breached' => 0, 'resolution_met' => 0, 'resolution_breached' => 0];
+
+        foreach ($tickets as $t) {
+            $sla = $this->getSlaStatus($t);
+            if ($sla['response_met']) $metrics['response_met']++;
+            if ($sla['response_overdue']) $metrics['response_breached']++;
+            if ($sla['resolution_met'] && !empty($t['date_reponse'])) $metrics['resolution_met']++;
+            if ($sla['resolution_overdue']) $metrics['resolution_breached']++;
+        }
+
+        $metrics['response_rate'] = $metrics['total'] > 0 ? round($metrics['response_met'] / $metrics['total'] * 100, 1) : 100;
+        return $metrics;
+    }
+
+    /**
+     * Record first response time on a ticket.
+     */
+    public function recordFirstResponse(int $ticketId): void
+    {
+        $this->pdo->prepare("UPDATE tickets_support SET first_response_at = NOW() WHERE id = ? AND first_response_at IS NULL")
+                   ->execute([$ticketId]);
+    }
+
     /* ───── EXPORT ───── */
 
     public function getTicketsForExport(array $filters = []): array
@@ -211,5 +285,67 @@ class SupportService
             ($a['utile_oui'] ?? 0) . '/' . ($a['utile_non'] ?? 0),
             $a['ordre'] ?? 0,
         ], $articles);
+    }
+
+    // ─── SLA PAR CATÉGORIE ───
+
+    public function getSla(string $categorie, string $priorite = 'normale'): ?array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM support_sla WHERE categorie = :c AND priorite = :p");
+        $stmt->execute([':c' => $categorie, ':p' => $priorite]);
+        return $stmt->fetch(\PDO::FETCH_ASSOC) ?: null;
+    }
+
+    // ─── RÉPONSES TYPES ───
+
+    public function getReponsesTypes(?string $categorie = null): array
+    {
+        $sql = "SELECT * FROM support_reponses_types";
+        $params = [];
+        if ($categorie) { $sql .= " WHERE categorie = :c"; $params[':c'] = $categorie; }
+        $sql .= " ORDER BY titre";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    // ─── NOTE SATISFACTION ───
+
+    public function noterSatisfaction(int $ticketId, int $note, string $commentaire = ''): void
+    {
+        $this->pdo->prepare("UPDATE support_tickets SET satisfaction_note = :n, satisfaction_commentaire = :c WHERE id = :id")
+            ->execute([':n' => $note, ':c' => $commentaire, ':id' => $ticketId]);
+    }
+
+    // ─── AUTO-SUGGEST FAQ ───
+
+    public function suggestFaq(string $sujet): array
+    {
+        $stmt = $this->pdo->prepare("SELECT id, question, reponse FROM support_faq WHERE MATCH(question, reponse) AGAINST(:s IN NATURAL LANGUAGE MODE) LIMIT 5");
+        try {
+            $stmt->execute([':s' => $sujet]);
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            // Fallback LIKE search if FULLTEXT not available
+            $stmt = $this->pdo->prepare("SELECT id, question, reponse FROM support_faq WHERE question LIKE :q OR reponse LIKE :q2 LIMIT 5");
+            $stmt->execute([':q' => "%{$sujet}%", ':q2' => "%{$sujet}%"]);
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        }
+    }
+
+    // ─── NOTES INTERNES ───
+
+    public function ajouterNoteInterne(int $ticketId, string $contenu, int $auteurId): int
+    {
+        $stmt = $this->pdo->prepare("INSERT INTO support_notes_internes (ticket_id, contenu, auteur_id) VALUES (:tid, :c, :aid)");
+        $stmt->execute([':tid' => $ticketId, ':c' => $contenu, ':aid' => $auteurId]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    public function getNotesInternes(int $ticketId): array
+    {
+        $stmt = $this->pdo->prepare("SELECT ni.*, CONCAT(p.prenom,' ',p.nom) AS auteur_nom FROM support_notes_internes ni LEFT JOIN professeurs p ON ni.auteur_id = p.id WHERE ni.ticket_id = :tid ORDER BY ni.created_at ASC");
+        $stmt->execute([':tid' => $ticketId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 }

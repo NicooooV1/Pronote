@@ -1,0 +1,15 @@
+{
+    "reunions.title": "Réunions",
+    "reunions.schedule": "Planifier une réunion",
+    "reunions.calendar": "Calendrier",
+    "reunions.date": "Date",
+    "reunions.time": "Heure",
+    "reunions.location": "Lieu",
+    "reunions.participants": "Participants",
+    "reunions.agenda": "Ordre du jour",
+    "reunions.minutes": "Compte-rendu",
+    "reunions.reminders": "Rappels automatiques",
+    "reunions.video": "Visioconférence",
+    "reunions.book_slot": "Réserver un créneau",
+    "reunions.no_meetings": "Aucune réunion programmée."
+}

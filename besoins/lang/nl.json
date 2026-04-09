@@ -1,0 +1,16 @@
+{
+    "besoins.title": "Speciale onderwijsbehoeften",
+    "besoins.pap": "PAP",
+    "besoins.ppre": "PPRE",
+    "besoins.pps": "PPS",
+    "besoins.pai": "PAI",
+    "besoins.add": "Add a Record",
+    "besoins.student": "Student",
+    "besoins.type": "Support Type",
+    "besoins.start_date": "Start Date",
+    "besoins.end_date": "End Date",
+    "besoins.referent": "Referent",
+    "besoins.adaptations": "Accommodations",
+    "besoins.follow_up": "Follow-up",
+    "besoins.no_records": "No records found."
+}
