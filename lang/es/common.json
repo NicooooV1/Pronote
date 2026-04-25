@@ -31,6 +31,7 @@
     "nav.settings": "Configuracion",
     "nav.admin": "Administracion",
     "nav.logout": "Cerrar sesion",
+    "nav.notifications": "Notificaciones",
     "nav.search_placeholder": "Buscar...",
     "nav.no_module_found": "Modulo no encontrado",
     "error.access_denied": "No tiene permisos suficientes.",

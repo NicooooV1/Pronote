@@ -162,66 +162,44 @@ if (!function_exists('hasPermission')) {
  * Fonctions legacy de vérification de permissions par module.
  * @deprecated Utiliser hasPermission('module.action') ou canModule('module', 'action') à la place.
  *
- * Le mapping est centralisé dans un tableau unique. Les fonctions sont générées
- * dans un fichier cache (storage/cache/_legacy_perms.php) et incluses une seule fois.
- * Cela élimine l'usage d'eval() tout en gardant la compatibilité totale.
+ * Définies inline (pas d'eval, pas de cache fichier) pour éviter les problèmes de
+ * permissions sur storage/cache/ entre l'utilisateur d'install et www-data.
  */
-$_legacyPermissionMap = [
-    'canManageNotes'       => 'notes',
-    'canManageAbsences'    => 'absences',
-    'canManageDevoirs'     => 'devoirs',
-    'canManageEDT'         => 'edt',
-    'canManageAppel'       => 'appel',
-    'canManageDiscipline'  => 'discipline',
-    'canSignalerIncident'  => 'signaler_incident',
-    'canManageAnnonces'    => 'annonces',
-    'canManageBulletins'   => 'bulletins',
-    'canManageRendus'      => 'rendus',
-    'canAccessVieScolaire' => 'vie_scolaire',
-    'canManageDocuments'   => 'documents',
-    'canManageCompetences' => 'competences',
-    'canAccessReporting'   => 'reporting',
-    'canManageReunions'    => 'reunions',
-    'canManageInscriptions'=> 'inscriptions',
-    'canManageOrientation' => 'orientation',
-    'canManageSignalements'=> 'signalements',
-    'canManageBibliotheque'=> 'bibliotheque',
-    'canManageClubs'       => 'clubs',
-    'canAccessInfirmerie'  => 'infirmerie',
-    'canManageArchives'    => 'archives',
-    'canManageSupport'     => 'support',
-    'canManageExamens'     => 'examens',
-    'canManageBesoins'     => 'besoins',
-    'canManagePersonnel'   => 'personnel',
-    'canManageSalles'      => 'salles',
-    'canManagePeriscolaire'=> 'periscolaire',
-    'canManageStages'      => 'stages',
-    'canManageTransports'  => 'transports',
-    'canManageFacturation' => 'facturation',
-    'canManageRessources'  => 'ressources',
-    'canManageDiplomes'    => 'diplomes',
-];
-
-// Générer un fichier cache contenant toutes les fonctions (évite eval)
-$_cacheDir = (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)) . '/storage/cache';
-$_cacheFile = $_cacheDir . '/_legacy_perms.php';
-
-if (!file_exists($_cacheFile)) {
-    if (!is_dir($_cacheDir)) {
-        @mkdir($_cacheDir, 0755, true);
-    }
-    $_code = "<?php\n// Auto-generated legacy permission functions — do not edit\n";
-    foreach ($_legacyPermissionMap as $_fn => $_pk) {
-        $_code .= "if (!function_exists('{$_fn}')) {\n";
-        $_code .= "    /** @deprecated Use hasPermission('{$_pk}') */ \n";
-        $_code .= "    function {$_fn}(): bool { return hasPermission('{$_pk}'); }\n";
-        $_code .= "}\n";
-    }
-    file_put_contents($_cacheFile, $_code);
+if (!function_exists('canManageNotes')) {
+    function canManageNotes(): bool       { return hasPermission('notes'); }
+    function canManageAbsences(): bool    { return hasPermission('absences'); }
+    function canManageDevoirs(): bool     { return hasPermission('devoirs'); }
+    function canManageEDT(): bool         { return hasPermission('edt'); }
+    function canManageAppel(): bool       { return hasPermission('appel'); }
+    function canManageDiscipline(): bool  { return hasPermission('discipline'); }
+    function canSignalerIncident(): bool  { return hasPermission('signaler_incident'); }
+    function canManageAnnonces(): bool    { return hasPermission('annonces'); }
+    function canManageBulletins(): bool   { return hasPermission('bulletins'); }
+    function canManageRendus(): bool      { return hasPermission('rendus'); }
+    function canAccessVieScolaire(): bool { return hasPermission('vie_scolaire'); }
+    function canManageDocuments(): bool   { return hasPermission('documents'); }
+    function canManageCompetences(): bool { return hasPermission('competences'); }
+    function canAccessReporting(): bool   { return hasPermission('reporting'); }
+    function canManageReunions(): bool    { return hasPermission('reunions'); }
+    function canManageInscriptions(): bool{ return hasPermission('inscriptions'); }
+    function canManageOrientation(): bool { return hasPermission('orientation'); }
+    function canManageSignalements(): bool{ return hasPermission('signalements'); }
+    function canManageBibliotheque(): bool{ return hasPermission('bibliotheque'); }
+    function canManageClubs(): bool       { return hasPermission('clubs'); }
+    function canAccessInfirmerie(): bool  { return hasPermission('infirmerie'); }
+    function canManageArchives(): bool    { return hasPermission('archives'); }
+    function canManageSupport(): bool     { return hasPermission('support'); }
+    function canManageExamens(): bool     { return hasPermission('examens'); }
+    function canManageBesoins(): bool     { return hasPermission('besoins'); }
+    function canManagePersonnel(): bool   { return hasPermission('personnel'); }
+    function canManageSalles(): bool      { return hasPermission('salles'); }
+    function canManagePeriscolaire(): bool{ return hasPermission('periscolaire'); }
+    function canManageStages(): bool      { return hasPermission('stages'); }
+    function canManageTransports(): bool  { return hasPermission('transports'); }
+    function canManageFacturation(): bool { return hasPermission('facturation'); }
+    function canManageRessources(): bool  { return hasPermission('ressources'); }
+    function canManageDiplomes(): bool    { return hasPermission('diplomes'); }
 }
-
-require_once $_cacheFile;
-unset($_legacyPermissionMap, $_cacheDir, $_cacheFile, $_code, $_fn, $_pk);
 
 if (!function_exists('isPersonnelVS')) {
     /** @deprecated Utiliser isVieScolaire() */

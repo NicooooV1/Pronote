@@ -28,6 +28,7 @@
     "nav.settings": "الإعدادات",
     "nav.admin": "الإدارة",
     "nav.logout": "تسجيل الخروج",
+    "nav.notifications": "الإشعارات",
     "nav.search_placeholder": "بحث...",
     "error.access_denied": "تم رفض الوصول.",
     "error.not_found": "الصفحة غير موجودة.",

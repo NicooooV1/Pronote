@@ -73,7 +73,7 @@ class FeatureFlagService
         }
 
         try {
-            $stmt = $this->pdo->query("SELECT type FROM etablissement_info LIMIT 1");
+            $stmt = $this->pdo->query("SELECT type FROM etablissements LIMIT 1");
             $this->currentType = $stmt->fetchColumn() ?: 'college';
         } catch (\Throwable $e) {
             $this->currentType = 'college';

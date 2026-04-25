@@ -124,7 +124,7 @@ if ($_topbar_is_parent && !empty($_SESSION['user_id'])) {
 
         <!-- Notifications -->
         <a href="<?= $rootPrefix ?>notifications/notifications.php" class="topbar-action-btn topbar-notif-btn"
-           title="<?= __('common.notifications') ?>">
+           title="<?= __('nav.notifications') ?>">
             <i class="fas fa-bell"></i>
             <?php if ($_topbar_notif_count > 0): ?>
             <span class="topbar-badge"><?= $_topbar_notif_count > 99 ? '99+' : $_topbar_notif_count ?></span>
@@ -171,14 +171,14 @@ if ($_topbar_is_parent && !empty($_SESSION['user_id'])) {
             </button>
             <div class="topbar-dropdown__menu topbar-dropdown__menu--right">
                 <a href="<?= $rootPrefix ?>profil/index.php" class="topbar-dropdown__item">
-                    <i class="fas fa-user"></i> <span><?= __('common.profile') ?></span>
+                    <i class="fas fa-user"></i> <span><?= __('nav.profile') ?></span>
                 </a>
                 <a href="<?= $rootPrefix ?>parametres/parametres.php" class="topbar-dropdown__item">
-                    <i class="fas fa-cog"></i> <span><?= __('common.settings') ?></span>
+                    <i class="fas fa-cog"></i> <span><?= __('nav.settings') ?></span>
                 </a>
                 <hr class="topbar-dropdown__divider">
                 <a href="<?= $rootPrefix ?>login/logout.php" class="topbar-dropdown__item topbar-dropdown__item--danger">
-                    <i class="fas fa-sign-out-alt"></i> <span><?= __('common.logout') ?></span>
+                    <i class="fas fa-sign-out-alt"></i> <span><?= __('nav.logout') ?></span>
                 </a>
             </div>
         </div>
@@ -196,7 +196,7 @@ if ($_topbar_is_parent && !empty($_SESSION['user_id'])) {
     <div class="search-modal__content">
         <div class="search-modal__input-wrap">
             <i class="fas fa-search"></i>
-            <input type="text" id="search-modal-input" placeholder="<?= __('common.search_placeholder', ['default' => 'Rechercher un module, un eleve, une page...']) ?>" autocomplete="off">
+            <input type="text" id="search-modal-input" placeholder="<?= __('nav.search_placeholder', ['default' => 'Rechercher un module, un eleve, une page...']) ?>" autocomplete="off">
             <kbd>Esc</kbd>
         </div>
         <div class="search-modal__results" id="search-modal-results"></div>

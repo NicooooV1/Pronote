@@ -13,6 +13,10 @@
   padding: 0;
 }
 
+/* ======= Global visibility utilities ======= */
+.is-hidden { display: none !important; }
+.modal-overlay.is-visible { display: flex !important; }
+
 /* ======= System font stack ======= */
 html, body {
   height: 100%;

@@ -434,7 +434,7 @@ HTML;
     {
         if ($this->etablissement === null) {
             try {
-                $stmt = $this->pdo->query("SELECT * FROM etablissement_info LIMIT 1");
+                $stmt = $this->pdo->query("SELECT * FROM etablissements LIMIT 1");
                 $this->etablissement = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
             } catch (\PDOException $e) {
                 $this->etablissement = [];

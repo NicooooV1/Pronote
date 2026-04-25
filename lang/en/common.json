@@ -37,6 +37,7 @@
     "nav.settings": "Settings",
     "nav.admin": "Administration",
     "nav.logout": "Log out",
+    "nav.notifications": "Notifications",
     "nav.collapse_menu": "Collapse menu",
     "nav.search_placeholder": "Search...",
     "nav.no_module_found": "No module found",

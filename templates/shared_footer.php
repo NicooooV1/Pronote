@@ -51,7 +51,7 @@ $extraScriptHtml = $extraScriptHtml ?? '';
 <script src="<?= htmlspecialchars($js) ?>"></script>
 <?php endforeach; ?>
 
-<script>
+<script nonce="<?= $_hdr_nonce ?? '' ?>">
 document.addEventListener('DOMContentLoaded', function() {
     // ─── Legal Modal ────────────────────────────────────────────
     var legalModal = document.getElementById('mentions-legales-modal');

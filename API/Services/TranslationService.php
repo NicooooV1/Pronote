@@ -36,6 +36,21 @@ class TranslationService
     /** @var string[] Locales supportées */
     private array $supportedLocales = ['fr', 'en', 'es', 'de', 'ru', 'nl', 'ar', 'th'];
 
+    /**
+     * Mapping préfixe de clé → nom de fichier de domaine.
+     * Permet à des préfixes comme `login.*`, `register.*`, `2fa.*` de pointer vers `auth.json`
+     * sans devoir créer un fichier login.json, register.json, etc.
+     * @var array<string, string>
+     */
+    private array $prefixToDomain = [
+        'login'    => 'auth',
+        'logout'   => 'auth',
+        'register' => 'auth',
+        'reset'    => 'auth',
+        'password' => 'auth',
+        '2fa'      => 'auth',
+    ];
+
     public function __construct(string $langPath, string $defaultLocale = 'fr', string $fallbackLocale = 'fr')
     {
         $this->langPath = rtrim($langPath, '/\\');
@@ -89,7 +104,7 @@ class TranslationService
         // 4. Défaut établissement
         try {
             $pdo = \getPDO();
-            $stmt = $pdo->query("SELECT default_locale FROM etablissement_info LIMIT 1");
+            $stmt = $pdo->query("SELECT default_locale FROM etablissements LIMIT 1");
             $etabLocale = $stmt->fetchColumn();
             if ($etabLocale && in_array($etabLocale, $this->supportedLocales, true)) {
                 return $etabLocale;
@@ -193,8 +208,13 @@ class TranslationService
             $dotPos = strpos($key, '.');
             if ($dotPos !== false) {
                 $prefix = substr($key, 0, $dotPos);
-                // Vérifier si un fichier de domaine existe
-                if ($this->domainFileExists($prefix, $locale)) {
+                // 1. Mapping explicite préfixe → domaine (login → auth, etc.)
+                if (isset($this->prefixToDomain[$prefix])) {
+                    $domain = $this->prefixToDomain[$prefix];
+                    $translationKey = $key; // garder la clé complète "login.title"
+                }
+                // 2. Sinon, vérifier si un fichier portant le nom du préfixe existe
+                elseif ($this->domainFileExists($prefix, $locale)) {
                     $domain = $prefix;
                     $translationKey = substr($key, $dotPos + 1);
                 }

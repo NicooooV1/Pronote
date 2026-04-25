@@ -28,6 +28,7 @@
     "nav.settings": "Настройки",
     "nav.admin": "Администрирование",
     "nav.logout": "Выход",
+    "nav.notifications": "Уведомления",
     "nav.search_placeholder": "Поиск...",
     "error.access_denied": "Доступ запрещён.",
     "error.not_found": "Страница не найдена.",

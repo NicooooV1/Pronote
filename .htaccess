@@ -45,14 +45,7 @@ ErrorDocument 503 /templates/errors/503.php
     # Bloquer l'accès aux répertoires sensibles
     RewriteRule ^(temp|logs|vendor)(/|$) - [F,L]
 
-    # API REST v1 — toutes les requêtes /API/v1/* vers le routeur centralisé
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteRule ^API/v1/(.*)$ API/v1/index.php/$1 [QSA,L]
-
-    # Router /api/* vers le dispatcher (uniquement si fichier/dossier inexistant)
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^api/(.*)$ API/index.php [QSA,L]
+    # Les endpoints API sont appelés directement (ex: API/endpoints/messagerie.php)
 
     # Service Worker scope
     RewriteRule ^sw\.js$ - [L]

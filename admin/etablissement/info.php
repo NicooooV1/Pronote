@@ -18,10 +18,10 @@ if (!isset($_SESSION['csrf_token'])) {
 $csrf_token = $_SESSION['csrf_token'];
 
 // Charger les infos
-$etab = $pdo->query("SELECT * FROM etablissement_info WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
+$etab = $pdo->query("SELECT * FROM etablissements WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
 if (!$etab) {
-    $pdo->exec("INSERT INTO etablissement_info (id, nom) VALUES (1, 'Établissement Scolaire')");
-    $etab = $pdo->query("SELECT * FROM etablissement_info WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
+    $pdo->exec("INSERT INTO etablissements (id, nom) VALUES (1, 'Établissement Scolaire')");
+    $etab = $pdo->query("SELECT * FROM etablissements WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
 }
 
 // POST : mise à jour
@@ -46,10 +46,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['csrf_token'] ?? '') === $c
     }
     $params[] = 1;
 
-    $pdo->prepare("UPDATE etablissement_info SET " . implode(', ', $sets) . " WHERE id = ?")->execute($params);
-    logAudit('etablissement_updated', 'etablissement_info', 1);
+    $pdo->prepare("UPDATE etablissements SET " . implode(', ', $sets) . " WHERE id = ?")->execute($params);
+    logAudit('etablissement_updated', 'etablissements', 1);
     $message = "Informations mises à jour.";
-    $etab = $pdo->query("SELECT * FROM etablissement_info WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
+    $etab = $pdo->query("SELECT * FROM etablissements WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
 }
 
 $pageTitle = 'Fiche établissement';

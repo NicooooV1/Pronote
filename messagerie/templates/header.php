@@ -54,22 +54,13 @@ if (in_array($currentPage, ['conversation'])) {
     $extraCss[] = 'assets/css/conversation.css';
 }
 
-// Head HTML supplémentaire (CSRF, WebSocket, Dark mode)
+// Head HTML supplémentaire (CSRF, WebSocket)
 ob_start();
 ?>
     <?= csrf_meta() ?>
     <!-- Socket.IO client -->
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <script src="<?= $rootPrefix ?>messagerie/assets/js/websocket-client.js"></script>
-    <!-- Dark mode detection -->
-    <script>
-        (function() {
-            const saved = localStorage.getItem('messagerie_theme');
-            if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.setAttribute('data-theme', 'dark');
-            }
-        })();
-    </script>
     <?php if (isset($wsToken)): ?>
     <script>
         window.currentUserId = <?= json_encode($user['id']) ?>;
@@ -87,16 +78,8 @@ ob_start();
 include __DIR__ . '/sidebar_content.php';
 $sidebarExtraContent = ob_get_clean();
 
-// Actions supplémentaires dans le header
-ob_start();
-?>
-                <?php if (isset($user)): ?>
-                <button id="dark-mode-toggle" class="btn-icon" title="Changer de thème" onclick="toggleDarkMode()">
-                    <i class="fas fa-moon"></i>
-                </button>
-                <?php endif; ?>
-<?php
-$headerExtraActions = ob_get_clean();
+// Actions supplémentaires dans le header (aucune — le thème est géré par la topbar globale)
+$headerExtraActions = '';
 
 // Custom page title for topbar
 if (isset($customTitle)) {

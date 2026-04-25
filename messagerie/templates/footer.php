@@ -24,24 +24,7 @@ ob_start();
     <script>
     // ── CSRF Token ──
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-    
-    // ── Dark mode toggle ──
-    function toggleDarkMode() {
-        const html = document.documentElement;
-        const current = html.getAttribute('data-theme');
-        const next = current === 'dark' ? 'light' : 'dark';
-        html.setAttribute('data-theme', next);
-        localStorage.setItem('messagerie_theme', next);
-        
-        const icon = document.querySelector('#dark-mode-toggle i');
-        if (icon) icon.className = next === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
-    }
-    document.addEventListener('DOMContentLoaded', () => {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        const icon = document.querySelector('#dark-mode-toggle i');
-        if (icon) icon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
-    });
-    
+
     // ── Helper: créer un formulaire avec CSRF ──
     function createCsrfForm(action, extraFields) {
         const form = document.createElement('form');

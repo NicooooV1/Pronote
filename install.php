@@ -152,6 +152,97 @@ function validatePasswordStrength(string $pw): array {
     return $e;
 }
 
+/**
+ * Découpe un dump SQL en requêtes individuelles en respectant :
+ *   - les chaînes ' et " (avec doublage des apostrophes échappées),
+ *   - les identifiants entre backticks,
+ *   - les commentaires de ligne -- et #,
+ *   - les commentaires de bloc.
+ * Évite les bugs du naïf explode(";", ...) sur les CSS, RRULE, etc.
+ *
+ * @return string[]
+ */
+function splitSqlStatements(string $sql): array {
+    $statements = [];
+    $buf = '';
+    $len = strlen($sql);
+    $i = 0;
+    $inSingle = false;     // chaîne '...'
+    $inDouble = false;     // chaîne "..."
+    $inBacktick = false;   // identifiant `...`
+    $inLineComment = false;  // commentaire -- ou # jusqu'à \n
+    $inBlockComment = false; // commentaire /* ... */ (préservé pour /*! ... */)
+
+    while ($i < $len) {
+        $ch = $sql[$i];
+        $next = $i + 1 < $len ? $sql[$i + 1] : '';
+
+        // Sortie des commentaires
+        if ($inLineComment) {
+            $buf .= $ch;
+            if ($ch === "\n") $inLineComment = false;
+            $i++;
+            continue;
+        }
+        if ($inBlockComment) {
+            $buf .= $ch;
+            if ($ch === '*' && $next === '/') { $buf .= $next; $i += 2; $inBlockComment = false; continue; }
+            $i++;
+            continue;
+        }
+
+        // Détection des commentaires (uniquement hors chaînes)
+        if (!$inSingle && !$inDouble && !$inBacktick) {
+            if ($ch === '-' && $next === '-' && ($i + 2 >= $len || $sql[$i + 2] === ' ' || $sql[$i + 2] === "\t" || $sql[$i + 2] === "\n" || $sql[$i + 2] === "\r")) {
+                $inLineComment = true;
+                $buf .= $ch; $i++;
+                continue;
+            }
+            if ($ch === '#') {
+                $inLineComment = true;
+                $buf .= $ch; $i++;
+                continue;
+            }
+            if ($ch === '/' && $next === '*') {
+                $inBlockComment = true;
+                $buf .= $ch . $next; $i += 2;
+                continue;
+            }
+            // Fin de requête
+            if ($ch === ';') {
+                $stmt = trim($buf);
+                if ($stmt !== '') $statements[] = $stmt;
+                $buf = '';
+                $i++;
+                continue;
+            }
+        }
+
+        // Gestion des chaînes / identifiants
+        if ($inSingle) {
+            if ($ch === '\\' && $next !== '') { $buf .= $ch . $next; $i += 2; continue; }
+            if ($ch === "'" && $next === "'") { $buf .= "''"; $i += 2; continue; }
+            if ($ch === "'") { $inSingle = false; }
+        } elseif ($inDouble) {
+            if ($ch === '\\' && $next !== '') { $buf .= $ch . $next; $i += 2; continue; }
+            if ($ch === '"' && $next === '"') { $buf .= '""'; $i += 2; continue; }
+            if ($ch === '"') { $inDouble = false; }
+        } elseif ($inBacktick) {
+            if ($ch === '`') { $inBacktick = false; }
+        } else {
+            if ($ch === "'") { $inSingle = true; }
+            elseif ($ch === '"') { $inDouble = true; }
+            elseif ($ch === '`') { $inBacktick = true; }
+        }
+
+        $buf .= $ch;
+        $i++;
+    }
+    $stmt = trim($buf);
+    if ($stmt !== '') $statements[] = $stmt;
+    return $statements;
+}
+
 function ensureDir(string $path): array {
     if (!is_dir($path) && !@mkdir($path, 0755, true)) {
         return ['ok' => false, 'msg' => 'Impossible de créer'];
@@ -257,7 +348,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($exts as $e) {
                 if (!extension_loaded($e)) throw new RuntimeException("Extension PHP manquante : {$e}");
             }
-            $dirs = ['API/logs', 'API/config', 'uploads', 'uploads/messagerie', 'uploads/devoirs', 'uploads/justificatifs', 'temp'];
+            $dirs = [
+                'API/logs', 'API/config',
+                'uploads', 'uploads/messagerie', 'uploads/devoirs', 'uploads/justificatifs',
+                'temp',
+                'storage', 'storage/cache', 'storage/tmp', 'storage/pdf',
+                'storage/backups', 'storage/backups/modules',
+                'storage/email_queue', 'storage/quarantine',
+            ];
             foreach ($dirs as $d) {
                 $r = ensureDir($installDir . '/' . $d);
                 if (!$r['ok']) throw new RuntimeException("Répertoire {$d} : {$r['msg']}");
@@ -529,7 +627,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $tableCount = 0;
             $errors = [];
-            foreach (explode(';', $sql) as $q) {
+            foreach (splitSqlStatements($sql) as $q) {
                 $q = trim($q);
                 if ($q === '') continue;
                 // Ignorer CREATE DATABASE / USE (on le gère nous-mêmes)
@@ -582,7 +680,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Mettre à jour la ligne par défaut (id=1) créée par pronote.sql
                 try {
                     $stmt = $pdo->prepare("
-                        UPDATE etablissement_info SET
+                        UPDATE etablissements SET
                             nom = ?, adresse = ?, code_postal = ?, ville = ?,
                             telephone = ?, email = ?, academie = ?, type = ?
                         WHERE id = 1

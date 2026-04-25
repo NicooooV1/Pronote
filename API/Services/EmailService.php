@@ -341,7 +341,7 @@ class EmailService
         // Charger le nom de l'établissement
         $etabNom = 'Fronote';
         try {
-            $stmt = $this->pdo->query("SELECT nom FROM etablissement_info LIMIT 1");
+            $stmt = $this->pdo->query("SELECT nom FROM etablissements LIMIT 1");
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($row) $etabNom = $row['nom'];
         } catch (\PDOException $e) {}

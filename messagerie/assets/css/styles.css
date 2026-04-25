@@ -138,15 +138,6 @@
 [data-theme="dark"] .conversation-sidebar { background-color: var(--bg-secondary); border-color: var(--border-color); }
 [data-theme="dark"] .empty-state { color: var(--text-muted); }
 
-#dark-mode-toggle {
-    font-size: 1.1rem;
-    cursor: pointer;
-    padding: 6px 8px;
-    border-radius: var(--radius-sm);
-    transition: var(--transition);
-}
-#dark-mode-toggle:hover { background-color: var(--bg-hover); }
-
 /* ═══════════════════════════════════════════════
    2. FOLDER MENU (sidebar content)
    ═══════════════════════════════════════════════ */

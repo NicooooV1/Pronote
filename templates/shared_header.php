@@ -113,14 +113,24 @@ try {
 
 // ─── Security headers ────────────────────────────────────────────────────────
 if (!headers_sent()) {
-    // CSP renforcé avec base-uri, form-action, upgrade-insecure-requests
-    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$_hdr_nonce}' cdnjs.cloudflare.com cdn.socket.io code.jquery.com; style-src 'self' 'nonce-{$_hdr_nonce}' cdnjs.cloudflare.com; font-src cdnjs.cloudflare.com data:; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;");
+    // CSP permissive : 'unsafe-inline' pour scripts ET styles, pas de nonce (évite
+    // les écueils d'intégration avec les onclick/styles inline de modules tiers).
+    // upgrade-insecure-requests désactivé sur HTTP-only (sinon ERR_CONNECTION_REFUSED).
+    $_hdr_isHttps = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    $_hdr_csp = "default-src 'self'; "
+        . "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.socket.io https://code.jquery.com http://cdnjs.cloudflare.com http://cdn.socket.io http://code.jquery.com; "
+        . "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com http://cdnjs.cloudflare.com; "
+        . "font-src 'self' https://cdnjs.cloudflare.com http://cdnjs.cloudflare.com data:; "
+        . "img-src 'self' data: blob: https: http:; "
+        . "connect-src 'self' ws: wss: https: http:; "
+        . "frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
+        . ($_hdr_isHttps ? ' upgrade-insecure-requests;' : '');
+    header("Content-Security-Policy: {$_hdr_csp}");
     header("X-Frame-Options: DENY");
     header("X-Content-Type-Options: nosniff");
     header("Referrer-Policy: strict-origin-when-cross-origin");
     header("Permissions-Policy: camera=(), microphone=(), geolocation=()");
-    // HSTS — actif uniquement en HTTPS pour éviter les problèmes en dev local
-    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+    if ($_hdr_isHttps) {
         header("Strict-Transport-Security: max-age=31536000; includeSubDomains");
     }
 }
@@ -146,32 +156,53 @@ try {
     <link rel="manifest" href="<?= $rootPrefix ?>manifest.webmanifest">
     <link rel="apple-touch-icon" href="<?= $rootPrefix ?>assets/icons/icon-192.png">
     <title><?= htmlspecialchars($pageTitle) ?> - FRONOTE</title>
+    <?php
+    // Cache-busting : ajoute ?v=<mtime> pour forcer le rechargement apres edition
+    $_assetRoot = realpath(__DIR__ . '/..');
+    $_assetVersion = function(string $relPath) use ($_assetRoot, $rootPrefix): string {
+        $abs = $_assetRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relPath);
+        $v = @filemtime($abs) ?: time();
+        return $rootPrefix . $relPath . '?v=' . $v;
+    };
+    ?>
     <!-- CSS : base + tokens + classic (always) + glass overlay (if selected) -->
-    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/cookie-consent.css">
-    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/topbar.css">
-    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/base.css">
-    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/tokens.css">
-    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/components.css">
-    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/theme-classic.css">
+    <link rel="stylesheet" href="<?= $_assetVersion('assets/css/cookie-consent.css') ?>">
+    <link rel="stylesheet" href="<?= $_assetVersion('assets/css/topbar.css') ?>">
+    <link rel="stylesheet" href="<?= $_assetVersion('assets/css/base.css') ?>">
+    <link rel="stylesheet" href="<?= $_assetVersion('assets/css/tokens.css') ?>">
+    <link rel="stylesheet" href="<?= $_assetVersion('assets/css/components.css') ?>">
+    <link rel="stylesheet" href="<?= $_assetVersion('assets/css/theme-classic.css') ?>">
     <?php if ($_hdr_theme === 'glass' || $_hdr_theme === 'auto-glass'): ?>
-    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/theme-glass.css">
+    <link rel="stylesheet" href="<?= $_assetVersion('assets/css/theme-glass.css') ?>">
     <?php endif; ?>
     <?php if ($_hdr_dir === 'rtl'): ?>
-    <link rel="stylesheet" href="<?= $rootPrefix ?>assets/css/rtl.css">
+    <link rel="stylesheet" href="<?= $_assetVersion('assets/css/rtl.css') ?>">
     <?php endif; ?>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" integrity="sha384-KYJrkGWuVHP9YZ/0sczGQMYGaxGpGXsmEA45LR7IdhQOXFMGqaY6eATZMAi/ROHK" crossorigin="anonymous">
-    <?php foreach ($extraCss as $css): ?>
-    <link rel="stylesheet" href="<?= htmlspecialchars($css) ?>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" crossorigin="anonymous">
+    <?php foreach ($extraCss as $css):
+        // Append ?v=<mtime> when the file resolves to a local asset
+        $_cssHref = $css;
+        $_cssRel = null;
+        if (strpos($css, '://') === false) {
+            $_cssRel = ltrim(preg_replace('#^(?:\.\./)+#', '', $css), '/');
+            $_cssAbs = $_assetRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $_cssRel);
+            $_cssMtime = @filemtime($_cssAbs);
+            if ($_cssMtime) {
+                $_cssHref .= (strpos($css, '?') === false ? '?v=' : '&v=') . $_cssMtime;
+            }
+        }
+    ?>
+    <link rel="stylesheet" href="<?= htmlspecialchars($_cssHref) ?>">
     <?php endforeach; ?>
     <?= $extraHeadHtml ?>
     <!-- WebSocket global -->
     <script nonce="<?= $_hdr_nonce ?>">window.FRONOTE_WS = <?= $_hdr_ws_config ?>;</script>
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-6yMGWMk4R+xj0LHjwXCpNHnM80CKhp9OLRL4e0s5eWzWD2mSKhQOgvD1OuE+ALU" crossorigin="anonymous"></script>
-    <script src="<?= $rootPrefix ?>assets/js/topbar.js" defer></script>
-    <script src="<?= $rootPrefix ?>assets/js/components.js" defer></script>
-    <script src="<?= $rootPrefix ?>assets/js/fronote-ajax.js" defer></script>
-    <script src="<?= $rootPrefix ?>assets/js/ws-global.js" defer></script>
-    <script src="<?= $rootPrefix ?>assets/js/push-manager.js" defer></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+    <script src="<?= $_assetVersion('assets/js/topbar.js') ?>" defer></script>
+    <script src="<?= $_assetVersion('assets/js/components.js') ?>" defer></script>
+    <script src="<?= $_assetVersion('assets/js/fronote-ajax.js') ?>" defer></script>
+    <script src="<?= $_assetVersion('assets/js/ws-global.js') ?>" defer></script>
+    <script src="<?= $_assetVersion('assets/js/push-manager.js') ?>" defer></script>
     <script nonce="<?= $_hdr_nonce ?>">
     window.FRONOTE_BASE_URL = <?= json_encode(rtrim($rootPrefix, '/') . '/') ?>;
     if ('serviceWorker' in navigator) {

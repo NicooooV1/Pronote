@@ -28,6 +28,7 @@
     "nav.settings": "Instellingen",
     "nav.admin": "Beheer",
     "nav.logout": "Uitloggen",
+    "nav.notifications": "Meldingen",
     "nav.search_placeholder": "Zoeken...",
     "error.access_denied": "Toegang geweigerd.",
     "error.not_found": "Pagina niet gevonden.",

@@ -28,6 +28,7 @@
     "nav.settings": "Einstellungen",
     "nav.admin": "Verwaltung",
     "nav.logout": "Abmelden",
+    "nav.notifications": "Benachrichtigungen",
     "nav.search_placeholder": "Suchen...",
     "error.access_denied": "Zugriff verweigert.",
     "error.not_found": "Seite nicht gefunden.",

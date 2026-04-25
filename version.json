@@ -1,8 +1,8 @@
 {
-  "version": "2.0.0",
+  "version": "1.7.2",
   "build": "2026-04-09",
   "channel": "stable",
-  "codename": "Nova",
+  "codename": "Back",
   "min_php": "8.0",
   "min_mysql": "8.0",
   "modules": 60,

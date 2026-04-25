@@ -28,6 +28,7 @@
     "nav.settings": "ตั้งค่า",
     "nav.admin": "การจัดการ",
     "nav.logout": "ออกจากระบบ",
+    "nav.notifications": "การแจ้งเตือน",
     "nav.search_placeholder": "ค้นหา...",
     "error.access_denied": "ไม่มีสิทธิ์เข้าถึง",
     "error.not_found": "ไม่พบหน้า",

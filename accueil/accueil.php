@@ -20,12 +20,6 @@ $nom_etablissement  = $etablissement_data['nom'] ?? 'Etablissement Scolaire';
 // Greeting contextuel (FEAT-6)
 $greeting = DashboardService::getGreeting();
 
-// Modules adaptes au role (FEAT-3 + UX-1)
-$modules = $dashboard->getModulesForRole($user_role);
-
-// Badge messagerie (FEAT-4)
-$unreadCount = $dashboard->getUnreadMessageCount($user['id'] ?? 0, $user_role);
-
 // M104 — Widget-based dashboard
 $userId = (int) ($user['id'] ?? 0);
 $userWidgets    = $dashboard->getUserWidgets($userId, $user_role);
@@ -45,7 +39,7 @@ $isAdmin = $user_role === 'administrateur';
 // Configuration des templates partages
 $pageTitle  = 'Tableau de bord';
 $activePage = 'accueil';
-$extraCss   = ['assets/css/accueil.css'];
+$extraCss   = [$rootPrefix . 'assets/css/accueil.css'];
 
 include __DIR__ . '/../templates/shared_header.php';
 include __DIR__ . '/../templates/shared_topbar.php';
@@ -70,25 +64,7 @@ include __DIR__ . '/../templates/shared_topbar.php';
         <!-- Main Dashboard Content -->
         <div class="dashboard-content">
 
-            <!-- Modules Grid (FEAT-3 + UX-1 : ordered & adapted to role) -->
-            <div class="modules-grid">
-                <?php foreach ($modules as $mod): ?>
-                <a href="<?= htmlspecialchars($mod['href']) ?>" class="module-card <?= $mod['css'] ?>">
-                    <div class="module-icon">
-                        <i class="<?= $mod['icon'] ?>"></i>
-                        <?php if ($mod['css'] === 'messagerie-card' && $unreadCount > 0): ?>
-                            <span class="badge-count"><?= $unreadCount ?></span>
-                        <?php endif; ?>
-                    </div>
-                    <div class="module-info">
-                        <h3><?= htmlspecialchars($mod['title']) ?></h3>
-                        <p><?= htmlspecialchars($mod['desc']) ?></p>
-                    </div>
-                </a>
-                <?php endforeach; ?>
-            </div>
-
-            <!-- M104 : Widget Grid Dashboard -->
+            <!-- iPhone-style widget grid -->
             <div class="widget-grid" id="widgetGrid">
                 <?php foreach ($userWidgets as $idx => $widget):
                     if (empty($widget['visible'])) continue;
@@ -115,7 +91,7 @@ include __DIR__ . '/../templates/shared_topbar.php';
                             <span><?= htmlspecialchars($wLabel) ?></span>
                         </div>
                         <div class="widget-card-actions">
-                            <button type="button" class="widget-btn widget-btn-minimize" title="Reduire" onclick="toggleWidgetBody(this)">
+                            <button type="button" class="widget-btn widget-btn-minimize" title="Reduire" data-widget-action="toggle">
                                 <i class="fas fa-chevron-up"></i>
                             </button>
                             <button type="button" class="widget-btn widget-btn-drag" title="Deplacer">
@@ -162,11 +138,11 @@ include __DIR__ . '/../templates/shared_topbar.php';
         </div>
 
         <!-- Modal Personnaliser le dashboard -->
-        <div class="modal-overlay" id="modalCustomize" style="display:none;">
+        <div class="modal-overlay is-hidden" id="modalCustomize">
             <div class="modal-customize">
                 <div class="modal-customize-header">
                     <h2><i class="fas fa-sliders-h"></i> Personnaliser le tableau de bord</h2>
-                    <button type="button" class="modal-close-btn" onclick="closeCustomizeModal()">&times;</button>
+                    <button type="button" class="modal-close-btn" data-customize-action="close">&times;</button>
                 </div>
                 <div class="modal-customize-body">
                     <p class="modal-customize-hint">Activez ou desactivez les widgets, puis reordonnez-les par glisser-deposer.</p>
@@ -175,8 +151,8 @@ include __DIR__ . '/../templates/shared_topbar.php';
                     </div>
                 </div>
                 <div class="modal-customize-footer">
-                    <button type="button" class="btn-secondary" onclick="closeCustomizeModal()">Annuler</button>
-                    <button type="button" class="btn-primary" onclick="saveCustomization()">
+                    <button type="button" class="btn-secondary" data-customize-action="close">Annuler</button>
+                    <button type="button" class="btn-primary" data-customize-action="save">
                         <i class="fas fa-save"></i> Enregistrer
                     </button>
                 </div>
@@ -408,12 +384,13 @@ foreach ($availableAll as $aw) {
     ];
 }
 
-$extraScriptHtml = '<script>
+$_nonceAttr = isset($_hdr_nonce) ? ' nonce="' . htmlspecialchars($_hdr_nonce, ENT_QUOTES) . '"' : '';
+$extraScriptHtml = '<script' . $_nonceAttr . '>
 window.DASHBOARD_CONFIG = ' . json_encode($jsWidgetConfig, JSON_HEX_TAG | JSON_HEX_AMP) . ';
 window.DASHBOARD_AVAILABLE = ' . json_encode($jsAvailableWidgets, JSON_HEX_TAG | JSON_HEX_AMP) . ';
 window.DASHBOARD_CSRF = ' . json_encode($_SESSION['csrf_token'] ?? '', JSON_HEX_TAG | JSON_HEX_AMP) . ';
 </script>
-<script>
+<script' . $_nonceAttr . '>
 (function() {
     "use strict";
 
@@ -488,7 +465,7 @@ window.DASHBOARD_CSRF = ' . json_encode($_SESSION['csrf_token'] ?? '', JSON_HEX_
     // =====================================================================
     //  Toggle widget body (minimize/expand)
     // =====================================================================
-    window.toggleWidgetBody = function(btn) {
+    function toggleWidgetBody(btn) {
         var card = btn.closest(".widget-card");
         var body = card.querySelector(".widget-card-body");
         var footer = card.querySelector(".widget-card-footer");
@@ -496,16 +473,30 @@ window.DASHBOARD_CSRF = ' . json_encode($_SESSION['csrf_token'] ?? '', JSON_HEX_
 
         if (card.classList.contains("widget-minimized")) {
             card.classList.remove("widget-minimized");
-            body.style.display = "";
-            if (footer) footer.style.display = "";
+            if (body) body.classList.remove("is-hidden");
+            if (footer) footer.classList.remove("is-hidden");
             icon.className = "fas fa-chevron-up";
         } else {
             card.classList.add("widget-minimized");
-            body.style.display = "none";
-            if (footer) footer.style.display = "none";
+            if (body) body.classList.add("is-hidden");
+            if (footer) footer.classList.add("is-hidden");
             icon.className = "fas fa-chevron-down";
         }
-    };
+    }
+
+    document.addEventListener("click", function(e) {
+        var tgl = e.target.closest("[data-widget-action]");
+        if (tgl && tgl.getAttribute("data-widget-action") === "toggle") {
+            toggleWidgetBody(tgl);
+            return;
+        }
+        var cst = e.target.closest("[data-customize-action]");
+        if (cst) {
+            var act = cst.getAttribute("data-customize-action");
+            if (act === "close") closeCustomizeModal();
+            else if (act === "save") saveCustomization();
+        }
+    });
 
     // =====================================================================
     //  Save layout to server
@@ -522,7 +513,7 @@ window.DASHBOARD_CSRF = ' . json_encode($_SESSION['csrf_token'] ?? '', JSON_HEX_
                 position_y: idx,
                 width: sizeClass,
                 height: 1,
-                visible: card.style.display !== "none" ? 1 : 0
+                visible: 1
             });
         });
 
@@ -555,7 +546,8 @@ window.DASHBOARD_CSRF = ' . json_encode($_SESSION['csrf_token'] ?? '', JSON_HEX_
     }
 
     function openCustomizeModal() {
-        modal.style.display = "flex";
+        modal.classList.remove("is-hidden");
+        modal.classList.add("is-visible");
 
         var currentKeys = {};
         window.DASHBOARD_CONFIG.forEach(function(w) {
@@ -620,15 +612,16 @@ window.DASHBOARD_CSRF = ' . json_encode($_SESSION['csrf_token'] ?? '', JSON_HEX_
         initCustomizeDrag();
     }
 
-    window.closeCustomizeModal = function() {
-        modal.style.display = "none";
-    };
+    function closeCustomizeModal() {
+        modal.classList.add("is-hidden");
+        modal.classList.remove("is-visible");
+    }
 
     modal.addEventListener("click", function(e) {
         if (e.target === modal) closeCustomizeModal();
     });
 
-    window.saveCustomization = function() {
+    function saveCustomization() {
         var items = customizeList.querySelectorAll(".customize-widget-item");
         var layout = [];
         items.forEach(function(item, idx) {
@@ -670,7 +663,7 @@ window.DASHBOARD_CSRF = ' . json_encode($_SESSION['csrf_token'] ?? '', JSON_HEX_
         }).catch(function() {
             showToast("Erreur reseau", "error");
         });
-    };
+    }
 
     // =====================================================================
     //  Customize Modal — drag reorder
